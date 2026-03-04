@@ -16,7 +16,7 @@ import { NavMenuType } from "../types";
 import { useWebsiteExit } from './useWebsiteExit';
 import { usePermalinkConfig, generateWebsiteUrl } from './usePermalinkConfig';
 import { useFrontendConfig } from './useFrontendConfig';
-import { getArrowConfigByWebsiteClickMode } from '../utils/clickMode';
+import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../utils/clickMode';
 import { debugLog } from '../utils/debugHelper';
 
 // 通用工具接口
@@ -33,6 +33,7 @@ export interface Tool {
   isHot?: boolean;
   isPinned?: boolean; // 置顶标识
   tags: string[];
+  weightTags?: string[]; // 站点权重标签（官方/推荐/企业认证）
   status?: 'active' | 'failed' | 'unchecked'; // 网站状态（监控功能）
   statusMessage?: string; // 失效原因
   slug?: string; // 固定链接 slug
@@ -499,11 +500,12 @@ export const useNavigation = (config: NavigationConfig): NavigationHookReturn =>
     // 从全局配置中读取网站点击模式
     const websiteClickMode = frontendConfig?.pageGlobalConfig?.websiteClickMode || 'detail';
     const detailPageNewWindow = frontendConfig?.pageGlobalConfig?.detailPageNewWindow || false;
+    const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
     const { isDirectMode } = getArrowConfigByWebsiteClickMode(websiteClickMode);
     
     if (isDirectMode) {
       // 直达模式：直接打开外部网站
-      window.open(tool.url, '_blank', 'noopener,noreferrer');
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
     } else {
       // 跳转到网站详情页
       const detailUrl = generateWebsiteUrl(permalinkConfig, { 
@@ -532,8 +534,9 @@ export const useNavigation = (config: NavigationConfig): NavigationHookReturn =>
    */
   const handleDirectVisit = useCallback((tool: Tool, e: React.MouseEvent) => {
     // 强制在新窗口打开外部网站
-    window.open(tool.url, '_blank', 'noopener,noreferrer');
-  }, []);
+    const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
+    window.open(directUrl, '_blank', 'noopener,noreferrer');
+  }, [frontendConfig?.pageGlobalConfig]);
 
   /**
    * 渲染工具卡片数据

@@ -14,7 +14,7 @@ import ToolCard from '../ToolCard';
 import { ToolGridSkeleton } from '../Skeleton';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
-import { getArrowConfigByWebsiteClickMode } from '../../utils/clickMode';
+import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { useNavigate } from 'react-router-dom';
 import './index.css';
 import './index.mobile.css';
@@ -137,13 +137,14 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
       }
     } else {
       // 其他模式下，箭头直达外部网址
+      const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
       if (directArrowNewWindow) {
-        window.open(tool.url, '_blank', 'noopener,noreferrer');
+        window.open(directUrl, '_blank', 'noopener,noreferrer');
       } else {
-        window.location.href = tool.url;
+        window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, getToolSlug]);
+  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, getToolSlug, frontendConfig?.pageGlobalConfig]);
 
   /**
    * 热门推荐点击行为配置（独立于分类区域）
@@ -509,13 +510,15 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
               
               // 如果没有匹配的网站记录，直接打开外部链接（无法跳转详情页）
               if (!hasWebsiteMatch(tool)) {
-                window.open(tool.url, '_blank', 'noopener,noreferrer');
+                const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
+                window.open(directUrl, '_blank', 'noopener,noreferrer');
                 return;
               }
               
               // 热门推荐独立配置：直达模式
               if (hotRecommendationClickMode === 'direct') {
-                window.open(tool.url, '_blank', 'noopener,noreferrer');
+                const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
+                window.open(directUrl, '_blank', 'noopener,noreferrer');
                 return;
               }
               

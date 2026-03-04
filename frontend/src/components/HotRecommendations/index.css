@@ -226,10 +226,12 @@
 /* 工具网格布局 - 与Home页面tools-grid保持一致 */
 .hot-recommendations-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); /* 自适应布局 */
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); /* 自适应布局 */
   gap: 0.75rem; /* 与Home页面一致 */
   margin: 0;
   overflow: visible; /* 允许卡片选中/聚焦描边完整显示 */
+  align-items: stretch;
+  grid-auto-rows: 88px;
 }
 
 /* 确保卡片容器不溢出 */
@@ -272,6 +274,7 @@
   .hot-recommendations-grid {
     grid-template-columns: repeat(2, 1fr); /* 移动端双列 */
     gap: 0.5rem; /* 与Home页面移动端一致 */
+    grid-auto-rows: auto;
   }
   
   .hot-recommendations-header {

@@ -49,6 +49,7 @@ export interface AppearanceConfig {
 
 // 首页配置
 export interface HomepageConfig {
+  homePageSlug: string;
   heroBannerEnabled: boolean;
   heroBgType: 'default' | 'color' | 'gradient' | 'image';
   heroBgValue: string;
@@ -64,6 +65,16 @@ export interface HomepageConfig {
   homeCarouselSort: number;
   homeRecommendationEnabled: boolean;
   homeRecommendationSort: number;
+  dailyNewEnabled: boolean;
+  dailyNewDisplayLabel: string;
+  dailyNewDisplayPath: string;
+  dailyNewDisplayPlacements: string[];
+  dailyNewDisplaySort: number;
+  dailyNewDisplayOpenInNewTab: boolean;
+  dailyNewDefaultDays: number;
+  dailyNewPageKicker: string;
+  dailyNewPageTitle: string;
+  dailyNewPageDescription: string;
   navSwitchItems: Array<{
     slug: string;
     name: string;
@@ -81,6 +92,8 @@ export interface PageGlobalConfig {
   directArrowNewWindow: boolean;
   pageSize: number;
   hotRecommendationClickMode: 'detail' | 'direct';
+  appendRefEnabled: boolean;
+  appendRefValue: string;
 }
 
 // 卡片样式配置
@@ -181,6 +194,8 @@ export interface DetailPageConfig {
   seoLongTailTitle?: string;
   seoLongTailKeywords?: string | string[];
   seoSchemaEnabled?: boolean;
+  seoCanonicalEnabled?: boolean;
+  seoNoindexEnabled?: boolean;
   screenshotsEnabled: boolean;
   thumbnailLayoutStyle?: 'device' | 'split' | 'carousel';
   thumbnailSplitSideCount?: number;
@@ -332,6 +347,7 @@ export const DEFAULT_APPEARANCE: AppearanceConfig = {
 };
 
 export const DEFAULT_HOMEPAGE: HomepageConfig = {
+  homePageSlug: '',
   heroBannerEnabled: true,
   heroBgType: 'default',
   heroBgValue: '',
@@ -347,6 +363,16 @@ export const DEFAULT_HOMEPAGE: HomepageConfig = {
   homeCarouselSort: 10,
   homeRecommendationEnabled: true,
   homeRecommendationSort: 20,
+  dailyNewEnabled: true,
+  dailyNewDisplayLabel: '每日上新',
+  dailyNewDisplayPath: '/p/daily-new',
+  dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
+  dailyNewDisplaySort: 86,
+  dailyNewDisplayOpenInNewTab: false,
+  dailyNewDefaultDays: 1,
+  dailyNewPageKicker: 'Daily Fresh',
+  dailyNewPageTitle: '每日上新网址',
+  dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
   navSwitchItems: [...DEFAULT_NAV_SWITCH_ITEMS],
 };
 
@@ -357,6 +383,8 @@ export const DEFAULT_PAGE_GLOBAL: PageGlobalConfig = {
   directArrowNewWindow: true,
   pageSize: 20,
   hotRecommendationClickMode: 'detail',
+  appendRefEnabled: false,
+  appendRefValue: '',
 };
 
 export const DEFAULT_CARD_STYLE: CardStyleConfig = {
@@ -446,6 +474,8 @@ export const DEFAULT_DETAIL_PAGE: DetailPageConfig = {
   seoLongTailTitle: '相关搜索',
   seoLongTailKeywords: '',
   seoSchemaEnabled: true,
+  seoCanonicalEnabled: true,
+  seoNoindexEnabled: false,
   screenshotsEnabled: true,
   thumbnailLayoutStyle: 'device',
   thumbnailSplitSideCount: 2,
@@ -563,6 +593,8 @@ export const publicSettingService = {
       ...mergedConfig,
       websiteClickMode: publicSettingService.normalizeWebsiteClickMode(mergedConfig.websiteClickMode),
       hotRecommendationClickMode: publicSettingService.normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
+      appendRefEnabled: mergedConfig.appendRefEnabled === true,
+      appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
     };
   },
 
@@ -571,15 +603,54 @@ export const publicSettingService = {
    */
   normalizeHomepageConfig: (config: unknown): HomepageConfig => {
     const merged = { ...DEFAULT_HOMEPAGE, ...((config as Partial<HomepageConfig>) || {}) };
+    /**
+     * 规范化每日上新入口展示位置，限制受控枚举并去重。
+     */
+    const normalizedDailyNewPlacements = (() => {
+      const allowSet = new Set([ 'nav_quick_entry', 'home_menu', 'footer_link' ]);
+      const raw = Array.isArray(merged.dailyNewDisplayPlacements)
+        ? merged.dailyNewDisplayPlacements
+        : [];
+      const list = raw
+        .map((item) => String(item || '').trim())
+        .filter((item) => allowSet.has(item));
+      return Array.from(new Set(list));
+    })();
+    /**
+     * 规范化每日上新入口路径，兼容无前导斜杠和外链写法。
+     */
+    const normalizedDailyNewPath = (() => {
+      const rawPath = String(merged.dailyNewDisplayPath || '').trim();
+      if (!rawPath) return DEFAULT_HOMEPAGE.dailyNewDisplayPath;
+      if (/^(https?:)?\/\//i.test(rawPath)) return rawPath;
+      return rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+    })();
     const normalizedItems = Array.isArray(merged.navSwitchItems)
       ? merged.navSwitchItems
       : DEFAULT_HOMEPAGE.navSwitchItems;
     return {
       ...merged,
+      homePageSlug: String(merged.homePageSlug || '').trim(),
       homeCarouselEnabled: merged.homeCarouselEnabled !== false,
       homeRecommendationEnabled: merged.homeRecommendationEnabled !== false,
       homeCarouselSort: Number.isFinite(Number(merged.homeCarouselSort)) ? Number(merged.homeCarouselSort) : DEFAULT_HOMEPAGE.homeCarouselSort,
       homeRecommendationSort: Number.isFinite(Number(merged.homeRecommendationSort)) ? Number(merged.homeRecommendationSort) : DEFAULT_HOMEPAGE.homeRecommendationSort,
+      dailyNewEnabled: merged.dailyNewEnabled !== false,
+      dailyNewDisplayLabel: String(merged.dailyNewDisplayLabel || DEFAULT_HOMEPAGE.dailyNewDisplayLabel).trim() || DEFAULT_HOMEPAGE.dailyNewDisplayLabel,
+      dailyNewDisplayPath: normalizedDailyNewPath,
+      dailyNewDisplayPlacements: normalizedDailyNewPlacements.length > 0 ? normalizedDailyNewPlacements : DEFAULT_HOMEPAGE.dailyNewDisplayPlacements,
+      dailyNewDisplaySort: Number.isFinite(Number(merged.dailyNewDisplaySort))
+        ? Math.max(1, Math.min(9999, Number(merged.dailyNewDisplaySort)))
+        : DEFAULT_HOMEPAGE.dailyNewDisplaySort,
+      dailyNewDisplayOpenInNewTab: merged.dailyNewDisplayOpenInNewTab === true,
+      dailyNewDefaultDays: Number.isFinite(Number(merged.dailyNewDefaultDays))
+        ? Math.max(1, Math.min(30, Number(merged.dailyNewDefaultDays)))
+        : DEFAULT_HOMEPAGE.dailyNewDefaultDays,
+      dailyNewPageKicker: String(merged.dailyNewPageKicker || DEFAULT_HOMEPAGE.dailyNewPageKicker).trim() || DEFAULT_HOMEPAGE.dailyNewPageKicker,
+      dailyNewPageTitle: String(merged.dailyNewPageTitle || DEFAULT_HOMEPAGE.dailyNewPageTitle).trim() || DEFAULT_HOMEPAGE.dailyNewPageTitle,
+      dailyNewPageDescription: String(
+        merged.dailyNewPageDescription || DEFAULT_HOMEPAGE.dailyNewPageDescription
+      ).trim() || DEFAULT_HOMEPAGE.dailyNewPageDescription,
       navSwitchItems: normalizedItems
         .map((item, index) => ({
           slug: String(item?.slug || DEFAULT_HOMEPAGE.navSwitchItems[index % DEFAULT_HOMEPAGE.navSwitchItems.length].slug),
@@ -589,6 +660,52 @@ export const publicSettingService = {
           sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
         }))
         .sort((a, b) => a.sort - b.sort),
+    };
+  },
+
+  /**
+   * 规范化详情页配置，确保 SEO 开关与排序数组结构稳定
+   */
+  normalizeDetailPageConfig: (config: unknown): DetailPageConfig => {
+    const merged = { ...DEFAULT_DETAIL_PAGE, ...((config as Partial<DetailPageConfig>) || {}) };
+    /**
+     * 规范化排序数组，避免旧数据缺失 sort 导致前端渲染顺序异常。
+     */
+    const normalizeSortableList = <
+      T extends { key: string; name: string; enabled: boolean; sort: number; icon?: string }
+    >(
+      list: unknown,
+      fallback: T[]
+    ): T[] => {
+      const rawList = Array.isArray(list) ? list : [];
+      const normalized = rawList
+        .filter((item) => String((item as { key?: unknown })?.key || '').trim())
+        .map((item, index) => {
+          const typed = (item || {}) as Partial<T>;
+          return {
+            ...(typed as T),
+            key: String(typed.key || '').trim(),
+            name: String(typed.name || typed.key || ''),
+            enabled: typed.enabled !== false,
+            sort: Number.isFinite(Number(typed.sort)) ? Number(typed.sort) : index + 1,
+          };
+        })
+        .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+        .map((item, index) => ({ ...item, sort: index + 1 }));
+      return normalized.length > 0 ? normalized as T[] : fallback;
+    };
+    return {
+      ...merged,
+      seoCanonicalEnabled: merged.seoCanonicalEnabled !== false,
+      seoNoindexEnabled: merged.seoNoindexEnabled === true,
+      shareChannels: normalizeSortableList(
+        merged.shareChannels,
+        (DEFAULT_DETAIL_PAGE.shareChannels || []).map(item => ({ ...item }))
+      ),
+      sidebarModules: normalizeSortableList(
+        merged.sidebarModules,
+        (DEFAULT_DETAIL_PAGE.sidebarModules || []).map(item => ({ ...item }))
+      ),
     };
   },
 
@@ -744,7 +861,7 @@ export const publicSettingService = {
         sidebar: data.sidebar || DEFAULT_SIDEBAR,
         search: { ...DEFAULT_SEARCH, ...(data.search || {}) },
         exitModal: exitModalConfig || DEFAULT_EXIT_MODAL,
-        detailPage: data.detailPage || DEFAULT_DETAIL_PAGE,
+        detailPage: publicSettingService.normalizeDetailPageConfig(data.detailPage),
         article: publicSettingService.normalizeArticleConfig(data.article),
         articleTopics: publicSettingService.normalizeArticleTopicsConfig(data.articleTopics),
       };
@@ -760,7 +877,7 @@ export const publicSettingService = {
         sidebar: DEFAULT_SIDEBAR,
         search: DEFAULT_SEARCH,
         exitModal: DEFAULT_EXIT_MODAL,
-        detailPage: DEFAULT_DETAIL_PAGE,
+        detailPage: publicSettingService.normalizeDetailPageConfig(DEFAULT_DETAIL_PAGE),
         article: DEFAULT_ARTICLE_SETTING,
         articleTopics: DEFAULT_ARTICLE_TOPICS,
       };
@@ -883,10 +1000,10 @@ export const publicSettingService = {
         response.data,
         DEFAULT_DETAIL_PAGE
       );
-      return { ...DEFAULT_DETAIL_PAGE, ...(config || {}) };
+      return publicSettingService.normalizeDetailPageConfig(config);
     } catch (error) {
       debugLog.error('获取详情页配置失败，使用默认配置:', error);
-      return DEFAULT_DETAIL_PAGE;
+      return publicSettingService.normalizeDetailPageConfig(DEFAULT_DETAIL_PAGE);
     }
   },
 };

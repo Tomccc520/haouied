@@ -15,7 +15,8 @@ import ToolCard from '../../components/ToolCard';
 import SEO from '../../components/SEO';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
-import { getArrowConfigByWebsiteClickMode } from '../../utils/clickMode';
+import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
+import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse, unwrapApiList } from '../../utils/apiResponse';
 import './index.css';
 import '../../styles/common.css';
@@ -42,6 +43,7 @@ interface WebsiteItem {
   isFeatured: boolean;
   isNew: boolean;
   tags: string[];
+  weightTags?: string[];
 }
 
 // 标签详情数据
@@ -78,6 +80,7 @@ const TagPage: React.FC = () => {
  * 标签列表视图 - 标签云展示
  */
 const TagListView: React.FC = () => {
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [tags, setTags] = useState<TagItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -107,7 +110,7 @@ const TagListView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="tag-page">
+      <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
         <SEO title="所有标签" description="浏览所有标签" />
         <div className="tag-loading"><p>加载中...</p></div>
       </div>
@@ -115,7 +118,7 @@ const TagListView: React.FC = () => {
   }
 
   return (
-    <div className="tag-page">
+    <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title="所有标签"
         description="浏览所有标签，按标签发现优质设计工具和资源。"
@@ -156,6 +159,7 @@ const TagListView: React.FC = () => {
  */
 const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const navigate = useNavigate();
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [detail, setDetail] = useState<TagDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -191,7 +195,8 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   // 处理网站点击
   const handleWebsiteClick = useCallback((website: WebsiteItem) => {
     if (isDirectMode) {
-      window.open(website.url, '_blank', 'noopener,noreferrer');
+      const directUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
     } else {
       const detailUrl = generateWebsiteUrl(permalinkConfig, { id: website.id, slug: website.slug });
       if (detailPageNewWindow) {
@@ -200,7 +205,7 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
         navigate(detailUrl);
       }
     }
-  }, [isDirectMode, permalinkConfig, navigate, detailPageNewWindow]);
+  }, [isDirectMode, permalinkConfig, navigate, detailPageNewWindow, frontendConfig?.pageGlobalConfig]);
 
   // 直达箭头点击
   const handleDirectVisit = useCallback((tool: { id: string; slug?: string; url: string }, e: React.MouseEvent) => {
@@ -213,19 +218,20 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
         window.scrollTo(0, 0);
       }
     } else {
+      const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
       if (directArrowNewWindow) {
-        window.open(tool.url, '_blank', 'noopener,noreferrer');
+        window.open(directUrl, '_blank', 'noopener,noreferrer');
       } else {
-        window.location.href = tool.url;
+        window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate]);
+  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, frontendConfig?.pageGlobalConfig]);
 
   const totalPages = detail ? Math.ceil(detail.total / pageSize) : 0;
 
   if (loading && !detail) {
     return (
-      <div className="tag-page">
+      <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
         <div className="tag-loading"><p>加载中...</p></div>
       </div>
     );
@@ -233,7 +239,7 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
 
   if (!detail) {
     return (
-      <div className="tag-page">
+      <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
         <div className="tag-empty"><p>标签不存在</p></div>
       </div>
     );
@@ -242,7 +248,7 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const tag = detail.tag;
 
   return (
-    <div className="tag-page">
+    <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title={`${tag.seoTitle || tag.name} - 标签`}
         description={tag.seoDescription || tag.description || `标签「${tag.name}」下的优质设计资源和工具`}
@@ -297,6 +303,7 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
                 isNew: website.isNew,
                 category: '',
                 tags: website.tags || [],
+                weightTags: website.weightTags || [],
                 slug: website.slug,
               }}
               onClick={() => handleWebsiteClick(website)}

@@ -18,7 +18,7 @@ import api from '../../services/api';
 import searchService from '../../services/searchService';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
-import { getArrowConfigByWebsiteClickMode } from '../../utils/clickMode';
+import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { debugLog } from '../../utils/debugHelper';
 import './index.css';
@@ -39,6 +39,7 @@ interface SearchResult {
   iconUrl?: string;
   category?: string;
   tags: string[];
+  weightTags?: string[];
   isNew?: boolean;
   isHot?: boolean;
   isFeatured?: boolean;
@@ -55,6 +56,7 @@ interface BackendSearchItem {
   iconUrl?: string;
   category?: { name?: string } | string;
   tags?: string[] | string;
+  weightTags?: string[] | string;
   isNew?: boolean;
   isHot?: boolean;
   isFeatured?: boolean;
@@ -160,6 +162,22 @@ const normalizeTags = (tags: BackendSearchItem['tags']): string[] => {
 };
 
 /**
+ * 统一解析站点权重标签字段，兼容 string / string[] 两种结构。
+ */
+const normalizeWeightTags = (weightTags: BackendSearchItem['weightTags']): string[] => {
+  if (Array.isArray(weightTags)) {
+    return weightTags.map(tag => String(tag || '').trim()).filter(Boolean);
+  }
+  if (typeof weightTags === 'string') {
+    return weightTags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+/**
  * 将后端搜索结果转换为前端统一结构。
  */
 const mapBackendSearchItem = (
@@ -181,6 +199,7 @@ const mapBackendSearchItem = (
     iconUrl: item.iconUrl,
     category: categoryName,
     tags: normalizeTags(item.tags),
+    weightTags: normalizeWeightTags(item.weightTags),
     isNew: Boolean(item.isNew),
     isHot: Boolean(item.isHot),
     isFeatured: Boolean(item.isFeatured),
@@ -489,13 +508,14 @@ const SearchPage: React.FC = () => {
     }
     const url = tool?.url;
     if (url) {
+      const directUrl = appendRefParamToUrl(url, frontendConfig?.pageGlobalConfig);
       if (directArrowNewWindow) {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        window.open(directUrl, '_blank', 'noopener,noreferrer');
       } else {
-        window.location.href = url;
+        window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, permalinkConfig, detailPageNewWindow, navigate, directArrowNewWindow]);
+  }, [isDirectMode, permalinkConfig, detailPageNewWindow, navigate, directArrowNewWindow, frontendConfig?.pageGlobalConfig]);
   
   // AI 侧边栏状态
   const [showAiSidebar, setShowAiSidebar] = useState(false);
@@ -1051,7 +1071,8 @@ const SearchPage: React.FC = () => {
   const handleWebsiteClick = (website: SearchResult) => {
     api.post(`/websites/${website.id}/click`).catch(() => {});
     if (isDirectMode) {
-      window.open(website.url, '_blank', 'noopener,noreferrer');
+      const directUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     const detailUrl = generateWebsiteUrl(permalinkConfig, { id: website.id, slug: website.slug });
@@ -1217,6 +1238,7 @@ const SearchPage: React.FC = () => {
                     icon: result.iconUrl || '',
                     category: result.category || '',
                     tags: result.tags,
+                    weightTags: result.weightTags || [],
                     isNew: result.isNew,
                     isHot: result.isHot,
                     isFeatured: result.isFeatured,

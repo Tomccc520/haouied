@@ -17,7 +17,7 @@ import SEO from '../SEO';
 import { DesignIcons, IconTool } from '../UI';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
-import { getArrowConfigByWebsiteClickMode } from '../../utils/clickMode';
+import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -201,14 +201,15 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
       // 其他模式下，箭头直达外部网址
       const url = tool?.url;
       if (url) {
+        const directUrl = appendRefParamToUrl(url, frontendConfig?.pageGlobalConfig);
         if (directArrowNewWindow) {
-          window.open(url, '_blank', 'noopener,noreferrer');
+          window.open(directUrl, '_blank', 'noopener,noreferrer');
         } else {
-          window.location.href = url;
+          window.location.href = directUrl;
         }
       }
     }
-  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, detailNavigate]);
+  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, detailNavigate, frontendConfig?.pageGlobalConfig]);
 
   // 获取滚动图标墙的网站数据
   useEffect(() => {
@@ -288,7 +289,8 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     // 记录点击数据
     recordWebsiteClick(website.id);
     if (isDirectMode) {
-      window.open(website.url, '_blank', 'noopener,noreferrer');
+      const directUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     const websiteSlug = (website as WebsiteWithExtra).slug;
@@ -302,7 +304,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
       detailNavigate(detailUrl);
       window.scrollTo(0, 0);
     }
-  }, [isDirectMode, permalinkConfig, detailPageNewWindow, detailNavigate]);
+  }, [isDirectMode, permalinkConfig, detailPageNewWindow, detailNavigate, frontendConfig?.pageGlobalConfig]);
 
   // 侧边栏配置
   const sidebarConfig: SidebarConfig = {
@@ -451,6 +453,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                 url: tool.url,
                 iconUrl: tool.iconUrl,
                 tags: tool.tags,
+                weightTags: tool.weightTags || [],
                 isNew: tool.isNew || false,
                 isHot: tool.isHot || false,
                 isFeatured: tool.isFeatured || false
@@ -507,6 +510,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                         isNew: website.isNew,
                         category: '',
                         tags: website.tags || [],
+                        weightTags: website.weightTags || [],
                       }}
                       onClick={() => handleWebsiteClick(website)}
                       showDirectArrow={showDirectArrow}
@@ -578,6 +582,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                           isNew: website.isNew,
                           category: '',
                           tags: website.tags || [],
+                          weightTags: website.weightTags || [],
                         }}
                         onClick={() => handleWebsiteClick(website)}
                         showDirectArrow={showDirectArrow}
@@ -819,6 +824,7 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
               isNew: website.isNew,
               category: '',
               tags: website.tags || [],
+              weightTags: website.weightTags || [],
             }}
             onClick={() => onWebsiteClick(website)}
             showDirectArrow={showDirectArrow}

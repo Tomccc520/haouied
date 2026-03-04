@@ -14,12 +14,22 @@ const Service = require('egg').Service;
 
 class NavMenuService extends Service {
   /**
+   * 规范化父级菜单 ID：将 0/空值 统一视为顶级（null）
+   */
+  normalizeParentId(parentId) {
+    const value = Number(parentId);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value;
+  }
+
+  /**
    * 获取内置入口映射（键 -> 默认路径）
    * 说明：仅用于“内置入口”模式，不影响历史自定义链接。
    */
   getBuiltinEntryMap() {
     return {
       daily_hot: '/p/daily-hot',
+      daily_new: '/p/daily-new',
       rankings: '/p/rankings',
       submit: '/submit',
       articles: '/articles',
@@ -75,15 +85,25 @@ class NavMenuService extends Service {
       : (this.parseBuiltinKeyFromOldId(rawOldId) ? null : (rawOldId || null));
     const rawLink = String(data.link || data.url || '').trim();
     const link = useBuiltin ? (rawLink || this.getBuiltinDefaultLink(builtinKey)) : rawLink;
+    /**
+     * 兼容后台提交字段：管理端常用 isActive/openInNewTab，
+     * 历史接口使用 isShow/external。
+     */
+    const visibleRaw = Object.prototype.hasOwnProperty.call(data, 'isShow')
+      ? data.isShow
+      : (Object.prototype.hasOwnProperty.call(data, 'isActive') ? data.isActive : undefined);
+    const externalRaw = Object.prototype.hasOwnProperty.call(data, 'external')
+      ? data.external
+      : (Object.prototype.hasOwnProperty.call(data, 'openInNewTab') ? data.openInNewTab : undefined);
 
     return {
-      text: data.text || data.name || '',
+      text: data.name || data.text || '',
       link,
       icon: data.icon || '',
-      parentId: data.parentId || null,
+      parentId: this.normalizeParentId(data.parentId),
       sort: data.sort || data.sortOrder || 0,
-      isShow: data.isShow !== false ? 1 : 0,
-      external: data.external || data.openInNewTab ? 1 : 0,
+      isShow: visibleRaw === undefined ? 1 : ((visibleRaw === true || Number(visibleRaw) === 1) ? 1 : 0),
+      external: externalRaw === undefined ? 0 : ((externalRaw === true || Number(externalRaw) === 1) ? 1 : 0),
       label: data.label || null,
       labelType: data.labelType || null,
       builtinKey: useBuiltin ? builtinKey : '',
@@ -250,9 +270,15 @@ class NavMenuService extends Service {
    */
   async sort(items) {
     const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
     for (const item of items) {
-      await app.model.query('UPDATE uied_nav_menu SET sort = ? WHERE id = ?', {
-        replacements: [ item.sort || item.sortOrder, item.id ],
+      await app.model.query('UPDATE uied_nav_menu SET sort = ?, parent_id = ?, update_time = ? WHERE id = ?', {
+        replacements: [
+          item.sort || item.sortOrder,
+          this.normalizeParentId(item.parentId),
+          now,
+          item.id,
+        ],
         type: app.Sequelize.QueryTypes.UPDATE,
       });
     }
@@ -273,7 +299,7 @@ class NavMenuService extends Service {
       link: item.link,
       url: item.link, // 兼容前端
       icon: item.icon,
-      parentId: item.parent_id,
+      parentId: this.normalizeParentId(item.parent_id),
       sort: item.sort,
       sortOrder: item.sort, // 兼容前端
       isShow: item.is_show === 1,
@@ -291,8 +317,9 @@ class NavMenuService extends Service {
    * 构建树形结构
    */
   buildTree(items, parentId = null) {
+    const normalizedParentId = this.normalizeParentId(parentId);
     return items
-      .filter(item => item.parentId === parentId)
+      .filter(item => this.normalizeParentId(item.parentId) === normalizedParentId)
       .map(item => ({
         ...item,
         children: this.buildTree(items, item.id),

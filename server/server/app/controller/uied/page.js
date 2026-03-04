@@ -19,10 +19,12 @@ class PageController extends baseController {
   async list() {
     const { ctx } = this;
     try {
-      const { pageNo = 1, pageSize = 20 } = ctx.query;
+      const { pageNo = 1, pageSize = 20, keyword = '', isActive = '' } = ctx.query;
       const result = await ctx.service.uied.page.list({
         page: parseInt(pageNo),
         pageSize: parseInt(pageSize),
+        keyword: String(keyword || '').trim(),
+        isActive,
       });
       this.result({ data: result });
     } catch (error) {
@@ -147,11 +149,11 @@ class PageController extends baseController {
   async updateCategories() {
     const { ctx } = this;
     try {
-      const { pageId, categoryIds } = ctx.request.body;
+      const { pageId, categoryIds, categoryIcons } = ctx.request.body;
       if (!pageId) {
         return this.result({ code: 400, message: '缺少页面ID' });
       }
-      await ctx.service.uied.page.updateCategories(pageId, categoryIds || []);
+      await ctx.service.uied.page.updateCategories(pageId, categoryIds || [], categoryIcons || {});
       this.result({ message: '更新成功' });
     } catch (error) {
       ctx.logger.error('更新页面分类失败:', error);

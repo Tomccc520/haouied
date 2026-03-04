@@ -380,6 +380,43 @@ const Home: React.FC = () => {
   }, [canShowRankingsByDevice, rankingsDisplayConfig]);
 
   /**
+   * 首页“每日上新”快捷入口是否显示（后台 homepageConfig 控制）
+   */
+  const showDailyNewQuickEntry = useMemo(() => {
+    if (homepageConfig.dailyNewEnabled === false) return false;
+    return Array.isArray(homepageConfig.dailyNewDisplayPlacements)
+      && homepageConfig.dailyNewDisplayPlacements.includes('nav_quick_entry');
+  }, [homepageConfig.dailyNewDisplayPlacements, homepageConfig.dailyNewEnabled]);
+
+  /**
+   * 获取首页内使用的每日上新入口文案与链接配置
+   */
+  const dailyNewEntryView = useMemo(() => {
+    const fallback = {
+      label: '每日上新',
+      href: '/p/daily-new',
+      target: '_self' as '_self' | '_blank',
+      rel: undefined as string | undefined,
+    };
+    if (homepageConfig.dailyNewEnabled === false) return fallback;
+    const hrefRaw = String(homepageConfig.dailyNewDisplayPath || fallback.href).trim();
+    const href = hrefRaw ? (hrefRaw.startsWith('/') || /^(https?:)?\/\//i.test(hrefRaw) ? hrefRaw : `/${hrefRaw}`) : fallback.href;
+    const label = String(homepageConfig.dailyNewDisplayLabel || fallback.label).trim() || fallback.label;
+    const newTab = homepageConfig.dailyNewDisplayOpenInNewTab === true;
+    return {
+      label,
+      href,
+      target: newTab ? '_blank' as const : '_self' as const,
+      rel: newTab ? 'noopener noreferrer' : undefined,
+    };
+  }, [
+    homepageConfig.dailyNewDisplayLabel,
+    homepageConfig.dailyNewDisplayOpenInNewTab,
+    homepageConfig.dailyNewDisplayPath,
+    homepageConfig.dailyNewEnabled,
+  ]);
+
+  /**
    * 获取首页内使用的榜单系统入口文案与链接配置
    */
   const rankingsEntryView = useMemo(() => {
@@ -400,6 +437,73 @@ const Home: React.FC = () => {
       rel: newTab ? 'noopener noreferrer' : undefined,
     };
   }, [rankingsDisplayConfig]);
+
+  /**
+   * 汇总首页快捷入口并按运营排序渲染。
+   */
+  const quickEntries = useMemo(() => {
+    const entries: Array<{
+      key: string;
+      sort: number;
+      label: string;
+      href: string;
+      target: '_self' | '_blank';
+      rel?: string;
+      className?: string;
+    }> = [];
+    if (showDailyHotQuickEntry) {
+      entries.push({
+        key: 'daily-hot',
+        sort: Number(dailyHotDisplayConfig?.displaySort || 90),
+        label: dailyHotEntryView.label,
+        href: dailyHotEntryView.href,
+        target: dailyHotEntryView.target,
+        rel: dailyHotEntryView.rel,
+      });
+    }
+    if (showRankingsQuickEntry) {
+      entries.push({
+        key: 'rankings',
+        sort: Number(rankingsDisplayConfig?.displaySort || 88),
+        label: rankingsEntryView.label,
+        href: rankingsEntryView.href,
+        target: rankingsEntryView.target,
+        rel: rankingsEntryView.rel,
+        className: 'home-quick-entry-link--rankings',
+      });
+    }
+    if (showDailyNewQuickEntry) {
+      entries.push({
+        key: 'daily-new',
+        sort: Number(homepageConfig.dailyNewDisplaySort || 86),
+        label: dailyNewEntryView.label,
+        href: dailyNewEntryView.href,
+        target: dailyNewEntryView.target,
+        rel: dailyNewEntryView.rel,
+        className: 'home-quick-entry-link--daily-new',
+      });
+    }
+    return entries.sort((a, b) => a.sort - b.sort);
+  }, [
+    dailyHotDisplayConfig?.displaySort,
+    dailyHotEntryView.href,
+    dailyHotEntryView.label,
+    dailyHotEntryView.rel,
+    dailyHotEntryView.target,
+    dailyNewEntryView.href,
+    dailyNewEntryView.label,
+    dailyNewEntryView.rel,
+    dailyNewEntryView.target,
+    homepageConfig.dailyNewDisplaySort,
+    rankingsDisplayConfig?.displaySort,
+    rankingsEntryView.href,
+    rankingsEntryView.label,
+    rankingsEntryView.rel,
+    rankingsEntryView.target,
+    showDailyHotQuickEntry,
+    showDailyNewQuickEntry,
+    showRankingsQuickEntry,
+  ]);
 
   // 渲染排行榜项目（参考AntRankingPage设计）
   const renderRankingItem = (item: RankingItem, index: number) => {
@@ -437,28 +541,19 @@ const Home: React.FC = () => {
 
   return (
     <div className="home-container">
-      {(showDailyHotQuickEntry || showRankingsQuickEntry) && (
+      {quickEntries.length > 0 && (
         <div className="home-quick-entry">
-          {showDailyHotQuickEntry && (
+          {quickEntries.map((entry) => (
             <a
-              className="home-quick-entry-link"
-              href={dailyHotEntryView.href}
-              target={dailyHotEntryView.target}
-              rel={dailyHotEntryView.rel}
+              key={entry.key}
+              className={`home-quick-entry-link ${entry.className || ''}`.trim()}
+              href={entry.href}
+              target={entry.target}
+              rel={entry.rel}
             >
-              {dailyHotEntryView.label}
+              {entry.label}
             </a>
-          )}
-          {showRankingsQuickEntry && (
-            <a
-              className="home-quick-entry-link home-quick-entry-link--rankings"
-              href={rankingsEntryView.href}
-              target={rankingsEntryView.target}
-              rel={rankingsEntryView.rel}
-            >
-              {rankingsEntryView.label}
-            </a>
-          )}
+          ))}
         </div>
       )}
       {/* 顶部区域：按后台排序渲染轮播和推荐模块 */}

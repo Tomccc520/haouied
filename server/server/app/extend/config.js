@@ -175,6 +175,7 @@ const rsa = {
     'site-info', // GET /api/site-info
     'daily-hot', // GET /api/daily-hot
     'daily-hot:platforms', // GET /api/daily-hot/platforms
+    'daily-new:config', // GET /api/daily-new/config
     'rankings', // GET /api/rankings
     'rankings:*', // GET /api/rankings/:key
     'categories', // GET /api/categories

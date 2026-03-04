@@ -11,6 +11,11 @@
 export type WebsiteClickMode = 'detail' | 'direct';
 export type HotRecommendationClickMode = 'detail' | 'direct';
 
+interface RefAppendConfig {
+  appendRefEnabled?: boolean;
+  appendRefValue?: string;
+}
+
 /**
  * 规范化分类区域点击模式
  * 兼容历史值：directExternal -> direct
@@ -48,3 +53,29 @@ export const getArrowConfigByWebsiteClickMode = (mode: unknown) => {
   };
 };
 
+/**
+ * 为外部跳转链接追加 ref 参数（仅在后台开关开启且目标 URL 未包含 ref 时生效）
+ */
+export const appendRefParamToUrl = (rawUrl: unknown, config?: RefAppendConfig): string => {
+  const original = String(rawUrl || '').trim();
+  if (!original) return '';
+
+  const enabled = config?.appendRefEnabled === true;
+  const refValue = String(config?.appendRefValue || '').trim();
+  if (!enabled || !refValue) return original;
+
+  /**
+   * 仅处理 http/https 链接，避免影响 mailto/javascript 等协议。
+   */
+  if (!/^https?:\/\//i.test(original)) return original;
+
+  try {
+    const parsed = new URL(original);
+    if (!parsed.searchParams.has('ref')) {
+      parsed.searchParams.set('ref', refValue);
+    }
+    return parsed.toString();
+  } catch (error) {
+    return original;
+  }
+};

@@ -10,6 +10,32 @@
 <template>
     <div class="page-lists">
         <el-card class="!border-none" shadow="never">
+            <el-form :inline="true" :model="queryParams" class="mb-4">
+                <el-form-item label="关键词">
+                    <el-input
+                        v-model="queryParams.keyword"
+                        clearable
+                        placeholder="页面名称/别名/Hero 标题"
+                        style="width: 260px"
+                        @keyup.enter="handleSearch"
+                    />
+                </el-form-item>
+                <el-form-item label="状态">
+                    <el-select
+                        v-model="queryParams.isActive"
+                        clearable
+                        placeholder="全部状态"
+                        style="width: 140px"
+                    >
+                        <el-option label="显示" value="1" />
+                        <el-option label="隐藏" value="0" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item>
+                    <el-button type="primary" @click="handleSearch">查询</el-button>
+                    <el-button @click="handleResetSearch">重置</el-button>
+                </el-form-item>
+            </el-form>
             <div class="mb-4 flex justify-between">
                 <el-button type="primary" @click="handleAdd">
                     <template #icon><icon name="el-icon-Plus" /></template>
@@ -31,13 +57,34 @@
                     <template #default="{ row }">
                         <el-tag
                             size="small"
-                            :type="row.heroBgType === 'iconScroll' ? 'warning' : ''"
+                            :type="row.heroDisplayMode === 'iconScroll' ? 'warning' : ''"
                         >
                             {{ row.heroDisplayMode === 'iconScroll' ? '图标滚动' : '搜索框' }}
                         </el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column label="排序" prop="sortOrder" width="80" />
+                <el-table-column label="排序" width="140">
+                    <template #default="{ row }">
+                        <div class="page-sort-cell">
+                            <el-input-number
+                                v-model="rowSortMap[row.id]"
+                                :min="0"
+                                :controls="false"
+                                size="small"
+                                style="width: 80px"
+                                @change="() => handleQuickSortSave(row)"
+                            />
+                            <el-button
+                                type="primary"
+                                link
+                                :loading="Boolean(rowSortSavingMap[row.id])"
+                                @click="handleQuickSortSave(row)"
+                            >
+                                保存
+                            </el-button>
+                        </div>
+                    </template>
+                </el-table-column>
                 <el-table-column label="状态" width="80">
                     <template #default="{ row }">
                         <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
@@ -78,7 +125,11 @@
                             <el-input
                                 v-model="editData.slug"
                                 placeholder="请输入页面别名（URL友好）"
+                                @input="handleSlugInput"
                             />
+                            <div class="text-gray-400 text-xs mt-1">
+                                前台路径预览：<code>/p/{{ editData.slug || 'your-page-slug' }}</code>
+                            </div>
                         </el-form-item>
                         <el-form-item label="页面描述">
                             <el-input v-model="editData.description" type="textarea" :rows="2" />
@@ -224,13 +275,86 @@
         </el-dialog>
 
         <!-- 分类配置弹窗 -->
-        <el-dialog v-model="showCategories" title="页面分类配置" width="500px">
-            <el-transfer
-                v-model="selectedCategories"
-                :data="allCategories"
-                :titles="['可选分类', '已选分类']"
-                :props="{ key: 'id', label: 'name' }"
-            />
+        <el-dialog v-model="showCategories" title="页面分类配置" width="920px">
+            <div class="page-category-config">
+                <div class="page-category-config__panel">
+                    <div class="page-category-config__panel-title">分类树（支持搜索）</div>
+                    <el-input
+                        v-model="categoryKeyword"
+                        clearable
+                        placeholder="输入分类名称搜索"
+                        @input="handleCategoryKeywordChange"
+                    />
+                    <div class="page-category-config__tree">
+                        <el-tree
+                            ref="categoryTreeRef"
+                            node-key="id"
+                            show-checkbox
+                            check-strictly
+                            :data="categoryTreeData"
+                            :props="{ label: 'pathLabel', children: 'children' }"
+                            :filter-node-method="filterCategoryNode"
+                            @check="handleCategoryTreeCheck"
+                        />
+                    </div>
+                </div>
+                <div class="page-category-config__panel">
+                    <div class="page-category-config__panel-title page-category-config__panel-title--with-action">
+                        <span>已选分类（可排序）</span>
+                        <el-button
+                            v-if="categorySelectedRows.length > 0"
+                            type="danger"
+                            link
+                            @click="clearSelectedCategories"
+                        >
+                            清空
+                        </el-button>
+                    </div>
+                    <div v-if="categorySelectedRows.length === 0" class="page-category-config__empty">
+                        请在左侧勾选要展示的分类（建议按业务顺序排列）。
+                    </div>
+                    <div v-else class="page-category-config__selected-list">
+                        <div
+                            v-for="(item, index) in categorySelectedRows"
+                            :key="item.id"
+                            class="page-category-config__selected-item"
+                        >
+                            <div class="page-category-config__selected-main">
+                                <span class="page-category-config__selected-index">{{ index + 1 }}</span>
+                                <div class="page-category-config__selected-icon-wrap">
+                                    <icon v-if="item.icon" :name="item.icon" class="page-category-config__selected-icon" />
+                                    <span v-else class="page-category-config__selected-icon-empty">无图标</span>
+                                </div>
+                                <span class="page-category-config__selected-name">{{ item.pathLabel }}</span>
+                            </div>
+                            <div class="page-category-config__selected-icon-editor">
+                                <icon-picker v-model="item.icon" />
+                            </div>
+                            <div class="page-category-config__selected-actions">
+                                <el-button
+                                    type="primary"
+                                    link
+                                    :disabled="index === 0"
+                                    @click="moveSelectedCategory(index, -1)"
+                                >
+                                    上移
+                                </el-button>
+                                <el-button
+                                    type="primary"
+                                    link
+                                    :disabled="index === categorySelectedRows.length - 1"
+                                    @click="moveSelectedCategory(index, 1)"
+                                >
+                                    下移
+                                </el-button>
+                                <el-button type="danger" link @click="removeSelectedCategory(item.id)">
+                                    移除
+                                </el-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <template #footer>
                 <el-button @click="showCategories = false">取消</el-button>
                 <el-button type="primary" :loading="categoryLoading" @click="handleSaveCategories"
@@ -257,12 +381,37 @@ import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import type { FormInstance, FormRules } from 'element-plus'
 
-const { pager, getLists } = usePaging({ fetchFun: uiedPageList })
+interface CategoryOption {
+    id: number
+    name: string
+    parentId: number | null
+    sortOrder: number
+    pathLabel: string
+    icon?: string
+}
+
+interface CategoryTreeNode extends CategoryOption {
+    children: CategoryTreeNode[]
+}
+
+const queryParams = reactive({
+    keyword: '',
+    isActive: ''
+})
+
+const { pager, getLists } = usePaging({
+    fetchFun: uiedPageList,
+    params: queryParams
+})
+
+const rowSortMap = reactive<Record<number, number>>({})
+const rowSortSavingMap = reactive<Record<number, boolean>>({})
 
 const showEdit = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
 const editTab = ref('basic')
+const slugTouched = ref(false)
 
 // 按分类选择相关
 const scrollCategories = ref<any[]>([])
@@ -299,6 +448,44 @@ const editData = reactive({
 const editRules: FormRules = {
     name: [{ required: true, message: '请输入页面名称', trigger: 'blur' }],
     slug: [{ required: true, message: '请输入页面别名', trigger: 'blur' }]
+}
+
+/**
+ * 从页面名称生成默认别名（仅新建时自动生成）。
+ */
+const buildSlugFromName = (name: string): string => {
+    const normalized = String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+    return normalized.slice(0, 80)
+}
+
+/**
+ * 手动修改别名后，停止自动覆盖。
+ */
+const handleSlugInput = () => {
+    slugTouched.value = true
+}
+
+/**
+ * 页面列表查询。
+ */
+const handleSearch = () => {
+    pager.page = 1
+    getLists()
+}
+
+/**
+ * 重置页面列表查询条件。
+ */
+const handleResetSearch = () => {
+    queryParams.keyword = ''
+    queryParams.isActive = ''
+    pager.page = 1
+    getLists()
 }
 
 // 获取背景值占位符
@@ -403,6 +590,7 @@ const resetEditData = () => {
         showSidebar: true,
         themeColor: ''
     })
+    slugTouched.value = false
     selectedScrollCategoryIds.value = []
     editTab.value = 'basic'
 }
@@ -415,6 +603,7 @@ const handleAdd = () => {
 
 const handleEdit = async (row: any) => {
     isEditLoading.value = true
+    slugTouched.value = true
     // 转换热门标签数组为字符串
     const hotSearchTagsStr = Array.isArray(row.hotSearchTags)
         ? row.hotSearchTags.join(',')
@@ -529,26 +718,191 @@ const handleDelete = async (id: number) => {
 const showCategories = ref(false)
 const categoryLoading = ref(false)
 const currentPageId = ref(0)
-const allCategories = ref<any[]>([])
-const selectedCategories = ref<number[]>([])
+const categoryKeyword = ref('')
+const categoryTreeRef = ref<any>()
+const categoryTreeData = ref<CategoryTreeNode[]>([])
+const categoryMap = ref<Record<number, CategoryOption>>({})
+const categoryCheckedKeys = ref<number[]>([])
+const categorySelectedRows = ref<CategoryOption[]>([])
 
-const handleCategories = async (row: any) => {
-    currentPageId.value = row.id
-    const [cats, pageCats] = await Promise.all([
-        uiedCategoryAll(),
-        uiedPageCategories({ id: row.id })
-    ])
-    allCategories.value = cats || []
-    selectedCategories.value = (pageCats || []).map((c: any) => c.id)
-    showCategories.value = true
+/**
+ * 构建分类树和路径标签，便于运营快速定位一级/二级分类。
+ */
+const buildCategoryTree = (rows: any[]): { tree: CategoryTreeNode[]; map: Record<number, CategoryOption> } => {
+    const normalizedRows = (rows || [])
+        .map((item: any) => ({
+            id: Number(item.id),
+            name: String(item.name || '').trim(),
+            parentId:
+                item.parentId === null || item.parentId === undefined || item.parentId === ''
+                    ? null
+                    : Number(item.parentId),
+            sortOrder: Number(item.order || item.sortOrder || 0),
+            icon: String(item.icon || '').trim()
+        }))
+        .filter((item: any) => Number.isFinite(item.id) && item.id > 0)
+    const byParent = new Map<number | null, any[]>()
+    normalizedRows.forEach((item: any) => {
+        const key = item.parentId === null ? null : Number(item.parentId)
+        if (!byParent.has(key)) byParent.set(key, [])
+        byParent.get(key)?.push(item)
+    })
+    byParent.forEach((list) => {
+        list.sort((left, right) => {
+            if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder
+            return left.id - right.id
+        })
+    })
+
+    const optionMap: Record<number, CategoryOption> = {}
+
+    /**
+     * 递归构建树节点并拼装分类路径。
+     */
+    const buildNodes = (parentId: number | null, parentNames: string[]): CategoryTreeNode[] => {
+        const currentRows = byParent.get(parentId) || []
+        return currentRows.map((item: any) => {
+            const pathParts = [ ...parentNames, item.name ]
+            const node: CategoryTreeNode = {
+                id: item.id,
+                name: item.name,
+                parentId: item.parentId,
+                sortOrder: item.sortOrder,
+                pathLabel: pathParts.join(' / '),
+                children: []
+            }
+            optionMap[node.id] = {
+                id: node.id,
+                name: node.name,
+                parentId: node.parentId,
+                sortOrder: node.sortOrder,
+                pathLabel: node.pathLabel,
+                icon: item.icon
+            }
+            node.children = buildNodes(node.id, pathParts)
+            return node
+        })
+    }
+
+    return {
+        tree: buildNodes(null, []),
+        map: optionMap
+    }
 }
 
+/**
+ * 同步“已选分类”列表，保留人工排序结果。
+ */
+const syncSelectedCategories = (keys: number[]) => {
+    const uniqueKeys = Array.from(new Set(keys.map((key) => Number(key)).filter((key) => Number.isFinite(key))))
+    const existingById = new Map(categorySelectedRows.value.map((item) => [item.id, item]))
+    const reserved = categorySelectedRows.value.filter((item) => uniqueKeys.includes(item.id))
+    const appended = uniqueKeys
+        .filter((key) => !existingById.has(key))
+        .map((key) => categoryMap.value[key])
+        .filter(Boolean)
+    categorySelectedRows.value = [ ...reserved, ...appended ]
+    categoryCheckedKeys.value = uniqueKeys
+}
+
+/**
+ * 分类树筛选逻辑。
+ */
+const filterCategoryNode = (keyword: string, data: any): boolean => {
+    if (!keyword) return true
+    return String(data?.pathLabel || data?.name || '')
+        .toLowerCase()
+        .includes(String(keyword).toLowerCase())
+}
+
+/**
+ * 分类树关键字变化时，触发 tree 过滤。
+ */
+const handleCategoryKeywordChange = (value: string) => {
+    categoryTreeRef.value?.filter(String(value || '').trim())
+}
+
+/**
+ * 响应分类树勾选变化。
+ */
+const handleCategoryTreeCheck = () => {
+    const keys = (categoryTreeRef.value?.getCheckedKeys(false) || []) as number[]
+    syncSelectedCategories(keys)
+}
+
+/**
+ * 移动已选分类顺序。
+ */
+const moveSelectedCategory = (index: number, delta: number) => {
+    const targetIndex = index + delta
+    if (targetIndex < 0 || targetIndex >= categorySelectedRows.value.length) return
+    const list = [ ...categorySelectedRows.value ]
+    const [current] = list.splice(index, 1)
+    list.splice(targetIndex, 0, current)
+    categorySelectedRows.value = list
+}
+
+/**
+ * 移除某个已选分类。
+ */
+const removeSelectedCategory = (categoryId: number) => {
+    categorySelectedRows.value = categorySelectedRows.value.filter((item) => item.id !== categoryId)
+    categoryCheckedKeys.value = categorySelectedRows.value.map((item) => item.id)
+    categoryTreeRef.value?.setCheckedKeys(categoryCheckedKeys.value, false)
+}
+
+/**
+ * 清空已选分类。
+ */
+const clearSelectedCategories = () => {
+    categorySelectedRows.value = []
+    categoryCheckedKeys.value = []
+    categoryTreeRef.value?.setCheckedKeys([], false)
+}
+
+/**
+ * 打开分类配置弹窗。
+ */
+const handleCategories = async (row: any) => {
+    currentPageId.value = Number(row.id)
+    const [cats, pageCats] = await Promise.all([uiedCategoryAll(), uiedPageCategories({ id: row.id })])
+    const { tree, map } = buildCategoryTree(cats || [])
+    categoryTreeData.value = tree
+    categoryMap.value = map
+    const orderedPageCats = [ ...(pageCats || []) ].sort(
+        (left: any, right: any) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0)
+    )
+    const selectedIds = orderedPageCats
+        .map((item: any) => Number(item.id))
+        .filter((id: number) => Number.isFinite(id))
+    categoryKeyword.value = ''
+    categoryCheckedKeys.value = selectedIds
+    categorySelectedRows.value = selectedIds
+        .map((id: number) => categoryMap.value[id])
+        .filter((item: CategoryOption | undefined): item is CategoryOption => Boolean(item))
+    showCategories.value = true
+    await nextTick()
+    categoryTreeRef.value?.setCheckedKeys(categoryCheckedKeys.value, false)
+    categoryTreeRef.value?.filter('')
+}
+
+/**
+ * 保存页面分类配置。
+ */
 const handleSaveCategories = async () => {
     categoryLoading.value = true
     try {
+        const categoryIconMap = categorySelectedRows.value.reduce(
+            (result: Record<string, string>, item: CategoryOption) => {
+                result[String(item.id)] = String(item.icon || '').trim()
+                return result
+            },
+            {}
+        )
         await uiedPageUpdateCategories({
             pageId: currentPageId.value,
-            categoryIds: selectedCategories.value
+            categoryIds: categorySelectedRows.value.map((item) => item.id),
+            categoryIcons: categoryIconMap
         })
         feedback.msgSuccess('保存成功')
         showCategories.value = false
@@ -556,6 +910,43 @@ const handleSaveCategories = async () => {
         categoryLoading.value = false
     }
 }
+
+/**
+ * 行内快捷保存排序，降低页面管理维护成本。
+ */
+const handleQuickSortSave = async (row: any) => {
+    const nextSort = Number(rowSortMap[row.id] ?? row.sortOrder ?? 0)
+    if (!Number.isFinite(nextSort)) return
+    if (Number(row.sortOrder || 0) === nextSort) return
+    rowSortSavingMap[row.id] = true
+    try {
+        await uiedPageEdit({ id: row.id, sortOrder: nextSort })
+        row.sortOrder = nextSort
+        feedback.msgSuccess('排序已更新')
+    } finally {
+        rowSortSavingMap[row.id] = false
+    }
+}
+
+watch(
+    () => pager.lists,
+    (rows) => {
+        const rowList = Array.isArray(rows) ? rows : []
+        rowList.forEach((item: any) => {
+            rowSortMap[item.id] = Number(item.sortOrder || 0)
+        })
+    },
+    { immediate: true, deep: true }
+)
+
+watch(
+    () => editData.name,
+    (value) => {
+        if (editData.id) return
+        if (slugTouched.value && String(editData.slug || '').trim()) return
+        editData.slug = buildSlugFromName(String(value || ''))
+    }
+)
 
 getLists()
 </script>
@@ -636,5 +1027,148 @@ getLists()
 .empty-tip {
     color: var(--el-text-color-placeholder);
     font-size: 13px;
+}
+
+.page-sort-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.page-category-config {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+}
+
+.page-category-config__panel {
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.page-category-config__panel-title {
+    font-size: 13px;
+    color: var(--el-text-color-primary);
+    font-weight: 600;
+}
+
+.page-category-config__panel-title--with-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.page-category-config__tree {
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 6px;
+    padding: 8px;
+    flex: 1;
+    overflow: auto;
+}
+
+.page-category-config__empty {
+    height: 100%;
+    min-height: 220px;
+    border: 1px dashed var(--el-border-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
+    padding: 12px;
+    text-align: center;
+}
+
+.page-category-config__selected-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: auto;
+}
+
+.page-category-config__selected-item {
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.page-category-config__selected-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.page-category-config__selected-index {
+    min-width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.page-category-config__selected-name {
+    font-size: 13px;
+    color: var(--el-text-color-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.page-category-config__selected-icon-wrap {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--el-border-color-lighter);
+    background: var(--el-fill-color-lighter);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-secondary);
+    flex-shrink: 0;
+}
+
+.page-category-config__selected-icon {
+    font-size: 14px;
+}
+
+.page-category-config__selected-icon-empty {
+    font-size: 10px;
+}
+
+.page-category-config__selected-icon-editor {
+    min-width: 190px;
+    max-width: 210px;
+}
+
+.page-category-config__selected-icon-editor :deep(.el-input) {
+    width: 100%;
+}
+
+.page-category-config__selected-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+@media (max-width: 960px) {
+    .page-category-config {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

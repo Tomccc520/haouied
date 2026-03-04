@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SEO from '../../components/SEO';
+import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import {
   getDailyHot,
   getDailyHotDisplayConfig,
@@ -126,6 +127,7 @@ function getPlatformAnchorId(platform: DailyHotPlatform): string {
  * 每日热榜页面组件（使用后台默认平台配置按段展示）
  */
 const DailyHotPage: React.FC = () => {
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [displayConfig, setDisplayConfig] = useState<DailyHotDisplayConfig | null>(null);
   const [platforms, setPlatforms] = useState<DailyHotPlatform[]>([]);
   const [sections, setSections] = useState<DailyHotSection[]>([]);
@@ -313,7 +315,7 @@ const DailyHotPage: React.FC = () => {
   }, [lastUpdated]);
 
   return (
-    <div className="daily-hot-page">
+    <div className={`daily-hot-page daily-hot-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title={pageTitle}
         description="聚合多平台今日热榜内容，支持后台配置默认平台、排序与展示策略。"

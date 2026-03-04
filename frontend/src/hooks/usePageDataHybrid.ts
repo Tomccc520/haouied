@@ -27,6 +27,7 @@ interface Tool {
   isFeatured?: boolean;
   isNew?: boolean;
   tags?: string[];
+  weightTags?: string[];
   category?: string;
 }
 
@@ -132,7 +133,8 @@ export const usePageDataHybrid = ({
         tools.push(...apiData.websitesByCategory[categoryId].map(w => ({
           ...w,
           category: categoryId,
-          tags: w.tags || []
+          tags: w.tags || [],
+          weightTags: w.weightTags || []
         })));
       }
       for (const subCat of category.subCategories) {
@@ -140,7 +142,8 @@ export const usePageDataHybrid = ({
           tools.push(...apiData.websitesByCategory[subCat.id].map(w => ({
             ...w,
             category: subCat.id,
-            tags: w.tags || []
+            tags: w.tags || [],
+            weightTags: w.weightTags || []
           })));
         }
       }
@@ -154,7 +157,8 @@ export const usePageDataHybrid = ({
       return (apiData.websitesByCategory[subCategoryId] || []).map(w => ({
         ...w,
         category: subCategoryId,
-        tags: w.tags || []
+        tags: w.tags || [],
+        weightTags: w.weightTags || []
       }));
     }
     return [];
@@ -174,7 +178,7 @@ export const usePageDataHybrid = ({
       Object.values(apiData.websitesByCategory).forEach(websites => {
         websites.forEach(w => {
           if (w.isHot) {
-            allTools.push({ ...w, tags: w.tags || [] });
+            allTools.push({ ...w, tags: w.tags || [], weightTags: w.weightTags || [] });
           }
         });
       });
@@ -194,7 +198,7 @@ export const usePageDataHybrid = ({
             w.description.toLowerCase().includes(lowerKeyword) ||
             (w.tags || []).some(tag => tag.toLowerCase().includes(lowerKeyword))
           ) {
-            results.push({ ...w, tags: w.tags || [] });
+            results.push({ ...w, tags: w.tags || [], weightTags: w.weightTags || [] });
           }
         });
       });
@@ -208,7 +212,7 @@ export const usePageDataHybrid = ({
       const allTools: Tool[] = [];
       Object.values(apiData.websitesByCategory).forEach(websites => {
         websites.forEach(w => {
-          allTools.push({ ...w, tags: w.tags || [] });
+          allTools.push({ ...w, tags: w.tags || [], weightTags: w.weightTags || [] });
         });
       });
       return allTools;

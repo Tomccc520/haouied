@@ -393,7 +393,11 @@ const Navbar = () => {
 
     setCurrentNavType(normalizedType);
     if (normalizedType === 'uiux') {
-      navigate('/');
+      /**
+       * 首页入口被配置为其他页面时，根路径 "/" 会发生重定向。
+       * 因此 UI 导航固定跳转到 "/uiux"，确保随时可切回默认导航页。
+       */
+      navigate('/uiux');
       return;
     }
     if (isFixedDynamicNavSlug(normalizedType)) {

@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 // Context
 import { SiteProvider } from './contexts/SiteContext';
@@ -25,13 +25,15 @@ import ProfilePage from './pages/Profile';
 import SubmitPage from './pages/Submit';
 import ChangelogPage from './pages/Changelog';
 import DailyHotPage from './pages/DailyHot';
+import DailyNewPage from './pages/DailyNew';
 import RankingsPage from './pages/Rankings';
 import WebsiteComparePage from './pages/WebsiteCompare';
 import NotFoundPage from './pages/NotFound';
 import WebsiteDetail from './pages/WebsiteDetail';
 import Layout from './components/layout/Layout';
 import DynamicPage from './components/DynamicPage';
-import { FIXED_DYNAMIC_ROUTES } from './config/navModel';
+import { FIXED_DYNAMIC_ROUTES, ROOT_NAV_SLUG, isFixedDynamicNavSlug } from './config/navModel';
+import { useFrontendConfig } from './hooks/useFrontendConfig';
 
 // @pro-feature-start: articles
 import { ArticleList, ArticleDetail } from './pages/Articles';
@@ -51,6 +53,26 @@ const FixedDynamicPageRoute: React.FC<{ slug: string }> = ({ slug }) => {
   return <DynamicPage slug={slug} />;
 };
 
+/**
+ * 根路径入口路由：
+ * 支持后台把某个页面配置为首页（/ -> /p/:slug），未配置时走默认固定首页。
+ */
+const RootEntryRoute: React.FC = () => {
+  const { config, loading } = useFrontendConfig();
+  const homePageSlug = String(config?.homepageConfig?.homePageSlug || '').trim();
+  const normalizedHomePageSlug = homePageSlug.toLowerCase();
+  if (loading) {
+    return null;
+  }
+  if (homePageSlug) {
+    if (isFixedDynamicNavSlug(normalizedHomePageSlug)) {
+      return <Navigate to={`/${normalizedHomePageSlug}`} replace />;
+    }
+    return <Navigate to={`/p/${normalizedHomePageSlug}`} replace />;
+  }
+  return <FixedDynamicPageRoute slug={ROOT_NAV_SLUG} />;
+};
+
 function App() {
   return (
     <SiteProvider>
@@ -63,7 +85,11 @@ function App() {
               <Route
                 key={`fixed-dynamic-${routeItem.path}-${routeItem.slug}`}
                 path={routeItem.path}
-                element={<FixedDynamicPageRoute slug={routeItem.slug} />}
+                element={
+                  routeItem.path === '/'
+                    ? <RootEntryRoute />
+                    : <FixedDynamicPageRoute slug={routeItem.slug} />
+                }
               />
             ))}
             <Route path="/home" element={<HomePage />} />
@@ -89,6 +115,8 @@ function App() {
             {/* 每日热榜专用路由：避免落入动态页 /p/:slug 后请求 pages/daily-hot/full 导致 404 */}
             <Route path="/p/daily-hot" element={<DailyHotPage />} />
             <Route path="/daily-hot" element={<DailyHotPage />} />
+            <Route path="/p/daily-new" element={<DailyNewPage />} />
+            <Route path="/daily-new" element={<DailyNewPage />} />
             <Route path="/p/rankings" element={<RankingsPage />} />
             <Route path="/rankings" element={<RankingsPage />} />
             

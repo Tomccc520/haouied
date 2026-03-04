@@ -13,11 +13,24 @@
   min-height: calc(100vh - var(--header-height));
   background: transparent;
   padding: var(--spacing-5) var(--container-padding) var(--spacing-10);
+  --tag-layout-max-width: var(--container-width);
+}
+
+.tag-page--layout-contained {
+  --tag-layout-max-width: var(--container-width);
+}
+
+.tag-page--layout-wide {
+  --tag-layout-max-width: min(1480px, calc(100vw - 2 * var(--container-padding)));
+}
+
+.tag-page--layout-fluid {
+  --tag-layout-max-width: min(1800px, calc(100vw - 2 * var(--container-padding)));
 }
 
 /* 面包屑导航 */
 .tag-breadcrumb {
-  max-width: var(--container-width);
+  max-width: var(--tag-layout-max-width);
   margin: 0 auto;
   padding: 0 0 12px;
   display: flex;
@@ -48,7 +61,7 @@
 
 /* 标签列表页 */
 .tag-list-container {
-  max-width: var(--container-width);
+  max-width: var(--tag-layout-max-width);
   margin: 0 auto;
   padding: 0;
 }
@@ -134,7 +147,7 @@
 
 /* 标签详情头部 */
 .tag-detail-header {
-  max-width: var(--container-width);
+  max-width: var(--tag-layout-max-width);
   margin: 0 auto;
   padding: 0 0 16px;
 }
@@ -204,7 +217,7 @@
 
 /* 网站列表区域 */
 .tag-websites-container {
-  max-width: var(--container-width);
+  max-width: var(--tag-layout-max-width);
   margin: 0 auto;
   padding: 0 0 32px;
 }

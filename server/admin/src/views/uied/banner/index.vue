@@ -11,7 +11,7 @@
     <div class="banner-lists">
         <el-card class="!border-none" shadow="never">
             <el-alert
-                title="前端显示位置说明：广告管理用于图片/HTML广告位（如首页横条、侧栏）；详情页顶部/正文中/底部推荐位请使用【商业位体系】配置。"
+                title="前端显示位置说明：广告管理用于图片/HTML广告位（支持多位置）；详情页与侧栏展示时会优先读【商业位体系】，若商业位无投放会自动回退到广告管理配置。"
                 type="info"
                 :closable="false"
                 class="mb-4"
@@ -102,12 +102,20 @@
                 </el-table-column>
                 <el-table-column label="标题" prop="title" min-width="150" />
                 <el-table-column label="链接" prop="url" min-width="200" show-overflow-tooltip />
-                <el-table-column
-                    label="位置/slot"
-                    prop="position"
-                    min-width="130"
-                    show-overflow-tooltip
-                />
+                <el-table-column label="位置/slot" min-width="180">
+                    <template #default="{ row }">
+                        <div class="banner-position-tags">
+                            <el-tag
+                                v-for="position in resolvePositionLabels(row)"
+                                :key="`${row.id}-${position}`"
+                                size="small"
+                                effect="plain"
+                            >
+                                {{ position }}
+                            </el-tag>
+                        </div>
+                    </template>
+                </el-table-column>
                 <el-table-column
                     label="页面标识"
                     prop="pageSlug"
@@ -175,21 +183,23 @@
                         <el-option label="当前窗口(_self)" value="_self" />
                     </el-select>
                 </el-form-item>
-                <el-form-item label="位置">
-                    <el-select v-model="editData.position" style="width: 100%">
-                        <el-option label="首页（home）" value="home" />
-                        <el-option label="侧边栏（sidebar）" value="sidebar" />
-                        <el-option label="底部（footer）" value="footer" />
-                        <el-option label="详情页（detail）" value="detail" />
-                        <el-option label="全局横条（global_strip）" value="global_strip" />
-                        <el-option label="详情顶部（detail_top）" value="detail_top" />
-                        <el-option label="详情正文中（detail_inline）" value="detail_inline" />
-                        <el-option label="详情底部（detail_bottom）" value="detail_bottom" />
+                <el-form-item label="位置" prop="positionList">
+                    <el-select
+                        v-model="editData.positionList"
+                        multiple
+                        collapse-tags
+                        collapse-tags-tooltip
+                        style="width: 100%"
+                        placeholder="至少选择一个广告位置"
+                    >
                         <el-option
-                            label="详情侧栏（website_detail_sidebar）"
-                            value="website_detail_sidebar"
+                            v-for="item in bannerPositionOptions"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value"
                         />
                     </el-select>
+                    <div class="text-xs text-gray-400 mt-1">支持多选，保存后会在所有选中位置生效。</div>
                 </el-form-item>
                 <el-form-item label="页面标识">
                     <el-input
@@ -225,6 +235,45 @@ const { pager, getLists } = usePaging({ fetchFun: uiedBannerList })
 const showEdit = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
+const bannerPositionOptions = [
+    { label: '首页（home）', value: 'home' },
+    { label: '侧边栏（sidebar）', value: 'sidebar' },
+    { label: '底部（footer）', value: 'footer' },
+    { label: '详情页（detail）', value: 'detail' },
+    { label: '全局横条（global_strip）', value: 'global_strip' },
+    { label: '详情顶部（detail_top）', value: 'detail_top' },
+    { label: '详情正文中（detail_inline）', value: 'detail_inline' },
+    { label: '详情底部（detail_bottom）', value: 'detail_bottom' },
+    { label: '详情侧栏（detail_sidebar）', value: 'detail_sidebar' }
+]
+const bannerPositionLabelMap = bannerPositionOptions.reduce<Record<string, string>>((acc, item) => {
+    acc[item.value] = item.label
+    return acc
+}, {})
+bannerPositionLabelMap.website_detail_sidebar = bannerPositionLabelMap.detail_sidebar
+
+/**
+ * 规范化广告位置列表，兼容数组与逗号分隔字符串。
+ */
+const normalizePositionList = (value: unknown): string[] => {
+    const source = Array.isArray(value)
+        ? value
+        : String(value || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
+    return Array.from(new Set(source.map((item) => String(item).trim()).filter(Boolean)))
+}
+
+/**
+ * 渲染列表“位置/slot”列标签。
+ */
+const resolvePositionLabels = (row: any): string[] => {
+    const values = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
+    if (values.length === 0) return [ '未设置' ]
+    return values.map((value) => bannerPositionLabelMap[value] || value)
+}
+
 const editData = reactive({
     id: 0,
     title: '',
@@ -237,13 +286,56 @@ const editData = reactive({
     htmlContent: '',
     pageSlug: 'all',
     position: 'home',
+    positionList: [ 'home' ] as string[],
     sortOrder: 0,
     isActive: true
 })
 const editRules: FormRules = {
     title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
-    image: [{ required: true, message: '请输入图片URL', trigger: 'blur' }],
-    htmlContent: [{ required: true, message: '请输入HTML代码', trigger: 'blur' }]
+    image: [
+        {
+            validator: (_rule, value, callback) => {
+                if (editData.contentType === 'html') {
+                    callback()
+                    return
+                }
+                if (!String(value || '').trim()) {
+                    callback(new Error('请输入图片URL'))
+                    return
+                }
+                callback()
+            },
+            trigger: 'blur'
+        }
+    ],
+    htmlContent: [
+        {
+            validator: (_rule, value, callback) => {
+                if (editData.contentType !== 'html') {
+                    callback()
+                    return
+                }
+                if (!String(value || '').trim()) {
+                    callback(new Error('请输入HTML代码'))
+                    return
+                }
+                callback()
+            },
+            trigger: 'blur'
+        }
+    ],
+    positionList: [
+        {
+            validator: (_rule, value, callback) => {
+                if (normalizePositionList(value).length === 0) {
+                    callback(new Error('请至少选择一个广告位置'))
+                    return
+                }
+                callback()
+            },
+            trigger: 'change'
+        }
+    ]
 }
 
 const resetEditData = () =>
@@ -259,6 +351,7 @@ const resetEditData = () =>
         htmlContent: '',
         pageSlug: 'all',
         position: 'home',
+        positionList: [ 'home' ],
         sortOrder: 0,
         isActive: true
     })
@@ -275,8 +368,12 @@ const handleEdit = (row: any) => {
         linkTarget: row.linkTarget || '_blank',
         contentType: row.contentType || 'image',
         htmlContent: row.htmlContent || '',
-        pageSlug: row.pageSlug || 'all'
+        pageSlug: row.pageSlug || 'all',
+        positionList: normalizePositionList(row.positionList?.length ? row.positionList : row.position)
     })
+    if (editData.positionList.length === 0) {
+        editData.positionList = [ 'home' ]
+    }
     showEdit.value = true
 }
 
@@ -289,15 +386,30 @@ const handleSubmit = async () => {
     await editFormRef.value?.validate()
     editLoading.value = true
     try {
+        const positionList = normalizePositionList(editData.positionList)
+        const submitData = {
+            ...editData,
+            positionList,
+            position: positionList[0] || 'home'
+        }
         if (editData.id) {
-            await uiedBannerEdit(editData)
+            await uiedBannerEdit(submitData)
             feedback.msgSuccess('编辑成功')
         } else {
-            await uiedBannerAdd(editData)
+            await uiedBannerAdd(submitData)
             feedback.msgSuccess('添加成功')
         }
         showEdit.value = false
-        getLists()
+        await getLists()
+    } catch (error: any) {
+        const validationError = error?.fields ? '请先完善表单必填项' : ''
+        feedback.msgError(
+            validationError ||
+                error?.msg ||
+                error?.message ||
+                error?.response?.data?.message ||
+                '保存广告失败'
+        )
     } finally {
         editLoading.value = false
     }
@@ -307,7 +419,7 @@ const handleDelete = async (id: number) => {
     await feedback.confirm('确定要删除该广告吗？')
     await uiedBannerDelete({ id })
     feedback.msgSuccess('删除成功')
-    getLists()
+    await getLists()
 }
 
 /**
@@ -370,6 +482,12 @@ getLists()
     font-size: 12px;
     color: var(--el-text-color-secondary);
     line-height: 1.6;
+}
+
+.banner-position-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 @media (max-width: 900px) {

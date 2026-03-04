@@ -23,6 +23,7 @@ export interface Website {
   isFeatured: boolean;
   isHot: boolean;
   tags: string[];
+  weightTags?: string[];
   order: number;
   createdAt: string;
   updatedAt: string;

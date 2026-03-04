@@ -200,6 +200,39 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取每日上新网站
+   * GET /api/websites/daily-new
+   */
+  async dailyNewWebsites() {
+    const { ctx } = this;
+    const { page = 1, pageSize = 24, pageSlug = '', sortBy = 'latest' } = ctx.query;
+
+    try {
+      /**
+       * days 未传时，使用后台“每日上新默认天数”配置。
+       */
+      const dailyNewDisplayConfig = await this.getDailyNewDisplayConfig().catch(() => null);
+      const defaultDays = this.parsePositiveInt(dailyNewDisplayConfig?.defaultDays, 1);
+      const requestedDays = ctx.query?.days;
+      const days = requestedDays === undefined || requestedDays === null || requestedDays === ''
+        ? defaultDays
+        : parseInt(requestedDays);
+      const result = await ctx.service.uied.frontend.getDailyNewWebsites({
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        days,
+        pageSlug: String(pageSlug || '').trim(),
+        sortBy: String(sortBy || 'latest').trim(),
+      });
+      ctx.body = result;
+    } catch (error) {
+      ctx.logger.error('获取每日上新网站失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message };
+    }
+  }
+
+  /**
    * 获取精选网站列表（兼容旧前端）
    * GET /api/websites/featured/list
    */
@@ -242,9 +275,12 @@ class FrontendController extends Controller {
   async websiteDetail() {
     const { ctx } = this;
     const { idOrSlug } = ctx.params;
+    const previewMode = String(ctx.query?.preview || '').trim() === '1';
 
     try {
-      const website = await ctx.service.uied.frontend.getWebsiteDetail(idOrSlug);
+      const website = await ctx.service.uied.frontend.getWebsiteDetail(idOrSlug, {
+        includeUnpublished: previewMode,
+      });
       if (!website) {
         ctx.status = 404;
         ctx.body = { error: '网站不存在' };
@@ -774,19 +810,23 @@ class FrontendController extends Controller {
         { replacements, type: ctx.app.Sequelize.QueryTypes.SELECT }
       );
 
-      const results = (Array.isArray(rows) ? rows : []).map(item => ({
-        id: String(item?.id || ''),
-        name: String(item?.name || ''),
-        slug: String(item?.slug || ''),
-        description: String(item?.description || ''),
-        url: String(item?.url || ''),
-        iconUrl: String(item?.iconUrl || ''),
-        category: String(item?.category || ''),
-        tags: this.safeJsonParse(item?.tags, []),
-        isHot: Number(item?.isHot || 0) === 1,
-        isFeatured: Number(item?.isFeatured || 0) === 1,
-        isNew: Number(item?.isNew || 0) === 1,
-      }));
+      const results = (Array.isArray(rows) ? rows : []).map(item => {
+        const tagBundle = this.parseWebsiteTagBundle(item?.tags);
+        return {
+          id: String(item?.id || ''),
+          name: String(item?.name || ''),
+          slug: String(item?.slug || ''),
+          description: String(item?.description || ''),
+          url: String(item?.url || ''),
+          iconUrl: String(item?.iconUrl || ''),
+          category: String(item?.category || ''),
+          tags: tagBundle.tags,
+          weightTags: tagBundle.weightTags,
+          isHot: Number(item?.isHot || 0) === 1,
+          isFeatured: Number(item?.isFeatured || 0) === 1,
+          isNew: Number(item?.isNew || 0) === 1,
+        };
+      });
 
       ctx.body = {
         results,
@@ -880,7 +920,7 @@ class FrontendController extends Controller {
     try {
       this.setNoCacheHeaders();
       const config = await ctx.service.uied.setting.getSettingByKey('detailPageConfig');
-      ctx.body = config || {};
+      ctx.body = ctx.service.uied.setting.normalizeDetailPageConfig(config || {});
     } catch (error) {
       ctx.logger.error('获取详情页配置失败:', error);
       ctx.body = {};
@@ -949,6 +989,9 @@ class FrontendController extends Controller {
       const normalizedSearchConfig = ctx.service.uied.setting.normalizeSearchConfig(
         searchConfig || {}
       );
+      const normalizedHomepageConfig = ctx.service.uied.setting.normalizeHomepageConfig(
+        homepageConfig || {}
+      );
 
       ctx.body = {
         exitModalEnabled: true,
@@ -956,7 +999,7 @@ class FrontendController extends Controller {
         popupConfig: normalizedExitModalConfig,
         pageGlobalConfig: normalizedPageGlobalConfig,
         appearanceConfig: appearanceConfig || {},
-        homepageConfig: homepageConfig || {},
+        homepageConfig: normalizedHomepageConfig,
         cardStyleConfig: cardStyleConfig || {},
         sidebarConfig: sidebarConfig || {},
         searchConfig: normalizedSearchConfig,
@@ -1093,13 +1136,15 @@ class FrontendController extends Controller {
         children: (menu.children || []).map(transformMenu),
       });
 
-      const [ dailyHotConfig, rankBoardConfig ] = await Promise.all([
+      const [ dailyHotConfig, rankBoardConfig, dailyNewConfig ] = await Promise.all([
         this.getDailyHotDisplayConfig().catch(() => null),
         this.getRankBoardDisplayConfig().catch(() => null),
+        this.getDailyNewDisplayConfig().catch(() => null),
       ]);
-      const result = this.applyBuiltinNavMenuRefs(menus.map(transformMenu), { dailyHotConfig, rankBoardConfig });
+      const result = this.applyBuiltinNavMenuRefs(menus.map(transformMenu), { dailyHotConfig, rankBoardConfig, dailyNewConfig });
       const withDailyHot = this.appendDailyHotNavMenuItem(result, dailyHotConfig);
-      ctx.body = this.appendRankBoardNavMenuItem(withDailyHot, rankBoardConfig);
+      const withDailyNew = this.appendDailyNewNavMenuItem(withDailyHot, dailyNewConfig);
+      ctx.body = this.appendRankBoardNavMenuItem(withDailyNew, rankBoardConfig);
     } catch (error) {
       ctx.logger.error('获取导航菜单失败:', error);
       ctx.status = 500;
@@ -1166,13 +1211,15 @@ class FrontendController extends Controller {
         })),
       }));
 
-      const [ dailyHotConfig, rankBoardConfig ] = await Promise.all([
+      const [ dailyHotConfig, rankBoardConfig, dailyNewConfig ] = await Promise.all([
         this.getDailyHotDisplayConfig().catch(() => null),
         this.getRankBoardDisplayConfig().catch(() => null),
+        this.getDailyNewDisplayConfig().catch(() => null),
       ]);
-      const resolved = this.applyBuiltinFooterLinks(result, { dailyHotConfig, rankBoardConfig });
+      const resolved = this.applyBuiltinFooterLinks(result, { dailyHotConfig, rankBoardConfig, dailyNewConfig });
       const withDailyHot = this.appendDailyHotFooterLink(resolved, dailyHotConfig);
-      ctx.body = this.appendRankBoardFooterLink(withDailyHot, rankBoardConfig);
+      const withDailyNew = this.appendDailyNewFooterLink(withDailyHot, dailyNewConfig);
+      ctx.body = this.appendRankBoardFooterLink(withDailyNew, rankBoardConfig);
     } catch (error) {
       ctx.logger.error('获取页脚设置失败:', error);
       ctx.status = 500;
@@ -1323,6 +1370,37 @@ class FrontendController extends Controller {
       ctx.logger.error('获取每日热榜公开配置失败:', error);
       ctx.status = 500;
       ctx.body = { error: error.message || '获取每日热榜公开配置失败' };
+    }
+  }
+
+  /**
+   * 获取每日上新公开显示配置
+   * GET /api/daily-new/config
+   */
+  async dailyNewConfig() {
+    const { ctx } = this;
+
+    try {
+      const config = await this.getDailyNewDisplayConfig();
+      ctx.body = {
+        enabled: config.enabled !== false,
+        displayPlacements: Array.isArray(config.displayPlacements) ? config.displayPlacements : [],
+        displayLabel: String(config.displayLabel || '每日上新'),
+        displayPath: String(config.displayPath || '/p/daily-new'),
+        displaySort: Number(config.displaySort || 86),
+        displayOpenInNewTab: config.displayOpenInNewTab === true,
+        defaultDays: Number(config.defaultDays || 1),
+        pageKicker: String(config.pageKicker || 'Daily Fresh'),
+        pageTitle: String(config.pageTitle || '每日上新网址'),
+        pageDescription: String(
+          config.pageDescription || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
+        ),
+        updatedAt: Number(config.updatedAt || 0),
+      };
+    } catch (error) {
+      ctx.logger.error('获取每日上新公开配置失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取每日上新公开配置失败' };
     }
   }
 
@@ -2396,18 +2474,22 @@ class FrontendController extends Controller {
           parent: parentCategory ? { id: String(parentCategory.id), name: parentCategory.name, slug: parentCategory.slug } : null,
           subCategories: subCategories.map(s => ({ id: String(s.id), name: s.name, slug: s.slug })),
         },
-        websites: websites.map(w => ({
-          id: String(w.id),
-          name: w.name,
-          slug: w.slug,
-          description: w.description || '',
-          url: w.url,
-          iconUrl: w.iconUrl,
-          isHot: w.isHot === 1,
-          isFeatured: w.isFeatured === 1,
-          isNew: w.isNew === 1,
-          tags: this.safeJsonParse(w.tags, []),
-        })),
+        websites: websites.map(w => {
+          const tagBundle = this.parseWebsiteTagBundle(w.tags);
+          return {
+            id: String(w.id),
+            name: w.name,
+            slug: w.slug,
+            description: w.description || '',
+            url: w.url,
+            iconUrl: w.iconUrl,
+            isHot: w.isHot === 1,
+            isFeatured: w.isFeatured === 1,
+            isNew: w.isNew === 1,
+            tags: tagBundle.tags,
+            weightTags: tagBundle.weightTags,
+          };
+        }),
         total: countResult.total,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
@@ -2522,18 +2604,22 @@ class FrontendController extends Controller {
           seoDescription: tag.seoDescription,
           seoKeywords: tag.seoKeywords,
         },
-        websites: websites.map(w => ({
-          id: String(w.id),
-          name: w.name,
-          slug: w.slug,
-          description: w.description || '',
-          url: w.url,
-          iconUrl: w.iconUrl,
-          isHot: w.isHot === 1,
-          isFeatured: w.isFeatured === 1,
-          isNew: w.isNew === 1,
-          tags: this.safeJsonParse(w.tags, []),
-        })),
+        websites: websites.map(w => {
+          const tagBundle = this.parseWebsiteTagBundle(w.tags);
+          return {
+            id: String(w.id),
+            name: w.name,
+            slug: w.slug,
+            description: w.description || '',
+            url: w.url,
+            iconUrl: w.iconUrl,
+            isHot: w.isHot === 1,
+            isFeatured: w.isFeatured === 1,
+            isNew: w.isNew === 1,
+            tags: tagBundle.tags,
+            weightTags: tagBundle.weightTags,
+          };
+        }),
         total: countResult.total,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
@@ -2624,6 +2710,34 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取每日上新显示配置（供首页快捷入口/导航菜单/页脚自动注入）
+   */
+  async getDailyNewDisplayConfig() {
+    const { ctx } = this;
+    const homepageConfigRaw = await ctx.service.uied.setting.get('homepageConfig');
+    const homepageConfig = ctx.service.uied.setting.normalizeHomepageConfig(homepageConfigRaw || {});
+    const placements = Array.isArray(homepageConfig?.dailyNewDisplayPlacements)
+      ? homepageConfig.dailyNewDisplayPlacements.map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    return {
+      enabled: homepageConfig?.dailyNewEnabled !== false,
+      displayPlacements: Array.from(new Set(placements)),
+      displayLabel: String(homepageConfig?.dailyNewDisplayLabel || '每日上新').trim() || '每日上新',
+      displayPath: this.normalizePath(homepageConfig?.dailyNewDisplayPath || '/p/daily-new'),
+      displaySort: this.parsePositiveInt(homepageConfig?.dailyNewDisplaySort, 86),
+      displayOpenInNewTab: homepageConfig?.dailyNewDisplayOpenInNewTab === true,
+      defaultDays: this.parsePositiveInt(homepageConfig?.dailyNewDefaultDays, 1),
+      pageKicker: String(homepageConfig?.dailyNewPageKicker || 'Daily Fresh').trim() || 'Daily Fresh',
+      pageTitle: String(homepageConfig?.dailyNewPageTitle || '每日上新网址').trim() || '每日上新网址',
+      pageDescription: String(
+        homepageConfig?.dailyNewPageDescription
+          || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
+      ).trim() || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
+      updatedAt: 0,
+    };
+  }
+
+  /**
    * 获取榜单系统显示配置（供导航菜单/页脚自动注入使用）
    */
   async getRankBoardDisplayConfig() {
@@ -2657,11 +2771,12 @@ class FrontendController extends Controller {
   }
 
   /**
-   * 按内置入口配置解析导航菜单项（当前支持 daily_hot / rankings）
+   * 按内置入口配置解析导航菜单项（当前支持 daily_hot / daily_new / rankings）
    */
   applyBuiltinNavMenuRefs(rows = [], context = {}) {
     const list = Array.isArray(rows) ? rows : [];
     const dailyHotConfig = context?.dailyHotConfig || null;
+    const dailyNewConfig = context?.dailyNewConfig || null;
     const rankBoardConfig = context?.rankBoardConfig || null;
 
     return list.map(item => {
@@ -2675,6 +2790,11 @@ class FrontendController extends Controller {
         if (!String(next.text || '').trim()) {
           next.text = dailyHotConfig.displayLabel || '每日热榜';
         }
+      } else if (builtinKey === 'daily_new' && dailyNewConfig) {
+        next.link = dailyNewConfig.displayPath || next.link || '/p/daily-new';
+        if (!String(next.text || '').trim()) {
+          next.text = dailyNewConfig.displayLabel || '每日上新';
+        }
       } else if (builtinKey === 'rankings' && rankBoardConfig) {
         next.link = rankBoardConfig.displayPath || next.link || '/p/rankings';
         if (!String(next.text || '').trim()) {
@@ -2686,11 +2806,12 @@ class FrontendController extends Controller {
   }
 
   /**
-   * 按内置入口配置解析页脚链接（当前支持 daily_hot / rankings）
+   * 按内置入口配置解析页脚链接（当前支持 daily_hot / daily_new / rankings）
    */
   applyBuiltinFooterLinks(groups = [], context = {}) {
     const list = Array.isArray(groups) ? groups : [];
     const dailyHotConfig = context?.dailyHotConfig || null;
+    const dailyNewConfig = context?.dailyNewConfig || null;
     const rankBoardConfig = context?.rankBoardConfig || null;
 
     return list.map(group => ({
@@ -2702,6 +2823,11 @@ class FrontendController extends Controller {
           next.url = dailyHotConfig.displayPath || next.url || '/p/daily-hot';
           if (!String(next.text || '').trim()) {
             next.text = dailyHotConfig.displayLabel || '每日热榜';
+          }
+        } else if (builtinKey === 'daily_new' && dailyNewConfig) {
+          next.url = dailyNewConfig.displayPath || next.url || '/p/daily-new';
+          if (!String(next.text || '').trim()) {
+            next.text = dailyNewConfig.displayLabel || '每日上新';
           }
         } else if (builtinKey === 'rankings' && rankBoardConfig) {
           next.url = rankBoardConfig.displayPath || next.url || '/p/rankings';
@@ -2758,6 +2884,33 @@ class FrontendController extends Controller {
       displayMobile: config.displayMobile !== false,
     });
 
+    return list.sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+  }
+
+  /**
+   * 按每日上新配置自动注入导航菜单入口（首页菜单）
+   */
+  appendDailyNewNavMenuItem(rows = [], config = null) {
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    if (!config || config.enabled === false) return list;
+    if (!Array.isArray(config.displayPlacements) || !config.displayPlacements.includes('home_menu')) return list;
+    if (!config.displayPath || this.hasNavMenuLink(list, config.displayPath, [ 'daily_new' ])) return list;
+
+    list.push({
+      id: 'builtin:daily-new',
+      text: config.displayLabel || '每日上新',
+      link: config.displayPath || '/p/daily-new',
+      external: config.displayOpenInNewTab === true,
+      label: '内置',
+      labelType: 'info',
+      icon: 'Calendar',
+      parentId: null,
+      order: Number(config.displaySort || 86),
+      visible: true,
+      children: [],
+      builtin: true,
+      builtinKey: 'daily_new',
+    });
     return list.sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
   }
 
@@ -2822,6 +2975,51 @@ class FrontendController extends Controller {
         links: [ builtinLink ],
         builtin: true,
         builtinKey: 'daily_hot',
+      },
+    ];
+  }
+
+  /**
+   * 按每日上新配置自动注入页脚链接（页脚显示）
+   */
+  appendDailyNewFooterLink(groups = [], config = null) {
+    const list = Array.isArray(groups) ? groups.map(group => ({
+      ...group,
+      links: Array.isArray(group?.links) ? group.links.slice() : [],
+    })) : [];
+
+    if (!config || config.enabled === false) return list;
+    if (!Array.isArray(config.displayPlacements) || !config.displayPlacements.includes('footer_link')) return list;
+    if (!config.displayPath || this.hasFooterLink(list, config.displayPath, [ 'daily_new' ])) return list;
+
+    const builtinLink = {
+      id: 'builtin:daily-new-footer',
+      text: config.displayLabel || '每日上新',
+      url: config.displayPath || '/p/daily-new',
+      external: config.displayOpenInNewTab === true,
+      order: Number(config.displaySort || 86),
+      visible: true,
+      builtin: true,
+      builtinKey: 'daily_new',
+    };
+
+    const targetGroup = list.find(group => group?.visible !== false) || null;
+    if (targetGroup) {
+      targetGroup.links.push(builtinLink);
+      targetGroup.links.sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+      return list;
+    }
+
+    return [
+      ...list,
+      {
+        id: 'builtin:daily-new-group',
+        title: '每日上新',
+        order: 997,
+        visible: true,
+        links: [ builtinLink ],
+        builtin: true,
+        builtinKey: 'daily_new',
       },
     ];
   }
@@ -2900,6 +3098,60 @@ class FrontendController extends Controller {
         builtinKey: 'rankings',
       },
     ];
+  }
+
+  /**
+   * 规范化站点权重标签键（支持中英文别名）
+   */
+  normalizeWebsiteWeightTag(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    const aliasMap = {
+      official: 'official',
+      'weight:official': 'official',
+      '官网': 'official',
+      '官方': 'official',
+      recommended: 'recommended',
+      recommend: 'recommended',
+      'weight:recommended': 'recommended',
+      '推荐': 'recommended',
+      enterprise_verified: 'enterprise_verified',
+      enterpriseverified: 'enterprise_verified',
+      enterprise: 'enterprise_verified',
+      verified_enterprise: 'enterprise_verified',
+      'weight:enterprise_verified': 'enterprise_verified',
+      '企业认证': 'enterprise_verified',
+    };
+    return aliasMap[raw] || '';
+  }
+
+  /**
+   * 解析网站标签，拆分普通标签与权重标签
+   */
+  parseWebsiteTagBundle(source) {
+    const rows = this.safeJsonParse(source, [])
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    const tags = [];
+    const weightTags = [];
+    rows.forEach(item => {
+      const normalizedWeight = this.normalizeWebsiteWeightTag(item);
+      if (normalizedWeight) {
+        weightTags.push(normalizedWeight);
+        return;
+      }
+      if (String(item).toLowerCase().startsWith('weight:')) {
+        const fallback = this.normalizeWebsiteWeightTag(String(item).replace(/^weight:/i, ''));
+        if (fallback) {
+          weightTags.push(fallback);
+          return;
+        }
+      }
+      tags.push(item);
+    });
+    return {
+      tags: Array.from(new Set(tags)),
+      weightTags: Array.from(new Set(weightTags)),
+    };
   }
 
   /**

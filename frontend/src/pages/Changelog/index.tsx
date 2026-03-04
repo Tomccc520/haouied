@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import SEO from '../../components/SEO';
+import { fetchGitHubChangelog, type ChangelogRelease } from '../../services/changelogService';
 import './index.css';
 
 // 图标组件
@@ -66,7 +67,7 @@ const platformLinks = [
 ];
 
 // 更新记录数据
-const changelogData = [
+const localChangelogData: ChangelogRelease[] = [
   {
     version: '3.0.0-rc.1',
     date: '2026-02-27',
@@ -279,15 +280,55 @@ const typeLabels: Record<string, { text: string; className: string }> = {
 };
 
 const ChangelogPage: React.FC = () => {
+  const [changelogData, setChangelogData] = useState<ChangelogRelease[]>(localChangelogData);
+  const [syncStatus, setSyncStatus] = useState<'loading' | 'github' | 'local'>('loading');
+
   // 统计信息
   const websiteCount = 2440;
-  const lastUpdate = '2026-01-17 18:00';
+  const lastUpdate = changelogData[0]?.date ? `${changelogData[0].date} 00:00` : '-';
   
   // 当前激活的版本（用于目录高亮）
-  const [activeVersion, setActiveVersion] = useState<string>(changelogData[0].version);
+  const [activeVersion, setActiveVersion] = useState<string>(localChangelogData[0].version);
+
+  /**
+   * 启动时从 GitHub 同步更新记录，失败时回退本地内置记录
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const loadChangelog = async () => {
+      try {
+        const releases = await fetchGitHubChangelog({ limit: 16 });
+        if (!cancelled && releases.length) {
+          setChangelogData(releases);
+          setSyncStatus('github');
+          return;
+        }
+      } catch (error) {
+        console.warn('同步 GitHub 更新记录失败，使用本地内置数据:', error);
+      }
+      if (!cancelled) {
+        setChangelogData(localChangelogData);
+        setSyncStatus('local');
+      }
+    };
+    loadChangelog();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * 当数据源变化时，重置目录高亮到最新版本
+   */
+  useEffect(() => {
+    if (changelogData.length > 0) {
+      setActiveVersion(changelogData[0].version);
+    }
+  }, [changelogData]);
 
   // 滚动监听
   useEffect(() => {
+    if (!changelogData.length) return;
     const handleScroll = () => {
       const sections = document.querySelectorAll('.changelog-item');
       let currentVersion = changelogData[0].version;
@@ -304,7 +345,7 @@ const ChangelogPage: React.FC = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [changelogData]);
 
   // 点击目录跳转
   const scrollToVersion = (version: string) => {
@@ -384,7 +425,8 @@ const ChangelogPage: React.FC = () => {
 
             {/* 统计信息 */}
             <div className="stats-info">
-              当前网站总数：{websiteCount}个 | 最后更新：{lastUpdate}
+              当前网站总数：{websiteCount}个 | 最后更新：{lastUpdate} | 数据源：
+              {syncStatus === 'loading' ? '加载中' : syncStatus === 'github' ? 'GitHub Release' : '本地内置记录'}
             </div>
           </div>
 
@@ -407,7 +449,20 @@ const ChangelogPage: React.FC = () => {
                     <span className="release-date">{release.date}</span>
                   </div>
                   
-                  <h2 className="release-title">{release.title}</h2>
+                  <h2 className="release-title">
+                    {release.releaseUrl ? (
+                      <a
+                        href={release.releaseUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="release-title-link"
+                      >
+                        {release.title}
+                      </a>
+                    ) : (
+                      release.title
+                    )}
+                  </h2>
                   
                   <ul className="changes-list">
                     {release.changes.map((change, i) => (

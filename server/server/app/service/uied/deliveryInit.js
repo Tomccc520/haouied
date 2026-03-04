@@ -136,6 +136,8 @@ class DeliveryInitService extends Service {
           showDirectArrow: true,
           directArrowNewWindow: true,
           detailPageNewWindow: false,
+          appendRefEnabled: false,
+          appendRefValue: '',
           pageSize: 24,
         },
         searchConfig: {

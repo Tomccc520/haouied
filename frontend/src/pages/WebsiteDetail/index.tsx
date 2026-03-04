@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { AxiosError } from 'axios';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation } from 'swiper/modules';
 import api from '../../services/api';
@@ -24,9 +24,11 @@ import LikeButton from './LikeButton';
 import ShareButtons from './ShareButtons';
 import { getFullImageUrl, processContentImageUrls } from '../../utils/urlUtils';
 import { unwrapApiList, unwrapApiResponse } from '../../utils/apiResponse';
+import { appendRefParamToUrl } from '../../utils/clickMode';
 import { debugLog } from '../../utils/debugHelper';
 import publicSettingService, { DEFAULT_DETAIL_PAGE } from '../../services/publicSettingService';
 import useCache from '../../hooks/useCache';
+import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import DetailCommercialSlot from './DetailCommercialSlot';
 import 'swiper/css';
 import 'swiper/css/navigation';
@@ -89,6 +91,10 @@ interface WebsiteDetailData {
     remark?: string;
     updatedAt?: string | null;
   } | null;
+  status?: string;
+  statusReason?: string;
+  lastCheckedAt?: string | null;
+  weightTags?: string[];
 }
 
 interface RelatedWebsite {
@@ -204,6 +210,8 @@ interface DetailPageConfig {
   seoLongTailTitle?: string;
   seoLongTailKeywords?: string | string[];
   seoSchemaEnabled?: boolean;
+  seoCanonicalEnabled?: boolean;
+  seoNoindexEnabled?: boolean;
   screenshotsEnabled?: boolean;
   thumbnailLayoutStyle?: 'device' | 'split' | 'carousel';
   thumbnailSplitSideCount?: number;
@@ -376,6 +384,21 @@ const formatDetailDateLabel = (value?: string): string => {
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const dd = String(date.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+};
+
+/**
+ * 格式化详情页日期时间显示（用于检测时间等精确时间点）。
+ */
+const formatDetailDateTimeLabel = (value?: string | null): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 };
 
 /**
@@ -584,9 +607,11 @@ const extractImageAccentRgb = async (imageUrl?: string): Promise<string | null> 
 
 const WebsiteDetailPage: React.FC = () => {
   const { idOrSlug } = useParams<{ idOrSlug?: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const { isLoading: licenseLoading, hasFeature } = useLicense();
   const { user, isLoggedIn } = useUser();
+  const { config: frontendConfig } = useFrontendConfig();
   
   const [website, setWebsite] = useState<WebsiteDetailData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -610,6 +635,10 @@ const WebsiteDetailPage: React.FC = () => {
   const [compareCandidatesLoading, setCompareCandidatesLoading] = useState(false);
   const [heroInfoTab, setHeroInfoTab] = useState<'summary' | 'data' | 'tags'>('summary');
   const [previewFallbackIndex, setPreviewFallbackIndex] = useState<number>(0);
+  const isPreviewMode = React.useMemo(() => {
+    const searchParams = new URLSearchParams(location.search || '');
+    return searchParams.get('preview') === '1';
+  }, [location.search]);
   
   // 图片灯箱状态
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -669,7 +698,9 @@ const WebsiteDetailPage: React.FC = () => {
         throw new Error('未找到网站ID或别名');
       }
 
-      const response = await api.get(`/websites/${identifier}`);
+      const response = await api.get(`/websites/${identifier}`, {
+        params: isPreviewMode ? { preview: 1 } : undefined,
+      });
       const data = unwrapApiResponse<WebsiteDetailData | null>(response.data, null);
       
       if (!data) {
@@ -702,7 +733,7 @@ const WebsiteDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [idOrSlug]);
+  }, [idOrSlug, isPreviewMode]);
 
   // 获取相关推荐
   const fetchRelatedWebsites = async (websiteId: string, categoryId: string) => {
@@ -1021,8 +1052,10 @@ const WebsiteDetailPage: React.FC = () => {
     ...websiteTags.map(t => t.name)
   ].filter((v, i, a) => a.indexOf(v) === i);
   const displayUpdatedDate = formatDetailDateLabel(website.updatedAt || website.createdAt);
+  const displayLastCheckedAt = formatDetailDateTimeLabel(website.lastCheckedAt);
   const displayHost = getWebsiteHostLabel(website.url);
   const displayProtocol = getWebsiteProtocolLabel(website.url);
+  const externalVisitUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
   const displayAverageRating = typeof website.averageRating === 'number'
     ? Number(website.averageRating).toFixed(1)
     : '';
@@ -1088,8 +1121,25 @@ const WebsiteDetailPage: React.FC = () => {
   );
   const detailContentLength = countEffectiveTextLength(toPlainText(String(website.detailContent || '')));
   const screenshotAssetCount = screenshots.length + (website.thumbnail ? 1 : 0);
+  const statusReasonLabel = String(website.statusReason || '').trim() || '无异常原因';
+  const weightTagLabelMap: Record<string, string> = {
+    official: '官方',
+    recommended: '推荐',
+    enterprise_verified: '企业认证',
+  };
+  const weightTagLabel = Array.from(
+    new Set(
+      (Array.isArray(website.weightTags) ? website.weightTags : [])
+        .map((item) => String(item || '').trim().toLowerCase())
+        .map((item) => weightTagLabelMap[item] || '')
+        .filter(Boolean),
+    ),
+  ).join(' / ');
   const websiteDataItems: DetailDataPanelItem[] = [
     { key: 'health', label: '可访问状态', value: healthStatusLabel },
+    { key: 'lastCheckedAt', label: '最后校验时间', value: displayLastCheckedAt || '未检测' },
+    { key: 'statusReason', label: '状态原因', value: statusReasonLabel },
+    { key: 'weightTags', label: '站点权重', value: weightTagLabel || '未标注' },
     { key: 'httpStatus', label: 'HTTP 状态', value: httpStatusCodeLabel },
     { key: 'responseTime', label: '响应速度', value: responseTimeLabel },
     { key: 'seoTitleLength', label: 'SEO 标题长度', value: formatSeoTextLengthLabel(seoTitleText) },
@@ -1130,16 +1180,16 @@ const WebsiteDetailPage: React.FC = () => {
     });
   })();
   const seoLongTailKeywords = parseConfigStringList(detailPageConfig.seoLongTailKeywords).slice(0, 18);
+  const detailCanonicalUrl = `https://hao.uied.cn/website/${website.slug || website.id}`;
   const detailSchemaBlocks = (() => {
     if (detailPageConfig.seoSchemaEnabled === false) return [];
-    const canonicalUrl = `https://hao.uied.cn/website/${website.slug || website.id}`;
     const blocks: Array<Record<string, unknown>> = [
       {
         '@context': 'https://schema.org',
         '@type': 'WebPage',
         name: website.seoTitle || website.name,
         description: website.seoDescription || website.description,
-        url: canonicalUrl,
+        url: detailCanonicalUrl,
         datePublished: website.createdAt || undefined,
         dateModified: website.updatedAt || website.createdAt || undefined,
         inLanguage: 'zh-CN',
@@ -1170,7 +1220,7 @@ const WebsiteDetailPage: React.FC = () => {
               '@type': 'ListItem',
               position: 4,
               name: website.name,
-              item: canonicalUrl,
+              item: detailCanonicalUrl,
             },
           ],
         },
@@ -1225,7 +1275,13 @@ const WebsiteDetailPage: React.FC = () => {
         description={website.seoDescription || website.description}
         keywords={website.seoKeywords || `${website.name},${website.category.name},${allTags.join(',')}`}
         image={website.iconUrl}
-        url={`https://hao.uied.cn/website/${website.slug || website.id}`}
+        url={detailCanonicalUrl}
+        noindex={isPreviewMode || detailPageConfig.seoNoindexEnabled === true}
+        canonical={
+          isPreviewMode || detailPageConfig.seoCanonicalEnabled === false
+            ? false
+            : detailCanonicalUrl
+        }
         type="website"
       />
       {detailSchemaBlocks.map((block, index) => (
@@ -1386,7 +1442,7 @@ const WebsiteDetailPage: React.FC = () => {
 
                   <div className="detail-hero__actions">
                     <a
-                      href={website.url}
+                      href={externalVisitUrl}
                       target={detailPageConfig.visitBtnNewWindow !== false ? '_blank' : '_self'}
                       rel={detailPageConfig.visitBtnNewWindow !== false ? 'noopener noreferrer' : undefined}
                       className="btn-visit-large"
@@ -1488,12 +1544,10 @@ const WebsiteDetailPage: React.FC = () => {
               </div>
             </section>
 
-            {detailPageConfig.detailTopAdEnabled && (
-              <DetailCommercialSlot
-                slotKey={String(detailPageConfig.detailTopAdSlotKey || 'detail_top')}
-                className="detail-commercial-slot--top"
-              />
-            )}
+            <DetailCommercialSlot
+              slotKey={String(detailPageConfig.detailTopAdSlotKey || 'detail_top')}
+              className="detail-commercial-slot--top"
+            />
 
             <div className="detail-body-layout">
               <div className="detail-body-main">
@@ -1552,12 +1606,10 @@ const WebsiteDetailPage: React.FC = () => {
               </section>
             )}
 
-            {detailPageConfig.detailInlineAdEnabled && (
-              <DetailCommercialSlot
-                slotKey={String(detailPageConfig.detailInlineAdSlotKey || 'detail_inline')}
-                className="detail-commercial-slot--inline"
-              />
-            )}
+            <DetailCommercialSlot
+              slotKey={String(detailPageConfig.detailInlineAdSlotKey || 'detail_inline')}
+              className="detail-commercial-slot--inline"
+            />
 
             {/* 产品截图 */}
             {detailPageConfig.screenshotsEnabled !== false && screenshots.length > 0 && (
@@ -1649,12 +1701,10 @@ const WebsiteDetailPage: React.FC = () => {
               </footer>
             )}
 
-            {detailPageConfig.detailBottomAdEnabled && (
-              <DetailCommercialSlot
-                slotKey={String(detailPageConfig.detailBottomAdSlotKey || 'detail_bottom')}
-                className="detail-commercial-slot--bottom"
-              />
-            )}
+            <DetailCommercialSlot
+              slotKey={String(detailPageConfig.detailBottomAdSlotKey || 'detail_bottom')}
+              className="detail-commercial-slot--bottom"
+            />
 
             {/* 底部相关推荐 (移动端显示) */}
             <div className="mobile-related">

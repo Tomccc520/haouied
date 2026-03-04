@@ -283,19 +283,13 @@
                         >
                     </el-form-item>
 
-                    <el-form-item label="侧栏推广位">
-                        <el-switch v-model="config.sidebarAdEnabled" :disabled="!config.enabled" />
-                        <span class="form-tip">开启后可在侧栏展示推广位内容。</span>
-                    </el-form-item>
-
                     <el-form-item label="侧栏推广位标识">
                         <el-input
                             v-model="config.sidebarAdSlotKey"
-                            :disabled="!config.enabled || !config.sidebarAdEnabled"
                             placeholder="例如：website_detail_sidebar"
                         />
                         <span class="form-tip"
-                            >用于匹配对应推广位素材池，例如：website_detail_sidebar。</span
+                            >仅用于绑定广告位标识（slotKey）。广告内容请统一在「广告管理」维护。</span
                         >
                     </el-form-item>
 
@@ -361,44 +355,26 @@
                     <!-- 详情页运营位 -->
                     <el-divider content-position="left">详情页推广位</el-divider>
                     <p class="section-desc">
-                        可在详情页顶部/正文中/底部投放运营内容，按“推广位标识”自动匹配对应素材。
+                        详情页广告位采用统一运营策略：此处仅维护 slotKey 标识，具体广告素材、上下线与排序请在「广告管理」中配置。
                     </p>
-
-                    <el-form-item label="顶部运营位">
-                        <el-switch v-model="config.detailTopAdEnabled" />
-                        <span class="form-tip">显示在详情页 Hero 区域下方。</span>
-                    </el-form-item>
 
                     <el-form-item label="顶部推广位标识">
                         <el-input
                             v-model="config.detailTopAdSlotKey"
-                            :disabled="!config.detailTopAdEnabled"
                             placeholder="例如：detail_top"
                         />
-                    </el-form-item>
-
-                    <el-form-item label="正文中运营位">
-                        <el-switch v-model="config.detailInlineAdEnabled" />
-                        <span class="form-tip">显示在详情正文内容后、截图区块前。</span>
                     </el-form-item>
 
                     <el-form-item label="正文中推广位标识">
                         <el-input
                             v-model="config.detailInlineAdSlotKey"
-                            :disabled="!config.detailInlineAdEnabled"
                             placeholder="例如：detail_inline"
                         />
-                    </el-form-item>
-
-                    <el-form-item label="底部运营位">
-                        <el-switch v-model="config.detailBottomAdEnabled" />
-                        <span class="form-tip">显示在版权/免责声明区块前后（前端底部区域）。</span>
                     </el-form-item>
 
                     <el-form-item label="底部推广位标识">
                         <el-input
                             v-model="config.detailBottomAdSlotKey"
-                            :disabled="!config.detailBottomAdEnabled"
                             placeholder="例如：detail_bottom"
                         />
                     </el-form-item>
@@ -478,6 +454,20 @@
                         <el-switch v-model="config.seoSchemaEnabled" />
                         <span class="form-tip"
                             >开启后前端注入 JSON-LD（WebPage/Breadcrumb/FAQPage）。</span
+                        >
+                    </el-form-item>
+
+                    <el-form-item label="Canonical 链接">
+                        <el-switch v-model="config.seoCanonicalEnabled" />
+                        <span class="form-tip"
+                            >关闭后详情页不输出 canonical，适合灰度页面或多入口重复内容控制。</span
+                        >
+                    </el-form-item>
+
+                    <el-form-item label="Noindex 索引控制">
+                        <el-switch v-model="config.seoNoindexEnabled" />
+                        <span class="form-tip"
+                            >开启后详情页 robots 将输出 noindex,nofollow（防止被搜索引擎收录）。</span
                         >
                     </el-form-item>
                 </div>
@@ -919,13 +909,9 @@ const defaultConfig = {
     showCategory: true,
     categoryTitle: '相关分类',
     sidebarLinksNewWindow: false,
-    sidebarAdEnabled: false,
     sidebarAdSlotKey: 'website_detail_sidebar',
-    detailTopAdEnabled: false,
     detailTopAdSlotKey: 'detail_top',
-    detailInlineAdEnabled: false,
     detailInlineAdSlotKey: 'detail_inline',
-    detailBottomAdEnabled: false,
     detailBottomAdSlotKey: 'detail_bottom',
     seoFaqEnabled: false,
     seoFaqTitle: '常见问题',
@@ -934,6 +920,8 @@ const defaultConfig = {
     seoLongTailTitle: '相关搜索',
     seoLongTailKeywords: '',
     seoSchemaEnabled: true,
+    seoCanonicalEnabled: true,
+    seoNoindexEnabled: false,
     // 区块显示控制
     screenshotsEnabled: true,
     thumbnailLayoutStyle: 'device',
@@ -1110,6 +1098,13 @@ const handleSave = async () => {
     try {
         normalizeAdvancedConfigArrays()
         const pureConfig = JSON.parse(JSON.stringify(config))
+        /**
+         * 广告位开关已收敛到广告管理：详情页配置仅保留 slotKey，避免重复配置入口。
+         */
+        delete pureConfig.sidebarAdEnabled
+        delete pureConfig.detailTopAdEnabled
+        delete pureConfig.detailInlineAdEnabled
+        delete pureConfig.detailBottomAdEnabled
         await uiedSettingSave({ detailPageConfig: pureConfig })
         feedback.msgSuccess('保存成功')
     } catch (e: any) {

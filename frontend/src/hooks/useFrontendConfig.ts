@@ -68,6 +68,8 @@ interface PageGlobalConfig {
   showDirectArrow?: boolean;
   directArrowNewWindow?: boolean;
   hotRecommendationClickMode?: 'detail' | 'direct'; // 热门推荐独立配置
+  appendRefEnabled?: boolean;
+  appendRefValue?: string;
 }
 
 /** 外观配置 */
@@ -85,6 +87,7 @@ interface AppearanceConfig {
 
 /** 首页配置 */
 interface HomepageConfig {
+  homePageSlug: string;
   heroBannerEnabled: boolean;
   heroBgType: 'default' | 'color' | 'gradient' | 'image';
   heroBgValue: string;
@@ -100,6 +103,16 @@ interface HomepageConfig {
   homeCarouselSort: number;
   homeRecommendationEnabled: boolean;
   homeRecommendationSort: number;
+  dailyNewEnabled: boolean;
+  dailyNewDisplayLabel: string;
+  dailyNewDisplayPath: string;
+  dailyNewDisplayPlacements: string[];
+  dailyNewDisplaySort: number;
+  dailyNewDisplayOpenInNewTab: boolean;
+  dailyNewDefaultDays: number;
+  dailyNewPageKicker: string;
+  dailyNewPageTitle: string;
+  dailyNewPageDescription: string;
   navSwitchItems: Array<{
     slug: string;
     name: string;
@@ -210,6 +223,8 @@ const defaultPageGlobalConfig: PageGlobalConfig = {
   showDirectArrow: false,
   directArrowNewWindow: true,
   hotRecommendationClickMode: 'detail', // 热门推荐默认跳转详情页
+  appendRefEnabled: false,
+  appendRefValue: '',
 };
 
 const defaultAppearanceConfig: AppearanceConfig = {
@@ -225,6 +240,7 @@ const defaultAppearanceConfig: AppearanceConfig = {
 };
 
 const defaultHomepageConfig: HomepageConfig = {
+  homePageSlug: '',
   heroBannerEnabled: true,
   heroBgType: 'default',
   heroBgValue: '',
@@ -240,6 +256,16 @@ const defaultHomepageConfig: HomepageConfig = {
   homeCarouselSort: 10,
   homeRecommendationEnabled: true,
   homeRecommendationSort: 20,
+  dailyNewEnabled: true,
+  dailyNewDisplayLabel: '每日上新',
+  dailyNewDisplayPath: '/p/daily-new',
+  dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
+  dailyNewDisplaySort: 86,
+  dailyNewDisplayOpenInNewTab: false,
+  dailyNewDefaultDays: 1,
+  dailyNewPageKicker: 'Daily Fresh',
+  dailyNewPageTitle: '每日上新网址',
+  dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
   navSwitchItems: [...DEFAULT_NAV_SWITCH_ITEMS],
 };
 
@@ -310,6 +336,8 @@ const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
     ...mergedConfig,
     websiteClickMode: normalizeWebsiteClickMode(mergedConfig.websiteClickMode),
     hotRecommendationClickMode: normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
+    appendRefEnabled: mergedConfig.appendRefEnabled === true,
+    appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
   };
 };
 
@@ -318,11 +346,34 @@ const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
  */
 const normalizeHomepageConfig = (config: unknown): HomepageConfig => {
   const mergedConfig = { ...defaultHomepageConfig, ...((config as Partial<HomepageConfig>) || {}) };
+  /**
+   * 规范化每日上新入口显示位置，限制受控枚举并去重。
+   */
+  const normalizedDailyNewPlacements = (() => {
+    const allowSet = new Set([ 'nav_quick_entry', 'home_menu', 'footer_link' ]);
+    const rows = Array.isArray(mergedConfig.dailyNewDisplayPlacements)
+      ? mergedConfig.dailyNewDisplayPlacements
+      : [];
+    const list = rows
+      .map((item) => String(item || '').trim())
+      .filter((item) => allowSet.has(item));
+    return Array.from(new Set(list));
+  })();
+  /**
+   * 规范化每日上新入口路径，兼容相对路径写法。
+   */
+  const normalizedDailyNewPath = (() => {
+    const rawPath = String(mergedConfig.dailyNewDisplayPath || '').trim();
+    if (!rawPath) return defaultHomepageConfig.dailyNewDisplayPath;
+    if (/^(https?:)?\/\//i.test(rawPath)) return rawPath;
+    return rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+  })();
   const items = Array.isArray(mergedConfig.navSwitchItems)
     ? mergedConfig.navSwitchItems
     : defaultHomepageConfig.navSwitchItems;
   return {
     ...mergedConfig,
+    homePageSlug: String(mergedConfig.homePageSlug || '').trim(),
     homeCarouselEnabled: mergedConfig.homeCarouselEnabled !== false,
     homeRecommendationEnabled: mergedConfig.homeRecommendationEnabled !== false,
     homeCarouselSort: Number.isFinite(Number(mergedConfig.homeCarouselSort))
@@ -331,6 +382,26 @@ const normalizeHomepageConfig = (config: unknown): HomepageConfig => {
     homeRecommendationSort: Number.isFinite(Number(mergedConfig.homeRecommendationSort))
       ? Number(mergedConfig.homeRecommendationSort)
       : defaultHomepageConfig.homeRecommendationSort,
+    dailyNewEnabled: mergedConfig.dailyNewEnabled !== false,
+    dailyNewDisplayLabel: String(mergedConfig.dailyNewDisplayLabel || defaultHomepageConfig.dailyNewDisplayLabel).trim() || defaultHomepageConfig.dailyNewDisplayLabel,
+    dailyNewDisplayPath: normalizedDailyNewPath,
+    dailyNewDisplayPlacements: normalizedDailyNewPlacements.length > 0 ? normalizedDailyNewPlacements : defaultHomepageConfig.dailyNewDisplayPlacements,
+    dailyNewDisplaySort: Number.isFinite(Number(mergedConfig.dailyNewDisplaySort))
+      ? Math.max(1, Math.min(9999, Number(mergedConfig.dailyNewDisplaySort)))
+      : defaultHomepageConfig.dailyNewDisplaySort,
+    dailyNewDisplayOpenInNewTab: mergedConfig.dailyNewDisplayOpenInNewTab === true,
+    dailyNewDefaultDays: Number.isFinite(Number(mergedConfig.dailyNewDefaultDays))
+      ? Math.max(1, Math.min(30, Number(mergedConfig.dailyNewDefaultDays)))
+      : defaultHomepageConfig.dailyNewDefaultDays,
+    dailyNewPageKicker: String(
+      mergedConfig.dailyNewPageKicker || defaultHomepageConfig.dailyNewPageKicker
+    ).trim() || defaultHomepageConfig.dailyNewPageKicker,
+    dailyNewPageTitle: String(
+      mergedConfig.dailyNewPageTitle || defaultHomepageConfig.dailyNewPageTitle
+    ).trim() || defaultHomepageConfig.dailyNewPageTitle,
+    dailyNewPageDescription: String(
+      mergedConfig.dailyNewPageDescription || defaultHomepageConfig.dailyNewPageDescription
+    ).trim() || defaultHomepageConfig.dailyNewPageDescription,
     navSwitchItems: items
       .map((item, index) => ({
         slug: String(item?.slug || defaultHomepageConfig.navSwitchItems[index % defaultHomepageConfig.navSwitchItems.length].slug),

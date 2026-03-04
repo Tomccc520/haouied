@@ -30,11 +30,13 @@
 }
 
 /* 运营位：全局横条（global_strip）不保留上下留白，避免挤占首屏 */
-.ad-banner--slot-global_strip.ad-banner-top {
+.ad-banner--slot-global_strip.ad-banner-top,
+.ad-banner--position-global_strip.ad-banner-top {
   margin-bottom: 0;
 }
 
-.ad-banner--slot-global_strip .html-banner-container {
+.ad-banner--slot-global_strip .html-banner-container,
+.ad-banner--position-global_strip .html-banner-container {
   margin-bottom: 0;
 }
 

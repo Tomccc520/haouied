@@ -17,6 +17,7 @@ interface SEOProps {
   url?: string;
   type?: string;
   noindex?: boolean;
+  canonical?: string | false;
 }
 
 const SEO: React.FC<SEOProps> = ({
@@ -26,7 +27,8 @@ const SEO: React.FC<SEOProps> = ({
   image = 'https://hao.uied.cn/og-image.jpg',
   url = 'https://hao.uied.cn',
   type = 'website',
-  noindex = false
+  noindex = false,
+  canonical
 }) => {
   const fullTitle = title === 'UIED设计导航' ? title : `${title} - UIED设计导航`;
 
@@ -70,16 +72,24 @@ const SEO: React.FC<SEOProps> = ({
     updateMetaTag('twitter:description', description, true);
     updateMetaTag('twitter:image', image, true);
 
-    // 更新canonical链接
-    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
-    if (!canonical) {
-      canonical = document.createElement('link');
-      canonical.setAttribute('rel', 'canonical');
-      document.head.appendChild(canonical);
+    // 更新 canonical 链接（支持按页面关闭 canonical）
+    const canonicalHref = canonical === undefined ? url : canonical;
+    const canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (canonicalHref === false) {
+      if (canonicalLink?.parentNode) {
+        canonicalLink.parentNode.removeChild(canonicalLink);
+      }
+    } else {
+      let node = canonicalLink;
+      if (!node) {
+        node = document.createElement('link');
+        node.setAttribute('rel', 'canonical');
+        document.head.appendChild(node);
+      }
+      node.setAttribute('href', String(canonicalHref || url));
     }
-    canonical.setAttribute('href', url);
 
-  }, [fullTitle, description, keywords, image, url, type, noindex]);
+  }, [fullTitle, description, keywords, image, url, type, noindex, canonical]);
 
   return null; // 该组件不渲染任何内容
 };

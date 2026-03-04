@@ -67,6 +67,7 @@ export interface Website {
   isFeatured: boolean;
   isNew: boolean;
   tags: string[];
+  weightTags?: string[];
 }
 
 // 页面完整数据类型

@@ -127,6 +127,40 @@ interface CommercialPlacementItem {
   badgeText?: string;
 }
 
+interface BannerFallbackItem {
+  id: string | number;
+  title?: string;
+  description?: string;
+  linkUrl?: string;
+  imageUrl?: string;
+}
+
+/**
+ * 将详情页侧栏 slotKey 映射为 Banner 广告位 position。
+ */
+const resolveSidebarBannerPositionBySlotKey = (slotKey: string): string => {
+  const key = String(slotKey || '').trim().toLowerCase();
+  if (!key) return 'detail_sidebar';
+  if (key === 'website_detail_sidebar') return 'detail_sidebar';
+  return key;
+};
+
+/**
+ * 将 Banner 数据映射到侧栏广告位结构。
+ */
+const mapSidebarBannerToPlacement = (item: BannerFallbackItem | null): CommercialPlacementItem | null => {
+  if (!item) return null;
+  return {
+    id: Number(item.id || 0),
+    sponsorTitle: String(item.title || '').trim() || '推荐内容',
+    sponsorName: '',
+    targetUrl: String(item.linkUrl || '').trim(),
+    imageUrl: String(item.imageUrl || '').trim(),
+    textContent: String(item.description || '').trim(),
+    badgeText: '广告',
+  };
+};
+
 /**
  * 将后台配置中的字符串/数组统一转换为字符串列表
  */
@@ -366,7 +400,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    */
   useEffect(() => {
     const fetchSidebarPlacement = async () => {
-      if (!config.enabled || !config.sidebarAdEnabled) {
+      if (!config.enabled) {
         setSidebarPlacement(null);
         return;
       }
@@ -384,7 +418,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           { list: [] }
         );
         const list = Array.isArray(payload) ? payload : (Array.isArray(payload?.list) ? payload.list : []);
-        setSidebarPlacement(list[0] || null);
+        if (list[0]) {
+          setSidebarPlacement(list[0]);
+          return;
+        }
       } catch (error) {
         /**
          * 商业位接口 403 代表当前版本未授权，按非关键功能静默处理。
@@ -393,11 +430,40 @@ const Sidebar: React.FC<SidebarProps> = ({
         if (status !== 403) {
           debugLog.warn('获取侧边栏广告位失败（非关键）:', error);
         }
+      }
+
+      /**
+       * 兼容回退：商业位为空时使用 Banner 广告位，避免后台“广告管理”配置后前台无内容。
+       */
+      try {
+        const position = resolveSidebarBannerPositionBySlotKey(slotKey);
+        const fallbackPositions = [ position ];
+        if (position === 'website_detail_sidebar' || position === 'detail_sidebar') {
+          fallbackPositions.push('sidebar');
+        }
+        let bannerHit: BannerFallbackItem | null = null;
+        for (const currentPosition of Array.from(new Set(fallbackPositions))) {
+          const res = await api.get('/banners/active', {
+            params: {
+              pageSlug: 'website-detail',
+              position: currentPosition,
+              limit: 1,
+            },
+          });
+          const bannerList = unwrapApiResponse<BannerFallbackItem[]>(res.data, []);
+          if (Array.isArray(bannerList) && bannerList[0]) {
+            bannerHit = bannerList[0];
+            break;
+          }
+        }
+        setSidebarPlacement(mapSidebarBannerToPlacement(bannerHit));
+      } catch (fallbackError) {
+        debugLog.warn('获取侧边栏 Banner 广告位失败（非关键）:', fallbackError);
         setSidebarPlacement(null);
       }
     };
     fetchSidebarPlacement();
-  }, [config.enabled, config.sidebarAdEnabled, config.sidebarAdSlotKey]);
+  }, [config.enabled, config.sidebarAdSlotKey, config.sidebarModules]);
 
   // 如果侧边栏被禁用，不渲染
   if (!config.enabled) {
@@ -641,7 +707,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       case 'ad':
         // 侧边栏广告位
-        if (config.sidebarAdEnabled && sidebarPlacement) {
+        if (sidebarPlacement) {
           return (
             <div key="ad" className="sidebar-section sidebar-section--ad">
               <a
@@ -691,10 +757,21 @@ const Sidebar: React.FC<SidebarProps> = ({
         { key: 'tags', name: '标签', enabled: true, sort: 5 },
         { key: 'ad', name: '广告', enabled: true, sort: 6 },
       ];
+  /**
+   * 当后台模块排序未启用“广告”但广告管理已有生效投放时，自动补充广告模块，
+   * 避免出现“后台配置了广告、详情页侧栏却完全不显示”的断链问题。
+   */
+  const shouldAppendAdModule = Boolean(sidebarPlacement) && !enabledModules.some(module => module.key === 'ad');
+  const resolvedModules = shouldAppendAdModule
+    ? [
+        ...enabledModules,
+        { key: 'ad', name: '广告', enabled: true, sort: 999 },
+      ]
+    : enabledModules;
 
   return (
     <aside className="website-detail-sidebar">
-      {enabledModules.map(module => renderModule(module.key))}
+      {resolvedModules.map(module => renderModule(module.key))}
     </aside>
   );
 };

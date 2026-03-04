@@ -191,6 +191,7 @@ export interface Website extends BaseEntity {
   isFeatured: boolean;
   isHot: boolean;
   tags: string[];
+  weightTags?: string[];
   order?: number;
   clickCount?: number;
 }

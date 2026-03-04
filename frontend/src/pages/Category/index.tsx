@@ -15,7 +15,8 @@ import ToolCard from '../../components/ToolCard';
 import SEO from '../../components/SEO';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
-import { getArrowConfigByWebsiteClickMode } from '../../utils/clickMode';
+import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
+import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse, unwrapApiList } from '../../utils/apiResponse';
 import './index.css';
 import '../../styles/common.css';
@@ -52,6 +53,7 @@ interface WebsiteItem {
   isFeatured: boolean;
   isNew: boolean;
   tags: string[];
+  weightTags?: string[];
 }
 
 // 分类详情数据
@@ -93,6 +95,7 @@ const CategoryPage: React.FC = () => {
  */
 const CategoryListView: React.FC = () => {
   const navigate = useNavigate();
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -119,7 +122,7 @@ const CategoryListView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="category-page">
+      <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
         <SEO title="所有分类" description="浏览所有设计资源分类" />
         <div className="category-loading">
           <p>加载中...</p>
@@ -129,7 +132,7 @@ const CategoryListView: React.FC = () => {
   }
 
   return (
-    <div className="category-page">
+    <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title="所有分类"
         description="浏览所有设计资源分类，发现优质工具和资源。"
@@ -191,6 +194,7 @@ const CategoryListView: React.FC = () => {
  */
 const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const navigate = useNavigate();
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [detail, setDetail] = useState<CategoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -226,7 +230,8 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   // 处理网站点击
   const handleWebsiteClick = useCallback((website: WebsiteItem) => {
     if (isDirectMode) {
-      window.open(website.url, '_blank', 'noopener,noreferrer');
+      const directUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
     } else {
       const detailUrl = generateWebsiteUrl(permalinkConfig, { id: website.id, slug: website.slug });
       if (detailPageNewWindow) {
@@ -235,7 +240,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
         navigate(detailUrl);
       }
     }
-  }, [isDirectMode, permalinkConfig, navigate, detailPageNewWindow]);
+  }, [isDirectMode, permalinkConfig, navigate, detailPageNewWindow, frontendConfig?.pageGlobalConfig]);
 
   // 直达箭头点击
   const handleDirectVisit = useCallback((tool: { id: string; slug?: string; url: string }, e: React.MouseEvent) => {
@@ -248,19 +253,20 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
         window.scrollTo(0, 0);
       }
     } else {
+      const directUrl = appendRefParamToUrl(tool.url, frontendConfig?.pageGlobalConfig);
       if (directArrowNewWindow) {
-        window.open(tool.url, '_blank', 'noopener,noreferrer');
+        window.open(directUrl, '_blank', 'noopener,noreferrer');
       } else {
-        window.location.href = tool.url;
+        window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate]);
+  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, frontendConfig?.pageGlobalConfig]);
 
   const totalPages = detail ? Math.ceil(detail.total / pageSize) : 0;
 
   if (loading && !detail) {
     return (
-      <div className="category-page">
+      <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
         <div className="category-loading"><p>加载中...</p></div>
       </div>
     );
@@ -268,7 +274,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
 
   if (!detail) {
     return (
-      <div className="category-page">
+      <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
         <div className="category-empty"><p>分类不存在</p></div>
       </div>
     );
@@ -277,7 +283,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const cat = detail.category;
 
   return (
-    <div className="category-page">
+    <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title={`${cat.seoTitle || cat.name} - 分类`}
         description={cat.seoDescription || cat.description || `${cat.name}分类下的优质设计资源和工具`}
@@ -364,6 +370,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
                 isNew: website.isNew,
                 category: '',
                 tags: website.tags || [],
+                weightTags: website.weightTags || [],
                 slug: website.slug,
               }}
               onClick={() => handleWebsiteClick(website)}

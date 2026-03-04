@@ -22,6 +22,12 @@
             <el-tabs v-model="activeTab" class="website-edit-tabs">
                 <!-- 基础信息 -->
                 <el-tab-pane label="基础信息" name="basic">
+                    <el-alert
+                        title="提示：发布需填写名称/URL/分类；为避免保存失败，超长字段会在保存时自动截断到系统允许长度。"
+                        type="info"
+                        :closable="false"
+                        class="mb-4"
+                    />
                     <el-form
                         ref="editFormRef"
                         :model="editData"
@@ -30,21 +36,33 @@
                         style="max-width: 800px"
                     >
                         <el-form-item label="网站名称" prop="name">
-                            <el-input v-model="editData.name" placeholder="请输入网站名称" />
+                            <el-input
+                                v-model="editData.name"
+                                placeholder="请输入网站名称"
+                                maxlength="200"
+                                show-word-limit
+                            />
                         </el-form-item>
                         <el-form-item label="固定链接">
                             <el-input
                                 v-model="editData.slug"
                                 placeholder="留空自动生成，用于详情页URL"
+                                maxlength="200"
+                                show-word-limit
                             >
                                 <template #prepend>/website/</template>
                             </el-input>
                         </el-form-item>
                         <el-form-item label="网站URL" prop="url">
                             <div class="website-url-tools">
-                                <el-input v-model="editData.url" placeholder="请输入网站URL" />
+                                <el-input
+                                    v-model="editData.url"
+                                    placeholder="请输入网站URL"
+                                    maxlength="500"
+                                    show-word-limit
+                                />
                                 <el-button :loading="fetchingSeo" @click="handleFetchSeo(false)">
-                                    抓取SEO
+                                    获取网站信息
                                 </el-button>
                                 <el-button
                                     :loading="fetchingSeo"
@@ -56,20 +74,22 @@
                                 </el-button>
                             </div>
                             <div class="website-url-tools__tip">
-                                抓取标题、简介、关键词与
-                                favicon。默认仅填充空字段；“覆盖填充”会覆盖已有值。
+                                获取标题、简介、关键词、标签与 favicon。默认仅填充空字段；“覆盖填充”会覆盖已有值。
                             </div>
                         </el-form-item>
                         <el-form-item label="所属分类" prop="categoryId">
                             <el-select
                                 v-model="editData.categoryId"
                                 placeholder="请选择分类"
+                                filterable
+                                clearable
+                                default-first-option
                                 style="width: 100%"
                             >
                                 <el-option
-                                    v-for="item in categoryList"
+                                    v-for="item in categoryOptions"
                                     :key="item.id"
-                                    :label="item.name"
+                                    :label="item.label"
                                     :value="item.id"
                                 />
                             </el-select>
@@ -111,6 +131,8 @@
                                 <el-input
                                     v-model="editData.iconUrl"
                                     placeholder="请输入图标URL"
+                                    maxlength="500"
+                                    show-word-limit
                                     clearable
                                 />
                                 <el-button :loading="fetchingIcon" @click="handleFetchIcon"
@@ -128,6 +150,27 @@
                                 placeholder="输入标签后回车添加"
                                 style="width: 100%"
                             />
+                        </el-form-item>
+                        <el-form-item label="站点权重标签">
+                            <el-select
+                                v-model="editData.weightTags"
+                                multiple
+                                filterable
+                                collapse-tags
+                                collapse-tags-tooltip
+                                placeholder="用于前台卡片透出：官方 / 推荐 / 企业认证"
+                                style="width: 100%"
+                            >
+                                <el-option
+                                    v-for="item in WEBSITE_WEIGHT_TAG_OPTIONS"
+                                    :key="item.value"
+                                    :label="item.label"
+                                    :value="item.value"
+                                />
+                            </el-select>
+                            <div class="website-url-tools__tip">
+                                运营可直接配置站点权重标签，前台列表卡片会透出对应标识。
+                            </div>
                         </el-form-item>
                         <el-row :gutter="16">
                             <el-col :span="8">
@@ -172,6 +215,8 @@
                                     <el-input
                                         v-model="editData.visitBtnText"
                                         placeholder="默认：访问网站"
+                                        maxlength="50"
+                                        show-word-limit
                                         style="max-width: 400px"
                                     />
                                 </el-form-item>
@@ -242,6 +287,23 @@
                             </el-form>
                         </section>
                     </div>
+
+                    <el-divider content-position="left">站点校验状态（只读）</el-divider>
+                    <el-card class="!border-none mb-4" shadow="never">
+                        <el-descriptions :column="1" border size="small">
+                            <el-descriptions-item label="当前状态">
+                                <el-tag :type="websiteStatusTagType">{{
+                                    websiteStatusLabel
+                                }}</el-tag>
+                            </el-descriptions-item>
+                            <el-descriptions-item label="最后校验时间">
+                                {{ formatStatusDateTime(editData.lastCheckedAt) }}
+                            </el-descriptions-item>
+                            <el-descriptions-item label="状态原因">
+                                {{ editData.statusReason || '无异常原因' }}
+                            </el-descriptions-item>
+                        </el-descriptions>
+                    </el-card>
 
                     <el-divider content-position="left">访问数据（高级版）</el-divider>
                     <el-card class="!border-none mb-4" shadow="never">
@@ -726,8 +788,9 @@
         <!-- 底部操作栏 -->
         <div class="website-edit-footer">
             <el-button @click="handleBack">取消</el-button>
-            <el-button type="primary" :loading="submitLoading" @click="handleSubmit"
-                >保存</el-button
+            <el-button :loading="submitLoading" @click="handleSubmit('draft')">保存草稿</el-button>
+            <el-button type="primary" :loading="submitLoading" @click="handleSubmit('publish')"
+                >保存并发布</el-button
             >
         </div>
 
@@ -792,6 +855,78 @@ const isFirefoxBrowser =
 const detailEditorCompatMode = ref(false)
 const editFormRef = ref<FormInstance>()
 const isEdit = computed(() => !!route.query.id)
+const WEBSITE_WEIGHT_TAG_OPTIONS = [
+    { label: '官方', value: 'official' },
+    { label: '推荐', value: 'recommended' },
+    { label: '企业认证', value: 'enterprise_verified' }
+]
+
+/**
+ * 规范化权重标签键，兼容中英文别名和历史前缀。
+ */
+const normalizeWebsiteWeightTagKey = (value: unknown): string => {
+    const raw = String(value || '').trim().toLowerCase()
+    const aliasMap: Record<string, string> = {
+        official: 'official',
+        'weight:official': 'official',
+        '官网': 'official',
+        '官方': 'official',
+        recommended: 'recommended',
+        recommend: 'recommended',
+        'weight:recommended': 'recommended',
+        '推荐': 'recommended',
+        enterprise_verified: 'enterprise_verified',
+        enterpriseverified: 'enterprise_verified',
+        enterprise: 'enterprise_verified',
+        verified_enterprise: 'enterprise_verified',
+        'weight:enterprise_verified': 'enterprise_verified',
+        '企业认证': 'enterprise_verified'
+    }
+    return aliasMap[raw] || ''
+}
+
+/**
+ * 拆分普通标签与站点权重标签，避免权重标签混入常规标签展示。
+ */
+const splitDisplayAndWeightTags = (source: unknown): { tags: string[]; weightTags: string[] } => {
+    const rows = Array.isArray(source) ? source : []
+    const tags: string[] = []
+    const weightTags: string[] = []
+    rows.forEach((item) => {
+        const text = String(item || '').trim()
+        if (!text) return
+        const normalizedWeight = normalizeWebsiteWeightTagKey(text)
+        if (normalizedWeight) {
+            weightTags.push(normalizedWeight)
+            return
+        }
+        tags.push(text)
+    })
+    return {
+        tags: Array.from(new Set(tags)),
+        weightTags: Array.from(new Set(weightTags))
+    }
+}
+
+/**
+ * 格式化站点状态时间（秒级/毫秒级时间戳或 ISO 字符串）。
+ */
+const formatStatusDateTime = (value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '未检测'
+    const asNumber = Number(value)
+    const date =
+        Number.isFinite(asNumber) && asNumber > 0
+            ? new Date(asNumber > 9999999999 ? asNumber : asNumber * 1000)
+            : new Date(String(value))
+    if (Number.isNaN(date.getTime())) return '未检测'
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    const hh = String(date.getHours()).padStart(2, '0')
+    const mi = String(date.getMinutes()).padStart(2, '0')
+    const ss = String(date.getSeconds()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`
+}
 
 /**
  * 打开 AI 配置页（兼容旧路径与新版分组路径）
@@ -837,6 +972,56 @@ watch(
 
 // 分类列表
 const categoryList = ref<any[]>([])
+const categoryOptions = computed(() => buildCategoryOptions(categoryList.value))
+
+/**
+ * 构建可搜索的分类下拉选项（含父子层级缩进），避免分类过多时难以定位。
+ */
+const buildCategoryOptions = (categories: any[]) => {
+    if (!Array.isArray(categories) || categories.length === 0) return []
+
+    const parentMap = new Map<any, any[]>()
+    const nodeMap = new Map<any, any>()
+    const visited = new Set<any>()
+    const options: Array<{ id: number | string; name: string; label: string }> = []
+
+    categories.forEach((item) => {
+        nodeMap.set(item.id, item)
+        const parentId = item.parentId ?? null
+        if (!parentMap.has(parentId)) parentMap.set(parentId, [])
+        parentMap.get(parentId)?.push(item)
+    })
+
+    const walk = (parentId: any, level = 0) => {
+        const children = parentMap.get(parentId) || []
+        children.forEach((item) => {
+            if (visited.has(item.id)) return
+            visited.add(item.id)
+            const indent = level > 0 ? `${'　'.repeat(level)}└ ` : ''
+            options.push({
+                id: item.id,
+                name: String(item.name || ''),
+                label: `${indent}${String(item.name || '')}`
+            })
+            walk(item.id, level + 1)
+        })
+    }
+
+    walk(null, 0)
+    walk(undefined, 0)
+
+    categories.forEach((item) => {
+        if (visited.has(item.id)) return
+        const hasParent = item.parentId && nodeMap.has(item.parentId)
+        options.push({
+            id: item.id,
+            name: String(item.name || ''),
+            label: `${hasParent ? '　└ ' : ''}${String(item.name || '')}`
+        })
+    })
+
+    return options
+}
 /**
  * 获取分类选项
  */
@@ -900,9 +1085,13 @@ const editData = reactive({
     description: '',
     iconUrl: '',
     tags: [] as string[],
+    weightTags: [] as string[],
     sortOrder: 0,
     isActive: 1,
     isPinned: 0,
+    websiteStatus: 'unchecked',
+    statusReason: '',
+    lastCheckedAt: '',
     detailContent: '',
     visitBtnText: '',
     thumbnail: '',
@@ -910,6 +1099,30 @@ const editData = reactive({
     seoDescription: '',
     seoKeywords: '',
     trafficMetrics: createDefaultTrafficMetrics()
+})
+
+/**
+ * 后台编辑页：站点状态标签文案
+ */
+const websiteStatusLabel = computed(() => {
+    const status = String(editData.websiteStatus || '').trim().toLowerCase()
+    if (status === 'active' || status === 'normal') return '正常'
+    if (status === 'draft') return '草稿'
+    if (status === 'disabled') return '已禁用'
+    if (status === 'failed') return '失效'
+    return '未检测'
+})
+
+/**
+ * 后台编辑页：站点状态标签样式
+ */
+const websiteStatusTagType = computed(() => {
+    const status = String(editData.websiteStatus || '').trim().toLowerCase()
+    if (status === 'active' || status === 'normal') return 'success'
+    if (status === 'draft') return 'info'
+    if (status === 'disabled') return 'warning'
+    if (status === 'failed') return 'danger'
+    return 'info'
 })
 
 const editRules: FormRules = {
@@ -934,16 +1147,41 @@ const loadDetail = async (id: string | number) => {
         editData.categoryId = data.categoryId || data.category_id || null
         editData.description = data.description || ''
         editData.iconUrl = data.iconUrl || data.icon_url || ''
-        editData.tags = Array.isArray(data.tags) ? data.tags : []
+        const parsedTagBundle = splitDisplayAndWeightTags(
+            Array.isArray(data.tags)
+                ? data.tags
+                : String(data.tags || '')
+                      .split(/[，,]/)
+                      .map((item: string) => item.trim())
+                      .filter(Boolean)
+        )
+        const normalizedWeightTags =
+            (Array.isArray(data.weightTags) && data.weightTags.length > 0) ||
+            (typeof data.weightTags === 'string' && data.weightTags.trim())
+                ? (Array.isArray(data.weightTags)
+                      ? data.weightTags
+                      : String(data.weightTags || '')
+                            .split(/[，,]/)
+                            .map((item: string) => item.trim())
+                            .filter(Boolean))
+                      .map((item: unknown) => normalizeWebsiteWeightTagKey(item))
+                      .filter(Boolean)
+                : parsedTagBundle.weightTags
+        editData.tags = parsedTagBundle.tags
+        editData.weightTags = Array.from(new Set(normalizedWeightTags))
         editData.sortOrder = data.order || data.sortOrder || data.sort || 0
+        const normalizedStatus = String(data.status || '').trim().toLowerCase()
         const activeValue =
             data.isActive !== undefined && data.isActive !== null
                 ? Number(data.isActive)
-                : data.status !== 'disabled'
+                : normalizedStatus === 'active' || normalizedStatus === 'normal'
                 ? 1
                 : 0
         editData.isActive = activeValue === 1 ? 1 : 0
         editData.isPinned = data.isPinned ? 1 : 0
+        editData.websiteStatus = normalizedStatus || 'unchecked'
+        editData.statusReason = String(data.statusReason || data.status_message || '').trim()
+        editData.lastCheckedAt = String(data.lastCheckedAt || data.last_checked_at || '')
         editData.detailContent = data.detailContent || data.detail_content || ''
         editData.visitBtnText = data.visitBtnText || data.visit_btn_text || ''
         editData.thumbnail = data.thumbnail || ''
@@ -1081,13 +1319,45 @@ const applySeoToForm = (overwrite = false) => {
         }
     }
 
-    if (keywords && (overwrite || !String(editData.seoKeywords || '').trim())) {
-        editData.seoKeywords = keywords
+    if (keywords) {
+        if (overwrite || !String(editData.seoKeywords || '').trim()) {
+            editData.seoKeywords = keywords
+        }
+        const parsedKeywordTags = parseSeoKeywordsToTags(keywords)
+        if (parsedKeywordTags.length > 0) {
+            editData.tags = overwrite
+                ? parsedKeywordTags
+                : mergeUniqueTags(editData.tags || [], parsedKeywordTags)
+        }
     }
 
     if (favicon && (overwrite || !String(editData.iconUrl || '').trim())) {
         editData.iconUrl = favicon
     }
+}
+
+/**
+ * 将 SEO 关键词解析为标签数组（兼容中英文逗号、分号、顿号、换行）。
+ */
+const parseSeoKeywordsToTags = (keywords: string): string[] =>
+    String(keywords || '')
+        .split(/[，,；;、\n\r\t]/g)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 30)
+
+/**
+ * 合并标签并去重，保留原有顺序。
+ */
+const mergeUniqueTags = (baseTags: string[], nextTags: string[]) => {
+    const merged: string[] = []
+    const source = [ ...(Array.isArray(baseTags) ? baseTags : []), ...nextTags ]
+    source.forEach((item) => {
+        const value = String(item || '').trim()
+        if (!value || merged.includes(value)) return
+        merged.push(value)
+    })
+    return merged
 }
 
 /**
@@ -1856,17 +2126,105 @@ const copyAiDraft = async () => {
 }
 
 // ==================== 提交保存 ====================
-const handleSubmit = async () => {
+type SubmitMode = 'publish' | 'draft'
+
+/**
+ * 根据当前表单状态计算网站发布状态。
+ */
+const resolveWebsiteStatusFromForm = (): string => {
+    return Number(editData.isActive) === 1 ? 'active' : 'disabled'
+}
+
+/**
+ * 提取保存失败提示，优先返回后端业务报错。
+ */
+const resolveSubmitErrorMessage = (error: any): string => {
+    return String(
+        error?.msg ||
+            error?.message ||
+            error?.response?.data?.message ||
+            error?.response?.data?.msg ||
+            ''
+    ).trim()
+}
+
+/**
+ * 网站字段长度上限（与后端数据库字段保持一致），避免保存时触发 SQL 长度错误。
+ */
+const WEBSITE_FIELD_LIMITS = {
+    name: 200,
+    slug: 200,
+    url: 500,
+    iconUrl: 500,
+    seoTitle: 100,
+    seoDescription: 300,
+    seoKeywords: 200,
+    thumbnail: 500,
+    visitBtnText: 50
+} as const
+
+/**
+ * 保存前执行长度保护：超长字段自动截断，并返回提醒文案。
+ */
+const applyWebsiteLengthGuards = (payload: Record<string, any>) => {
+    const notices: string[] = []
+    const fieldLabels: Record<keyof typeof WEBSITE_FIELD_LIMITS, string> = {
+        name: '网站名称',
+        slug: '固定链接',
+        url: '网站URL',
+        iconUrl: '图标URL',
+        seoTitle: 'SEO标题',
+        seoDescription: 'SEO描述',
+        seoKeywords: 'SEO关键词',
+        thumbnail: '缩略图URL',
+        visitBtnText: '访问按钮文案'
+    }
+
+    ;(Object.keys(WEBSITE_FIELD_LIMITS) as Array<keyof typeof WEBSITE_FIELD_LIMITS>).forEach(
+        (field) => {
+            const maxLength = WEBSITE_FIELD_LIMITS[field]
+            const raw = payload[field]
+            if (raw === null || raw === undefined) return
+            const normalized = String(raw).trim()
+            if (normalized.length <= maxLength) {
+                payload[field] = normalized
+                return
+            }
+            payload[field] = normalized.slice(0, maxLength)
+            notices.push(`${fieldLabels[field]}超过 ${maxLength} 字符，已自动截断`)
+        }
+    )
+
+    return notices
+}
+
+const handleSubmit = async (mode: SubmitMode = 'publish') => {
     await editFormRef.value?.validate()
     submitLoading.value = true
     try {
         const screenshots = screenshotList.value.filter((url: string) => url?.trim())
         const submitData = {
             ...editData,
+            categoryId: Number(editData.categoryId || 0) || editData.categoryId,
             slug: String(editData.slug || '').trim() || null,
+            tags: Array.from(
+                new Set(
+                    (Array.isArray(editData.tags) ? editData.tags : [])
+                        .map((item) => String(item || '').trim())
+                        .filter(Boolean)
+                )
+            ),
+            weightTags: Array.from(
+                new Set(
+                    (Array.isArray(editData.weightTags) ? editData.weightTags : [])
+                        .map((item) => normalizeWebsiteWeightTagKey(item))
+                        .filter(Boolean)
+                )
+            ),
             screenshots,
             thumbnail: editData.thumbnail || null,
             order: editData.sortOrder,
+            status: mode === 'draft' ? 'draft' : resolveWebsiteStatusFromForm(),
             trafficMetrics: {
                 monthlyVisits: Number(editData.trafficMetrics.monthlyVisits || 0),
                 avgVisitDurationSeconds: Number(
@@ -1889,16 +2247,20 @@ const handleSubmit = async () => {
                 }
             }
         }
+        const lengthGuardNotices = applyWebsiteLengthGuards(submitData)
+        if (lengthGuardNotices.length > 0) {
+            feedback.msgWarning(lengthGuardNotices.join('；'))
+        }
         if (editData.id) {
             await uiedWebsiteEdit(submitData)
-            feedback.msgSuccess('编辑成功')
+            feedback.msgSuccess(mode === 'draft' ? '草稿已保存' : '编辑成功')
         } else {
             await uiedWebsiteAdd(submitData)
-            feedback.msgSuccess('添加成功')
+            feedback.msgSuccess(mode === 'draft' ? '草稿已创建' : '添加成功')
         }
         handleBack()
     } catch (error: any) {
-        feedback.msgError(error?.msg || error?.message || '保存失败')
+        feedback.msgError(resolveSubmitErrorMessage(error) || '保存失败')
     } finally {
         submitLoading.value = false
     }

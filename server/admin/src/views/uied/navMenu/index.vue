@@ -502,13 +502,18 @@ interface NavMenuItem {
     id: number
     parentId: number
     name: string
+    text?: string
     url: string
+    link?: string
     icon: string
     sortOrder: number
+    sort?: number
     label: string
     labelType: string
     openInNewTab: boolean
+    external?: boolean
     isActive: boolean
+    isShow?: boolean
     builtinKey?: string
     linkMode?: 'custom' | 'builtin'
     children?: NavMenuItem[]
@@ -536,6 +541,7 @@ const treeRenderKey = ref(0)
 const iconNameSet = new Set<string>([...getElementPlusIconNames(), ...getLocalIconNames()])
 const builtinNavEntryOptions: BuiltinNavEntryOption[] = [
     { key: 'daily_hot', label: '每日热榜', defaultPath: '/p/daily-hot' },
+    { key: 'daily_new', label: '每日上新', defaultPath: '/p/daily-new' },
     { key: 'rankings', label: '热门榜单', defaultPath: '/p/rankings' },
     { key: 'submit', label: '投稿入口', defaultPath: '/submit' },
     { key: 'articles', label: '文章频道', defaultPath: '/articles' }
@@ -765,7 +771,9 @@ const handleQuickAddCustom = async () => {
             url,
             parentId: normalizeParentId(quickCustomForm.parentId),
             openInNewTab: quickCustomForm.openInNewTab,
+            external: quickCustomForm.openInNewTab,
             isActive: true,
+            isShow: true,
             linkMode: 'custom'
         }
     ])
@@ -793,7 +801,8 @@ const handleQuickAddBuiltin = async () => {
             builtinKey: item.key,
             linkMode: 'builtin',
             url: item.defaultPath,
-            isActive: true
+            isActive: true,
+            isShow: true
         }))
     )
     quickBuiltinKeys.value = []
@@ -817,7 +826,8 @@ const handleQuickAddCategory = async () => {
             parentId,
             linkMode: 'custom',
             url: `/category/${String(item.slug || item.id)}`,
-            isActive: true
+            isActive: true,
+            isShow: true
         }))
     )
     quickCategoryIds.value = []
@@ -870,15 +880,21 @@ const buildSortSignature = (items: NavMenuItem[]): string => {
 /**
  * 展平排序保存 payload（仅提交 id + sortOrder）。
  */
-const flattenSortItems = (items: NavMenuItem[]): Array<{ id: number; sortOrder: number }> => {
-    const result: Array<{ id: number; sortOrder: number }> = []
-    const walk = (list: NavMenuItem[]) => {
+const flattenSortItems = (
+    items: NavMenuItem[]
+): Array<{ id: number; sortOrder: number; parentId: number }> => {
+    const result: Array<{ id: number; sortOrder: number; parentId: number }> = []
+    const walk = (list: NavMenuItem[], parentId = 0) => {
         ;(Array.isArray(list) ? list : []).forEach((item) => {
-            result.push({ id: Number(item.id), sortOrder: Number(item.sortOrder || 0) })
-            walk(item.children || [])
+            result.push({
+                id: Number(item.id),
+                sortOrder: Number(item.sortOrder || 0),
+                parentId: Number(parentId || 0)
+            })
+            walk(item.children || [], Number(item.id || 0))
         })
     }
-    walk(items)
+    walk(items, 0)
     return result
 }
 
@@ -906,6 +922,8 @@ const getLists = async () => {
             ...buildTreeOptions(menuTree.value)
         ]
         syncPreviewTree()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '获取导航菜单失败')
     } finally {
         loading.value = false
     }
@@ -954,11 +972,20 @@ const handleAdd = (parentId: number) => {
  * 打开编辑菜单弹窗
  */
 const handleEdit = (row: NavMenuItem) => {
-    Object.assign(editData, row, {
-        icon: normalizeIconName(row.icon),
-        linkMode: row.builtinKey ? 'builtin' : 'custom',
-        builtinKey: String(row.builtinKey || '')
-    })
+    resetEditData()
+    const builtinKey = String(row.builtinKey || '').trim()
+    editData.id = Number(row.id || 0)
+    editData.parentId = normalizeParentId(row.parentId)
+    editData.name = String(row.name || row.text || '').trim()
+    editData.linkMode = builtinKey ? 'builtin' : 'custom'
+    editData.builtinKey = builtinKey
+    editData.url = String(row.url || row.link || '').trim()
+    editData.icon = normalizeIconName(row.icon)
+    editData.sortOrder = Number(row.sortOrder ?? row.sort ?? 0) || 0
+    editData.label = String(row.label || '').trim()
+    editData.labelType = String(row.labelType || '').trim()
+    editData.openInNewTab = Boolean(row.openInNewTab ?? row.external ?? false)
+    editData.isActive = Boolean(row.isActive ?? row.isShow ?? true)
     showEdit.value = true
 }
 
@@ -984,15 +1011,31 @@ const handleSubmit = async () => {
     await editFormRef.value?.validate()
     editLoading.value = true
     try {
+        const normalizedName = String(editData.name || '').trim()
+        const normalizedBuiltinKey =
+            editData.linkMode === 'builtin' ? String(editData.builtinKey || '').trim() : ''
+        const normalizedUrl =
+            editData.linkMode === 'builtin'
+                ? getBuiltinDefaultPath(normalizedBuiltinKey) || String(editData.url || '').trim()
+                : String(editData.url || '').trim()
         const submitData = {
-            ...editData,
+            id: Number(editData.id || 0),
+            parentId: Number(editData.parentId || 0),
+            name: normalizedName,
+            text: normalizedName,
+            linkMode: editData.linkMode,
+            builtinKey: normalizedBuiltinKey,
+            url: normalizedUrl,
+            link: normalizedUrl,
             icon: normalizeIconName(editData.icon),
-            builtinKey:
-                editData.linkMode === 'builtin' ? String(editData.builtinKey || '').trim() : '',
-            url:
-                editData.linkMode === 'builtin'
-                    ? getBuiltinDefaultPath(editData.builtinKey) || String(editData.url || '')
-                    : String(editData.url || '').trim()
+            sortOrder: Number(editData.sortOrder || 0),
+            sort: Number(editData.sortOrder || 0),
+            label: String(editData.label || '').trim(),
+            labelType: String(editData.labelType || '').trim(),
+            openInNewTab: Boolean(editData.openInNewTab),
+            isShow: editData.isActive,
+            isActive: Boolean(editData.isActive),
+            external: Boolean(editData.openInNewTab)
         }
         if (editData.id) {
             await uiedNavMenuEdit(submitData)
@@ -1002,7 +1045,9 @@ const handleSubmit = async () => {
             feedback.msgSuccess('添加成功')
         }
         showEdit.value = false
-        getLists()
+        await getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '保存菜单失败')
     } finally {
         editLoading.value = false
     }
@@ -1015,7 +1060,7 @@ const handleDelete = async (id: number) => {
     await feedback.confirm('确定要删除该菜单吗？子菜单也会被删除')
     await uiedNavMenuDelete({ id })
     feedback.msgSuccess('删除成功')
-    getLists()
+    await getLists()
 }
 
 /**

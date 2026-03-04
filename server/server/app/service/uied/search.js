@@ -204,20 +204,78 @@ class SearchService extends Service {
    * @return {string[]} 规范化标签数组
    */
   parseTags(rawTags) {
-    if (Array.isArray(rawTags)) {
-      return rawTags.map(item => String(item || '').trim()).filter(Boolean);
-    }
-    const text = String(rawTags || '').trim();
-    if (!text) return [];
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) {
-        return parsed.map(item => String(item || '').trim()).filter(Boolean);
+    return this.parseTagBundle(rawTags).tags;
+  }
+
+  /**
+   * 规范化站点权重标签键，兼容历史值与中英文别名
+   * @param {unknown} value 原始值
+   * @return {string} 规范化键
+   */
+  normalizeWebsiteWeightTag(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    const aliasMap = {
+      official: 'official',
+      'weight:official': 'official',
+      '官网': 'official',
+      '官方': 'official',
+      recommended: 'recommended',
+      recommend: 'recommended',
+      'weight:recommended': 'recommended',
+      '推荐': 'recommended',
+      enterprise_verified: 'enterprise_verified',
+      enterpriseverified: 'enterprise_verified',
+      enterprise: 'enterprise_verified',
+      verified_enterprise: 'enterprise_verified',
+      'weight:enterprise_verified': 'enterprise_verified',
+      '企业认证': 'enterprise_verified',
+    };
+    return aliasMap[raw] || '';
+  }
+
+  /**
+   * 解析标签字段并拆分普通标签/权重标签
+   * @param {string|Array} rawTags 原始标签字段
+   * @return {{tags:string[], weightTags:string[]}} 标签结构
+   */
+  parseTagBundle(rawTags) {
+    const rows = (() => {
+      if (Array.isArray(rawTags)) {
+        return rawTags.map(item => String(item || '').trim()).filter(Boolean);
       }
-    } catch (error) {
-      // 兼容旧数据：非 JSON 文本继续按逗号拆分
-    }
-    return text.split(/[，,]/).map(item => String(item || '').trim()).filter(Boolean);
+      const text = String(rawTags || '').trim();
+      if (!text) return [];
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => String(item || '').trim()).filter(Boolean);
+        }
+      } catch (error) {
+        // 兼容旧数据：非 JSON 文本继续按逗号拆分
+      }
+      return text.split(/[，,]/).map(item => String(item || '').trim()).filter(Boolean);
+    })();
+    const tags = [];
+    const weightTags = [];
+    rows.forEach(item => {
+      const normalizedWeight = this.normalizeWebsiteWeightTag(item);
+      if (normalizedWeight) {
+        weightTags.push(normalizedWeight);
+        return;
+      }
+      if (String(item).toLowerCase().startsWith('weight:')) {
+        const fallback = this.normalizeWebsiteWeightTag(String(item).replace(/^weight:/i, ''));
+        if (fallback) {
+          weightTags.push(fallback);
+          return;
+        }
+      }
+      tags.push(item);
+    });
+    return {
+      tags: Array.from(new Set(tags)),
+      weightTags: Array.from(new Set(weightTags)),
+    };
   }
 
   /**
@@ -226,6 +284,7 @@ class SearchService extends Service {
    * @return {object} 前端可直接消费的结果对象
    */
   mapWebsiteSearchRow(row) {
+    const tagBundle = this.parseTagBundle(row?.tags);
     return {
       id: String(row?.id || ''),
       name: String(row?.name || ''),
@@ -234,7 +293,8 @@ class SearchService extends Service {
       url: String(row?.url || ''),
       iconUrl: String(row?.iconUrl || ''),
       category: String(row?.category || ''),
-      tags: this.parseTags(row?.tags),
+      tags: tagBundle.tags,
+      weightTags: tagBundle.weightTags,
       isNew: Number(row?.isNew || 0) === 1,
       isHot: Number(row?.isHot || 0) === 1,
       isFeatured: Number(row?.isFeatured || 0) === 1,

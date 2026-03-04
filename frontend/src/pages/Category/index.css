@@ -13,11 +13,24 @@
   min-height: calc(100vh - var(--header-height));
   background: transparent;
   padding: var(--spacing-5) var(--container-padding) var(--spacing-10);
+  --category-layout-max-width: var(--container-width);
+}
+
+.category-page--layout-contained {
+  --category-layout-max-width: var(--container-width);
+}
+
+.category-page--layout-wide {
+  --category-layout-max-width: min(1480px, calc(100vw - 2 * var(--container-padding)));
+}
+
+.category-page--layout-fluid {
+  --category-layout-max-width: min(1800px, calc(100vw - 2 * var(--container-padding)));
 }
 
 /* 面包屑导航 */
 .category-breadcrumb {
-  max-width: var(--container-width);
+  max-width: var(--category-layout-max-width);
   margin: 0 auto;
   padding: 0 0 12px;
   display: flex;
@@ -48,7 +61,7 @@
 
 /* 分类详情头部 */
 .category-detail-header {
-  max-width: var(--container-width);
+  max-width: var(--category-layout-max-width);
   margin: 0 auto;
   padding: 0 0 16px;
 }
@@ -149,7 +162,7 @@
 
 /* 分类列表页 */
 .category-list-container {
-  max-width: var(--container-width);
+  max-width: var(--category-layout-max-width);
   margin: 0 auto;
   padding: 0;
 }
@@ -269,7 +282,7 @@
 
 /* 网站列表区域 */
 .category-websites-container {
-  max-width: var(--container-width);
+  max-width: var(--category-layout-max-width);
   margin: 0 auto;
   padding: 0 0 32px;
 }

@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../../components/SEO';
+import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import { getRankingsAggregate } from '../../services/rankingService';
 import type { RankingBoardData, RankingPublicConfig, RankedWebsite } from '../../types/ranking';
 import { getFullImageUrl } from '../../utils/urlUtils';
@@ -107,6 +108,7 @@ function getBoardSort(board: RankingBoardData): number {
  * 榜单系统页面组件
  */
 const RankingsPage: React.FC = () => {
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [boards, setBoards] = useState<RankingBoardData[]>([]);
   const [publicConfig, setPublicConfig] = useState<RankingPublicConfig | null>(null);
   const [activeMetric, setActiveMetric] = useState<MetricTab>('visit');
@@ -332,7 +334,7 @@ const RankingsPage: React.FC = () => {
   };
 
   return (
-    <div className="rankings-page">
+    <div className={`rankings-page rankings-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title={pageTitle}
         description="按访问量、收藏量、点赞量等指标查看每日/每周/每月榜单，并支持后台运营配置。"

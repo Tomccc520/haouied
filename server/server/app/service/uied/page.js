@@ -16,14 +16,40 @@ class PageService extends Service {
   /**
    * 获取页面列表（分页）
    */
-  async list({ page = 1, pageSize = 20 }) {
+  async list({ page = 1, pageSize = 20, keyword = '', isActive = '' }) {
     const { app } = this;
     const offset = (page - 1) * pageSize;
+    const whereSql = [];
+    const replacements = [];
+
+    whereSql.push('is_delete = 0');
+
+    /**
+     * 支持按名称/别名/描述/Hero 标题进行关键词搜索。
+     */
+    const normalizedKeyword = String(keyword || '').trim();
+    if (normalizedKeyword) {
+      const pattern = `%${normalizedKeyword}%`;
+      whereSql.push('(name LIKE ? OR slug LIKE ? OR description LIKE ? OR hero_title LIKE ?)');
+      replacements.push(pattern, pattern, pattern, pattern);
+    }
+
+    /**
+     * 支持按显示状态筛选（true/false/1/0）。
+     */
+    const normalizedIsActive = String(isActive ?? '').trim().toLowerCase();
+    if ([ '1', 'true' ].includes(normalizedIsActive)) {
+      whereSql.push('is_show = 1');
+    } else if ([ '0', 'false' ].includes(normalizedIsActive)) {
+      whereSql.push('is_show = 0');
+    }
+
+    const whereClause = whereSql.join(' AND ');
 
     // 获取总数
     const [ countResult ] = await app.model.query(
-      'SELECT COUNT(*) as total FROM uied_page WHERE is_delete = 0',
-      { type: app.Sequelize.QueryTypes.SELECT }
+      `SELECT COUNT(*) as total FROM uied_page WHERE ${whereClause}`,
+      { replacements, type: app.Sequelize.QueryTypes.SELECT }
     );
     const total = countResult.total;
 
@@ -39,10 +65,10 @@ class PageService extends Service {
               show_sidebar as showSidebar, theme_color as themeColor,
               sort as sortOrder, is_show as isActive, create_time as createdAt
        FROM uied_page
-       WHERE is_delete = 0
+       WHERE ${whereClause}
        ORDER BY sort ASC, id ASC
        LIMIT ? OFFSET ?`,
-      { replacements: [ pageSize, offset ], type: app.Sequelize.QueryTypes.SELECT }
+      { replacements: [ ...replacements, pageSize, offset ], type: app.Sequelize.QueryTypes.SELECT }
     );
 
     const lists = pages.map(p => ({
@@ -246,7 +272,7 @@ class PageService extends Service {
     const { app } = this;
 
     let query = `
-      SELECT c.id, c.name, c.slug, pc.sort as sortOrder
+      SELECT c.id, c.name, c.slug, c.icon, pc.sort as sortOrder
       FROM uied_category c
       INNER JOIN uied_page_category pc ON c.id = pc.category_id
       INNER JOIN uied_page p ON pc.page_id = p.id
@@ -270,23 +296,50 @@ class PageService extends Service {
   /**
    * 更新页面分类
    */
-  async updateCategories(pageId, categoryIds) {
+  async updateCategories(pageId, categoryIds, categoryIcons = {}) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const normalizedPageId = Number(pageId);
+    const normalizedCategoryIds = Array.from(
+      new Set(
+        (Array.isArray(categoryIds) ? categoryIds : [])
+          .map(item => Number(item))
+          .filter(item => Number.isFinite(item) && item > 0)
+      )
+    );
+    const normalizedIconEntries = Object.entries(categoryIcons || {})
+      .map(([ categoryId, icon ]) => ({
+        categoryId: Number(categoryId),
+        icon: String(icon || '').trim().slice(0, 100),
+      }))
+      .filter(item => Number.isFinite(item.categoryId) && item.categoryId > 0);
+    const iconMap = new Map(normalizedIconEntries.map(item => [ item.categoryId, item.icon ]));
 
     // 软删除现有关联
     await app.model.query(
       'UPDATE uied_page_category SET is_delete = 1, delete_time = ? WHERE page_id = ?',
-      { replacements: [ now, pageId ], type: app.Sequelize.QueryTypes.UPDATE }
+      { replacements: [ now, normalizedPageId ], type: app.Sequelize.QueryTypes.UPDATE }
     );
 
     // 添加新关联
-    for (let i = 0; i < categoryIds.length; i++) {
+    for (let i = 0; i < normalizedCategoryIds.length; i++) {
+      const currentCategoryId = normalizedCategoryIds[i];
       await app.model.query(
         `INSERT INTO uied_page_category (page_id, category_id, sort, create_time, update_time)
          VALUES (?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE is_delete = 0, sort = ?, update_time = ?`,
-        { replacements: [ pageId, categoryIds[i], i, now, now, i, now ], type: app.Sequelize.QueryTypes.INSERT }
+        { replacements: [ normalizedPageId, currentCategoryId, i, now, now, i, now ], type: app.Sequelize.QueryTypes.INSERT }
+      );
+    }
+
+    /**
+     * 同步更新分类图标（仅处理当前页面选中的分类），满足页面分类配置中的图标维护需求。
+     */
+    for (const categoryId of normalizedCategoryIds) {
+      if (!iconMap.has(categoryId)) continue;
+      await app.model.query(
+        'UPDATE uied_category SET icon = ?, update_time = ? WHERE id = ? AND is_delete = 0',
+        { replacements: [ iconMap.get(categoryId) || '', now, categoryId ], type: app.Sequelize.QueryTypes.UPDATE }
       );
     }
   }

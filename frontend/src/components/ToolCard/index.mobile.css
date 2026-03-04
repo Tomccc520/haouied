@@ -34,9 +34,7 @@
 
   .tool-item-card:hover {
     border-color: var(--primary-color) !important;
-    border-width: 2px !important;
-    padding: calc(var(--spacing-2) - 1px) !important;
-    box-shadow: none !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 72%, transparent 28%) inset !important;
     transform: none !important;
   }
 
@@ -215,6 +213,29 @@
     border-radius: var(--radius-sm) !important;
     background: var(--neutral-100) !important;
     color: var(--text-tertiary) !important;
+  }
+
+  .tool-item-name-row {
+    gap: 0.25rem !important;
+  }
+
+  .tool-item-weight-badge {
+    height: 1rem !important;
+    padding: 0 0.3rem !important;
+    font-size: 0.5625rem !important;
+    gap: 0.18rem !important;
+  }
+
+  .tool-item-weight-badge__icon {
+    width: 0.66rem !important;
+    height: 0.66rem !important;
+    font-size: 0.5rem !important;
+  }
+
+  .tool-item-weight-badge__text {
+    max-width: 2.8rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 }
 
@@ -452,10 +473,32 @@
 
 /* 工具卡片容器 */
 .tool-card-wrapper {
+  display: block;
   width: 100%;
-  height: 100%;
+  min-width: 0;
+  height: auto;
   max-width: 100%;
   overflow: visible;
+  box-sizing: border-box;
+}
+
+/* 统一网格中的卡片视觉尺寸，避免出现“部分卡片高度不一致” */
+.tools-grid .tool-card-wrapper,
+.hot-recommendations-grid .tool-card-wrapper,
+.search-results .tool-card-wrapper {
+  display: flex;
+  min-height: 88px;
+  height: 88px;
+  min-width: 0;
+}
+
+.tools-grid .tool-card-wrapper > .tool-item-card,
+.hot-recommendations-grid .tool-card-wrapper > .tool-item-card,
+.search-results .tool-card-wrapper > .tool-item-card {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* 悬停效果 - 仅描边变化 */
@@ -483,12 +526,27 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+}
+
+/* 提升选择器优先级，避免被全局 .card 样式覆盖导致卡片尺寸不一致 */
+.tool-card-wrapper > .tool-item-card.card {
+  padding: var(--text-sm);
+  border-radius: var(--radius-lg);
+  transform: none;
+}
+
+.tool-card-wrapper > .tool-item-card {
+  height: 100%;
 }
 
 .tool-item-card:hover {
   border-color: var(--primary-color);
-  border-width: 2px;
-  padding: calc(var(--text-sm) - 1px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 72%, transparent 28%) inset;
+}
+
+.tool-card-wrapper > .tool-item-card.card:hover {
+  transform: none;
 }
 
 /* 状态标签容器 */
@@ -638,6 +696,14 @@
   overflow: hidden;
 }
 
+/* 标题行（含权重标签） */
+.tool-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
 /* 标题行 */
 .tool-item-header {
   display: flex;
@@ -656,9 +722,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
   max-width: 100%;
   display: block;
-  flex-shrink: 0;
+  flex: 1;
 }
 
 .tool-item-card:hover .tool-item-name {
@@ -689,6 +756,7 @@
   overflow: hidden;
   height: 1.25rem;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .tool-tag {
@@ -704,6 +772,62 @@
 .tool-item-card:hover .tool-tag {
   background: var(--primary-50);
   color: var(--primary-color);
+}
+
+/* 站点权重标签 */
+.tool-item-weight-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  height: 1.1rem;
+  padding: 0 0.42rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.64rem;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.tool-item-weight-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  line-height: 1;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.tool-item-weight-badge__text {
+  max-width: 3.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-item-weight-badge--official {
+  color: #1e40af;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #bfdbfe;
+}
+
+.tool-item-weight-badge--recommended {
+  color: #92400e;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: #fcd34d;
+}
+
+.tool-item-weight-badge--enterprise_verified {
+  color: #115e59;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+  border-color: #99f6e4;
 }
 
 /* 悬停详细描述层 */
@@ -790,6 +914,13 @@
 
 /* 响应式设计 - 移动端 */
 @media (max-width: 768px) {
+  .tools-grid .tool-card-wrapper,
+  .hot-recommendations-grid .tool-card-wrapper,
+  .search-results .tool-card-wrapper {
+    min-height: auto;
+    height: auto;
+  }
+
   .tool-item-card {
     height: 64px;
     min-height: 64px;
@@ -798,8 +929,7 @@
   }
   
   .tool-item-card:hover {
-    border-width: 2px;
-    padding: calc(0.75rem - 1px);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 72%, transparent 28%) inset;
     transform: none;
   }
   

@@ -22,7 +22,8 @@ function websiteToTool(website: Website, categoryId?: string): Tool {
     isNew: website.isNew,
     isFeatured: website.isFeatured,
     isHot: website.isHot,
-    tags: website.tags || []
+    tags: website.tags || [],
+    weightTags: website.weightTags || []
   };
 }
 

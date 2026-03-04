@@ -12,7 +12,20 @@ import './index.css';
 
 interface AdBannerProps {
   pageSlug?: string;
-  position?: 'top' | 'sidebar' | 'bottom' | 'popup';
+  position?:
+    | 'top'
+    | 'sidebar'
+    | 'bottom'
+    | 'popup'
+    | 'home'
+    | 'footer'
+    | 'global_strip'
+    | 'detail'
+    | 'detail_top'
+    | 'detail_inline'
+    | 'detail_bottom'
+    | 'detail_sidebar'
+    | 'website_detail_sidebar';
   limit?: number;
   className?: string;
   commercialSlotKey?: string;
@@ -40,6 +53,36 @@ interface CommercialPlacement {
 
 type DisplayBanner = Banner & { badgeText?: string };
 
+/**
+ * 规范化广告位标识，避免大小写/空值导致请求与样式分支不一致。
+ */
+const normalizeAdPosition = (position?: string): string => {
+  const value = String(position || '').trim().toLowerCase();
+  return value || 'top';
+};
+
+/**
+ * 计算广告查询位置：
+ * - `global_strip`/`footer` 使用独立位置，避免与 `home` 混淆；
+ * - 其他位置沿用原值，交给后端兼容映射处理。
+ */
+const resolveBannerRequestPosition = (position?: string): string => {
+  const normalized = normalizeAdPosition(position);
+  if (normalized === 'global_strip') return 'global_strip';
+  if (normalized === 'footer') return 'footer';
+  return normalized;
+};
+
+/**
+ * 计算前端渲染样式分组（顶部/侧栏/底部）。
+ */
+const resolveBannerRenderVariant = (position?: string): 'top' | 'sidebar' | 'bottom' => {
+  const normalized = normalizeAdPosition(position);
+  if ([ 'sidebar', 'detail_sidebar', 'website_detail_sidebar' ].includes(normalized)) return 'sidebar';
+  if ([ 'bottom', 'footer', 'detail_bottom' ].includes(normalized)) return 'bottom';
+  return 'top';
+};
+
 const AdBanner: React.FC<AdBannerProps> = ({
   pageSlug,
   position = 'top',
@@ -50,10 +93,12 @@ const AdBanner: React.FC<AdBannerProps> = ({
   commercialScopeType,
   commercialScopeValue,
 }) => {
-  const { banners, loading, recordClick } = useBanners({ pageSlug, position, limit });
   const [commercialPlacements, setCommercialPlacements] = useState<CommercialPlacement[]>([]);
   const [commercialLoading, setCommercialLoading] = useState(false);
   const htmlContainerRef = useRef<HTMLDivElement>(null);
+  const normalizedPosition = normalizeAdPosition(position);
+  const requestPosition = resolveBannerRequestPosition(position);
+  const renderVariant = resolveBannerRenderVariant(position);
   const enableCommercial =
     Boolean(commercialSlotKey) ||
     Boolean(commercialSlotType) ||
@@ -65,6 +110,13 @@ const AdBanner: React.FC<AdBannerProps> = ({
   const commercialSlotClassName = commercialSlotKey
     ? `ad-banner--slot-${String(commercialSlotKey).trim().replace(/[^a-zA-Z0-9_-]/g, '-')}`
     : '';
+  const positionClassName = `ad-banner--position-${normalizedPosition.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+  const { banners: backendBanners, loading: backendLoading, recordClick: recordBackendClick } = useBanners({
+    pageSlug,
+    position: requestPosition,
+    limit,
+  });
 
   useEffect(() => {
     if (!enableCommercial) {
@@ -119,14 +171,14 @@ const AdBanner: React.FC<AdBannerProps> = ({
     linkTarget: '_blank',
     contentType: item.imageUrl ? 'image' : 'text',
     pageSlug,
-    position: position || 'top',
+    position: requestPosition || 'top',
     order: item.positionIndex || 0,
     visible: true,
     clickCount: 0,
     badgeText: item.badgeText || '',
   }));
   const useCommercialData = enableCommercial && commercialBanners.length > 0;
-  const effectiveBanners: DisplayBanner[] = useCommercialData ? commercialBanners : banners;
+  const effectiveBanners: DisplayBanner[] = useCommercialData ? commercialBanners : backendBanners;
 
   // 处理 HTML 代码类型的广告
   useEffect(() => {
@@ -148,7 +200,7 @@ const AdBanner: React.FC<AdBannerProps> = ({
       wrapper.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         if (target.tagName === 'A' || target.closest('a')) {
-          recordClick(banner.id);
+          recordBackendClick(banner.id);
         }
       });
 
@@ -165,11 +217,11 @@ const AdBanner: React.FC<AdBannerProps> = ({
       newScript.textContent = oldScript.textContent;
       oldScript.parentNode?.replaceChild(newScript, oldScript);
     });
-  }, [effectiveBanners, recordClick]);
+  }, [effectiveBanners, recordBackendClick]);
 
   const handleClick = (banner: DisplayBanner) => {
     if (!useCommercialData) {
-      recordClick(banner.id);
+      recordBackendClick(banner.id);
     }
     if (banner.linkUrl) {
       window.open(banner.linkUrl, banner.linkTarget || '_blank');
@@ -180,7 +232,7 @@ const AdBanner: React.FC<AdBannerProps> = ({
     return null;
   }
 
-  if (loading && !useCommercialData) {
+  if (backendLoading && !useCommercialData) {
     return null;
   }
 
@@ -195,9 +247,9 @@ const AdBanner: React.FC<AdBannerProps> = ({
   }
 
   // 顶部横幅样式
-  if (position === 'top') {
+  if (renderVariant === 'top') {
     return (
-      <div className={`ad-banner ad-banner-top ${commercialSlotClassName} ${className}`.trim()}>
+      <div className={`ad-banner ad-banner-top ${positionClassName} ${commercialSlotClassName} ${className}`.trim()}>
         {/* HTML 代码类型广告 */}
         {htmlBanners.length > 0 && (
           <div ref={htmlContainerRef} className="html-banner-container" />
@@ -246,9 +298,9 @@ const AdBanner: React.FC<AdBannerProps> = ({
   }
 
   // 侧边栏样式
-  if (position === 'sidebar') {
+  if (renderVariant === 'sidebar') {
     return (
-      <div className={`ad-banner ad-banner-sidebar ${commercialSlotClassName} ${className}`.trim()}>
+      <div className={`ad-banner ad-banner-sidebar ${positionClassName} ${commercialSlotClassName} ${className}`.trim()}>
         {/* HTML 代码类型广告 */}
         {htmlBanners.length > 0 && (
           <div ref={htmlContainerRef} className="html-banner-container" />
@@ -289,9 +341,9 @@ const AdBanner: React.FC<AdBannerProps> = ({
   }
 
   // 底部样式
-  if (position === 'bottom') {
+  if (renderVariant === 'bottom') {
     return (
-    <div className={`ad-banner ad-banner-bottom ${commercialSlotClassName} ${className}`.trim()}>
+    <div className={`ad-banner ad-banner-bottom ${positionClassName} ${commercialSlotClassName} ${className}`.trim()}>
         {/* HTML 代码类型广告 */}
         {htmlBanners.length > 0 && (
           <div ref={htmlContainerRef} className="html-banner-container" />

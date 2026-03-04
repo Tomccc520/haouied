@@ -89,6 +89,76 @@ export const validateIconFallback = (
 };
 
 /**
+ * 规范化权重标签键，兼容中英文和历史前缀写法。
+ */
+const normalizeWeightTagKey = (value?: string): 'official' | 'recommended' | 'enterprise_verified' | '' => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  const aliasMap: Record<string, 'official' | 'recommended' | 'enterprise_verified'> = {
+    official: 'official',
+    'weight:official': 'official',
+    '官方': 'official',
+    recommended: 'recommended',
+    recommend: 'recommended',
+    'weight:recommended': 'recommended',
+    '推荐': 'recommended',
+    enterprise_verified: 'enterprise_verified',
+    enterpriseverified: 'enterprise_verified',
+    enterprise: 'enterprise_verified',
+    verified_enterprise: 'enterprise_verified',
+    'weight:enterprise_verified': 'enterprise_verified',
+    '企业认证': 'enterprise_verified',
+  };
+  return aliasMap[raw] || '';
+};
+
+/**
+ * 提取卡片要展示的权重标签（优先读取 weightTags，兼容 tags 中的 weight: 前缀）
+ */
+const resolveToolWeightTag = (
+  tool: Tool
+): {
+  key: 'official' | 'recommended' | 'enterprise_verified';
+  label: string;
+  icon: string;
+  description: string;
+} | null => {
+  const candidates = [
+    ...(Array.isArray(tool?.weightTags) ? tool.weightTags : []),
+    ...(Array.isArray(tool?.tags) ? tool.tags : []),
+  ];
+  for (const item of candidates) {
+    const normalizedKey = normalizeWeightTagKey(String(item || ''));
+    if (!normalizedKey) continue;
+    if (normalizedKey === 'official') {
+      return {
+        key: normalizedKey,
+        label: '官方',
+        icon: '✓',
+        description: '来源官方渠道',
+      };
+    }
+    if (normalizedKey === 'recommended') {
+      return {
+        key: normalizedKey,
+        label: '推荐',
+        icon: '★',
+        description: '运营推荐',
+      };
+    }
+    if (normalizedKey === 'enterprise_verified') {
+      return {
+        key: normalizedKey,
+        label: '企业认证',
+        icon: '企',
+        description: '企业资质认证',
+      };
+    }
+  }
+  return null;
+};
+
+/**
  * 通用工具卡片组件
  */
 const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', index = 0, showDirectArrow = false, onDirectVisit, arrowLabel = '直达网站', arrowIsExternal = true, directArrowNewWindow = true }) => {
@@ -97,6 +167,10 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
 
   // 判断网站是否失效
   const isFailed = tool?.status === 'failed';
+  const toolWeightTag = resolveToolWeightTag(tool);
+  const visibleTags = (Array.isArray(tool?.tags) ? tool.tags : [])
+    .filter((tag) => !normalizeWeightTagKey(String(tag || '')))
+    .slice(0, 3);
   
   return (
     <div className="tool-card-wrapper">
@@ -132,11 +206,24 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
 
         {/* 右侧内容区域 - 标题、简介、标签 */}
         <div className="tool-item-content-right">
-          <h4 className="tool-item-name">{toolName}</h4>
+          <div className="tool-item-name-row">
+            {toolWeightTag && (
+              <span
+                className={`tool-item-weight-badge tool-item-weight-badge--${toolWeightTag.key}`}
+                title={`站点权重：${toolWeightTag.label}（${toolWeightTag.description}）`}
+              >
+                <span className="tool-item-weight-badge__icon" aria-hidden="true">
+                  {toolWeightTag.icon}
+                </span>
+                <span className="tool-item-weight-badge__text">{toolWeightTag.label}</span>
+              </span>
+            )}
+            <h4 className="tool-item-name">{toolName}</h4>
+          </div>
           <p className="tool-item-description">{tool?.description || ''}</p>
-          {tool?.tags && tool.tags.length > 0 && (
+          {visibleTags.length > 0 && (
             <div className="tool-item-tags">
-              {tool.tags.slice(0, 3).map((tag, tagIndex) => (
+              {visibleTags.map((tag, tagIndex) => (
                 <span key={tagIndex} className="tool-tag">{tag}</span>
               ))}
             </div>

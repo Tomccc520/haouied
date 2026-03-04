@@ -630,6 +630,47 @@
                                 "
                             />
                         </el-form-item>
+                        <el-divider content-position="left">首页入口页面</el-divider>
+                        <p class="section-desc">
+                            可将页面管理里的某个页面设为首页入口（访问 <code>/</code> 时自动进入）。
+                        </p>
+                        <el-form-item>
+                            <template #label
+                                ><span>首页页面</span
+                                ><el-tooltip
+                                    content="为空时使用默认首页（固定导航页）；选择后将跳转到对应 /p/slug"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <div style="display: flex; align-items: center; gap: 12px; width: 100%">
+                                <el-select
+                                    v-model="homepageData.homePageSlug"
+                                    style="flex: 1"
+                                    placeholder="请选择要作为首页的页面"
+                                    filterable
+                                    clearable
+                                    :loading="pageOptionsLoading"
+                                    @visible-change="handleHomepagePageDropdownVisible"
+                                >
+                                    <el-option label="默认首页（固定导航页）" value="" />
+                                    <el-option
+                                        v-for="page in pageOptions"
+                                        :key="page.id"
+                                        :label="`${page.name}（${page.slug}）`"
+                                        :value="page.slug"
+                                    />
+                                    <el-option
+                                        v-if="homepageSelectMissingOption"
+                                        :label="homepageSelectMissingOption.label"
+                                        :value="homepageSelectMissingOption.slug"
+                                    />
+                                </el-select>
+                                <el-button :loading="pageOptionsLoading" @click="loadHomepagePageOptions()"
+                                    >刷新页面列表</el-button
+                                >
+                            </div>
+                        </el-form-item>
                         <el-divider content-position="left">导航切换配置</el-divider>
                         <p class="section-desc">
                             控制顶部 navSwitchItems 的显示开关与排序。可直接改文案与图标关键字。
@@ -695,28 +736,105 @@
                                 </div>
                             </div>
                         </el-form-item>
-                        <el-divider content-position="left">广告位</el-divider>
-                        <p class="section-desc">在首页指定位置插入广告代码。</p>
+                        <el-divider content-position="left">每日上新入口</el-divider>
+                        <p class="section-desc">
+                            配置“每日上新”页面的运营入口开关、文案、展示位置和默认时间范围。
+                        </p>
                         <el-form-item>
                             <template #label
-                                ><span>顶部广告</span
+                                ><span>启用每日上新</span
                                 ><el-tooltip
-                                    content="显示在横幅下方、内容区域上方的广告位"
+                                    content="关闭后首页快捷入口、菜单注入和页脚注入都不会展示"
                                     placement="top"
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <el-switch v-model="homepageData.topAdEnabled" />
+                            <el-switch v-model="homepageData.dailyNewEnabled" />
                         </el-form-item>
-                        <el-form-item v-if="homepageData.topAdEnabled">
-                            <template #label><span>广告代码</span></template>
+                        <el-form-item>
+                            <template #label><span>入口文案</span></template>
                             <el-input
-                                v-model="homepageData.topAdCode"
-                                type="textarea"
-                                :rows="3"
-                                placeholder="粘贴广告HTML代码"
+                                v-model="homepageData.dailyNewDisplayLabel"
+                                placeholder="每日上新"
+                                :disabled="!homepageData.dailyNewEnabled"
                             />
                         </el-form-item>
+                        <el-form-item>
+                            <template #label><span>入口路径</span></template>
+                            <el-input
+                                v-model="homepageData.dailyNewDisplayPath"
+                                placeholder="/p/daily-new"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>显示位置</span></template>
+                            <el-checkbox-group
+                                v-model="homepageData.dailyNewDisplayPlacements"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            >
+                                <el-checkbox label="nav_quick_entry">首页快捷入口</el-checkbox>
+                                <el-checkbox label="home_menu">顶部导航菜单</el-checkbox>
+                                <el-checkbox label="footer_link">页脚链接</el-checkbox>
+                            </el-checkbox-group>
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>入口排序</span></template>
+                            <el-input-number
+                                v-model="homepageData.dailyNewDisplaySort"
+                                :min="1"
+                                :max="9999"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>新窗口打开</span></template>
+                            <el-switch
+                                v-model="homepageData.dailyNewDisplayOpenInNewTab"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>默认天数</span></template>
+                            <el-input-number
+                                v-model="homepageData.dailyNewDefaultDays"
+                                :min="1"
+                                :max="30"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>页面角标</span></template>
+                            <el-input
+                                v-model="homepageData.dailyNewPageKicker"
+                                placeholder="Daily Fresh"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>页面标题</span></template>
+                            <el-input
+                                v-model="homepageData.dailyNewPageTitle"
+                                placeholder="每日上新网址"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label><span>页面描述</span></template>
+                            <el-input
+                                v-model="homepageData.dailyNewPageDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。"
+                                :disabled="!homepageData.dailyNewEnabled"
+                            />
+                        </el-form-item>
+                        <el-divider content-position="left">广告位</el-divider>
+                        <el-alert type="info" :closable="false" show-icon>
+                            <template #title>
+                                广告位已统一收敛到「广告管理」模块配置（支持图片/HTML/位置多选），此处不再维护旧版首页广告代码，避免重复配置冲突。
+                            </template>
+                        </el-alert>
                         <el-form-item>
                             <el-button
                                 type="primary"
@@ -837,6 +955,38 @@
                                 <el-option label="直达网站" value="direct" />
                             </el-select>
                         </el-form-item>
+                        <el-divider content-position="left">外链来源参数（ref）</el-divider>
+                        <p class="section-desc">
+                            开启后，所有“直达外链”会自动补充 <code>?ref=参数值</code>，便于渠道统计与联盟归因。
+                        </p>
+                        <el-form-item>
+                            <template #label
+                                ><span>启用 ref 参数</span
+                                ><el-tooltip
+                                    content="仅作用于外部网站直达跳转，不影响站内详情页链接"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-switch v-model="pageConfigData.appendRefEnabled" />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label
+                                ><span>ref 参数值</span
+                                ><el-tooltip
+                                    content="例如：hao.uied.cn。若目标链接已存在 ref 参数，将保留原值。"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-input
+                                v-model="pageConfigData.appendRefValue"
+                                :disabled="!pageConfigData.appendRefEnabled"
+                                placeholder="例如：hao.uied.cn"
+                                maxlength="120"
+                                show-word-limit
+                            />
+                        </el-form-item>
                         <el-alert
                             type="success"
                             :closable="false"
@@ -866,6 +1016,13 @@
                                         pageConfigData.websiteClickMode === 'direct'
                                             ? '进入详情页'
                                             : '直达外部网站'
+                                    }}
+                                </p>
+                                <p>
+                                    直达外链 ref：{{
+                                        pageConfigData.appendRefEnabled
+                                            ? pageConfigData.appendRefValue || '已开启（未填写参数值）'
+                                            : '关闭'
                                     }}
                                 </p>
                             </div>
@@ -1467,6 +1624,7 @@ import {
     uiedPublicSettings,
     uiedSiteInfo,
     uiedSaveSiteInfo,
+    uiedPageAll,
     uiedSettingGet,
     uiedSettingSave
 } from '@/api/uied'
@@ -1520,6 +1678,7 @@ const defaultNavSwitchItems = [
     { slug: 'font', name: '字体导航', icon: 'Font', visible: true, sort: 70 }
 ]
 const homepageData = reactive({
+    homePageSlug: '',
     heroBannerEnabled: true,
     heroBgType: 'default',
     heroBgValue: '',
@@ -1535,7 +1694,73 @@ const homepageData = reactive({
     homeCarouselSort: 10,
     homeRecommendationEnabled: true,
     homeRecommendationSort: 20,
+    dailyNewEnabled: true,
+    dailyNewDisplayLabel: '每日上新',
+    dailyNewDisplayPath: '/p/daily-new',
+    dailyNewDisplayPlacements: ['nav_quick_entry'],
+    dailyNewDisplaySort: 86,
+    dailyNewDisplayOpenInNewTab: false,
+    dailyNewDefaultDays: 1,
+    dailyNewPageKicker: 'Daily Fresh',
+    dailyNewPageTitle: '每日上新网址',
+    dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
     navSwitchItems: defaultNavSwitchItems.map((item) => ({ ...item }))
+})
+
+const pageOptionsLoading = ref(false)
+const pageOptions = ref<Array<{ id: number; name: string; slug: string }>>([])
+
+/**
+ * 规范化首页页面下拉选项，统一字段类型
+ */
+const normalizeHomepagePageOptions = (list: unknown): Array<{ id: number; name: string; slug: string }> => {
+    if (!Array.isArray(list)) return []
+    return list
+        .map((item: any) => ({
+            id: Number(item?.id || 0),
+            name: String(item?.name || '').trim(),
+            slug: String(item?.slug || '').trim()
+        }))
+        .filter((item) => item.id > 0 && item.slug.length > 0)
+}
+
+/**
+ * 拉取页面管理列表，供“首页页面”下拉动态选择
+ */
+const loadHomepagePageOptions = async (silent = true) => {
+    pageOptionsLoading.value = true
+    try {
+        const res = await uiedPageAll()
+        pageOptions.value = normalizeHomepagePageOptions(res)
+        if (!silent) feedback.msgSuccess('页面列表已刷新')
+    } catch (error) {
+        console.error('加载页面列表失败:', error)
+        if (!silent) feedback.msgError('加载页面列表失败')
+    } finally {
+        pageOptionsLoading.value = false
+    }
+}
+
+/**
+ * 下拉展开时自动刷新页面列表，保证与页面管理新增项同步
+ */
+const handleHomepagePageDropdownVisible = (visible: boolean) => {
+    if (!visible) return
+    loadHomepagePageOptions(true)
+}
+
+/**
+ * 当前首页 slug 可能已被删除，补一个提示选项避免值丢失
+ */
+const homepageSelectMissingOption = computed(() => {
+    const slug = String(homepageData.homePageSlug || '').trim()
+    if (!slug) return null
+    const exists = pageOptions.value.some((item) => item.slug === slug)
+    if (exists) return null
+    return {
+        slug,
+        label: `${slug}（页面已删除，请重新选择）`
+    }
 })
 
 /**
@@ -1592,6 +1817,7 @@ const handleNavSwitchSortEnd = () => {
 const normalizeHomepageConfigData = (config: any) => ({
     ...homepageData,
     ...config,
+    homePageSlug: String(config?.homePageSlug || '').trim(),
     homeCarouselEnabled: config?.homeCarouselEnabled !== false,
     homeRecommendationEnabled: config?.homeRecommendationEnabled !== false,
     homeCarouselSort: Number.isFinite(Number(config?.homeCarouselSort))
@@ -1600,6 +1826,39 @@ const normalizeHomepageConfigData = (config: any) => ({
     homeRecommendationSort: Number.isFinite(Number(config?.homeRecommendationSort))
         ? Number(config.homeRecommendationSort)
         : 20,
+    dailyNewEnabled: config?.dailyNewEnabled !== false,
+    dailyNewDisplayLabel:
+        String(config?.dailyNewDisplayLabel || '').trim() || '每日上新',
+    dailyNewDisplayPath: (() => {
+        const text = String(config?.dailyNewDisplayPath || '').trim()
+        if (!text) return '/p/daily-new'
+        if (/^(https?:)?\/\//i.test(text)) return text
+        return text.startsWith('/') ? text : `/${text}`
+    })(),
+    dailyNewDisplayPlacements: (() => {
+        const allowSet = new Set(['nav_quick_entry', 'home_menu', 'footer_link'])
+        const rows = Array.isArray(config?.dailyNewDisplayPlacements)
+            ? config.dailyNewDisplayPlacements
+            : []
+        const list = rows
+            .map((item: any) => String(item || '').trim())
+            .filter((item: string) => allowSet.has(item))
+        return list.length > 0 ? Array.from(new Set(list)) : ['nav_quick_entry']
+    })(),
+    dailyNewDisplaySort: Number.isFinite(Number(config?.dailyNewDisplaySort))
+        ? Math.max(1, Math.min(9999, Number(config.dailyNewDisplaySort)))
+        : 86,
+    dailyNewDisplayOpenInNewTab: config?.dailyNewDisplayOpenInNewTab === true,
+    dailyNewDefaultDays: Number.isFinite(Number(config?.dailyNewDefaultDays))
+        ? Math.max(1, Math.min(30, Number(config.dailyNewDefaultDays)))
+        : 1,
+    dailyNewPageKicker:
+        String(config?.dailyNewPageKicker || '').trim() || 'Daily Fresh',
+    dailyNewPageTitle:
+        String(config?.dailyNewPageTitle || '').trim() || '每日上新网址',
+    dailyNewPageDescription:
+        String(config?.dailyNewPageDescription || '').trim() ||
+        '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
     navSwitchItems: normalizeNavSwitchItems(config?.navSwitchItems)
 })
 
@@ -1611,7 +1870,9 @@ const pageConfigData = reactive({
     detailPageNewWindow: false,
     directArrowNewWindow: true,
     pageSize: 20,
-    hotRecommendationClickMode: 'detail' // 热门推荐独立配置
+    hotRecommendationClickMode: 'detail', // 热门推荐独立配置
+    appendRefEnabled: false,
+    appendRefValue: ''
 })
 
 /**
@@ -1640,7 +1901,9 @@ const normalizePageConfigData = (config: any) => ({
     websiteClickMode: normalizeWebsiteClickMode(config?.websiteClickMode),
     hotRecommendationClickMode: normalizeHotRecommendationClickMode(
         config?.hotRecommendationClickMode
-    )
+    ),
+    appendRefEnabled: config?.appendRefEnabled === true,
+    appendRefValue: String(config?.appendRefValue || '').trim()
 })
 
 // ==================== 卡片样式 ====================
@@ -1843,7 +2106,7 @@ const applyPublicSettings = (settings: Record<string, any>) => {
 const loadAllSettings = async (silent = false) => {
     reloadLoading.value = true
     try {
-        const settings = await uiedPublicSettings()
+        const [settings] = await Promise.all([uiedPublicSettings(), loadHomepagePageOptions(true)])
         if (settings) applyPublicSettings(settings)
         refreshSnapshot()
         if (!silent) feedback.msgSuccess('配置已刷新')
@@ -1857,7 +2120,8 @@ const loadAllSettings = async (silent = false) => {
             loadCardStyle(),
             loadSidebar(),
             loadSearch(),
-            loadExitModal()
+            loadExitModal(),
+            loadHomepagePageOptions(true)
         ])
         refreshSnapshot()
         if (!silent) feedback.msgWarning('公开配置加载失败，已使用分项加载')

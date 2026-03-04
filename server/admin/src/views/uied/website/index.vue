@@ -10,6 +10,12 @@
 <template>
     <div class="website-lists">
         <el-card class="!border-none" shadow="never">
+            <el-alert
+                title="筛选提示：支持多状态 + 多标记组合筛选；草稿支持前端预览（自动带 preview 参数）。"
+                type="info"
+                :closable="false"
+                class="mb-4"
+            />
             <el-form ref="formRef" class="mb-[-16px]" :model="queryParams" :inline="true">
                 <el-form-item label="网站名称">
                     <el-input
@@ -48,15 +54,54 @@
                 </el-form-item>
                 <el-form-item label="显示状态">
                     <el-select
-                        class="w-[160px]"
-                        v-model="queryParams.status"
+                        class="w-[220px]"
+                        v-model="queryParams.statusList"
+                        multiple
+                        collapse-tags
+                        collapse-tags-tooltip
                         clearable
-                        placeholder="全部状态"
+                        placeholder="多选状态"
                         @change="resetPage"
                     >
-                        <el-option label="显示/正常" value="normal" />
+                        <el-option label="显示/已发布" value="active" />
                         <el-option label="隐藏" value="disabled" />
                         <el-option label="待审核" value="unchecked" />
+                        <el-option label="草稿" value="draft" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="标记筛选">
+                    <el-select
+                        class="w-[220px]"
+                        v-model="queryParams.flagList"
+                        multiple
+                        collapse-tags
+                        collapse-tags-tooltip
+                        clearable
+                        placeholder="多选标记"
+                        @change="resetPage"
+                    >
+                        <el-option label="置顶" value="pinned" />
+                        <el-option label="热门" value="hot" />
+                        <el-option label="推荐" value="featured" />
+                        <el-option label="新站" value="new" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="排序方式">
+                    <el-select
+                        class="w-[180px]"
+                        v-model="queryParams.sortBy"
+                        clearable
+                        placeholder="默认排序"
+                        @change="resetPage"
+                    >
+                        <el-option label="默认（置顶 + 排序值）" value="default" />
+                        <el-option label="排序值 升序" value="sort_asc" />
+                        <el-option label="排序值 降序" value="sort_desc" />
+                        <el-option label="点击量 降序" value="click_desc" />
+                        <el-option label="创建时间 新->旧" value="create_desc" />
+                        <el-option label="创建时间 旧->新" value="create_asc" />
+                        <el-option label="更新时间 新->旧" value="update_desc" />
+                        <el-option label="更新时间 旧->新" value="update_asc" />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="详情内容">
@@ -144,16 +189,18 @@
                 <el-table-column label="前端" width="80" align="center">
                     <template #default="{ row }">
                         <a :href="getFrontendUrl(row)" target="_blank">
-                            <el-button type="primary" link size="small">查看</el-button>
+                            <el-button type="primary" link size="small">
+                                {{ isDraftWebsite(row) ? '预览' : '查看' }}
+                            </el-button>
                         </a>
                     </template>
                 </el-table-column>
                 <el-table-column label="点击量" prop="clickCount" width="90" />
                 <el-table-column label="排序" prop="sortOrder" width="80" />
-                <el-table-column label="状态" width="80">
+                <el-table-column label="状态" width="92">
                     <template #default="{ row }">
-                        <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
-                            {{ row.isActive ? '显示' : '隐藏' }}
+                        <el-tag :type="getWebsiteStatusTagType(row.status)" size="small">
+                            {{ getWebsiteStatusLabel(row.status) }}
                         </el-tag>
                     </template>
                 </el-table-column>
@@ -185,24 +232,70 @@ const router = useRouter()
 
 // 前端访问地址（开发环境 localhost:3003，生产环境可根据实际域名修改）
 const FRONTEND_BASE_URL = 'http://localhost:3003'
+/**
+ * 判断是否草稿网站，草稿前端链接自动附加 preview=1。
+ */
+const isDraftWebsite = (row: any) => String(row?.status || '').trim().toLowerCase() === 'draft'
+
+/**
+ * 生成前端详情链接：草稿自动走预览模式。
+ */
 const getFrontendUrl = (row: any) => {
     const path = row.slug || row.id
-    return `${FRONTEND_BASE_URL}/website/${path}`
+    const previewSuffix = isDraftWebsite(row) ? '?preview=1' : ''
+    return `${FRONTEND_BASE_URL}/website/${path}${previewSuffix}`
 }
 
 const queryParams = reactive({
     keyword: '',
     categoryId: '',
     includeChildren: true,
-    status: '',
+    statusList: [] as string[],
+    flagList: [] as string[],
+    sortBy: 'default',
     hasDetailContent: '',
     hasThumbnail: ''
 })
 
+/**
+ * 列表请求参数归一化：多选字段统一转逗号串，后端可直接解析。
+ */
+const fetchWebsiteList = (params: any) => {
+    const payload = { ...params }
+    payload.statusList = Array.isArray(payload.statusList) ? payload.statusList.join(',') : ''
+    payload.flagList = Array.isArray(payload.flagList) ? payload.flagList.join(',') : ''
+    if (!payload.sortBy || payload.sortBy === 'default') delete payload.sortBy
+    return uiedWebsiteList(payload)
+}
+
 const { pager, getLists, resetPage, resetParams } = usePaging({
-    fetchFun: uiedWebsiteList,
+    fetchFun: fetchWebsiteList,
     params: queryParams
 })
+
+/**
+ * 统一格式化网站状态文案（兼容历史 normal 与新版 active）。
+ */
+const getWebsiteStatusLabel = (status: string) => {
+    const normalized = String(status || '').trim().toLowerCase()
+    if (normalized === 'active' || normalized === 'normal') return '已发布'
+    if (normalized === 'disabled') return '已隐藏'
+    if (normalized === 'draft') return '草稿'
+    if (normalized === 'failed') return '异常'
+    return '待审核'
+}
+
+/**
+ * 根据状态返回标签风格，提升列表可读性。
+ */
+const getWebsiteStatusTagType = (status: string) => {
+    const normalized = String(status || '').trim().toLowerCase()
+    if (normalized === 'active' || normalized === 'normal') return 'success'
+    if (normalized === 'disabled') return 'info'
+    if (normalized === 'draft') return 'warning'
+    if (normalized === 'failed') return 'danger'
+    return ''
+}
 
 // 分类列表
 const categoryList = ref<any[]>([])

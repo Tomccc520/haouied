@@ -12,6 +12,7 @@
 
 const Service = require('egg').Service;
 const SETTING_BACKUP_VERSION = 'uied-setting-backup-v1';
+const AUTH_CONFIG_SETTING_KEY = 'authConfig';
 
 class SettingService extends Service {
   /**
@@ -34,6 +35,73 @@ class SettingService extends Service {
       result[settingKey] = value;
     }
     return result;
+  }
+
+  /**
+   * 获取注册/登录配置默认值
+   */
+  getDefaultAuthConfig() {
+    return {
+      enable_register: 1,
+      enable_login: 1,
+      register_close_message: '注册功能暂时关闭',
+      login_close_message: '系统维护中，暂时无法登录',
+    };
+  }
+
+  /**
+   * 规范化注册/登录配置，确保字段和类型稳定
+   */
+  normalizeAuthConfig(config = {}) {
+    const defaults = this.getDefaultAuthConfig();
+    return {
+      enable_register: config?.enable_register === 0 ? 0 : 1,
+      enable_login: config?.enable_login === 0 ? 0 : 1,
+      register_close_message: String(
+        config?.register_close_message || defaults.register_close_message
+      ).trim() || defaults.register_close_message,
+      login_close_message: String(
+        config?.login_close_message || defaults.login_close_message
+      ).trim() || defaults.login_close_message,
+    };
+  }
+
+  /**
+   * 获取 uied_site_setting 字段集合（兼容历史列式结构）
+   */
+  async getSiteSettingColumns() {
+    if (this._siteSettingColumns) {
+      return this._siteSettingColumns;
+    }
+    const { app } = this;
+    try {
+      const rows = await app.model.query(
+        `SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'uied_site_setting'`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      this._siteSettingColumns = new Set(
+        (Array.isArray(rows) ? rows : []).map(item => String(item?.COLUMN_NAME || '').trim())
+      );
+      return this._siteSettingColumns;
+    } catch (error) {
+      this.ctx.logger.warn('[setting] 读取 uied_site_setting 字段失败，按 key-value 结构处理:', error.message);
+      this._siteSettingColumns = new Set([ 'key', 'value', 'create_time', 'update_time' ]);
+      return this._siteSettingColumns;
+    }
+  }
+
+  /**
+   * 判断是否存在历史列式 auth 配置字段
+   */
+  async hasLegacyAuthColumns() {
+    const columns = await this.getSiteSettingColumns();
+    return columns.has('enable_register')
+      && columns.has('enable_login')
+      && columns.has('register_close_message')
+      && columns.has('login_close_message');
   }
 
   /**
@@ -161,7 +229,32 @@ class SettingService extends Service {
    * 新增：轮播区/推荐区显示与排序、导航切换项后台化配置
    */
   normalizeHomepageConfig(config = {}) {
+    /**
+     * 规范化“每日上新”入口显示位置，限制为受控枚举并去重。
+     */
+    const normalizeDailyNewPlacements = value => {
+      const allowSet = new Set([ 'nav_quick_entry', 'home_menu', 'footer_link' ]);
+      const rawList = Array.isArray(value)
+        ? value
+        : String(value || '').split(/[\n,]/);
+      const normalized = rawList
+        .map(item => String(item || '').trim())
+        .filter(item => allowSet.has(item));
+      return Array.from(new Set(normalized));
+    };
+
+    /**
+     * 规范化“每日上新”入口路径，确保前导斜杠且支持外链。
+     */
+    const normalizeDailyNewPath = (value, fallback) => {
+      const text = String(value || '').trim();
+      if (!text) return fallback;
+      if (/^(https?:)?\/\//i.test(text)) return text;
+      return text.startsWith('/') ? text : `/${text}`;
+    };
+
     const defaults = {
+      homePageSlug: '',
       heroBannerEnabled: true,
       heroBgType: 'default',
       heroBgValue: '',
@@ -178,15 +271,51 @@ class SettingService extends Service {
       homeRecommendationEnabled: true,
       homeRecommendationSort: 20,
       navSwitchItems: this.getDefaultNavSwitchItems(),
+      dailyNewEnabled: true,
+      dailyNewDisplayLabel: '每日上新',
+      dailyNewDisplayPath: '/p/daily-new',
+      dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
+      dailyNewDisplaySort: 86,
+      dailyNewDisplayOpenInNewTab: false,
+      dailyNewDefaultDays: 1,
+      dailyNewPageKicker: 'Daily Fresh',
+      dailyNewPageTitle: '每日上新网址',
+      dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
     };
     const merged = { ...defaults, ...(config || {}) };
+    const dailyNewPlacements = normalizeDailyNewPlacements(merged.dailyNewDisplayPlacements);
+    /**
+     * 规范化“每日上新”页面文案，避免空值或异常字符串导致前端展示错乱。
+     */
+    const normalizeDailyNewPageText = (value, fallback) => {
+      const text = String(value || '').trim();
+      return text || fallback;
+    };
     return {
       ...merged,
+      homePageSlug: String(merged.homePageSlug || '').trim(),
       homeCarouselEnabled: merged.homeCarouselEnabled !== false,
       homeRecommendationEnabled: merged.homeRecommendationEnabled !== false,
       homeCarouselSort: Number.isFinite(Number(merged.homeCarouselSort)) ? Number(merged.homeCarouselSort) : 10,
       homeRecommendationSort: Number.isFinite(Number(merged.homeRecommendationSort)) ? Number(merged.homeRecommendationSort) : 20,
       navSwitchItems: this.normalizeNavSwitchItems(merged.navSwitchItems),
+      dailyNewEnabled: merged.dailyNewEnabled !== false,
+      dailyNewDisplayLabel: String(merged.dailyNewDisplayLabel || defaults.dailyNewDisplayLabel).trim() || defaults.dailyNewDisplayLabel,
+      dailyNewDisplayPath: normalizeDailyNewPath(merged.dailyNewDisplayPath, defaults.dailyNewDisplayPath),
+      dailyNewDisplayPlacements: dailyNewPlacements.length > 0 ? dailyNewPlacements : defaults.dailyNewDisplayPlacements,
+      dailyNewDisplaySort: Number.isFinite(Number(merged.dailyNewDisplaySort))
+        ? Math.max(1, Math.min(9999, Number(merged.dailyNewDisplaySort)))
+        : defaults.dailyNewDisplaySort,
+      dailyNewDisplayOpenInNewTab: merged.dailyNewDisplayOpenInNewTab === true,
+      dailyNewDefaultDays: Number.isFinite(Number(merged.dailyNewDefaultDays))
+        ? Math.max(1, Math.min(30, Number(merged.dailyNewDefaultDays)))
+        : defaults.dailyNewDefaultDays,
+      dailyNewPageKicker: normalizeDailyNewPageText(merged.dailyNewPageKicker, defaults.dailyNewPageKicker),
+      dailyNewPageTitle: normalizeDailyNewPageText(merged.dailyNewPageTitle, defaults.dailyNewPageTitle),
+      dailyNewPageDescription: normalizeDailyNewPageText(
+        merged.dailyNewPageDescription,
+        defaults.dailyNewPageDescription
+      ),
     };
   }
 
@@ -219,6 +348,8 @@ class SettingService extends Service {
     const normalized = { ...config };
     normalized.websiteClickMode = this.normalizeWebsiteClickMode(config.websiteClickMode);
     normalized.hotRecommendationClickMode = this.normalizeHotRecommendationClickMode(config.hotRecommendationClickMode);
+    normalized.appendRefEnabled = config.appendRefEnabled === true;
+    normalized.appendRefValue = String(config.appendRefValue || '').trim();
     return normalized;
   }
 
@@ -284,6 +415,65 @@ class SettingService extends Service {
       resultsPerPage: Number.isFinite(Number(merged.resultsPerPage))
         ? Math.max(10, Math.min(100, Number(merged.resultsPerPage)))
         : defaults.resultsPerPage,
+    };
+  }
+
+  /**
+   * 规范化详情页配置，确保 SEO 开关与数组字段结构稳定
+   */
+  normalizeDetailPageConfig(config = {}) {
+    const defaults = {
+      seoCanonicalEnabled: true,
+      seoNoindexEnabled: false,
+      shareChannels: [
+        { key: 'wechat', name: '微信', enabled: true, icon: 'wechat', sort: 1 },
+        { key: 'weibo', name: '微博', enabled: true, icon: 'weibo', sort: 2 },
+        { key: 'qq', name: 'QQ', enabled: true, icon: 'qq', sort: 3 },
+        { key: 'qzone', name: 'QQ空间', enabled: true, icon: 'qzone', sort: 4 },
+        { key: 'twitter', name: 'Twitter', enabled: true, icon: 'twitter', sort: 5 },
+        { key: 'facebook', name: 'Facebook', enabled: true, icon: 'facebook', sort: 6 },
+        { key: 'linkedin', name: 'LinkedIn', enabled: false, icon: 'linkedin', sort: 7 },
+        { key: 'copylink', name: '复制链接', enabled: true, icon: 'link', sort: 8 },
+      ],
+      sidebarModules: [
+        { key: 'info', name: '网站信息', enabled: true, sort: 1 },
+        { key: 'category', name: '分类', enabled: true, sort: 2 },
+        { key: 'related', name: '相关推荐', enabled: true, sort: 3 },
+        { key: 'hot_websites', name: '热门网址', enabled: true, sort: 4 },
+        { key: 'articles', name: '推荐文章', enabled: true, sort: 5 },
+        { key: 'tags', name: '标签', enabled: true, sort: 6 },
+        { key: 'qrcode', name: '二维码', enabled: false, sort: 7 },
+        { key: 'ad', name: '广告位', enabled: false, sort: 8 },
+      ],
+    };
+    const merged = { ...defaults, ...(config || {}) };
+    const restConfig = { ...merged };
+    delete restConfig.sidebarAdEnabled;
+    delete restConfig.detailTopAdEnabled;
+    delete restConfig.detailInlineAdEnabled;
+    delete restConfig.detailBottomAdEnabled;
+    /**
+     * 规范化排序配置数组，确保前端按 sort 渲染时顺序稳定。
+     */
+    const normalizeSortableList = list => (Array.isArray(list) ? list : [])
+      .filter(item => String(item?.key || '').trim())
+      .map(item => ({
+        ...item,
+        key: String(item.key || '').trim(),
+        name: String(item.name || item.key || '').trim(),
+        enabled: item.enabled !== false,
+        sort: Number.isFinite(Number(item.sort)) ? Number(item.sort) : 0,
+      }))
+      .sort((a, b) => a.sort - b.sort)
+      .map((item, index) => ({ ...item, sort: index + 1 }));
+    const normalizedShareChannels = normalizeSortableList(merged.shareChannels);
+    const normalizedSidebarModules = normalizeSortableList(merged.sidebarModules);
+    return {
+      ...restConfig,
+      seoCanonicalEnabled: merged.seoCanonicalEnabled !== false,
+      seoNoindexEnabled: merged.seoNoindexEnabled === true,
+      shareChannels: normalizedShareChannels.length > 0 ? normalizedShareChannels : defaults.shareChannels,
+      sidebarModules: normalizedSidebarModules.length > 0 ? normalizedSidebarModules : defaults.sidebarModules,
     };
   }
 
@@ -479,6 +669,8 @@ class SettingService extends Service {
         value = this.normalizeExitModalConfig(rawValue);
       } else if (key === 'searchConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSearchConfig(rawValue);
+      } else if (key === 'detailPageConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeDetailPageConfig(rawValue);
       }
       const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
@@ -654,6 +846,8 @@ class SettingService extends Service {
       detailPageNewWindow: false,
       pageSize: 20,
       hotRecommendationClickMode: 'detail', // 热门推荐独立配置，默认进详情页
+      appendRefEnabled: false,
+      appendRefValue: '',
     };
 
     const defaultAppearance = {
@@ -669,6 +863,7 @@ class SettingService extends Service {
     };
 
     const defaultHomepage = {
+      homePageSlug: '',
       heroBannerEnabled: true,
       heroBgType: 'default',
       heroBgValue: '',
@@ -685,6 +880,16 @@ class SettingService extends Service {
       homeRecommendationEnabled: true,
       homeRecommendationSort: 20,
       navSwitchItems: this.getDefaultNavSwitchItems(),
+      dailyNewEnabled: true,
+      dailyNewDisplayLabel: '每日上新',
+      dailyNewDisplayPath: '/p/daily-new',
+      dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
+      dailyNewDisplaySort: 86,
+      dailyNewDisplayOpenInNewTab: false,
+      dailyNewDefaultDays: 1,
+      dailyNewPageKicker: 'Daily Fresh',
+      dailyNewPageTitle: '每日上新网址',
+      dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
     };
 
     const defaultCardStyle = {
@@ -759,13 +964,9 @@ class SettingService extends Service {
       showCategory: true,
       categoryTitle: '相关分类',
       sidebarLinksNewWindow: false,
-      sidebarAdEnabled: false,
       sidebarAdSlotKey: 'website_detail_sidebar',
-      detailTopAdEnabled: false,
       detailTopAdSlotKey: 'detail_top',
-      detailInlineAdEnabled: false,
       detailInlineAdSlotKey: 'detail_inline',
-      detailBottomAdEnabled: false,
       detailBottomAdSlotKey: 'detail_bottom',
       seoFaqEnabled: false,
       seoFaqTitle: '常见问题',
@@ -774,6 +975,8 @@ class SettingService extends Service {
       seoLongTailTitle: '相关搜索',
       seoLongTailKeywords: '',
       seoSchemaEnabled: true,
+      seoCanonicalEnabled: true,
+      seoNoindexEnabled: false,
       screenshotsEnabled: true,
       thumbnailLayoutStyle: 'device',
       thumbnailSplitSideCount: 2,
@@ -869,7 +1072,7 @@ class SettingService extends Service {
       search: this.normalizeSearchConfig(searchConfig || defaultSearch),
       exitModal: normalizedExitModalConfig,
       popup: normalizedExitModalConfig,
-      detailPage: { ...defaultDetailPage, ...(detailPageConfig || {}) },
+      detailPage: this.normalizeDetailPageConfig({ ...defaultDetailPage, ...(detailPageConfig || {}) }),
       article: this.normalizeArticleConfig(articleConfig || defaultArticleConfig),
       articleTopics: this.normalizeArticleTopicsConfig(articleTopicsConfig || {}),
     };
@@ -887,18 +1090,30 @@ class SettingService extends Service {
    */
   async getAuthConfig() {
     const { app } = this;
+    const defaults = this.getDefaultAuthConfig();
 
-    const [ setting ] = await app.model.query(
-      'SELECT enable_register, enable_login, register_close_message, login_close_message FROM uied_site_setting LIMIT 1',
-      { type: app.Sequelize.QueryTypes.SELECT }
-    );
+    // 新结构：统一存储在 key-value 的 authConfig 中
+    const kvAuthConfig = await this.get(AUTH_CONFIG_SETTING_KEY);
+    if (this.isPlainObject(kvAuthConfig)) {
+      return this.normalizeAuthConfig(kvAuthConfig);
+    }
 
-    return {
-      enable_register: setting?.enable_register ?? 1,
-      enable_login: setting?.enable_login ?? 1,
-      register_close_message: setting?.register_close_message || '注册功能暂时关闭',
-      login_close_message: setting?.login_close_message || '系统维护中，暂时无法登录',
-    };
+    // 兼容历史结构：列式字段（enable_register / enable_login 等）
+    const hasLegacyColumns = await this.hasLegacyAuthColumns();
+    if (!hasLegacyColumns) {
+      return defaults;
+    }
+
+    try {
+      const [ setting ] = await app.model.query(
+        'SELECT enable_register, enable_login, register_close_message, login_close_message FROM uied_site_setting LIMIT 1',
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      return this.normalizeAuthConfig(setting || defaults);
+    } catch (error) {
+      this.ctx.logger.warn('[setting] 读取历史 auth 列式配置失败，回退默认值:', error.message);
+      return defaults;
+    }
   }
 
   /**
@@ -907,58 +1122,57 @@ class SettingService extends Service {
   async updateAuthConfig(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const normalized = this.normalizeAuthConfig(data || {});
 
-    const {
-      enable_register,
-      enable_login,
-      register_close_message,
-      login_close_message,
-    } = data;
+    // 新结构：直接写入 key-value，避免依赖列式字段
+    await this.save({ [AUTH_CONFIG_SETTING_KEY]: normalized });
 
-    // 检查是否存在记录
-    const [ existing ] = await app.model.query(
-      'SELECT id FROM uied_site_setting LIMIT 1',
-      { type: app.Sequelize.QueryTypes.SELECT }
-    );
-
-    if (existing) {
-      await app.model.query(
-        `UPDATE uied_site_setting 
-         SET enable_register = ?, 
-             enable_login = ?, 
-             register_close_message = ?, 
-             login_close_message = ?,
-             update_time = ?
-         WHERE id = ?`,
-        {
-          replacements: [
-            enable_register ?? 1,
-            enable_login ?? 1,
-            register_close_message || '注册功能暂时关闭',
-            login_close_message || '系统维护中，暂时无法登录',
-            now,
-            existing.id,
-          ],
-          type: app.Sequelize.QueryTypes.UPDATE,
-        }
+    // 兼容历史结构：若数据库仍存在列式字段，则同步写一份
+    if (await this.hasLegacyAuthColumns()) {
+      const [ existing ] = await app.model.query(
+        'SELECT id FROM uied_site_setting LIMIT 1',
+        { type: app.Sequelize.QueryTypes.SELECT }
       );
-    } else {
-      await app.model.query(
-        `INSERT INTO uied_site_setting 
-         (enable_register, enable_login, register_close_message, login_close_message, create_time, update_time)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        {
-          replacements: [
-            enable_register ?? 1,
-            enable_login ?? 1,
-            register_close_message || '注册功能暂时关闭',
-            login_close_message || '系统维护中，暂时无法登录',
-            now,
-            now,
-          ],
-          type: app.Sequelize.QueryTypes.INSERT,
-        }
-      );
+
+      if (existing) {
+        await app.model.query(
+          `UPDATE uied_site_setting
+           SET enable_register = ?,
+               enable_login = ?,
+               register_close_message = ?,
+               login_close_message = ?,
+               update_time = ?
+           WHERE id = ?`,
+          {
+            replacements: [
+              normalized.enable_register,
+              normalized.enable_login,
+              normalized.register_close_message,
+              normalized.login_close_message,
+              now,
+              existing.id,
+            ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+      } else {
+        await app.model.query(
+          `INSERT INTO uied_site_setting
+           (enable_register, enable_login, register_close_message, login_close_message, create_time, update_time)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          {
+            replacements: [
+              normalized.enable_register,
+              normalized.enable_login,
+              normalized.register_close_message,
+              normalized.login_close_message,
+              now,
+              now,
+            ],
+            type: app.Sequelize.QueryTypes.INSERT,
+          }
+        );
+      }
     }
 
     return true;

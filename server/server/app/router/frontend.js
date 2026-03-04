@@ -87,6 +87,8 @@ module.exports = app => {
   // ==================== 网站相关 ====================
   // GET /api/websites - 获取网站列表（支持通过 ids 参数批量获取）
   get('/api/websites', controller.uied.frontend.websites);
+  // GET /api/websites/daily-new - 获取每日上新网站
+  get('/api/websites/daily-new', controller.uied.frontend.dailyNewWebsites);
   // GET /api/websites/featured/list - 获取精选网站（兼容旧前端）
   get('/api/websites/featured/list', controller.uied.frontend.featuredWebsites);
   // GET /api/websites/hot/list - 获取热门网站（兼容旧前端）
@@ -143,6 +145,8 @@ module.exports = app => {
   getLegacy('/websites/:id/health', controller.uied.frontend.websiteHealth);
   // GET /websites/:id/preview-snapshot - 网站预览截图（兼容旧前端无 /api 前缀）
   getLegacy('/websites/:id/preview-snapshot', controller.uied.frontend.websitePreviewSnapshot);
+  // GET /websites/daily-new - 每日上新网站（兼容旧前端无 /api 前缀）
+  getLegacy('/websites/daily-new', controller.uied.frontend.dailyNewWebsites);
   // POST /websites/:id/like - 网站点赞（兼容旧前端无 /api 前缀）
   postLegacy('/websites/:id/like', controller.uied.frontend.websiteLikeAdd);
   // DELETE /websites/:id/like - 取消网站点赞（兼容旧前端无 /api 前缀）
@@ -217,12 +221,16 @@ module.exports = app => {
   get('/api/daily-hot', controller.uied.frontend.dailyHotList);
   // GET /api/daily-hot/platforms - 获取热榜平台列表
   get('/api/daily-hot/platforms', controller.uied.frontend.dailyHotPlatforms);
+  // GET /api/daily-new/config - 获取每日上新公开显示配置
+  get('/api/daily-new/config', controller.uied.frontend.dailyNewConfig);
   // GET /daily-hot/config - 兼容旧前端无 /api 前缀
   getLegacy('/daily-hot/config', controller.uied.frontend.dailyHotConfig);
   // GET /daily-hot - 兼容旧前端无 /api 前缀
   getLegacy('/daily-hot', controller.uied.frontend.dailyHotList);
   // GET /daily-hot/platforms - 兼容旧前端无 /api 前缀
   getLegacy('/daily-hot/platforms', controller.uied.frontend.dailyHotPlatforms);
+  // GET /daily-new/config - 兼容旧前端无 /api 前缀
+  getLegacy('/daily-new/config', controller.uied.frontend.dailyNewConfig);
 
   // ==================== 榜单系统 ====================
   // GET /api/rankings - 获取榜单聚合数据

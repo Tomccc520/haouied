@@ -88,6 +88,17 @@
   transition: margin-top 0.3s ease-in-out;
 }
 
+.layout-global-strip-banner {
+  width: 100%;
+  margin: 0;
+  padding-top: 10px;
+}
+
+.layout-footer-banner {
+  width: 100%;
+  margin: 0;
+}
+
 /* 当导航栏隐藏时，减少顶部间距 */
 body.navbar-is-hidden .layout-main {
   margin-top: 0;

@@ -12,10 +12,23 @@
 .daily-hot-page {
   min-height: 100%;
   padding: 14px 0 32px;
+  --daily-hot-layout-max-width: var(--container-width);
+}
+
+.daily-hot-page--layout-contained {
+  --daily-hot-layout-max-width: var(--container-width);
+}
+
+.daily-hot-page--layout-wide {
+  --daily-hot-layout-max-width: min(1480px, calc(100vw - 2 * var(--container-padding)));
+}
+
+.daily-hot-page--layout-fluid {
+  --daily-hot-layout-max-width: min(1800px, calc(100vw - 2 * var(--container-padding)));
 }
 
 .daily-hot-page__container {
-  width: min(1320px, calc(100% - 24px));
+  width: min(var(--daily-hot-layout-max-width), calc(100% - 24px));
   margin: 0 auto;
   display: flex;
   flex-direction: column;

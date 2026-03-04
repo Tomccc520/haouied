@@ -23,8 +23,12 @@ class WebsiteController extends baseController {
         pageNo = 1,
         pageSize = 15,
         categoryId,
+        categoryIds,
         keyword,
         status,
+        statusList,
+        flagList,
+        sortBy,
         includeChildren,
         hasDetailContent,
         hasThumbnail,
@@ -33,8 +37,12 @@ class WebsiteController extends baseController {
         page: parseInt(pageNo),
         pageSize: parseInt(pageSize),
         categoryId,
+        categoryIds,
         keyword,
         status,
+        statusList,
+        flagList,
+        sortBy,
         includeChildren: includeChildren === 'true' || includeChildren === '1',
         hasDetailContent,
         hasThumbnail,
@@ -73,18 +81,30 @@ class WebsiteController extends baseController {
   async add() {
     const { ctx } = this;
     try {
-      const data = ctx.request.body;
-      if (!data.name || !data.url || !data.categoryId) {
-        return this.result({ code: 400, message: '名称、URL和分类不能为空' });
+      const data = ctx.request.body || {};
+      const normalizedStatus = String(data?.status || '').trim().toLowerCase();
+      const isDraft = normalizedStatus === 'draft';
+      if (!data.categoryId) {
+        return this.result({ code: 400, message: '请选择所属分类' });
+      }
+      if (!isDraft && (!data.name || !data.url)) {
+        return this.result({ code: 400, message: '发布网站时，名称和URL不能为空' });
       }
       const result = await ctx.service.uied.website.add(data);
       this.result({ data: result, message: '创建成功' });
     } catch (error) {
       ctx.logger.error('创建网站失败:', error);
-      if (error.message.includes('已存在')) {
+      const rawMessage = String(error?.message || '').trim();
+      if (rawMessage.includes('已存在')) {
         return this.result({ code: 400, message: error.message });
       }
-      this.result({ code: 500, message: '创建网站失败' });
+      if (/Data too long for column/i.test(rawMessage)) {
+        return this.result({ code: 400, message: '字段内容过长，请缩短后重试' });
+      }
+      if (/Incorrect integer value|cannot be null/i.test(rawMessage)) {
+        return this.result({ code: 400, message: '分类或必填字段格式不正确，请检查后重试' });
+      }
+      this.result({ code: 500, message: rawMessage || '创建网站失败' });
     }
   }
 
@@ -95,7 +115,7 @@ class WebsiteController extends baseController {
   async edit() {
     const { ctx } = this;
     try {
-      const data = ctx.request.body;
+      const data = ctx.request.body || {};
       if (!data.id) {
         return this.result({ code: 400, message: '缺少网站ID' });
       }
@@ -103,10 +123,14 @@ class WebsiteController extends baseController {
       this.result({ data: result, message: '更新成功' });
     } catch (error) {
       ctx.logger.error('更新网站失败:', error);
-      if (error.message.includes('已存在') || error.message.includes('不存在')) {
+      const rawMessage = String(error?.message || '').trim();
+      if (rawMessage.includes('已存在') || rawMessage.includes('不存在')) {
         return this.result({ code: 400, message: error.message });
       }
-      this.result({ code: 500, message: '更新网站失败' });
+      if (/Data too long for column/i.test(rawMessage)) {
+        return this.result({ code: 400, message: '字段内容过长，请缩短后重试' });
+      }
+      this.result({ code: 500, message: rawMessage || '更新网站失败' });
     }
   }
 

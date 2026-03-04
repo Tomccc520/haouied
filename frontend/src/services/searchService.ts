@@ -44,6 +44,7 @@ export interface AiSearchResultItem {
   iconUrl?: string;
   category?: string;
   tags?: string[] | string;
+  weightTags?: string[] | string;
   isNew?: boolean;
   isHot?: boolean;
   isFeatured?: boolean;
