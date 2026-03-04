@@ -118,9 +118,8 @@ const normalizeWeightTagKey = (value?: string): 'official' | 'recommended' | 'en
 const resolveToolWeightTag = (
   tool: Tool
 ): {
-  key: 'official' | 'recommended' | 'enterprise_verified';
+  key: 'official';
   label: string;
-  icon: string;
   description: string;
 } | null => {
   const candidates = [
@@ -134,24 +133,7 @@ const resolveToolWeightTag = (
       return {
         key: normalizedKey,
         label: '官方',
-        icon: '✓',
         description: '来源官方渠道',
-      };
-    }
-    if (normalizedKey === 'recommended') {
-      return {
-        key: normalizedKey,
-        label: '推荐',
-        icon: '★',
-        description: '运营推荐',
-      };
-    }
-    if (normalizedKey === 'enterprise_verified') {
-      return {
-        key: normalizedKey,
-        label: '企业认证',
-        icon: '企',
-        description: '企业资质认证',
       };
     }
   }
@@ -210,11 +192,8 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
             {toolWeightTag && (
               <span
                 className={`tool-item-weight-badge tool-item-weight-badge--${toolWeightTag.key}`}
-                title={`站点权重：${toolWeightTag.label}（${toolWeightTag.description}）`}
+                title={`站点权重：${toolWeightTag.label}`}
               >
-                <span className="tool-item-weight-badge__icon" aria-hidden="true">
-                  {toolWeightTag.icon}
-                </span>
                 <span className="tool-item-weight-badge__text">{toolWeightTag.label}</span>
               </span>
             )}

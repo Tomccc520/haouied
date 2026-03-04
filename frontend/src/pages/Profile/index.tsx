@@ -516,12 +516,6 @@ const ProfileEdit: React.FC<{ user: any; onUpdate: () => Promise<void> | void }>
                 style={{ display: 'none' }}
                 onChange={handleAvatarUpload}
               />
-              <input
-                type="text"
-                value={formData.avatar}
-                onChange={e => setFormData({ ...formData, avatar: e.target.value })}
-                placeholder="或粘贴头像图片地址"
-              />
             </div>
           </div>
           <div className="form-tip">支持 JPG/PNG/WEBP，建议 400x400，大小不超过 5MB</div>

@@ -415,6 +415,25 @@
   flex-shrink: 0;
 }
 
+.category-nav-icon-svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-nav-icon-svg :is(svg, path, rect, circle, g) {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.category-nav-icon-svg svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: block;
+}
+
 .category-nav-name {
   flex: 1;
   font-weight: 500;

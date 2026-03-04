@@ -177,31 +177,22 @@ interface DetailPageConfig {
   dataPanelTitle?: string;
   heroAccentGlassEnabled?: boolean;
   enabled?: boolean;
-  showRelated?: boolean;
   relatedTitle?: string;
   relatedCount?: number;
   relatedMode?: 'same_category' | 'same_tags' | 'hot' | 'manual';
   manualWebsiteIds?: string | string[];
-  showHotWebsites?: boolean;
   hotWebsitesTitle?: string;
   hotWebsitesCount?: number;
-  showArticles?: boolean;
   articlesTitle?: string;
   articlesCount?: number;
-  showTags?: boolean;
   tagsTitle?: string;
   tagSource?: 'website' | 'category' | 'manual';
   manualTags?: string | string[];
-  showCategory?: boolean;
   categoryTitle?: string;
   sidebarLinksNewWindow?: boolean;
-  sidebarAdEnabled?: boolean;
   sidebarAdSlotKey?: string;
-  detailTopAdEnabled?: boolean;
   detailTopAdSlotKey?: string;
-  detailInlineAdEnabled?: boolean;
   detailInlineAdSlotKey?: string;
-  detailBottomAdEnabled?: boolean;
   detailBottomAdSlotKey?: string;
   seoFaqEnabled?: boolean;
   seoFaqTitle?: string;
@@ -228,7 +219,6 @@ interface DetailPageConfig {
   disclaimerText?: string;
   footerTipEnabled?: boolean;
   footerTipText?: string;
-  shareEnabled?: boolean;
   sharingEnabled?: boolean;
   shareText?: string;
   shareChannels?: Array<{ key: string; name: string; enabled: boolean; sort: number; icon?: string }>;
@@ -1122,19 +1112,25 @@ const WebsiteDetailPage: React.FC = () => {
   const detailContentLength = countEffectiveTextLength(toPlainText(String(website.detailContent || '')));
   const screenshotAssetCount = screenshots.length + (website.thumbnail ? 1 : 0);
   const statusReasonLabel = String(website.statusReason || '').trim() || '无异常原因';
-  const weightTagLabelMap: Record<string, string> = {
-    official: '官方',
-    recommended: '推荐',
-    enterprise_verified: '企业认证',
+  const weightTagMetaMap: Record<string, { label: string; tone: string }> = {
+    official: { label: '官方', tone: 'official' },
+    recommended: { label: '推荐', tone: 'recommended' },
+    enterprise_verified: { label: '企业认证', tone: 'enterprise' },
   };
-  const weightTagLabel = Array.from(
+  const resolvedWeightTags = Array.from(
     new Set(
       (Array.isArray(website.weightTags) ? website.weightTags : [])
         .map((item) => String(item || '').trim().toLowerCase())
-        .map((item) => weightTagLabelMap[item] || '')
         .filter(Boolean),
     ),
-  ).join(' / ');
+  )
+    .map((key) => {
+      const meta = weightTagMetaMap[key];
+      if (!meta) return null;
+      return { key, ...meta };
+    })
+    .filter((item): item is { key: string; label: string; tone: string } => Boolean(item));
+  const weightTagLabel = resolvedWeightTags.map((item) => item.label).join(' / ');
   const websiteDataItems: DetailDataPanelItem[] = [
     { key: 'health', label: '可访问状态', value: healthStatusLabel },
     { key: 'lastCheckedAt', label: '最后校验时间', value: displayLastCheckedAt || '未检测' },
@@ -1413,9 +1409,22 @@ const WebsiteDetailPage: React.FC = () => {
                             <span className="detail-data-panel__label">
                               <span>{item.label}</span>
                             </span>
-                            <span className="detail-data-panel__value" title={item.value}>
-                              {item.value}
-                            </span>
+                            {item.key === 'weightTags' && resolvedWeightTags.length > 0 ? (
+                              <span className="detail-data-panel__weight-tags" title={item.value}>
+                                {resolvedWeightTags.map((weightTag) => (
+                                  <span
+                                    key={weightTag.key}
+                                    className={`detail-data-panel__weight-badge detail-data-panel__weight-badge--${weightTag.tone}`}
+                                  >
+                                    {weightTag.label}
+                                  </span>
+                                ))}
+                              </span>
+                            ) : (
+                              <span className="detail-data-panel__value" title={item.value}>
+                                {item.value}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1645,7 +1654,7 @@ const WebsiteDetailPage: React.FC = () => {
                 </div>
               )}
               
-              {hasFeature(FEATURES.SHARING) && detailPageConfig.sharingEnabled !== false && detailPageConfig.shareEnabled !== false && (
+              {hasFeature(FEATURES.SHARING) && detailPageConfig.sharingEnabled !== false && (
                 <div className="interaction-block share-block">
                   <ShareButtons
                     websiteId={website.id}

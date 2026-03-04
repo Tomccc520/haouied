@@ -322,13 +322,59 @@
                             <div class="page-category-config__selected-main">
                                 <span class="page-category-config__selected-index">{{ index + 1 }}</span>
                                 <div class="page-category-config__selected-icon-wrap">
-                                    <icon v-if="item.icon" :name="item.icon" class="page-category-config__selected-icon" />
+                                    <span
+                                        v-if="resolveSvgIconMarkup(item.icon)"
+                                        class="page-category-config__selected-icon page-category-config__selected-icon--svg"
+                                        v-html="resolveSvgIconMarkup(item.icon)"
+                                    />
+                                    <icon
+                                        v-else-if="item.icon"
+                                        :name="item.icon"
+                                        class="page-category-config__selected-icon"
+                                    />
                                     <span v-else class="page-category-config__selected-icon-empty">无图标</span>
                                 </div>
                                 <span class="page-category-config__selected-name">{{ item.pathLabel }}</span>
                             </div>
                             <div class="page-category-config__selected-icon-editor">
-                                <icon-picker v-model="item.icon" />
+                                <el-radio-group
+                                    :model-value="getCategoryIconMode(item)"
+                                    size="small"
+                                    class="page-category-config__selected-icon-mode"
+                                    @change="
+                                        (mode) =>
+                                            handleCategoryIconModeChange(item, mode)
+                                    "
+                                >
+                                    <el-radio-button label="svg">SVG图标库</el-radio-button>
+                                    <el-radio-button label="icon">系统图标</el-radio-button>
+                                </el-radio-group>
+                                <el-select
+                                    v-if="getCategoryIconMode(item) === 'svg'"
+                                    v-model="item.icon"
+                                    clearable
+                                    filterable
+                                    placeholder="选择图标库图标（svg:key）"
+                                    class="page-category-config__selected-svg-select"
+                                >
+                                    <el-option
+                                        v-for="option in categorySvgLibraryOptions"
+                                        :key="option.key"
+                                        :label="`${option.label}（svg:${option.key}）`"
+                                        :value="`svg:${option.key}`"
+                                    />
+                                </el-select>
+                                <icon-picker
+                                    v-else
+                                    v-model="item.icon"
+                                />
+                                <div class="page-category-config__selected-icon-tip">
+                                    {{
+                                        getCategoryIconMode(item) === 'svg'
+                                            ? '推荐：使用图标库统一视觉（svg:key）'
+                                            : '系统图标用于快速配置'
+                                    }}
+                                </div>
                             </div>
                             <div class="page-category-config__selected-actions">
                                 <el-button
@@ -374,6 +420,7 @@ import {
     uiedPageCategories,
     uiedPageUpdateCategories,
     uiedCategoryAll,
+    uiedSettingGet,
     uiedWebsiteSearch,
     uiedWebsiteList
 } from '@/api/uied'
@@ -392,6 +439,12 @@ interface CategoryOption {
 
 interface CategoryTreeNode extends CategoryOption {
     children: CategoryTreeNode[]
+}
+
+interface CategorySvgLibraryOption {
+    key: string
+    label: string
+    svg: string
 }
 
 const queryParams = reactive({
@@ -724,6 +777,122 @@ const categoryTreeData = ref<CategoryTreeNode[]>([])
 const categoryMap = ref<Record<number, CategoryOption>>({})
 const categoryCheckedKeys = ref<number[]>([])
 const categorySelectedRows = ref<CategoryOption[]>([])
+const categorySvgLibraryOptions = ref<CategorySvgLibraryOption[]>([])
+
+/**
+ * 清洗 SVG 文本，去除脚本与内联事件，避免在后台预览时执行不安全内容。
+ */
+const sanitizeSvgMarkup = (value: unknown): string => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    const sanitized = text
+        .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+        .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+        .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '')
+        .replace(/javascript:/gi, '')
+        .trim()
+    return sanitized.toLowerCase().startsWith('<svg') ? sanitized : ''
+}
+
+/**
+ * 规范化 SVG 图标库列表，兼容对象/数组/JSON 字符串。
+ */
+const normalizeCategorySvgLibrary = (value: unknown): CategorySvgLibraryOption[] => {
+    let source = value
+    if (typeof source === 'string') {
+        try {
+            source = JSON.parse(source)
+        } catch (_error) {
+            source = []
+        }
+    }
+    const rows = Array.isArray(source)
+        ? source
+        : source && typeof source === 'object'
+        ? Object.keys(source as Record<string, unknown>).map((key) => ({
+              key,
+              svg: (source as Record<string, unknown>)[key]
+          }))
+        : []
+    return rows
+        .map((item: any, index: number) => {
+            const key = String(item?.key || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9_-]/g, '')
+                .slice(0, 40)
+            if (!key) return null
+            const svg = sanitizeSvgMarkup(item?.svg)
+            if (!svg) return null
+            const label = String(item?.label || key).trim().slice(0, 40) || key
+            const sort = Number.isFinite(Number(item?.sort)) ? Number(item.sort) : index + 1
+            return { key, label, svg, sort }
+        })
+        .filter((item): item is CategorySvgLibraryOption & { sort: number } => Boolean(item))
+        .sort((a, b) => a.sort - b.sort)
+        .map(({ key, label, svg }) => ({ key, label, svg }))
+}
+
+/**
+ * 判断图标字段是否为 svg:key 模式。
+ */
+const isSvgIconToken = (value: unknown): boolean => /^svg:/i.test(String(value || '').trim())
+
+/**
+ * 获取当前分类图标编辑模式。
+ */
+const getCategoryIconMode = (item: CategoryOption): 'svg' | 'icon' =>
+    isSvgIconToken(item?.icon) ? 'svg' : 'icon'
+
+/**
+ * 切换分类图标编辑模式（SVG 图标库 / 系统图标）。
+ */
+const handleCategoryIconModeChange = (
+    item: CategoryOption,
+    mode: string | number | boolean
+) => {
+    const normalizedMode = String(mode || '').trim().toLowerCase()
+    if (!item) return
+    if (normalizedMode === 'svg') {
+        if (isSvgIconToken(item.icon)) return
+        const firstOption = categorySvgLibraryOptions.value[0]
+        item.icon = firstOption ? `svg:${firstOption.key}` : ''
+        return
+    }
+    if (!isSvgIconToken(item.icon)) return
+    item.icon = ''
+}
+
+/**
+ * 根据 svg:key 解析对应 SVG 代码，用于弹窗内即时预览。
+ */
+const resolveSvgIconMarkup = (value: unknown): string => {
+    const raw = String(value || '').trim()
+    if (!/^svg:/i.test(raw)) return ''
+    const key = raw
+        .slice(4)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 40)
+    if (!key) return ''
+    const matched = categorySvgLibraryOptions.value.find((item) => item.key === key)
+    return matched?.svg || ''
+}
+
+/**
+ * 加载系统设置中的 SVG 图标库。
+ */
+const loadCategorySvgLibrary = async () => {
+    try {
+        const res = await uiedSettingGet({ key: 'pageGlobalConfig' })
+        const normalized = normalizeCategorySvgLibrary((res as any)?.categorySvgLibrary)
+        categorySvgLibraryOptions.value = normalized
+    } catch (error) {
+        console.error('加载分类 SVG 图标库失败:', error)
+        categorySvgLibraryOptions.value = []
+    }
+}
 
 /**
  * 构建分类树和路径标签，便于运营快速定位一级/二级分类。
@@ -865,7 +1034,11 @@ const clearSelectedCategories = () => {
  */
 const handleCategories = async (row: any) => {
     currentPageId.value = Number(row.id)
-    const [cats, pageCats] = await Promise.all([uiedCategoryAll(), uiedPageCategories({ id: row.id })])
+    const [cats, pageCats] = await Promise.all([
+        uiedCategoryAll(),
+        uiedPageCategories({ id: row.id }),
+        loadCategorySvgLibrary()
+    ])
     const { tree, map } = buildCategoryTree(cats || [])
     categoryTreeData.value = tree
     categoryMap.value = map
@@ -1097,7 +1270,7 @@ getLists()
     border-radius: 8px;
     padding: 8px 10px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
 }
@@ -1107,6 +1280,7 @@ getLists()
     align-items: center;
     gap: 8px;
     min-width: 0;
+    flex: 1;
 }
 
 .page-category-config__selected-index {
@@ -1147,28 +1321,76 @@ getLists()
     font-size: 14px;
 }
 
+.page-category-config__selected-icon--svg {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.page-category-config__selected-icon--svg :is(svg, path, rect, circle, g) {
+    fill: currentColor;
+    stroke: currentColor;
+}
+
+.page-category-config__selected-icon--svg svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
 .page-category-config__selected-icon-empty {
     font-size: 10px;
 }
 
 .page-category-config__selected-icon-editor {
-    min-width: 190px;
-    max-width: 210px;
+    min-width: 260px;
+    max-width: 320px;
+    display: grid;
+    gap: 6px;
+}
+
+.page-category-config__selected-icon-mode {
+    width: fit-content;
 }
 
 .page-category-config__selected-icon-editor :deep(.el-input) {
     width: 100%;
 }
 
+.page-category-config__selected-svg-select {
+    width: 100%;
+}
+
+.page-category-config__selected-icon-tip {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    line-height: 1.35;
+}
+
 .page-category-config__selected-actions {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 @media (max-width: 960px) {
     .page-category-config {
         grid-template-columns: 1fr;
+    }
+    .page-category-config__selected-item {
+        flex-direction: column;
+    }
+    .page-category-config__selected-icon-editor {
+        min-width: 100%;
+        max-width: 100%;
+    }
+    .page-category-config__selected-actions {
+        width: 100%;
+        justify-content: flex-start;
     }
 }
 </style>

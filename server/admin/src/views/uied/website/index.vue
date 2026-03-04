@@ -67,6 +67,7 @@
                         <el-option label="隐藏" value="disabled" />
                         <el-option label="待审核" value="unchecked" />
                         <el-option label="草稿" value="draft" />
+                        <el-option label="异常" value="failed" />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="标记筛选">
@@ -140,6 +141,9 @@
                     <el-button type="primary" @click="handleAdd">
                         <template #icon><icon name="el-icon-Plus" /></template>
                         添加网站
+                    </el-button>
+                    <el-button type="success" plain @click="openBatchImportDialog">
+                        批量导入网址
                     </el-button>
                     <el-button
                         type="danger"
@@ -215,6 +219,111 @@
                 <pagination v-model="pager" @change="getLists" />
             </div>
         </el-card>
+
+        <el-dialog
+            v-model="batchImportDialogVisible"
+            title="批量导入网址"
+            width="760px"
+            destroy-on-close
+        >
+            <el-form :model="batchImportForm" label-width="120px">
+                <el-form-item label="所属分类" required>
+                    <el-select
+                        v-model="batchImportForm.categoryId"
+                        placeholder="请选择分类"
+                        filterable
+                        clearable
+                        style="width: 100%"
+                    >
+                        <el-option
+                            v-for="item in categoryOptions"
+                            :key="item.id"
+                            :label="item.label"
+                            :value="item.id"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="网址列表" required>
+                    <el-input
+                        v-model="batchImportForm.urlsText"
+                        type="textarea"
+                        :rows="9"
+                        placeholder="每行一个网址，支持不带协议（示例：openai.com）"
+                    />
+                    <div class="text-xs text-tx-secondary mt-2">
+                        导入规则：自动校验重复主域名；已存在域名会自动跳过，不重复收录。
+                    </div>
+                </el-form-item>
+                <el-form-item label="发布状态">
+                    <el-radio-group v-model="batchImportForm.status">
+                        <el-radio-button label="draft">草稿</el-radio-button>
+                        <el-radio-button label="active">发布</el-radio-button>
+                        <el-radio-button label="disabled">隐藏</el-radio-button>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="导入选项">
+                    <el-space direction="vertical" alignment="start" :size="8">
+                        <el-checkbox v-model="batchImportForm.fetchSeo">
+                            自动获取网站信息（标题/简介/关键词/标签/favicon）
+                        </el-checkbox>
+                        <el-checkbox v-model="batchImportForm.generateDetailContent">
+                            导入后自动用 AI 生成详情正文
+                        </el-checkbox>
+                    </el-space>
+                </el-form-item>
+            </el-form>
+
+            <el-alert
+                v-if="batchImportResult"
+                class="mt-2"
+                type="info"
+                :closable="false"
+                :title="`导入结果：新增 ${batchImportResult.created}，跳过 ${batchImportResult.skipped}，失败 ${batchImportResult.failed}`"
+            />
+            <el-card
+                v-if="batchImportResult && batchImportResult.rows.length > 0"
+                class="mt-3"
+                shadow="never"
+            >
+                <template #header>
+                    <div class="flex items-center justify-between">
+                        <span>结果明细（{{ batchImportResult.rows.length }} 条）</span>
+                        <el-button link type="primary" @click="handleExportBatchImportCsv">
+                            一键导出 CSV
+                        </el-button>
+                    </div>
+                </template>
+                <el-table :data="batchImportResult.rows" size="small" max-height="320">
+                    <el-table-column type="index" label="#" width="56" />
+                    <el-table-column label="状态" width="88">
+                        <template #default="{ row }">
+                            <el-tag :type="getBatchImportStatusTagType(row.status)" size="small">
+                                {{ getBatchImportStatusLabel(row.status) }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="网址" min-width="220" show-overflow-tooltip>
+                        <template #default="{ row }">{{ row.url || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="网站ID" width="90">
+                        <template #default="{ row }">{{ row.websiteId || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="网站名称" min-width="160" show-overflow-tooltip>
+                        <template #default="{ row }">{{ row.name || '-' }}</template>
+                    </el-table-column>
+                    <el-table-column label="原因/说明" min-width="240" show-overflow-tooltip>
+                        <template #default="{ row }">{{ row.reason || row.message || '-' }}</template>
+                    </el-table-column>
+                </el-table>
+            </el-card>
+
+            <template #footer>
+                <el-button @click="batchImportDialogVisible = false">取消</el-button>
+                <el-button type="primary" :loading="batchImportLoading" @click="handleBatchImportSubmit">
+                    开始导入
+                </el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -223,12 +332,14 @@ import {
     uiedWebsiteList,
     uiedWebsiteDelete,
     uiedWebsiteBatchDelete,
+    uiedWebsiteBatchImport,
     uiedCategoryAll
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 
 const router = useRouter()
+const route = useRoute()
 
 // 前端访问地址（开发环境 localhost:3003，生产环境可根据实际域名修改）
 const FRONTEND_BASE_URL = 'http://localhost:3003'
@@ -255,6 +366,34 @@ const queryParams = reactive({
     sortBy: 'default',
     hasDetailContent: '',
     hasThumbnail: ''
+})
+
+/**
+ * 批量导入结果行（用于明细表 + CSV 导出）
+ */
+interface BatchImportResultRow {
+    status: string
+    url: string
+    websiteId?: number
+    name?: string
+    reason?: string
+    message?: string
+}
+
+const batchImportDialogVisible = ref(false)
+const batchImportLoading = ref(false)
+const batchImportResult = ref<{
+    created: number
+    skipped: number
+    failed: number
+    rows: BatchImportResultRow[]
+} | null>(null)
+const batchImportForm = reactive({
+    categoryId: '' as string | number,
+    urlsText: '',
+    fetchSeo: true,
+    generateDetailContent: false,
+    status: 'draft'
 })
 
 /**
@@ -372,6 +511,136 @@ const handleAdd = () => {
     router.push('/uied/website/edit')
 }
 
+/**
+ * 打开批量导入弹窗并重置结果态
+ */
+const openBatchImportDialog = () => {
+    batchImportDialogVisible.value = true
+    batchImportResult.value = null
+}
+
+/**
+ * 规范化批量导入明细行，兼容后端不同返回结构。
+ */
+const normalizeBatchImportRows = (rows: any): BatchImportResultRow[] => {
+    if (!Array.isArray(rows)) return []
+    return rows.map((item: any) => ({
+        status: String(item?.status || '').trim().toLowerCase(),
+        url: String(item?.url || '').trim(),
+        websiteId:
+            Number.isFinite(Number(item?.websiteId)) && Number(item.websiteId) > 0
+                ? Number(item.websiteId)
+                : undefined,
+        name: String(item?.name || '').trim(),
+        reason: String(item?.reason || '').trim(),
+        message: String(item?.message || '').trim()
+    }))
+}
+
+/**
+ * 批量导入状态文案
+ */
+const getBatchImportStatusLabel = (status: string) => {
+    const normalized = String(status || '').trim().toLowerCase()
+    if (normalized === 'created' || normalized === 'success') return '成功'
+    if (normalized === 'skipped' || normalized === 'skip') return '跳过'
+    if (normalized === 'failed' || normalized === 'error') return '失败'
+    return '未知'
+}
+
+/**
+ * 批量导入状态标签样式
+ */
+const getBatchImportStatusTagType = (status: string) => {
+    const normalized = String(status || '').trim().toLowerCase()
+    if (normalized === 'created' || normalized === 'success') return 'success'
+    if (normalized === 'skipped' || normalized === 'skip') return 'warning'
+    if (normalized === 'failed' || normalized === 'error') return 'danger'
+    return 'info'
+}
+
+/**
+ * 导出批量导入明细 CSV，便于运营归档和复盘失败原因。
+ */
+const handleExportBatchImportCsv = () => {
+    const rows = batchImportResult.value?.rows || []
+    if (rows.length === 0) {
+        feedback.msgWarning('暂无可导出的明细数据')
+        return
+    }
+    const escapeCell = (value: unknown) => {
+        const text = String(value ?? '').replace(/"/g, '""')
+        return `"${text}"`
+    }
+    const header = ['序号', '状态', '网址', '网站ID', '网站名称', '原因/说明']
+    const lines = rows.map((row, index) =>
+        [
+            index + 1,
+            getBatchImportStatusLabel(row.status),
+            row.url || '',
+            row.websiteId || '',
+            row.name || '',
+            row.reason || row.message || ''
+        ]
+            .map(escapeCell)
+            .join(',')
+    )
+    const csv = [header.map(escapeCell).join(','), ...lines].join('\n')
+    const filename = `website_batch_import_${Date.now()}.csv`
+    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' })
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(objectUrl)
+    feedback.msgSuccess('CSV 导出成功')
+}
+
+/**
+ * 提交批量导入任务
+ */
+const handleBatchImportSubmit = async () => {
+    const categoryId = Number(batchImportForm.categoryId || 0)
+    const urlsText = String(batchImportForm.urlsText || '').trim()
+    if (!categoryId) {
+        feedback.msgWarning('请选择所属分类')
+        return
+    }
+    if (!urlsText) {
+        feedback.msgWarning('请填写至少一个网址')
+        return
+    }
+    batchImportLoading.value = true
+    try {
+        const result = await uiedWebsiteBatchImport({
+            categoryId,
+            urls: urlsText,
+            fetchSeo: batchImportForm.fetchSeo,
+            generateDetailContent: batchImportForm.generateDetailContent,
+            status: batchImportForm.status
+        })
+        const resultData = result?.data?.data || result?.data || result || {}
+        const normalizedRows = normalizeBatchImportRows(resultData?.rows || result?.rows)
+        batchImportResult.value = {
+            created: Number(resultData?.created || 0),
+            skipped: Number(resultData?.skipped || 0),
+            failed: Number(resultData?.failed || 0),
+            rows: normalizedRows
+        }
+        feedback.msgSuccess(
+            `导入完成：新增 ${batchImportResult.value.created} 条，跳过 ${batchImportResult.value.skipped} 条，失败 ${batchImportResult.value.failed} 条`
+        )
+        getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '批量导入失败')
+    } finally {
+        batchImportLoading.value = false
+    }
+}
+
 const handleEdit = (row: any) => {
     router.push(`/uied/website/edit?id=${row.id}`)
 }
@@ -390,6 +659,17 @@ const handleBatchDelete = async () => {
     selectedIds.value = []
     getLists()
 }
+
+/**
+ * 监听编辑页返回的刷新标记，自动刷新列表数据。
+ */
+watch(
+    () => route.query.refresh,
+    (refreshToken, previousToken) => {
+        if (!refreshToken || refreshToken === previousToken) return
+        getLists()
+    }
+)
 
 onMounted(() => {
     getCategoryList()

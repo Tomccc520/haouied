@@ -94,6 +94,11 @@ export interface PageGlobalConfig {
   hotRecommendationClickMode: 'detail' | 'direct';
   appendRefEnabled: boolean;
   appendRefValue: string;
+  categorySvgLibrary?: Array<{
+    key: string;
+    label?: string;
+    svg: string;
+  }>;
 }
 
 // 卡片样式配置
@@ -155,25 +160,19 @@ export interface DetailPageConfig {
   dataPanelTitle?: string;
   heroAccentGlassEnabled?: boolean;
   enabled?: boolean;
-  showRelated?: boolean;
   relatedTitle?: string;
   relatedCount?: number;
   relatedMode?: 'same_category' | 'same_tags' | 'hot' | 'manual';
   manualWebsiteIds?: string | string[];
-  showHotWebsites?: boolean;
   hotWebsitesTitle?: string;
   hotWebsitesCount?: number;
-  showArticles?: boolean;
   articlesTitle?: string;
   articlesCount?: number;
-  showTags?: boolean;
   tagsTitle?: string;
   tagSource?: 'website' | 'category' | 'manual';
   manualTags?: string | string[];
-  showCategory?: boolean;
   categoryTitle?: string;
   sidebarLinksNewWindow?: boolean;
-  sidebarAdEnabled?: boolean;
   sidebarAdSlotKey?: string;
   sidebarModules?: Array<{
     key: string;
@@ -181,11 +180,8 @@ export interface DetailPageConfig {
     enabled: boolean;
     sort: number;
   }>;
-  detailTopAdEnabled?: boolean;
   detailTopAdSlotKey?: string;
-  detailInlineAdEnabled?: boolean;
   detailInlineAdSlotKey?: string;
-  detailBottomAdEnabled?: boolean;
   detailBottomAdSlotKey?: string;
   seoFaqEnabled?: boolean;
   seoFaqTitle?: string;
@@ -215,9 +211,6 @@ export interface DetailPageConfig {
     sort: number;
     icon?: string;
   }>;
-  favoritesEnabled: boolean;
-  relatedEnabled: boolean;
-  tagsEnabled: boolean;
   visitArrowEnabled: boolean;
   visitArrowText: string;
   copyrightEnabled: boolean;
@@ -385,6 +378,7 @@ export const DEFAULT_PAGE_GLOBAL: PageGlobalConfig = {
   hotRecommendationClickMode: 'detail',
   appendRefEnabled: false,
   appendRefValue: '',
+  categorySvgLibrary: [],
 };
 
 export const DEFAULT_CARD_STYLE: CardStyleConfig = {
@@ -441,31 +435,22 @@ export const DEFAULT_DETAIL_PAGE: DetailPageConfig = {
   dataPanelTitle: '站点访问数据',
   heroAccentGlassEnabled: true,
   enabled: true,
-  showRelated: true,
   relatedTitle: '你可能还喜欢',
   relatedCount: 6,
   relatedMode: 'same_category',
   manualWebsiteIds: '',
-  showHotWebsites: true,
   hotWebsitesTitle: '热门网址',
   hotWebsitesCount: 6,
-  showArticles: true,
   articlesTitle: '推荐文章',
   articlesCount: 5,
-  showTags: true,
   tagsTitle: '深入探索',
   tagSource: 'website',
   manualTags: '',
-  showCategory: true,
   categoryTitle: '相关分类',
   sidebarLinksNewWindow: false,
-  sidebarAdEnabled: false,
   sidebarAdSlotKey: 'website_detail_sidebar',
-  detailTopAdEnabled: false,
   detailTopAdSlotKey: 'detail_top',
-  detailInlineAdEnabled: false,
   detailInlineAdSlotKey: 'detail_inline',
-  detailBottomAdEnabled: false,
   detailBottomAdSlotKey: 'detail_bottom',
   seoFaqEnabled: false,
   seoFaqTitle: '常见问题',
@@ -498,9 +483,6 @@ export const DEFAULT_DETAIL_PAGE: DetailPageConfig = {
     { key: 'linkedin', name: 'LinkedIn', enabled: false, sort: 7, icon: 'linkedin' },
     { key: 'copylink', name: '复制链接', enabled: true, sort: 8, icon: 'link' },
   ],
-  favoritesEnabled: true,
-  relatedEnabled: true,
-  tagsEnabled: true,
   sidebarModules: [
     { key: 'info', name: '网站信息', enabled: true, sort: 1 },
     { key: 'category', name: '分类', enabled: true, sort: 2 },
@@ -589,12 +571,34 @@ export const publicSettingService = {
    */
   normalizePageGlobalConfig: (config: unknown): PageGlobalConfig => {
     const mergedConfig = { ...DEFAULT_PAGE_GLOBAL, ...((config as Partial<PageGlobalConfig>) || {}) };
+    /**
+     * 规范化分类 SVG 图标库，确保 key 与 SVG 内容可用。
+     */
+    const normalizedCategorySvgLibrary = (() => {
+      const rows = Array.isArray(mergedConfig.categorySvgLibrary) ? mergedConfig.categorySvgLibrary : [];
+      return rows
+        .map((item, index) => {
+          const key = String(item?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+          if (!key) return null;
+          const svg = String(item?.svg || '').trim();
+          if (!svg || !svg.toLowerCase().startsWith('<svg')) return null;
+          const label = String(item?.label || key).trim().slice(0, 40) || key;
+          const sort = Number.isFinite(Number((item as { sort?: unknown })?.sort))
+            ? Number((item as { sort?: unknown }).sort)
+            : index + 1;
+          return { key, label, svg, sort };
+        })
+        .filter((item): item is { key: string; label: string; svg: string; sort: number } => Boolean(item))
+        .sort((a, b) => a.sort - b.sort)
+        .map(({ key, label, svg }) => ({ key, label, svg }));
+    })();
     return {
       ...mergedConfig,
       websiteClickMode: publicSettingService.normalizeWebsiteClickMode(mergedConfig.websiteClickMode),
       hotRecommendationClickMode: publicSettingService.normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
       appendRefEnabled: mergedConfig.appendRefEnabled === true,
       appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
+      categorySvgLibrary: normalizedCategorySvgLibrary,
     };
   },
 
@@ -667,7 +671,10 @@ export const publicSettingService = {
    * 规范化详情页配置，确保 SEO 开关与排序数组结构稳定
    */
   normalizeDetailPageConfig: (config: unknown): DetailPageConfig => {
-    const merged = { ...DEFAULT_DETAIL_PAGE, ...((config as Partial<DetailPageConfig>) || {}) };
+    const rawConfig = (config && typeof config === 'object')
+      ? (config as Record<string, unknown>)
+      : {};
+    const merged = { ...DEFAULT_DETAIL_PAGE, ...(rawConfig as Partial<DetailPageConfig>) };
     /**
      * 规范化排序数组，避免旧数据缺失 sort 导致前端渲染顺序异常。
      */
@@ -694,18 +701,71 @@ export const publicSettingService = {
         .map((item, index) => ({ ...item, sort: index + 1 }));
       return normalized.length > 0 ? normalized as T[] : fallback;
     };
+    /**
+     * 兼容旧字段：若历史配置仍使用 shareEnabled，则迁移到 sharingEnabled。
+     */
+    const sharingEnabled = typeof merged.sharingEnabled === 'boolean'
+      ? merged.sharingEnabled
+      : rawConfig.shareEnabled !== false;
+    /**
+     * 兼容旧字段：仅当未配置 sidebarModules 时，使用 show* 迁移模块开关。
+     */
+    const hasExplicitSidebarModules = Array.isArray(rawConfig.sidebarModules)
+      && rawConfig.sidebarModules.length > 0;
+    const normalizedSidebarModules = normalizeSortableList(
+      merged.sidebarModules,
+      (DEFAULT_DETAIL_PAGE.sidebarModules || []).map(item => ({ ...item }))
+    );
+    const migratedSidebarModules = !hasExplicitSidebarModules
+      ? normalizedSidebarModules.map((item) => {
+          const legacyMap: Record<string, string> = {
+            category: 'showCategory',
+            related: 'showRelated',
+            hot_websites: 'showHotWebsites',
+            articles: 'showArticles',
+            tags: 'showTags',
+          };
+          const legacyKey = legacyMap[item.key];
+          if (!legacyKey) return item;
+          const legacyValue = rawConfig[legacyKey];
+          if (typeof legacyValue !== 'boolean') return item;
+          return { ...item, enabled: legacyValue };
+        })
+      : normalizedSidebarModules;
+    /**
+     * 清理已废弃字段，避免运营后台出现重复开关语义。
+     */
+    const mergedWithLegacy = merged as DetailPageConfig & Record<string, unknown>;
+    const {
+      showRelated: _legacyShowRelated,
+      showHotWebsites: _legacyShowHotWebsites,
+      showArticles: _legacyShowArticles,
+      showTags: _legacyShowTags,
+      showCategory: _legacyShowCategory,
+      shareEnabled: _legacyShareEnabled,
+      sidebarAdEnabled: _legacySidebarAdEnabled,
+      detailTopAdEnabled: _legacyDetailTopAdEnabled,
+      detailInlineAdEnabled: _legacyDetailInlineAdEnabled,
+      detailBottomAdEnabled: _legacyDetailBottomAdEnabled,
+      favoritesEnabled: _legacyFavoritesEnabled,
+      relatedEnabled: _legacyRelatedEnabled,
+      tagsEnabled: _legacyTagsEnabled,
+      ...cleanConfig
+    } = mergedWithLegacy;
     return {
-      ...merged,
+      ...(cleanConfig as DetailPageConfig),
+      sharingEnabled: sharingEnabled !== false,
+      sidebarAdSlotKey: String(merged.sidebarAdSlotKey || '').trim() || 'website_detail_sidebar',
+      detailTopAdSlotKey: String(merged.detailTopAdSlotKey || '').trim() || 'detail_top',
+      detailInlineAdSlotKey: String(merged.detailInlineAdSlotKey || '').trim() || 'detail_inline',
+      detailBottomAdSlotKey: String(merged.detailBottomAdSlotKey || '').trim() || 'detail_bottom',
       seoCanonicalEnabled: merged.seoCanonicalEnabled !== false,
       seoNoindexEnabled: merged.seoNoindexEnabled === true,
       shareChannels: normalizeSortableList(
         merged.shareChannels,
         (DEFAULT_DETAIL_PAGE.shareChannels || []).map(item => ({ ...item }))
       ),
-      sidebarModules: normalizeSortableList(
-        merged.sidebarModules,
-        (DEFAULT_DETAIL_PAGE.sidebarModules || []).map(item => ({ ...item }))
-      ),
+      sidebarModules: migratedSidebarModules,
     };
   },
 

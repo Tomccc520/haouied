@@ -987,6 +987,53 @@
                                 show-word-limit
                             />
                         </el-form-item>
+                        <el-divider content-position="left">SVG 图标库（svg:key）</el-divider>
+                        <p class="section-desc">
+                            统一维护分类 SVG 图标库。页面分类配置可直接填写 <code>svg:key</code> 引用图标，
+                            例如 <code>svg:ai_video</code>。请填写 JSON 数组格式。
+                        </p>
+                        <el-form-item>
+                            <template #label
+                                ><span>图标库 JSON</span
+                                ><el-tooltip placement="top"
+                                    ><template #content>
+                                        示例：<br />
+                                        [<br />
+                                        {"key":"ai_video","label":"AI视频","svg":"&lt;svg ...&gt;&lt;/svg&gt;"}<br />
+                                        ]
+                                    </template
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-input
+                                v-model="categorySvgLibraryText"
+                                type="textarea"
+                                :rows="10"
+                                placeholder='[{"key":"ai_video","label":"AI视频","svg":"<svg ...></svg>"}]'
+                                @blur="syncCategorySvgLibraryFromText"
+                            />
+                            <div v-if="categorySvgLibraryError" class="form-error-text">
+                                {{ categorySvgLibraryError }}
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="图标库预览">
+                            <div class="svg-library-preview">
+                                <el-tag
+                                    v-for="item in categorySvgLibraryPreview"
+                                    :key="item.key"
+                                    class="svg-library-preview__tag"
+                                    effect="plain"
+                                >
+                                    {{ item.label }}（svg:{{ item.key }}）
+                                </el-tag>
+                                <span
+                                    v-if="categorySvgLibraryPreview.length === 0"
+                                    class="svg-library-preview__empty"
+                                >
+                                    暂无图标项
+                                </span>
+                            </div>
+                        </el-form-item>
                         <el-alert
                             type="success"
                             :closable="false"
@@ -1864,6 +1911,75 @@ const normalizeHomepageConfigData = (config: any) => ({
 
 // ==================== 页面配置 ====================
 const pageConfigLoading = ref(false)
+interface CategorySvgLibraryItem {
+    key: string
+    label: string
+    svg: string
+}
+
+/**
+ * 清洗 SVG 字符串，去除脚本与内联事件，避免配置注入风险。
+ */
+const sanitizeSvgMarkup = (value: unknown): string => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    const sanitized = text
+        .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+        .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+        .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '')
+        .replace(/javascript:/gi, '')
+        .trim()
+    return sanitized.toLowerCase().startsWith('<svg') ? sanitized : ''
+}
+
+/**
+ * 规范化 SVG 图标库，兼容数组/对象/JSON 字符串格式。
+ */
+const normalizeCategorySvgLibrary = (value: unknown): CategorySvgLibraryItem[] => {
+    let source = value
+    if (typeof source === 'string') {
+        try {
+            source = JSON.parse(source)
+        } catch (_error) {
+            source = []
+        }
+    }
+    const rows = Array.isArray(source)
+        ? source
+        : source && typeof source === 'object'
+        ? Object.keys(source as Record<string, unknown>).map((key) => ({
+              key,
+              svg: (source as Record<string, unknown>)[key]
+          }))
+        : []
+    return rows
+        .map((item: any, index: number) => {
+            const key = String(item?.key || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9_-]/g, '')
+                .slice(0, 40)
+            if (!key) return null
+            const svg = sanitizeSvgMarkup(item?.svg)
+            if (!svg) return null
+            const label = String(item?.label || key).trim().slice(0, 40) || key
+            const sort = Number.isFinite(Number(item?.sort)) ? Number(item.sort) : index + 1
+            return { key, label, svg, sort }
+        })
+        .filter((item): item is CategorySvgLibraryItem & { sort: number } => Boolean(item))
+        .sort((a, b) => a.sort - b.sort)
+        .map(({ key, label, svg }) => ({ key, label, svg }))
+}
+
+/**
+ * 将图标库格式化为便于运营编辑的 JSON 文本。
+ */
+const formatCategorySvgLibraryText = (value: unknown): string =>
+    JSON.stringify(normalizeCategorySvgLibrary(value), null, 2)
+
+const categorySvgLibraryText = ref('[]')
+const categorySvgLibraryError = ref('')
+
 const pageConfigData = reactive({
     websiteClickMode: 'detail',
     showDirectArrow: false,
@@ -1872,7 +1988,8 @@ const pageConfigData = reactive({
     pageSize: 20,
     hotRecommendationClickMode: 'detail', // 热门推荐独立配置
     appendRefEnabled: false,
-    appendRefValue: ''
+    appendRefValue: '',
+    categorySvgLibrary: [] as CategorySvgLibraryItem[]
 })
 
 /**
@@ -1903,8 +2020,40 @@ const normalizePageConfigData = (config: any) => ({
         config?.hotRecommendationClickMode
     ),
     appendRefEnabled: config?.appendRefEnabled === true,
-    appendRefValue: String(config?.appendRefValue || '').trim()
+    appendRefValue: String(config?.appendRefValue || '').trim(),
+    categorySvgLibrary: normalizeCategorySvgLibrary(config?.categorySvgLibrary)
 })
+
+/**
+ * 将 JSON 文本同步到页面配置对象，保存前执行一次可保证数据有效。
+ */
+const syncCategorySvgLibraryFromText = (): boolean => {
+    const text = String(categorySvgLibraryText.value || '').trim()
+    if (!text) {
+        pageConfigData.categorySvgLibrary = []
+        categorySvgLibraryError.value = ''
+        categorySvgLibraryText.value = '[]'
+        return true
+    }
+    try {
+        const parsed = JSON.parse(text)
+        const normalized = normalizeCategorySvgLibrary(parsed)
+        pageConfigData.categorySvgLibrary = normalized
+        categorySvgLibraryText.value = formatCategorySvgLibraryText(normalized)
+        categorySvgLibraryError.value = ''
+        return true
+    } catch (_error) {
+        categorySvgLibraryError.value = '图标库 JSON 格式错误，请检查括号与引号后重试'
+        return false
+    }
+}
+
+/**
+ * 图标库预览数据（最多展示前 12 项）。
+ */
+const categorySvgLibraryPreview = computed(() =>
+    normalizeCategorySvgLibrary(pageConfigData.categorySvgLibrary).slice(0, 12)
+)
 
 // ==================== 卡片样式 ====================
 const cardStyleLoading = ref(false)
@@ -2093,6 +2242,8 @@ const applyPublicSettings = (settings: Record<string, any>) => {
         Object.assign(homepageData, normalizeHomepageConfigData(settings.homepage))
     if (settings.pageGlobal)
         Object.assign(pageConfigData, normalizePageConfigData(settings.pageGlobal))
+    categorySvgLibraryText.value = formatCategorySvgLibraryText(pageConfigData.categorySvgLibrary)
+    categorySvgLibraryError.value = ''
     if (settings.cardStyle) Object.assign(cardStyleData, settings.cardStyle)
     if (settings.sidebar) Object.assign(sidebarData, settings.sidebar)
     if (settings.search) Object.assign(searchData, settings.search)
@@ -2157,7 +2308,11 @@ const loadHomepage = async () => {
 const loadPageConfig = async () => {
     try {
         const res = await uiedSettingGet({ key: 'pageGlobalConfig' })
-        if (res) Object.assign(pageConfigData, normalizePageConfigData(res))
+        if (res) {
+            Object.assign(pageConfigData, normalizePageConfigData(res))
+            categorySvgLibraryText.value = formatCategorySvgLibraryText(pageConfigData.categorySvgLibrary)
+            categorySvgLibraryError.value = ''
+        }
     } catch (e) {
         console.error('加载页面配置失败', e)
     }
@@ -2238,6 +2393,10 @@ const handleSaveHomepage = async () => {
     }
 }
 const handleSavePageConfig = async () => {
+    if (!syncCategorySvgLibraryFromText()) {
+        feedback.msgError(categorySvgLibraryError.value || '图标库配置格式错误')
+        return
+    }
     pageConfigLoading.value = true
     try {
         await uiedSettingSave({ pageGlobalConfig: normalizePageConfigData(pageConfigData) })
@@ -2307,6 +2466,10 @@ const handleSaveExitModal = async () => {
  * 保存全部配置（售卖版推荐工作流）
  */
 const handleSaveAll = async () => {
+    if (!syncCategorySvgLibraryFromText()) {
+        feedback.msgError(categorySvgLibraryError.value || '图标库配置格式错误')
+        return
+    }
     saveAllLoading.value = true
     try {
         await Promise.all([
@@ -2351,6 +2514,10 @@ const handleResetCurrentTab = () => {
             pageConfigData,
             normalizePageConfigData(readSnapshotObject(snapshotData.pageConfig))
         )
+    if (tab === 'pageConfig') {
+        categorySvgLibraryText.value = formatCategorySvgLibraryText(pageConfigData.categorySvgLibrary)
+        categorySvgLibraryError.value = ''
+    }
     if (tab === 'cardStyle')
         Object.assign(cardStyleData, readSnapshotObject(snapshotData.cardStyle))
     if (tab === 'sidebar') Object.assign(sidebarData, readSnapshotObject(snapshotData.sidebar))
@@ -2593,5 +2760,28 @@ onMounted(() => {
     flex: 1;
     font-size: 13px;
     color: #303133;
+}
+
+.form-error-text {
+    margin-top: 6px;
+    color: var(--el-color-danger);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.svg-library-preview {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.svg-library-preview__tag {
+    margin-right: 0;
+}
+
+.svg-library-preview__empty {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
 }
 </style>

@@ -70,6 +70,11 @@ interface PageGlobalConfig {
   hotRecommendationClickMode?: 'detail' | 'direct'; // 热门推荐独立配置
   appendRefEnabled?: boolean;
   appendRefValue?: string;
+  categorySvgLibrary?: Array<{
+    key: string;
+    label?: string;
+    svg: string;
+  }>;
 }
 
 /** 外观配置 */
@@ -225,6 +230,7 @@ const defaultPageGlobalConfig: PageGlobalConfig = {
   hotRecommendationClickMode: 'detail', // 热门推荐默认跳转详情页
   appendRefEnabled: false,
   appendRefValue: '',
+  categorySvgLibrary: [],
 };
 
 const defaultAppearanceConfig: AppearanceConfig = {
@@ -332,12 +338,34 @@ export const clearConfigCache = () => {
  */
 const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
   const mergedConfig = { ...defaultPageGlobalConfig, ...((config as Partial<PageGlobalConfig>) || {}) };
+  /**
+   * 规范化分类 SVG 图标库，确保前端渲染时可直接通过 svg:key 命中。
+   */
+  const normalizedCategorySvgLibrary = (() => {
+    const rows = Array.isArray(mergedConfig.categorySvgLibrary) ? mergedConfig.categorySvgLibrary : [];
+    return rows
+      .map((item, index) => {
+        const key = String(item?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+        if (!key) return null;
+        const svg = String(item?.svg || '').trim();
+        if (!svg || !svg.toLowerCase().startsWith('<svg')) return null;
+        const label = String(item?.label || key).trim().slice(0, 40) || key;
+        const sort = Number.isFinite(Number((item as { sort?: unknown })?.sort))
+          ? Number((item as { sort?: unknown }).sort)
+          : index + 1;
+        return { key, label, svg, sort };
+      })
+      .filter((item): item is { key: string; label: string; svg: string; sort: number } => Boolean(item))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ key, label, svg }) => ({ key, label, svg }));
+  })();
   return {
     ...mergedConfig,
     websiteClickMode: normalizeWebsiteClickMode(mergedConfig.websiteClickMode),
     hotRecommendationClickMode: normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
     appendRefEnabled: mergedConfig.appendRefEnabled === true,
     appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
+    categorySvgLibrary: normalizedCategorySvgLibrary,
   };
 };
 

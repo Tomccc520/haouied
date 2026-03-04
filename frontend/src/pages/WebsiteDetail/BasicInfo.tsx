@@ -65,7 +65,6 @@ interface DetailPageConfig {
   disclaimerText?: string;
   footerTipEnabled?: boolean;
   footerTipText?: string;
-  shareEnabled?: boolean;
   shareText?: string;
   reportEnabled?: boolean;
   reportText?: string;

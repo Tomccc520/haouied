@@ -116,15 +116,17 @@
                         >
                     </el-form-item>
 
-                    <el-form-item label="相关推荐">
-                        <el-switch v-model="config.showRelated" :disabled="!config.enabled" />
-                        <span class="form-tip">控制详情页侧边栏“相关推荐”区块显示。</span>
-                    </el-form-item>
+                    <el-alert
+                        type="info"
+                        :closable="false"
+                        class="mb-4"
+                        title="侧栏模块是否展示仅由「侧边栏模块顺序与开关」控制；下方只维护文案与数量，不再有重复显示开关。"
+                    />
 
                     <el-form-item label="相关推荐标题">
                         <el-input
                             v-model="config.relatedTitle"
-                            :disabled="!config.enabled || !config.showRelated"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
                             placeholder="例如：你可能还喜欢 / 同类推荐"
                         />
                         <span class="form-tip">侧边栏相关推荐标题文案。</span>
@@ -135,20 +137,17 @@
                             v-model="config.relatedCount"
                             :min="1"
                             :max="12"
-                            :disabled="!config.enabled || !config.showRelated"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
                         />
                         <span class="form-tip">控制侧边栏相关推荐显示数量。</span>
-                    </el-form-item>
-
-                    <el-form-item label="热门网址模块">
-                        <el-switch v-model="config.showHotWebsites" :disabled="!config.enabled" />
-                        <span class="form-tip">开启后在详情页侧栏展示热门网址列表。</span>
                     </el-form-item>
 
                     <el-form-item label="热门网址标题">
                         <el-input
                             v-model="config.hotWebsitesTitle"
-                            :disabled="!config.enabled || !config.showHotWebsites"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('hot_websites')
+                            "
                             placeholder="例如：热门网址 / 本周热门"
                         />
                         <span class="form-tip">侧栏热门网址模块标题文案。</span>
@@ -159,20 +158,17 @@
                             v-model="config.hotWebsitesCount"
                             :min="1"
                             :max="12"
-                            :disabled="!config.enabled || !config.showHotWebsites"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('hot_websites')
+                            "
                         />
                         <span class="form-tip">控制热门网址模块显示数量。</span>
-                    </el-form-item>
-
-                    <el-form-item label="文章推荐模块">
-                        <el-switch v-model="config.showArticles" :disabled="!config.enabled" />
-                        <span class="form-tip">开启后在详情页侧栏展示文章推荐列表。</span>
                     </el-form-item>
 
                     <el-form-item label="文章模块标题">
                         <el-input
                             v-model="config.articlesTitle"
-                            :disabled="!config.enabled || !config.showArticles"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('articles')"
                             placeholder="例如：推荐文章 / 最新文章"
                         />
                         <span class="form-tip">侧栏文章推荐模块标题文案。</span>
@@ -183,20 +179,15 @@
                             v-model="config.articlesCount"
                             :min="1"
                             :max="12"
-                            :disabled="!config.enabled || !config.showArticles"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('articles')"
                         />
                         <span class="form-tip">控制文章推荐模块显示数量。</span>
-                    </el-form-item>
-
-                    <el-form-item label="标签区块">
-                        <el-switch v-model="config.showTags" :disabled="!config.enabled" />
-                        <span class="form-tip">控制侧边栏标签云区块显示。</span>
                     </el-form-item>
 
                     <el-form-item label="标签区块标题">
                         <el-input
                             v-model="config.tagsTitle"
-                            :disabled="!config.enabled || !config.showTags"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('tags')"
                             placeholder="例如：深入探索 / 相关标签"
                         />
                         <span class="form-tip">侧边栏标签区块标题文案。</span>
@@ -212,7 +203,7 @@
                         <el-select
                             v-model="config.relatedMode"
                             style="width: 260px"
-                            :disabled="!config.enabled || !config.showRelated"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
                         >
                             <el-option label="同分类推荐" value="same_category" />
                             <el-option label="同标签推荐" value="same_tags" />
@@ -227,7 +218,7 @@
                             v-model="config.manualWebsiteIds"
                             type="textarea"
                             :rows="3"
-                            :disabled="!config.enabled || !config.showRelated"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
                             placeholder="填写网站ID，英文逗号分隔，例如：12,35,108"
                         />
                         <span class="form-tip">仅在「手动推荐」模式下生效，按填写顺序展示。</span>
@@ -237,7 +228,7 @@
                         <el-select
                             v-model="config.tagSource"
                             style="width: 260px"
-                            :disabled="!config.enabled || !config.showTags"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('tags')"
                         >
                             <el-option label="网站标签" value="website" />
                             <el-option label="分类标签" value="category" />
@@ -251,7 +242,7 @@
                             v-model="config.manualTags"
                             type="textarea"
                             :rows="3"
-                            :disabled="!config.enabled || !config.showTags"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('tags')"
                             placeholder="多个标签用英文逗号或换行分隔，例如：UI设计, 交互动效, 设计系统"
                         />
                         <span class="form-tip"
@@ -259,15 +250,10 @@
                         >
                     </el-form-item>
 
-                    <el-form-item label="分类区块">
-                        <el-switch v-model="config.showCategory" :disabled="!config.enabled" />
-                        <span class="form-tip">在侧边栏显示当前网站所属分类与父分类。</span>
-                    </el-form-item>
-
                     <el-form-item label="分类区块标题">
                         <el-input
                             v-model="config.categoryTitle"
-                            :disabled="!config.enabled || !config.showCategory"
+                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('category')"
                             placeholder="例如：所在分类 / 相关推荐目录"
                         />
                         <span class="form-tip">侧边栏分类区块标题文案。</span>
@@ -663,27 +649,6 @@
                             </el-table-column>
                         </el-table>
                     </div>
-
-                    <el-form-item label="收藏按钮">
-                        <el-switch v-model="config.favoritesEnabled" />
-                        <span class="form-tip"
-                            >开启后，用户可以收藏网站到个人收藏夹（需用户登录）</span
-                        >
-                    </el-form-item>
-
-                    <el-form-item label="相关推荐">
-                        <el-switch v-model="config.relatedEnabled" />
-                        <span class="form-tip"
-                            >开启后，详情页底部将自动展示同分类下的相关网站推荐</span
-                        >
-                    </el-form-item>
-
-                    <el-form-item label="标签显示">
-                        <el-switch v-model="config.tagsEnabled" />
-                        <span class="form-tip"
-                            >开启后，详情页将展示该网站关联的标签，方便用户了解网站特征</span
-                        >
-                    </el-form-item>
                 </div>
 
                 <!-- 直达按钮 -->
@@ -889,24 +854,19 @@ const defaultConfig = {
     dataPanelEnabled: true,
     dataPanelTitle: '站点数据',
     heroAccentGlassEnabled: true,
-    // 详情侧边栏（兼容旧接口字段）
+    // 详情侧边栏
     enabled: true,
-    showRelated: true,
     relatedTitle: '你可能还喜欢',
     relatedCount: 6,
     relatedMode: 'same_category',
     manualWebsiteIds: '',
-    showHotWebsites: true,
     hotWebsitesTitle: '热门网址',
     hotWebsitesCount: 6,
-    showArticles: true,
     articlesTitle: '推荐文章',
     articlesCount: 5,
-    showTags: true,
     tagsTitle: '深入探索',
     tagSource: 'website',
     manualTags: '',
-    showCategory: true,
     categoryTitle: '相关分类',
     sidebarLinksNewWindow: false,
     sidebarAdSlotKey: 'website_detail_sidebar',
@@ -937,9 +897,6 @@ const defaultConfig = {
     shareText: '分享给更多朋友',
     shareChannels: DEFAULT_DETAIL_SHARE_CHANNELS.map((item) => ({ ...item })),
     sidebarModules: DEFAULT_DETAIL_SIDEBAR_MODULES.map((item) => ({ ...item })),
-    favoritesEnabled: true,
-    relatedEnabled: true,
-    tagsEnabled: true,
     // 直达按钮
     visitArrowEnabled: true,
     visitArrowText: '直达网站',
@@ -1027,6 +984,15 @@ const getSidebarModuleDescription = (key: string): string => {
 }
 
 /**
+ * 判断某个侧栏模块在当前配置中是否启用。
+ */
+const isSidebarModuleEnabledForConfig = (moduleKey: string): boolean => {
+    const rows = Array.isArray(config.sidebarModules) ? config.sidebarModules : []
+    const target = rows.find((item) => String(item?.key || '') === String(moduleKey || ''))
+    return target ? target.enabled !== false : true
+}
+
+/**
  * 合并侧边栏模块默认项，确保旧库配置升级后仍可看到新增模块。
  */
 const mergeSidebarModulesWithDefaults = (
@@ -1058,7 +1024,7 @@ const mergeSidebarModulesWithDefaults = (
 /**
  * 规范化高级配置数组，避免旧数据缺失导致保存时覆盖或渲染异常。
  */
-const normalizeAdvancedConfigArrays = () => {
+const normalizeAdvancedConfigArrays = (hasExplicitSidebarModules = true) => {
     const currentShareChannels = Array.isArray(config.shareChannels)
         ? config.shareChannels
         : DEFAULT_DETAIL_SHARE_CHANNELS.map((item) => ({ ...item }))
@@ -1066,7 +1032,28 @@ const normalizeAdvancedConfigArrays = () => {
         ? config.sidebarModules
         : DEFAULT_DETAIL_SIDEBAR_MODULES.map((item) => ({ ...item }))
     config.shareChannels = normalizeConfigSort(currentShareChannels)
-    config.sidebarModules = mergeSidebarModulesWithDefaults(currentSidebarModules)
+    const mergedSidebarModules = mergeSidebarModulesWithDefaults(currentSidebarModules)
+    /**
+     * 兼容旧字段：仅在旧配置没有 sidebarModules 时，使用 show* 初始化模块开关。
+     */
+    if (!hasExplicitSidebarModules) {
+        const legacyMap: Record<string, string> = {
+            category: 'showCategory',
+            related: 'showRelated',
+            hot_websites: 'showHotWebsites',
+            articles: 'showArticles',
+            tags: 'showTags'
+        }
+        config.sidebarModules = mergedSidebarModules.map((item) => {
+            const legacyKey = legacyMap[item.key]
+            if (!legacyKey) return item
+            const legacyValue = (config as Record<string, any>)[legacyKey]
+            if (typeof legacyValue !== 'boolean') return item
+            return { ...item, enabled: legacyValue }
+        })
+        return
+    }
+    config.sidebarModules = mergedSidebarModules
 }
 
 /**
@@ -1083,10 +1070,23 @@ const handleSectionTabClick = async (pane: any) => {
 const loadConfig = async () => {
     try {
         const res = await uiedSettingGet({ key: 'detailPageConfig' })
+        let hasExplicitSidebarModules = false
         if (res) {
             Object.assign(config, res)
+            hasExplicitSidebarModules =
+                Array.isArray((res as Record<string, any>).sidebarModules) &&
+                (res as Record<string, any>).sidebarModules.length > 0
+            /**
+             * 兼容旧字段：当 sharingEnabled 缺失时，回退 shareEnabled。
+             */
+            if (
+                typeof (res as Record<string, any>).sharingEnabled !== 'boolean' &&
+                typeof (res as Record<string, any>).shareEnabled === 'boolean'
+            ) {
+                config.sharingEnabled = Boolean((res as Record<string, any>).shareEnabled)
+            }
         }
-        normalizeAdvancedConfigArrays()
+        normalizeAdvancedConfigArrays(hasExplicitSidebarModules)
     } catch (e) {
         console.error('加载详情页配置失败:', e)
     }
@@ -1105,6 +1105,15 @@ const handleSave = async () => {
         delete pureConfig.detailTopAdEnabled
         delete pureConfig.detailInlineAdEnabled
         delete pureConfig.detailBottomAdEnabled
+        delete pureConfig.showRelated
+        delete pureConfig.showHotWebsites
+        delete pureConfig.showArticles
+        delete pureConfig.showTags
+        delete pureConfig.showCategory
+        delete pureConfig.shareEnabled
+        delete pureConfig.favoritesEnabled
+        delete pureConfig.relatedEnabled
+        delete pureConfig.tagsEnabled
         await uiedSettingSave({ detailPageConfig: pureConfig })
         feedback.msgSuccess('保存成功')
     } catch (e: any) {

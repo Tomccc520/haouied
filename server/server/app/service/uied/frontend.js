@@ -24,6 +24,73 @@ class FrontendService extends Service {
   }
 
   /**
+   * 解析并去重分类 ID 列表
+   * @param {Array<number|string>} categoryIds 分类ID列表
+   * @return {number[]} 规范化后的分类ID
+   */
+  normalizeCategoryIdList(categoryIds = []) {
+    return Array.from(
+      new Set(
+        (Array.isArray(categoryIds) ? categoryIds : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+  }
+
+  /**
+   * 构建网站分类匹配 SQL（主分类 + 多分类关联表）
+   * @param {Array<number|string>} categoryIds 分类ID列表
+   * @param {string} alias 网站表别名
+   * @return {{sql:string,replacements:number[]}} SQL 条件与参数
+   */
+  buildWebsiteCategoryFilterCondition(categoryIds = [], alias = 'w') {
+    const normalizedCategoryIds = this.normalizeCategoryIdList(categoryIds);
+    if (normalizedCategoryIds.length === 0) {
+      return { sql: '1=1', replacements: [] };
+    }
+    const placeholders = normalizedCategoryIds.map(() => '?').join(',');
+    return {
+      sql: `(
+        ${alias}.category_id IN (${placeholders})
+        OR EXISTS (
+          SELECT 1
+          FROM uied_website_category uwc
+          WHERE uwc.website_id = ${alias}.id
+            AND uwc.is_delete = 0
+            AND uwc.category_id IN (${placeholders})
+        )
+      )`,
+      replacements: [ ...normalizedCategoryIds, ...normalizedCategoryIds ],
+    };
+  }
+
+  /**
+   * 确保网站多分类关联表存在（前台查询前兜底）。
+   */
+  async ensureWebsiteCategoryTable() {
+    if (this._websiteCategoryTableReady) return;
+    const { app } = this;
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_website_category\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`website_id\` BIGINT UNSIGNED NOT NULL COMMENT '网站ID',
+        \`category_id\` BIGINT UNSIGNED NOT NULL COMMENT '分类ID',
+        \`sort\` INT NOT NULL DEFAULT 0 COMMENT '排序（同网站内）',
+        \`is_delete\` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否删除',
+        \`create_time\` BIGINT NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`uniq_website_category\` (\`website_id\`, \`category_id\`),
+        KEY \`idx_category\` (\`category_id\`, \`is_delete\`),
+        KEY \`idx_website\` (\`website_id\`, \`is_delete\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站-分类多对多关联表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
+    this._websiteCategoryTableReady = true;
+  }
+
+  /**
    * 获取所有页面配置
    */
   async getAllPages() {
@@ -65,6 +132,7 @@ class FrontendService extends Service {
    */
   async getPageFullData(slug) {
     const { app } = this;
+    await this.ensureWebsiteCategoryTable();
 
     // 获取页面配置
     const [ page ] = await app.model.query(
@@ -126,28 +194,46 @@ class FrontendService extends Service {
     // 获取所有相关网站
     let websites = [];
     if (allCategoryIds.length > 0) {
-      // 使用 Sequelize 的 Op.in 来正确处理数组
-      const placeholders = allCategoryIds.map(() => '?').join(',');
+      const categoryFilter = this.buildWebsiteCategoryFilterCondition(allCategoryIds, 'w');
       websites = await app.model.query(
-        `SELECT id, name, description, url, icon_url as iconUrl, category_id as categoryId,
-                is_hot as isHot, is_featured as isFeatured, is_new as isNew, is_pinned as isPinned,
-                tags, sort as sortOrder
-         FROM uied_website
-         WHERE category_id IN (${placeholders}) AND is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()}
-         ORDER BY is_pinned DESC, is_hot DESC, is_featured DESC, sort ASC`,
-        { replacements: allCategoryIds, type: app.Sequelize.QueryTypes.SELECT }
+        `SELECT w.id, w.name, w.description, w.url, w.icon_url as iconUrl, w.category_id as categoryId,
+                w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew, w.is_pinned as isPinned,
+                w.tags, w.sort as sortOrder
+         FROM uied_website w
+         WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')}
+         ORDER BY w.is_pinned DESC, w.is_hot DESC, w.is_featured DESC, w.sort ASC`,
+        { replacements: categoryFilter.replacements, type: app.Sequelize.QueryTypes.SELECT }
       );
     }
 
     // 按分类组织网站（用于 websitesByCategory）
+    const websiteCategoryRows = websites.length > 0
+      ? await app.model.query(
+        `SELECT website_id as websiteId, category_id as categoryId
+         FROM uied_website_category
+         WHERE is_delete = 0 AND website_id IN (?) AND category_id IN (?)`,
+        {
+          replacements: [ websites.map(item => item.id), allCategoryIds ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      )
+      : [];
+    const websiteCategoryMap = new Map();
+    (Array.isArray(websiteCategoryRows) ? websiteCategoryRows : []).forEach(item => {
+      const websiteId = Number.parseInt(String(item?.websiteId || 0), 10);
+      const categoryId = Number.parseInt(String(item?.categoryId || 0), 10);
+      if (!Number.isInteger(websiteId) || websiteId <= 0) return;
+      if (!Number.isInteger(categoryId) || categoryId <= 0) return;
+      if (!websiteCategoryMap.has(websiteId)) {
+        websiteCategoryMap.set(websiteId, new Set());
+      }
+      websiteCategoryMap.get(websiteId).add(categoryId);
+    });
+
     const websitesByCategory = {};
     for (const website of websites) {
-      const catId = String(website.categoryId);
       const tagBundle = this.parseWebsiteTagBundle(website.tags);
-      if (!websitesByCategory[catId]) {
-        websitesByCategory[catId] = [];
-      }
-      websitesByCategory[catId].push({
+      const websiteItem = {
         id: String(website.id),
         name: website.name,
         description: website.description || '',
@@ -158,6 +244,21 @@ class FrontendService extends Service {
         isNew: website.isNew === 1,
         tags: tagBundle.tags,
         weightTags: tagBundle.weightTags,
+      };
+      const categorySet = websiteCategoryMap.get(Number(website.id || 0)) || new Set();
+      const primaryCategoryId = Number.parseInt(String(website.categoryId || 0), 10);
+      if (Number.isInteger(primaryCategoryId) && primaryCategoryId > 0) {
+        categorySet.add(primaryCategoryId);
+      }
+      const effectiveCategoryIds = Array.from(categorySet)
+        .filter(item => allCategoryIds.includes(item));
+      if (effectiveCategoryIds.length === 0) continue;
+      effectiveCategoryIds.forEach(categoryId => {
+        const categoryKey = String(categoryId);
+        if (!websitesByCategory[categoryKey]) {
+          websitesByCategory[categoryKey] = [];
+        }
+        websitesByCategory[categoryKey].push(websiteItem);
       });
     }
 
@@ -214,6 +315,7 @@ class FrontendService extends Service {
    */
   async getPageHotWebsites(slug, limit = 12) {
     const { app } = this;
+    await this.ensureWebsiteCategoryTable();
 
     // 获取页面
     const [ page ] = await app.model.query(
@@ -226,16 +328,20 @@ class FrontendService extends Service {
     // 获取页面关联的分类ID
     const categoryIds = await this.getPageCategoryIds(page.id);
     if (categoryIds.length === 0) return [];
+    const categoryFilter = this.buildWebsiteCategoryFilterCondition(categoryIds, 'w');
 
     // 获取热门网站
     const websites = await app.model.query(
-      `SELECT id, name, description, url, icon_url as iconUrl,
-              is_hot as isHot, is_featured as isFeatured, is_new as isNew, tags
-       FROM uied_website
-       WHERE category_id IN (?) AND is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()} AND is_hot = 1
-       ORDER BY is_featured DESC, sort ASC
+      `SELECT w.id, w.name, w.description, w.url, w.icon_url as iconUrl,
+              w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew, w.tags
+       FROM uied_website w
+       WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')} AND w.is_hot = 1
+       ORDER BY w.is_featured DESC, w.sort ASC
        LIMIT ?`,
-      { replacements: [ categoryIds, parseInt(limit) ], type: app.Sequelize.QueryTypes.SELECT }
+      {
+        replacements: [ ...categoryFilter.replacements, parseInt(limit) ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
     );
 
     return websites.map(w => {
@@ -257,6 +363,7 @@ class FrontendService extends Service {
    */
   async getPageHotTags(slug, limit = 10) {
     const { app } = this;
+    await this.ensureWebsiteCategoryTable();
 
     // 获取页面
     const [ page ] = await app.model.query(
@@ -269,27 +376,34 @@ class FrontendService extends Service {
     // 获取页面关联的分类ID
     const categoryIds = await this.getPageCategoryIds(page.id);
     if (categoryIds.length === 0) return { tags: [], websites: [] };
+    const categoryFilter = this.buildWebsiteCategoryFilterCondition(categoryIds, 'w');
 
     // 获取点击量最高的网站
     let topWebsites = await app.model.query(
-      `SELECT id, name, click_count as clickCount
-       FROM uied_website
-       WHERE category_id IN (?) AND is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()} AND click_count > 0
-       ORDER BY click_count DESC, is_hot DESC, is_featured DESC
+      `SELECT w.id, w.name, w.click_count as clickCount
+       FROM uied_website w
+       WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')} AND w.click_count > 0
+       ORDER BY w.click_count DESC, w.is_hot DESC, w.is_featured DESC
        LIMIT ?`,
-      { replacements: [ categoryIds, parseInt(limit) ], type: app.Sequelize.QueryTypes.SELECT }
+      {
+        replacements: [ ...categoryFilter.replacements, parseInt(limit) ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
     );
 
     // 如果没有点击量数据，回退到热门网站
     if (topWebsites.length === 0) {
       topWebsites = await app.model.query(
-        `SELECT id, name, click_count as clickCount
-         FROM uied_website
-         WHERE category_id IN (?) AND is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()}
-           AND (is_hot = 1 OR is_featured = 1)
-         ORDER BY is_hot DESC, is_featured DESC, sort ASC
+        `SELECT w.id, w.name, w.click_count as clickCount
+         FROM uied_website w
+         WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')}
+           AND (w.is_hot = 1 OR w.is_featured = 1)
+         ORDER BY w.is_hot DESC, w.is_featured DESC, w.sort ASC
          LIMIT ?`,
-        { replacements: [ categoryIds, parseInt(limit) ], type: app.Sequelize.QueryTypes.SELECT }
+        {
+          replacements: [ ...categoryFilter.replacements, parseInt(limit) ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
       );
     }
 
@@ -308,6 +422,7 @@ class FrontendService extends Service {
    */
   async searchPageWebsites(slug, query, limit = 50) {
     const { app } = this;
+    await this.ensureWebsiteCategoryTable();
 
     if (!query) {
       return { results: [], total: 0, query: '', suggestions: [], recommendations: [] };
@@ -328,20 +443,30 @@ class FrontendService extends Service {
     if (categoryIds.length === 0) {
       return { results: [], total: 0, query, suggestions: [], recommendations: [] };
     }
+    const categoryFilter = this.buildWebsiteCategoryFilterCondition(categoryIds, 'w');
 
     // 搜索网站
     const searchPattern = `%${query}%`;
     const websites = await app.model.query(
-      `SELECT id, name, description, url, icon_url as iconUrl,
-              is_hot as isHot, is_featured as isFeatured, is_new as isNew, tags
-       FROM uied_website
-       WHERE category_id IN (?)
-         AND is_delete = 0
-         AND ${this.getPublicWebsiteStatusCondition()}
-         AND (name LIKE ? OR description LIKE ? OR tags LIKE ?)
-       ORDER BY is_hot DESC, is_featured DESC
+      `SELECT w.id, w.name, w.description, w.url, w.icon_url as iconUrl,
+              w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew, w.tags
+       FROM uied_website w
+       WHERE ${categoryFilter.sql}
+         AND w.is_delete = 0
+         AND ${this.getPublicWebsiteStatusCondition('w')}
+         AND (w.name LIKE ? OR w.description LIKE ? OR w.tags LIKE ?)
+       ORDER BY w.is_hot DESC, w.is_featured DESC
        LIMIT ?`,
-      { replacements: [ categoryIds, searchPattern, searchPattern, searchPattern, parseInt(limit) ], type: app.Sequelize.QueryTypes.SELECT }
+      {
+        replacements: [
+          ...categoryFilter.replacements,
+          searchPattern,
+          searchPattern,
+          searchPattern,
+          parseInt(limit),
+        ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
     );
 
     const results = websites.map(w => {
@@ -544,6 +669,7 @@ class FrontendService extends Service {
    */
   async getDailyNewWebsites(options = {}) {
     const { app } = this;
+    await this.ensureWebsiteCategoryTable();
     const page = Math.max(1, Number(options.page || 1));
     const pageSize = Math.max(1, Math.min(100, Number(options.pageSize || 24)));
     const days = Math.max(1, Math.min(30, Number(options.days || 1)));
@@ -578,14 +704,31 @@ class FrontendService extends Service {
      */
     if (pageSlug) {
       whereSql += `
-        AND w.category_id IN (
-          SELECT DISTINCT pc.category_id
-          FROM uied_page_category pc
-          INNER JOIN uied_page p ON p.id = pc.page_id
-          WHERE pc.is_delete = 0
-            AND p.is_delete = 0
-            AND p.slug = ?
+        AND (
+          w.category_id IN (
+            SELECT DISTINCT pc.category_id
+            FROM uied_page_category pc
+            INNER JOIN uied_page p ON p.id = pc.page_id
+            WHERE pc.is_delete = 0
+              AND p.is_delete = 0
+              AND p.slug = ?
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM uied_website_category uwc
+            WHERE uwc.website_id = w.id
+              AND uwc.is_delete = 0
+              AND uwc.category_id IN (
+                SELECT DISTINCT pc.category_id
+                FROM uied_page_category pc
+                INNER JOIN uied_page p ON p.id = pc.page_id
+                WHERE pc.is_delete = 0
+                  AND p.is_delete = 0
+                  AND p.slug = ?
+              )
+          )
         )`;
+      replacements.push(pageSlug);
       replacements.push(pageSlug);
     }
 

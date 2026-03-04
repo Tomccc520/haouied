@@ -35,6 +35,8 @@ module.exports = app => {
   router.all('/api/uied/website/detail', controller.uied.website.detail);
   router.all('/api/uied/website/add', controller.uied.website.add);
   router.all('/api/uied/website/edit', controller.uied.website.edit);
+  router.all('/api/uied/website/checkDuplicateUrl', controller.uied.website.checkDuplicateUrl);
+  router.all('/api/uied/website/batchImport', controller.uied.website.batchImport);
   router.all('/api/uied/website/del', controller.uied.website.del);
   router.all('/api/uied/website/batchDel', controller.uied.website.batchDel);
   router.all('/api/uied/website/click', controller.uied.website.click);

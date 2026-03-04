@@ -14,6 +14,82 @@ const Service = require('egg').Service;
 
 class MonitorService extends Service {
   /**
+   * 规范化监控状态值（兼容历史 normal）。
+   * @param {unknown} value 状态值
+   * @return {string} 规范化后的状态
+   */
+  normalizeMonitorStatus(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'normal') return 'active';
+    if ([ 'active', 'failed', 'unchecked', 'draft', 'disabled' ].includes(normalized)) {
+      return normalized;
+    }
+    return 'unchecked';
+  }
+
+  /**
+   * 根据健康探测结果生成监控落库状态。
+   * @param {object} probe 健康探测结果
+   * @return {{status: string, statusMessage: string}} 状态与说明
+   */
+  resolveMonitorResultFromProbe(probe) {
+    const summary = probe?.summary || {};
+    const httpStatus = Number(probe?.http?.statusCode || 0);
+    const responseTimeMs = Number(probe?.http?.responseTimeMs || 0);
+    const isOk = summary.ok === true;
+    if (isOk) {
+      const summaryText = String(summary.text || '').trim();
+      const detailText = summaryText || (httpStatus > 0 ? `HTTP ${httpStatus}` : '站点状态正常');
+      return {
+        status: 'active',
+        statusMessage: detailText,
+      };
+    }
+    const errorText = String(summary.text || probe?.http?.errorMessage || '').trim()
+      || (httpStatus > 0 ? `HTTP ${httpStatus}` : '无法访问');
+    return {
+      status: 'failed',
+      statusMessage: errorText,
+    };
+  }
+
+  /**
+   * 按当前监控结果更新网站状态（新老字段双写，兼容历史库结构）。
+   * @param {number} websiteId 网站ID
+   * @param {{status: string, statusMessage: string}} result 监控结果
+   * @param {number} checkedAtUnix 检查时间（秒）
+   */
+  async updateWebsiteMonitorStatus(websiteId, result, checkedAtUnix) {
+    const { app } = this;
+    const normalizedStatus = this.normalizeMonitorStatus(result?.status);
+    const statusMessage = String(result?.statusMessage || '').trim() || null;
+    await app.model.query(
+      `UPDATE uied_website
+       SET status = ?,
+           last_checked_at = ?,
+           last_check_time = ?,
+           status_message = ?,
+           check_error = ?,
+           failed_count = CASE WHEN ? = 'failed' THEN IFNULL(failed_count, 0) + 1 ELSE 0 END,
+           update_time = ?
+       WHERE id = ?`,
+      {
+        replacements: [
+          normalizedStatus,
+          checkedAtUnix,
+          checkedAtUnix,
+          statusMessage,
+          normalizedStatus === 'failed' ? statusMessage : null,
+          normalizedStatus,
+          checkedAtUnix,
+          websiteId,
+        ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+  }
+
+  /**
    * 获取监控统计
    */
   async getStatistics() {
@@ -27,7 +103,7 @@ class MonitorService extends Service {
 
     // 正常网站数
     const [ normalResult ] = await app.model.query(
-      "SELECT COUNT(*) as count FROM uied_website WHERE is_delete = 0 AND (status = 'normal' OR status IS NULL OR status = '')",
+      "SELECT COUNT(*) as count FROM uied_website WHERE is_delete = 0 AND (status IN ('active', 'normal') OR status IS NULL OR status = '')",
       { type: app.Sequelize.QueryTypes.SELECT }
     );
 
@@ -64,12 +140,14 @@ class MonitorService extends Service {
     );
 
     const websites = await app.model.query(
-      `SELECT w.id, w.name, w.url, w.status, w.last_check_time as lastCheckTime,
-              w.check_error as checkError, c.name as categoryName
+      `SELECT w.id, w.name, w.url, w.status,
+              COALESCE(w.last_checked_at, w.last_check_time, 0) as lastCheckTime,
+              COALESCE(w.status_message, w.check_error, '') as checkError,
+              c.name as categoryName
        FROM uied_website w
        LEFT JOIN uied_category c ON w.category_id = c.id
        WHERE w.is_delete = 0 AND w.status = 'failed'
-       ORDER BY w.last_check_time DESC
+       ORDER BY COALESCE(w.last_checked_at, w.last_check_time, 0) DESC
        LIMIT ? OFFSET ?`,
       { replacements: [ pageSize, offset ], type: app.Sequelize.QueryTypes.SELECT }
     );
@@ -178,37 +256,32 @@ class MonitorService extends Service {
       throw new Error('网站不存在');
     }
 
-    let status = 'normal';
-    let checkError = null;
-
+    /**
+     * 使用统一健康探测服务，避免把 401/403/429 等“可访问但受限”站点误判为异常。
+     */
+    let monitorResult = { status: 'failed', statusMessage: '探测失败' };
     try {
-      const response = await ctx.curl(website.url, {
-        timeout: 10000,
-        followRedirect: true,
-        maxRedirects: 3,
+      const probe = await ctx.service.uied.websiteHealthProbe.probeByUrl(website.url, {
+        timeoutMs: 10000,
+        websiteId: String(website.id),
+        websiteName: website.name,
       });
-
-      if (response.status >= 400) {
-        status = 'failed';
-        checkError = `HTTP ${response.status}`;
-      }
+      monitorResult = this.resolveMonitorResultFromProbe(probe);
     } catch (error) {
-      status = 'failed';
-      checkError = error.message;
+      monitorResult = {
+        status: 'failed',
+        statusMessage: String(error?.message || '探测失败'),
+      };
     }
 
-    // 更新网站状态
-    await app.model.query(
-      'UPDATE uied_website SET status = ?, last_check_time = ?, check_error = ? WHERE id = ?',
-      { replacements: [ status, now, checkError, id ], type: app.Sequelize.QueryTypes.UPDATE }
-    );
+    await this.updateWebsiteMonitorStatus(id, monitorResult, now);
 
     return {
       websiteId: id,
       websiteName: website.name,
-      success: status === 'normal',
-      status,
-      error: checkError,
+      success: monitorResult.status === 'active',
+      status: monitorResult.status,
+      error: monitorResult.statusMessage || null,
     };
   }
 
@@ -219,7 +292,7 @@ class MonitorService extends Service {
     const { app } = this;
 
     const websites = await app.model.query(
-      'SELECT id FROM uied_website WHERE is_delete = 0',
+      "SELECT id FROM uied_website WHERE is_delete = 0 AND (status IS NULL OR status = '' OR status NOT IN ('draft', 'disabled'))",
       { type: app.Sequelize.QueryTypes.SELECT }
     );
 
@@ -265,7 +338,14 @@ class MonitorService extends Service {
     const { app } = this;
 
     await app.model.query(
-      "UPDATE uied_website SET status = 'unchecked', last_check_time = NULL, check_error = NULL WHERE id = ?",
+      `UPDATE uied_website
+       SET status = 'unchecked',
+           last_checked_at = NULL,
+           last_check_time = NULL,
+           status_message = NULL,
+           check_error = NULL,
+           failed_count = 0
+       WHERE id = ?`,
       { replacements: [ id ], type: app.Sequelize.QueryTypes.UPDATE }
     );
   }

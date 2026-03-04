@@ -9,9 +9,9 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
 import { Link } from 'react-router-dom';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
+import AdBanner from '../../components/AdBanner';
 import api from '../../services/api';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { debugLog } from '../../utils/debugHelper';
@@ -39,25 +39,19 @@ const isSidebarModuleEnabled = (modules: SidebarModule[] | undefined, moduleKey:
  */
 interface SidebarConfig {
   enabled: boolean;
-  showRelated: boolean;
   relatedTitle: string;
   relatedCount: number;
   relatedMode: 'same_category' | 'same_tags' | 'hot' | 'manual';
   manualWebsiteIds: string | string[];
-  showHotWebsites?: boolean;
   hotWebsitesTitle?: string;
   hotWebsitesCount?: number;
-  showArticles?: boolean;
   articlesTitle?: string;
   articlesCount?: number;
-  showTags: boolean;
   tagsTitle: string;
   tagSource: 'website' | 'category' | 'manual';
   manualTags?: string | string[];
-  showCategory: boolean;
   categoryTitle: string;
   sidebarLinksNewWindow?: boolean;
-  sidebarAdEnabled?: boolean;
   sidebarAdSlotKey?: string;
   sidebarModules?: SidebarModule[];
 }
@@ -117,48 +111,16 @@ interface SidebarProps {
   loading?: boolean;
 }
 
-interface CommercialPlacementItem {
-  id: number;
-  sponsorName?: string;
-  sponsorTitle?: string;
-  targetUrl?: string;
-  imageUrl?: string;
-  textContent?: string;
-  badgeText?: string;
-}
-
-interface BannerFallbackItem {
-  id: string | number;
-  title?: string;
-  description?: string;
-  linkUrl?: string;
-  imageUrl?: string;
-}
-
 /**
  * 将详情页侧栏 slotKey 映射为 Banner 广告位 position。
  */
-const resolveSidebarBannerPositionBySlotKey = (slotKey: string): string => {
+const resolveSidebarBannerPositionBySlotKey = (slotKey: string): 'website_detail_sidebar' => {
   const key = String(slotKey || '').trim().toLowerCase();
-  if (!key) return 'detail_sidebar';
-  if (key === 'website_detail_sidebar') return 'detail_sidebar';
-  return key;
-};
-
-/**
- * 将 Banner 数据映射到侧栏广告位结构。
- */
-const mapSidebarBannerToPlacement = (item: BannerFallbackItem | null): CommercialPlacementItem | null => {
-  if (!item) return null;
-  return {
-    id: Number(item.id || 0),
-    sponsorTitle: String(item.title || '').trim() || '推荐内容',
-    sponsorName: '',
-    targetUrl: String(item.linkUrl || '').trim(),
-    imageUrl: String(item.imageUrl || '').trim(),
-    textContent: String(item.description || '').trim(),
-    badgeText: '广告',
-  };
+  if (!key) return 'website_detail_sidebar';
+  if (key === 'detall_sidebar') return 'website_detail_sidebar';
+  if (key === 'detail_sidebar') return 'website_detail_sidebar';
+  if (key === 'website_detail_sidebar') return 'website_detail_sidebar';
+  return 'website_detail_sidebar';
 };
 
 /**
@@ -203,25 +165,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [config, setConfig] = useState<SidebarConfig>({
     enabled: true,
-    showRelated: true,
     relatedTitle: '你可能还喜欢',
     relatedCount: 6,
     relatedMode: 'same_category',
     manualWebsiteIds: '',
-    showHotWebsites: true,
     hotWebsitesTitle: '热门网址',
     hotWebsitesCount: 6,
-    showArticles: true,
     articlesTitle: '推荐文章',
     articlesCount: 5,
-    showTags: true,
     tagsTitle: '深入探索',
     tagSource: 'website',
     manualTags: '',
-    showCategory: true,
     categoryTitle: '相关分类',
     sidebarLinksNewWindow: false,
-    sidebarAdEnabled: false,
     sidebarAdSlotKey: 'website_detail_sidebar',
   });
   const [dynamicRelated, setDynamicRelated] = useState<RelatedWebsite[]>([]);
@@ -230,9 +186,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [hotWebsitesLoading, setHotWebsitesLoading] = useState(false);
   const [articleItems, setArticleItems] = useState<SidebarArticleItem[]>([]);
   const [articleItemsLoading, setArticleItemsLoading] = useState(false);
-  const [sidebarPlacement, setSidebarPlacement] = useState<CommercialPlacementItem | null>(null);
-  const sidebarPlacementImageUrl = String(sidebarPlacement?.imageUrl || '').trim();
-  const sidebarPlacementTargetUrl = String(sidebarPlacement?.targetUrl || '').trim();
 
   /**
    * 优先使用详情页已加载配置，避免重复请求。
@@ -260,7 +213,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    */
   useEffect(() => {
     const fetchDynamicRelated = async () => {
-      if (!config.enabled || !config.showRelated) {
+      if (!config.enabled || !isSidebarModuleEnabled(config.sidebarModules, 'related')) {
         setDynamicRelated([]);
         return;
       }
@@ -292,10 +245,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [
     websiteId,
     config.enabled,
-    config.showRelated,
     config.relatedMode,
     config.manualWebsiteIds,
     config.relatedCount,
+    config.sidebarModules,
   ]);
 
   /**
@@ -305,7 +258,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     const fetchHotWebsites = async () => {
       if (
         !config.enabled
-        || !config.showHotWebsites
         || !isSidebarModuleEnabled(config.sidebarModules, 'hot_websites')
       ) {
         setHotWebsites([]);
@@ -342,7 +294,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     fetchHotWebsites();
   }, [
     config.enabled,
-    config.showHotWebsites,
     config.hotWebsitesCount,
     config.sidebarModules,
   ]);
@@ -354,7 +305,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     const fetchArticleItems = async () => {
       if (
         !config.enabled
-        || !config.showArticles
         || !isSidebarModuleEnabled(config.sidebarModules, 'articles')
       ) {
         setArticleItems([]);
@@ -390,80 +340,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     fetchArticleItems();
   }, [
     config.enabled,
-    config.showArticles,
     config.articlesCount,
     config.sidebarModules,
   ]);
-
-  /**
-   * 获取侧边栏广告位（商业位体系），失败不阻断页面主流程
-   */
-  useEffect(() => {
-    const fetchSidebarPlacement = async () => {
-      if (!config.enabled) {
-        setSidebarPlacement(null);
-        return;
-      }
-      const slotKey = String(config.sidebarAdSlotKey || 'website_detail_sidebar').trim();
-      if (!slotKey) {
-        setSidebarPlacement(null);
-        return;
-      }
-      try {
-        const res = await api.get('/commercial/placements', {
-          params: { slotKey, limit: 1 },
-        });
-        const payload = unwrapApiResponse<{ list?: CommercialPlacementItem[] } | CommercialPlacementItem[]>(
-          res.data,
-          { list: [] }
-        );
-        const list = Array.isArray(payload) ? payload : (Array.isArray(payload?.list) ? payload.list : []);
-        if (list[0]) {
-          setSidebarPlacement(list[0]);
-          return;
-        }
-      } catch (error) {
-        /**
-         * 商业位接口 403 代表当前版本未授权，按非关键功能静默处理。
-         */
-        const status = Number((error as AxiosError)?.response?.status || 0);
-        if (status !== 403) {
-          debugLog.warn('获取侧边栏广告位失败（非关键）:', error);
-        }
-      }
-
-      /**
-       * 兼容回退：商业位为空时使用 Banner 广告位，避免后台“广告管理”配置后前台无内容。
-       */
-      try {
-        const position = resolveSidebarBannerPositionBySlotKey(slotKey);
-        const fallbackPositions = [ position ];
-        if (position === 'website_detail_sidebar' || position === 'detail_sidebar') {
-          fallbackPositions.push('sidebar');
-        }
-        let bannerHit: BannerFallbackItem | null = null;
-        for (const currentPosition of Array.from(new Set(fallbackPositions))) {
-          const res = await api.get('/banners/active', {
-            params: {
-              pageSlug: 'website-detail',
-              position: currentPosition,
-              limit: 1,
-            },
-          });
-          const bannerList = unwrapApiResponse<BannerFallbackItem[]>(res.data, []);
-          if (Array.isArray(bannerList) && bannerList[0]) {
-            bannerHit = bannerList[0];
-            break;
-          }
-        }
-        setSidebarPlacement(mapSidebarBannerToPlacement(bannerHit));
-      } catch (fallbackError) {
-        debugLog.warn('获取侧边栏 Banner 广告位失败（非关键）:', fallbackError);
-        setSidebarPlacement(null);
-      }
-    };
-    fetchSidebarPlacement();
-  }, [config.enabled, config.sidebarAdSlotKey, config.sidebarModules]);
 
   // 如果侧边栏被禁用，不渲染
   if (!config.enabled) {
@@ -527,7 +406,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     switch (moduleKey) {
       case 'category':
         // 分类区块
-        if (config.showCategory && (category?.name || category?.parent?.name)) {
+        if (category?.name || category?.parent?.name) {
           return (
             <div key="category" className="sidebar-section">
               <h3 className="sidebar-title">{config.categoryTitle || '相关分类'}</h3>
@@ -560,183 +439,152 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       case 'related':
         // 相关推荐
-        if (config.showRelated) {
-          return (
-            <div key="related" className="sidebar-section">
-              <h3 className="sidebar-title">{config.relatedTitle}</h3>
-              {relatedSectionLoading ? (
-                <div className="sidebar-loading">加载中...</div>
-              ) : displayedRelated.length > 0 ? (
-                <div className="sidebar-related-list">
-                  {displayedRelated.map((site) => (
-                    <Link
-                      key={site.id}
-                      to={`/website/${site.slug || site.id}`}
-                      className="sidebar-related-item"
-                      target={sidebarLinkTarget}
-                      rel={sidebarLinkRel}
-                    >
-                      <div className="sidebar-related-icon">
-                        <WebsiteFavicon
-                          websiteUrl={site.url}
-                          iconUrl={site.iconUrl}
-                          name={site.name}
-                          size={32}
-                        />
-                      </div>
-                      <div className="sidebar-related-info">
-                        <div className="sidebar-related-name">{site.name}</div>
-                        <div className="sidebar-related-desc">{site.description}</div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="sidebar-empty">暂无相关推荐</div>
-              )}
-            </div>
-          );
-        }
-        return null;
-
-      case 'tags':
-        // 标签云
-        if (config.showTags && displayTags.length > 0) {
-          return (
-            <div key="tags" className="sidebar-section">
-              <h3 className="sidebar-title">{config.tagsTitle}</h3>
-              <div className="sidebar-tags">
-                {displayTags.map((tag) => (
+        return (
+          <div key="related" className="sidebar-section">
+            <h3 className="sidebar-title">{config.relatedTitle}</h3>
+            {relatedSectionLoading ? (
+              <div className="sidebar-loading">加载中...</div>
+            ) : displayedRelated.length > 0 ? (
+              <div className="sidebar-related-list">
+                {displayedRelated.map((site) => (
                   <Link
-                    key={tag.id}
-                    to={`/search?q=${encodeURIComponent(tag.name)}`}
-                    className="sidebar-tag"
-                    style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                    key={site.id}
+                    to={`/website/${site.slug || site.id}`}
+                    className="sidebar-related-item"
                     target={sidebarLinkTarget}
                     rel={sidebarLinkRel}
                   >
-                    @ {tag.name}
+                    <div className="sidebar-related-icon">
+                      <WebsiteFavicon
+                        websiteUrl={site.url}
+                        iconUrl={site.iconUrl}
+                        name={site.name}
+                        size={32}
+                      />
+                    </div>
+                    <div className="sidebar-related-info">
+                      <div className="sidebar-related-name">{site.name}</div>
+                      <div className="sidebar-related-desc">{site.description}</div>
+                    </div>
                   </Link>
                 ))}
               </div>
+            ) : (
+              <div className="sidebar-empty">暂无相关推荐</div>
+            )}
+          </div>
+        );
+
+      case 'tags':
+        // 标签云
+        if (displayTags.length === 0) return null;
+        return (
+          <div key="tags" className="sidebar-section">
+            <h3 className="sidebar-title">{config.tagsTitle}</h3>
+            <div className="sidebar-tags">
+              {displayTags.map((tag) => (
+                <Link
+                  key={tag.id}
+                  to={`/search?q=${encodeURIComponent(tag.name)}`}
+                  className="sidebar-tag"
+                  style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
+                  target={sidebarLinkTarget}
+                  rel={sidebarLinkRel}
+                >
+                  @ {tag.name}
+                </Link>
+              ))}
             </div>
-          );
-        }
-        return null;
+          </div>
+        );
 
       case 'hot_websites':
         // 热门网址
-        if (config.showHotWebsites) {
-          return (
-            <div key="hot_websites" className="sidebar-section">
-              <h3 className="sidebar-title">{config.hotWebsitesTitle || '热门网址'}</h3>
-              {hotWebsitesLoading ? (
-                <div className="sidebar-loading">加载中...</div>
-              ) : hotWebsites.length > 0 ? (
-                <div className="sidebar-related-list">
-                  {hotWebsites.slice(0, Number(config.hotWebsitesCount || 6)).map((site) => (
-                    <Link
-                      key={`hot-${site.id || site.slug}`}
-                      to={`/website/${site.slug || site.id}`}
-                      className="sidebar-related-item"
-                      target={sidebarLinkTarget}
-                      rel={sidebarLinkRel}
-                    >
-                      <div className="sidebar-related-icon">
-                        <WebsiteFavicon
-                          websiteUrl={site.url}
-                          iconUrl={site.iconUrl}
-                          name={site.name}
-                          size={32}
-                        />
-                      </div>
-                      <div className="sidebar-related-info">
-                        <div className="sidebar-related-name">{site.name}</div>
-                        {site.description && (
-                          <div className="sidebar-related-desc sidebar-related-desc--single-line">
-                            {site.description}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="sidebar-empty">暂无热门网址</div>
-              )}
-            </div>
-          );
-        }
-        return null;
+        return (
+          <div key="hot_websites" className="sidebar-section">
+            <h3 className="sidebar-title">{config.hotWebsitesTitle || '热门网址'}</h3>
+            {hotWebsitesLoading ? (
+              <div className="sidebar-loading">加载中...</div>
+            ) : hotWebsites.length > 0 ? (
+              <div className="sidebar-related-list">
+                {hotWebsites.slice(0, Number(config.hotWebsitesCount || 6)).map((site) => (
+                  <Link
+                    key={`hot-${site.id || site.slug}`}
+                    to={`/website/${site.slug || site.id}`}
+                    className="sidebar-related-item"
+                    target={sidebarLinkTarget}
+                    rel={sidebarLinkRel}
+                  >
+                    <div className="sidebar-related-icon">
+                      <WebsiteFavicon
+                        websiteUrl={site.url}
+                        iconUrl={site.iconUrl}
+                        name={site.name}
+                        size={32}
+                      />
+                    </div>
+                    <div className="sidebar-related-info">
+                      <div className="sidebar-related-name">{site.name}</div>
+                      {site.description && (
+                        <div className="sidebar-related-desc sidebar-related-desc--single-line">
+                          {site.description}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="sidebar-empty">暂无热门网址</div>
+            )}
+          </div>
+        );
 
       case 'articles':
         // 推荐文章
-        if (config.showArticles) {
-          return (
-            <div key="articles" className="sidebar-section sidebar-section--articles">
-              <h3 className="sidebar-title">{config.articlesTitle || '推荐文章'}</h3>
-              {articleItemsLoading ? (
-                <div className="sidebar-loading">加载中...</div>
-              ) : articleItems.length > 0 ? (
-                <div className="sidebar-article-list">
-                  {articleItems.slice(0, Number(config.articlesCount || 5)).map((article) => (
-                    <Link
-                      key={`article-${article.id || article.slug}`}
-                      to={`/article/${article.slug || article.id}`}
-                      className="sidebar-article-item"
-                      target={sidebarLinkTarget}
-                      rel={sidebarLinkRel}
-                    >
-                      <div className="sidebar-article-title">{article.title}</div>
-                      {article.excerpt && (
-                        <div className="sidebar-article-excerpt">{article.excerpt}</div>
-                      )}
-                      <div className="sidebar-article-meta">
-                        {formatSidebarArticleDate(article.publishedAt) || '最新发布'}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="sidebar-empty">暂无文章推荐</div>
-              )}
-            </div>
-          );
-        }
-        return null;
+        return (
+          <div key="articles" className="sidebar-section sidebar-section--articles">
+            <h3 className="sidebar-title">{config.articlesTitle || '推荐文章'}</h3>
+            {articleItemsLoading ? (
+              <div className="sidebar-loading">加载中...</div>
+            ) : articleItems.length > 0 ? (
+              <div className="sidebar-article-list">
+                {articleItems.slice(0, Number(config.articlesCount || 5)).map((article) => (
+                  <Link
+                    key={`article-${article.id || article.slug}`}
+                    to={`/article/${article.slug || article.id}`}
+                    className="sidebar-article-item"
+                    target={sidebarLinkTarget}
+                    rel={sidebarLinkRel}
+                  >
+                    <div className="sidebar-article-title">{article.title}</div>
+                    {article.excerpt && (
+                      <div className="sidebar-article-excerpt">{article.excerpt}</div>
+                    )}
+                    <div className="sidebar-article-meta">
+                      {formatSidebarArticleDate(article.publishedAt) || '最新发布'}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="sidebar-empty">暂无文章推荐</div>
+            )}
+          </div>
+        );
 
       case 'ad':
-        // 侧边栏广告位
-        if (sidebarPlacement) {
-          return (
-            <div key="ad" className="sidebar-section sidebar-section--ad">
-              <a
-                href={sidebarPlacementTargetUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="sidebar-ad-card"
-              >
-                {sidebarPlacement.badgeText && (
-                  <span className="sidebar-ad-badge">{sidebarPlacement.badgeText}</span>
-                )}
-                {sidebarPlacementImageUrl && (
-                  <div className="sidebar-ad-cover">
-                    <img src={sidebarPlacementImageUrl} alt={sidebarPlacement.sponsorTitle || '广告位'} />
-                  </div>
-                )}
-                <div className="sidebar-ad-body">
-                  <div className="sidebar-ad-title">
-                    {sidebarPlacement.sponsorTitle || sidebarPlacement.sponsorName || '推荐内容'}
-                  </div>
-                  {sidebarPlacement.textContent && (
-                    <div className="sidebar-ad-desc">{sidebarPlacement.textContent}</div>
-                  )}
-                </div>
-              </a>
-            </div>
-          );
-        }
-        return null;
+        // 统一复用广告组件，支持 HTML 代码广告渲染。
+        return (
+          <AdBanner
+            key="ad"
+            pageSlug="website-detail"
+            position={resolveSidebarBannerPositionBySlotKey(config.sidebarAdSlotKey || '')}
+            commercialSlotKey={String(config.sidebarAdSlotKey || 'website_detail_sidebar').trim()}
+            limit={1}
+            className="detail-sidebar-ad-banner"
+          />
+        );
 
       default:
         return null;
@@ -744,8 +592,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   // 获取启用的模块并按顺序排序
-  const enabledModules = config.sidebarModules
+  const resolvedSidebarModules = Array.isArray(config.sidebarModules) && config.sidebarModules.length > 0
     ? config.sidebarModules
+    : null;
+  const enabledModules = resolvedSidebarModules
+    ? resolvedSidebarModules
         .filter(module => module.enabled)
         .sort((a, b) => a.sort - b.sort)
     : [
@@ -757,21 +608,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         { key: 'tags', name: '标签', enabled: true, sort: 5 },
         { key: 'ad', name: '广告', enabled: true, sort: 6 },
       ];
-  /**
-   * 当后台模块排序未启用“广告”但广告管理已有生效投放时，自动补充广告模块，
-   * 避免出现“后台配置了广告、详情页侧栏却完全不显示”的断链问题。
-   */
-  const shouldAppendAdModule = Boolean(sidebarPlacement) && !enabledModules.some(module => module.key === 'ad');
-  const resolvedModules = shouldAppendAdModule
-    ? [
-        ...enabledModules,
-        { key: 'ad', name: '广告', enabled: true, sort: 999 },
-      ]
-    : enabledModules;
 
   return (
     <aside className="website-detail-sidebar">
-      {resolvedModules.map(module => renderModule(module.key))}
+      {enabledModules.map(module => renderModule(module.key))}
     </aside>
   );
 };

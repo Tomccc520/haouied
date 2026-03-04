@@ -212,6 +212,12 @@
                     </div>
                     <div class="nav-menu-main-actions">
                         <el-button
+                            :disabled="!hasPreviewSortChanges || sortSaving"
+                            @click="handleResetPreviewSort"
+                        >
+                            撤销排序变更
+                        </el-button>
+                        <el-button
                             type="primary"
                             :disabled="!hasPreviewSortChanges"
                             :loading="sortSaving"
@@ -219,100 +225,17 @@
                         >
                             保存排序
                         </el-button>
-                        <el-button @click="toggleExpand">
-                            {{ isExpanded ? '全部收起' : '全部展开' }}
-                        </el-button>
                     </div>
                 </div>
                 <div class="nav-menu-main-panels" v-loading="loading">
-                    <div class="nav-menu-tree">
-                        <el-tree
-                            :key="treeRenderKey"
-                            :data="menuTree"
-                            node-key="id"
-                            :props="{ children: 'children', label: 'name' }"
-                            :default-expand-all="isExpanded"
-                            empty-text="暂无菜单数据"
-                            class="nav-menu-tree__body"
-                        >
-                            <template #default="{ data }">
-                                <div class="nav-menu-tree-node">
-                                    <div class="nav-menu-tree-node__left">
-                                        <icon
-                                            v-if="resolveMenuIcon(data.icon)"
-                                            :name="resolveMenuIcon(data.icon)"
-                                            :size="16"
-                                        />
-                                        <span :class="{ 'font-medium': !data.parentId }">{{
-                                            data.name
-                                        }}</span>
-                                        <el-tag
-                                            v-if="data.label"
-                                            :type="data.labelType === 'shop' ? 'success' : 'info'"
-                                            size="small"
-                                        >
-                                            {{ data.label }}
-                                        </el-tag>
-                                        <el-tag
-                                            :type="data.linkMode === 'builtin' ? 'warning' : 'info'"
-                                            size="small"
-                                        >
-                                            {{
-                                                data.linkMode === 'builtin' ? '内置功能' : '自定义'
-                                            }}
-                                        </el-tag>
-                                        <el-tag
-                                            size="small"
-                                            :type="data.isActive ? 'success' : 'info'"
-                                        >
-                                            {{ data.isActive ? '显示' : '隐藏' }}
-                                        </el-tag>
-                                        <span class="nav-menu-tree-node__url">{{
-                                            data.url || '-'
-                                        }}</span>
-                                    </div>
-                                    <div class="nav-menu-tree-node__right">
-                                        <el-tag size="small" effect="plain">
-                                            排序 {{ Number(data.sortOrder || 0) }}
-                                        </el-tag>
-                                        <el-tag
-                                            size="small"
-                                            effect="plain"
-                                            :type="data.openInNewTab ? 'success' : 'info'"
-                                        >
-                                            {{ data.openInNewTab ? '新窗口' : '本窗口' }}
-                                        </el-tag>
-                                        <el-button
-                                            type="primary"
-                                            link
-                                            @click.stop="handleAdd(data.id)"
-                                            >添加子菜单</el-button
-                                        >
-                                        <el-button
-                                            type="primary"
-                                            link
-                                            @click.stop="handleEdit(data)"
-                                            >编辑</el-button
-                                        >
-                                        <el-button
-                                            type="danger"
-                                            link
-                                            @click.stop="handleDelete(data.id)"
-                                            >删除</el-button
-                                        >
-                                    </div>
-                                </div>
-                            </template>
-                        </el-tree>
-                    </div>
-                    <div class="nav-menu-preview">
+                    <div class="nav-menu-preview nav-menu-preview--full">
                         <div class="nav-menu-preview__header">
                             <div>
                                 <div class="nav-menu-preview__title">
-                                    前台菜单预览（可拖拽排序）
+                                    前台菜单（可拖拽排序）
                                 </div>
                                 <div class="nav-menu-preview__desc">
-                                    拖拽后点击“保存排序”生效，不会改动菜单链接
+                                    当前列表即为前台渲染顺序，拖拽后点击“保存排序”生效
                                 </div>
                             </div>
                             <el-tag v-if="hasPreviewSortChanges" type="warning" size="small"
@@ -332,14 +255,91 @@
                             >
                                 <template #item="{ element }">
                                     <div class="nav-menu-preview-item">
-                                        <div class="nav-menu-preview-item__main">
-                                            <span class="nav-menu-preview-item__drag">⋮⋮</span>
-                                            <span class="nav-menu-preview-item__name">{{
-                                                element.name
-                                            }}</span>
-                                            <span class="nav-menu-preview-item__meta">{{
-                                                element.url || '-'
-                                            }}</span>
+                                        <div class="nav-menu-preview-item__row">
+                                            <div class="nav-menu-preview-item__main">
+                                                <span class="nav-menu-preview-item__drag">⋮⋮</span>
+                                                <icon
+                                                    v-if="resolveMenuIcon(element.icon)"
+                                                    :name="resolveMenuIcon(element.icon)"
+                                                    :size="15"
+                                                />
+                                                <span class="nav-menu-preview-item__name">{{
+                                                    element.name
+                                                }}</span>
+                                                <el-tag
+                                                    v-if="element.label"
+                                                    :type="
+                                                        element.labelType === 'shop'
+                                                            ? 'success'
+                                                            : 'info'
+                                                    "
+                                                    size="small"
+                                                >
+                                                    {{ element.label }}
+                                                </el-tag>
+                                                <el-tag
+                                                    :type="
+                                                        element.linkMode === 'builtin'
+                                                            ? 'warning'
+                                                            : 'info'
+                                                    "
+                                                    size="small"
+                                                >
+                                                    {{
+                                                        element.linkMode === 'builtin'
+                                                            ? '内置功能'
+                                                            : '自定义'
+                                                    }}
+                                                </el-tag>
+                                                <el-tag
+                                                    :type="element.isActive ? 'success' : 'info'"
+                                                    size="small"
+                                                >
+                                                    {{ element.isActive ? '显示' : '隐藏' }}
+                                                </el-tag>
+                                                <span class="nav-menu-preview-item__meta">{{
+                                                    element.url || '-'
+                                                }}</span>
+                                            </div>
+                                            <div class="nav-menu-preview-item__actions">
+                                                <el-tag size="small" effect="plain">
+                                                    排序 {{ Number(element.sortOrder || 0) }}
+                                                </el-tag>
+                                                <el-tag
+                                                    size="small"
+                                                    effect="plain"
+                                                    :type="
+                                                        element.openInNewTab ? 'success' : 'info'
+                                                    "
+                                                >
+                                                    {{
+                                                        element.openInNewTab
+                                                            ? '新窗口'
+                                                            : '本窗口'
+                                                    }}
+                                                </el-tag>
+                                                <el-button
+                                                    type="primary"
+                                                    link
+                                                    @click.stop="handleAdd(element.id)"
+                                                >
+                                                    添加子菜单
+                                                </el-button>
+                                                <el-button
+                                                    type="primary"
+                                                    link
+                                                    @click.stop="handleEdit(element)"
+                                                >
+                                                    编辑
+                                                </el-button>
+                                                <el-button
+                                                    type="danger"
+                                                    link
+                                                    @click.stop="handleDelete(element.id)"
+                                                >
+                                                    删除
+                                                </el-button>
+                                            </div>
                                         </div>
                                         <Draggable
                                             v-if="
@@ -358,16 +358,103 @@
                                                 <div
                                                     class="nav-menu-preview-item nav-menu-preview-item--child"
                                                 >
-                                                    <div class="nav-menu-preview-item__main">
-                                                        <span class="nav-menu-preview-item__drag"
-                                                            >⋮⋮</span
+                                                    <div class="nav-menu-preview-item__row">
+                                                        <div class="nav-menu-preview-item__main">
+                                                            <span
+                                                                class="nav-menu-preview-item__drag"
+                                                                >⋮⋮</span
+                                                            >
+                                                            <icon
+                                                                v-if="resolveMenuIcon(child.icon)"
+                                                                :name="
+                                                                    resolveMenuIcon(child.icon)
+                                                                "
+                                                                :size="14"
+                                                            />
+                                                            <span
+                                                                class="nav-menu-preview-item__name"
+                                                                >{{ child.name }}</span
+                                                            >
+                                                            <el-tag
+                                                                v-if="child.label"
+                                                                :type="
+                                                                    child.labelType === 'shop'
+                                                                        ? 'success'
+                                                                        : 'info'
+                                                                "
+                                                                size="small"
+                                                            >
+                                                                {{ child.label }}
+                                                            </el-tag>
+                                                            <el-tag
+                                                                :type="
+                                                                    child.linkMode === 'builtin'
+                                                                        ? 'warning'
+                                                                        : 'info'
+                                                                "
+                                                                size="small"
+                                                            >
+                                                                {{
+                                                                    child.linkMode === 'builtin'
+                                                                        ? '内置功能'
+                                                                        : '自定义'
+                                                                }}
+                                                            </el-tag>
+                                                            <span
+                                                                class="nav-menu-preview-item__meta"
+                                                                >{{ child.url || '-' }}</span
+                                                            >
+                                                        </div>
+                                                        <div
+                                                            class="nav-menu-preview-item__actions"
                                                         >
-                                                        <span class="nav-menu-preview-item__name">{{
-                                                            child.name
-                                                        }}</span>
-                                                        <span class="nav-menu-preview-item__meta">{{
-                                                            child.url || '-'
-                                                        }}</span>
+                                                            <el-tag size="small" effect="plain">
+                                                                排序
+                                                                {{
+                                                                    Number(
+                                                                        child.sortOrder || 0
+                                                                    )
+                                                                }}
+                                                            </el-tag>
+                                                            <el-tag
+                                                                size="small"
+                                                                effect="plain"
+                                                                :type="
+                                                                    child.openInNewTab
+                                                                        ? 'success'
+                                                                        : 'info'
+                                                                "
+                                                            >
+                                                                {{
+                                                                    child.openInNewTab
+                                                                        ? '新窗口'
+                                                                        : '本窗口'
+                                                                }}
+                                                            </el-tag>
+                                                            <el-button
+                                                                type="primary"
+                                                                link
+                                                                @click.stop="handleAdd(child.id)"
+                                                            >
+                                                                添加子菜单
+                                                            </el-button>
+                                                            <el-button
+                                                                type="primary"
+                                                                link
+                                                                @click.stop="handleEdit(child)"
+                                                            >
+                                                                编辑
+                                                            </el-button>
+                                                            <el-button
+                                                                type="danger"
+                                                                link
+                                                                @click.stop="
+                                                                    handleDelete(child.id)
+                                                                "
+                                                            >
+                                                                删除
+                                                            </el-button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </template>
@@ -536,8 +623,6 @@ const menuTree = ref<NavMenuItem[]>([])
 const previewTree = ref<NavMenuItem[]>([])
 const sortSaving = ref(false)
 const menuTreeOptions = ref<any[]>([])
-const isExpanded = ref(true)
-const treeRenderKey = ref(0)
 const iconNameSet = new Set<string>([...getElementPlusIconNames(), ...getLocalIconNames()])
 const builtinNavEntryOptions: BuiltinNavEntryOption[] = [
     { key: 'daily_hot', label: '每日热榜', defaultPath: '/p/daily-hot' },
@@ -1091,10 +1176,12 @@ const handleSavePreviewSort = async () => {
     }
 }
 
-// 切换展开/收起
-const toggleExpand = () => {
-    isExpanded.value = !isExpanded.value
-    treeRenderKey.value += 1
+/**
+ * 撤销未保存排序，回退为当前后端已保存顺序。
+ */
+const handleResetPreviewSort = () => {
+    if (!hasPreviewSortChanges.value) return
+    syncPreviewTree()
 }
 
 getLists()
@@ -1116,7 +1203,7 @@ getCategoryList()
 
 .nav-menu-main-panels {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
 }
 
@@ -1207,14 +1294,6 @@ getCategoryList()
     color: var(--el-text-color-secondary);
 }
 
-.nav-menu-tree {
-    border: 1px solid var(--el-border-color-light);
-    border-radius: 10px;
-    background: #fff;
-    min-height: 420px;
-    padding: 8px;
-}
-
 .nav-menu-preview {
     border: 1px solid var(--el-border-color-light);
     border-radius: 10px;
@@ -1222,6 +1301,10 @@ getCategoryList()
     min-height: 420px;
     display: flex;
     flex-direction: column;
+}
+
+.nav-menu-preview--full {
+    min-height: 520px;
 }
 
 .nav-menu-preview__header {
@@ -1279,6 +1362,7 @@ getCategoryList()
     align-items: center;
     gap: 8px;
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 .nav-menu-preview-item__drag {
@@ -1299,53 +1383,32 @@ getCategoryList()
 .nav-menu-preview-item__meta {
     font-size: 12px;
     color: var(--el-text-color-secondary);
+    max-width: 320px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.nav-menu-preview-item__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.nav-menu-preview-item__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex-shrink: 0;
 }
 
 :deep(.nav-menu-preview-item--ghost) {
     opacity: 0.65;
     background: #f5f7fa !important;
     border-color: var(--el-color-primary-light-5) !important;
-}
-
-.nav-menu-tree__body {
-    background: transparent;
-}
-
-.nav-menu-tree-node {
-    min-height: 44px;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 4px 0;
-}
-
-.nav-menu-tree-node__left {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.nav-menu-tree-node__url {
-    max-width: 380px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.nav-menu-tree-node__right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
 }
 
 @media (max-width: 1280px) {
@@ -1355,14 +1418,13 @@ getCategoryList()
     .nav-menu-main-panels {
         grid-template-columns: minmax(0, 1fr);
     }
-    .nav-menu-tree-node {
+    .nav-menu-preview-item__row {
         flex-direction: column;
-        align-items: flex-start;
     }
-    .nav-menu-tree-node__right {
-        flex-wrap: wrap;
+    .nav-menu-preview-item__actions {
+        justify-content: flex-start;
     }
-    .nav-menu-tree-node__url {
+    .nav-menu-preview-item__meta {
         max-width: 100%;
     }
 }

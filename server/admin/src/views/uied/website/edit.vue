@@ -43,16 +43,6 @@
                                 show-word-limit
                             />
                         </el-form-item>
-                        <el-form-item label="固定链接">
-                            <el-input
-                                v-model="editData.slug"
-                                placeholder="留空自动生成，用于详情页URL"
-                                maxlength="200"
-                                show-word-limit
-                            >
-                                <template #prepend>/website/</template>
-                            </el-input>
-                        </el-form-item>
                         <el-form-item label="网站URL" prop="url">
                             <div class="website-url-tools">
                                 <el-input
@@ -60,6 +50,7 @@
                                     placeholder="请输入网站URL"
                                     maxlength="500"
                                     show-word-limit
+                                    @blur="handleCheckDuplicateUrl(false)"
                                 />
                                 <el-button :loading="fetchingSeo" @click="handleFetchSeo(false)">
                                     获取网站信息
@@ -76,11 +67,23 @@
                             <div class="website-url-tools__tip">
                                 获取标题、简介、关键词、标签与 favicon。默认仅填充空字段；“覆盖填充”会覆盖已有值。
                             </div>
+                            <el-alert
+                                v-if="duplicateUrlInfo"
+                                class="mt-2"
+                                type="warning"
+                                :closable="false"
+                            >
+                                <template #title>
+                                    检测到重复网址：ID {{ duplicateUrlInfo.id }} / {{ duplicateUrlInfo.name }}
+                                </template>
+                                当前已存在网址：{{ duplicateUrlInfo.url }}，建议直接编辑已有记录，避免重复收录。
+                            </el-alert>
                         </el-form-item>
-                        <el-form-item label="所属分类" prop="categoryId">
+                        <el-form-item label="所属分类" prop="categoryIds">
                             <el-select
-                                v-model="editData.categoryId"
-                                placeholder="请选择分类"
+                                v-model="editData.categoryIds"
+                                placeholder="请选择分类（可多选）"
+                                multiple
                                 filterable
                                 clearable
                                 default-first-option
@@ -93,6 +96,9 @@
                                     :value="item.id"
                                 />
                             </el-select>
+                            <div class="website-url-tools__tip">
+                                可选择多个分类，第一项会作为主分类用于默认展示。
+                            </div>
                         </el-form-item>
                         <el-form-item label="网站描述">
                             <el-input
@@ -102,127 +108,133 @@
                                 placeholder="请输入网站描述"
                             />
                         </el-form-item>
-                        <el-form-item v-if="hasSeoPreview" label="抓取预览">
-                            <div class="seo-fetch-preview">
-                                <div class="seo-fetch-preview__head">
-                                    <div class="seo-fetch-preview__title">
-                                        {{ seoPreview.title || '未抓取到标题' }}
+                        <div>
+                                <el-form-item label="固定链接">
+                                    <el-input
+                                        v-model="editData.slug"
+                                        placeholder="留空自动生成，用于详情页URL"
+                                        maxlength="200"
+                                        show-word-limit
+                                    >
+                                        <template #prepend>/website/</template>
+                                    </el-input>
+                                </el-form-item>
+                                <el-form-item v-if="hasSeoPreview" label="抓取预览">
+                                    <div class="seo-fetch-preview">
+                                        <div class="seo-fetch-preview__head">
+                                            <div class="seo-fetch-preview__title">
+                                                {{ seoPreview.title || '未抓取到标题' }}
+                                            </div>
+                                            <el-image
+                                                v-if="seoPreview.favicon"
+                                                :src="seoPreview.favicon"
+                                                fit="contain"
+                                                class="seo-fetch-preview__favicon"
+                                            />
+                                        </div>
+                                        <div class="seo-fetch-preview__meta">
+                                            <span v-if="seoPreview.description">
+                                                简介：{{ seoPreview.description }}
+                                            </span>
+                                            <span v-if="seoPreview.keywords">
+                                                关键词：{{ seoPreview.keywords }}
+                                            </span>
+                                            <span v-if="seoPreview.h1">H1：{{ seoPreview.h1 }}</span>
+                                        </div>
                                     </div>
-                                    <el-image
-                                        v-if="seoPreview.favicon"
-                                        :src="seoPreview.favicon"
-                                        fit="contain"
-                                        class="seo-fetch-preview__favicon"
-                                    />
-                                </div>
-                                <div class="seo-fetch-preview__meta">
-                                    <span v-if="seoPreview.description">
-                                        简介：{{ seoPreview.description }}
-                                    </span>
-                                    <span v-if="seoPreview.keywords">
-                                        关键词：{{ seoPreview.keywords }}
-                                    </span>
-                                    <span v-if="seoPreview.h1">H1：{{ seoPreview.h1 }}</span>
-                                </div>
-                            </div>
-                        </el-form-item>
-                        <el-form-item label="图标URL">
-                            <div class="flex gap-2" style="width: 100%">
-                                <el-input
-                                    v-model="editData.iconUrl"
-                                    placeholder="请输入图标URL"
-                                    maxlength="500"
-                                    show-word-limit
-                                    clearable
-                                />
-                                <el-button :loading="fetchingIcon" @click="handleFetchIcon"
-                                    >获取图标</el-button
-                                >
-                            </div>
-                        </el-form-item>
-                        <el-form-item label="标签">
-                            <el-select
-                                v-model="editData.tags"
-                                multiple
-                                filterable
-                                allow-create
-                                default-first-option
-                                placeholder="输入标签后回车添加"
-                                style="width: 100%"
-                            />
-                        </el-form-item>
-                        <el-form-item label="站点权重标签">
-                            <el-select
-                                v-model="editData.weightTags"
-                                multiple
-                                filterable
-                                collapse-tags
-                                collapse-tags-tooltip
-                                placeholder="用于前台卡片透出：官方 / 推荐 / 企业认证"
-                                style="width: 100%"
-                            >
-                                <el-option
-                                    v-for="item in WEBSITE_WEIGHT_TAG_OPTIONS"
-                                    :key="item.value"
-                                    :label="item.label"
-                                    :value="item.value"
-                                />
-                            </el-select>
-                            <div class="website-url-tools__tip">
-                                运营可直接配置站点权重标签，前台列表卡片会透出对应标识。
-                            </div>
-                        </el-form-item>
-                        <el-row :gutter="16">
-                            <el-col :span="8">
-                                <el-form-item label="排序">
-                                    <el-input-number
-                                        v-model="editData.sortOrder"
-                                        :min="0"
-                                        :max="9999"
+                                </el-form-item>
+                                <el-form-item label="图标URL">
+                                    <div class="flex gap-2" style="width: 100%">
+                                        <el-input
+                                            v-model="editData.iconUrl"
+                                            placeholder="请输入图标URL"
+                                            maxlength="500"
+                                            show-word-limit
+                                            clearable
+                                        />
+                                        <el-button :loading="fetchingIcon" @click="handleFetchIcon"
+                                            >获取图标</el-button
+                                        >
+                                    </div>
+                                </el-form-item>
+                                <el-form-item label="标签">
+                                    <el-select
+                                        v-model="editData.tags"
+                                        multiple
+                                        filterable
+                                        allow-create
+                                        default-first-option
+                                        placeholder="输入标签后回车添加"
                                         style="width: 100%"
                                     />
                                 </el-form-item>
-                            </el-col>
-                            <el-col :span="8">
-                                <el-form-item label="状态">
-                                    <el-switch
-                                        v-model="editData.isActive"
-                                        :active-value="1"
-                                        :inactive-value="0"
-                                    />
+                                <el-form-item label="站点权重标签">
+                                    <el-select
+                                        v-model="editData.weightTags"
+                                        multiple
+                                        filterable
+                                        collapse-tags
+                                        collapse-tags-tooltip
+                                        placeholder="用于前台卡片透出：官方 / 推荐 / 企业认证"
+                                        style="width: 100%"
+                                    >
+                                        <el-option
+                                            v-for="item in WEBSITE_WEIGHT_TAG_OPTIONS"
+                                            :key="item.value"
+                                            :label="item.label"
+                                            :value="item.value"
+                                        />
+                                    </el-select>
+                                    <div class="website-url-tools__tip">
+                                        运营可直接配置站点权重标签，前台列表卡片会透出对应标识。
+                                    </div>
                                 </el-form-item>
-                            </el-col>
-                            <el-col :span="8">
-                                <el-form-item label="置顶">
-                                    <el-switch
-                                        v-model="editData.isPinned"
-                                        :active-value="1"
-                                        :inactive-value="0"
-                                    />
-                                </el-form-item>
-                            </el-col>
-                        </el-row>
+                                <el-row :gutter="16">
+                                    <el-col :span="8">
+                                        <el-form-item label="排序">
+                                            <el-input-number
+                                                v-model="editData.sortOrder"
+                                                :min="0"
+                                                :max="9999"
+                                                style="width: 100%"
+                                            />
+                                        </el-form-item>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <el-form-item label="状态">
+                                            <el-switch
+                                                v-model="editData.isActive"
+                                                :active-value="1"
+                                                :inactive-value="0"
+                                            />
+                                        </el-form-item>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <el-form-item label="置顶">
+                                            <el-switch
+                                                v-model="editData.isPinned"
+                                                :active-value="1"
+                                                :inactive-value="0"
+                                            />
+                                        </el-form-item>
+                                    </el-col>
+                                </el-row>
+                        </div>
                     </el-form>
                 </el-tab-pane>
 
                 <!-- 详情页内容 -->
                 <el-tab-pane label="详情页" name="detail" lazy>
-                    <div class="detail-config-grid">
-                        <section class="detail-config-card">
-                            <div class="detail-config-card__title">详情页基础设置</div>
-                            <el-form :model="editData" label-width="100px">
-                                <el-form-item label="访问按钮">
-                                    <el-input
-                                        v-model="editData.visitBtnText"
-                                        placeholder="默认：访问网站"
-                                        maxlength="50"
-                                        show-word-limit
-                                        style="max-width: 400px"
-                                    />
-                                </el-form-item>
-                            </el-form>
-                        </section>
+                    <div class="detail-section-switch">
+                        <el-radio-group v-model="detailEditSection" size="small">
+                            <el-radio-button label="content">内容与截图</el-radio-button>
+                            <el-radio-button label="basic">基础与缩略图</el-radio-button>
+                            <el-radio-button label="status">站点校验状态</el-radio-button>
+                            <el-radio-button label="traffic">访问数据</el-radio-button>
+                        </el-radio-group>
+                    </div>
 
+                    <div v-show="detailEditSection === 'basic'" class="detail-config-grid">
                         <section class="detail-config-card">
                             <div class="detail-config-card__title">缩略图预览</div>
                             <el-form :model="editData" label-width="100px">
@@ -288,34 +300,37 @@
                         </section>
                     </div>
 
-                    <el-divider content-position="left">站点校验状态（只读）</el-divider>
-                    <el-card class="!border-none mb-4" shadow="never">
-                        <el-descriptions :column="1" border size="small">
-                            <el-descriptions-item label="当前状态">
-                                <el-tag :type="websiteStatusTagType">{{
-                                    websiteStatusLabel
-                                }}</el-tag>
-                            </el-descriptions-item>
-                            <el-descriptions-item label="最后校验时间">
-                                {{ formatStatusDateTime(editData.lastCheckedAt) }}
-                            </el-descriptions-item>
-                            <el-descriptions-item label="状态原因">
-                                {{ editData.statusReason || '无异常原因' }}
-                            </el-descriptions-item>
-                        </el-descriptions>
-                    </el-card>
+                    <div v-show="detailEditSection === 'status'">
+                        <el-divider content-position="left">站点校验状态（只读）</el-divider>
+                        <el-card class="!border-none mb-4" shadow="never">
+                            <el-descriptions :column="1" border size="small">
+                                <el-descriptions-item label="当前状态">
+                                    <el-tag :type="websiteStatusTagType">{{
+                                        websiteStatusLabel
+                                    }}</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="最后校验时间">
+                                    {{ formatStatusDateTime(editData.lastCheckedAt) }}
+                                </el-descriptions-item>
+                                <el-descriptions-item label="状态原因">
+                                    {{ editData.statusReason || '无异常原因' }}
+                                </el-descriptions-item>
+                            </el-descriptions>
+                        </el-card>
+                    </div>
 
-                    <el-divider content-position="left">访问数据（高级版）</el-divider>
-                    <el-card class="!border-none mb-4" shadow="never">
-                        <template #header>
-                            <div class="flex items-center justify-between">
-                                <span class="font-medium">站点访问数据（手动录入）</span>
-                                <span class="text-xs text-tx-secondary">
-                                    适合售卖版展示 Similarweb 风格数据，不依赖第三方付费 API
-                                </span>
-                            </div>
-                        </template>
-                        <el-form :model="editData.trafficMetrics" label-width="130px">
+                    <div v-show="detailEditSection === 'traffic'">
+                        <el-divider content-position="left">访问数据（高级版）</el-divider>
+                        <el-card class="!border-none mb-4" shadow="never">
+                            <template #header>
+                                <div class="flex items-center justify-between">
+                                    <span class="font-medium">站点访问数据（手动录入）</span>
+                                    <span class="text-xs text-tx-secondary">
+                                        适合售卖版展示 Similarweb 风格数据，不依赖第三方付费 API
+                                    </span>
+                                </div>
+                            </template>
+                            <el-form :model="editData.trafficMetrics" label-width="130px">
                             <el-row :gutter="16">
                                 <el-col :span="8">
                                     <el-form-item label="月访问量">
@@ -475,12 +490,14 @@
                             <div class="text-xs text-tx-secondary">
                                 建议总和接近 100%。未填写时前端将继续显示基础站点数据。
                             </div>
-                        </el-form>
-                    </el-card>
+                            </el-form>
+                        </el-card>
+                    </div>
 
-                    <el-divider content-position="left">详情内容（AI 辅助编辑）</el-divider>
-                    <!-- AI 编辑器布局：左编辑器 + 右AI助手 -->
-                    <div class="ai-editor-layout">
+                    <div v-show="detailEditSection === 'content'">
+                        <el-divider content-position="left">详情内容（AI 辅助编辑）</el-divider>
+                        <!-- AI 编辑器布局：左编辑器 + 右AI助手 -->
+                        <div class="ai-editor-layout">
                         <div class="ai-editor-layout__main">
                             <div class="ai-editor-layout__mode-bar">
                                 <div class="ai-editor-layout__mode-left">
@@ -723,32 +740,34 @@
                                 </div>
                             </div>
                         </aside>
-                    </div>
+                        </div>
 
-                    <el-divider content-position="left">产品截图</el-divider>
-                    <el-form :model="editData" label-width="100px" style="max-width: 900px">
-                        <el-form-item>
-                            <template #label>
-                                <span>产品截图</span>
-                                <el-tooltip
-                                    content="从素材中心选择产品截图，将在详情页展示为图片画廊"
-                                    placement="top"
-                                >
-                                    <el-icon style="margin-left: 4px; cursor: help; color: #909399"
-                                        ><QuestionFilled
-                                    /></el-icon>
-                                </el-tooltip>
-                            </template>
-                            <div style="width: 100%">
-                                <material-picker
-                                    v-model="screenshotList"
-                                    type="image"
-                                    :limit="20"
-                                    size="120px"
-                                />
-                            </div>
-                        </el-form-item>
-                    </el-form>
+                        <el-divider content-position="left">产品截图</el-divider>
+                        <el-form :model="editData" label-width="100px" style="max-width: 900px">
+                            <el-form-item>
+                                <template #label>
+                                    <span>产品截图</span>
+                                    <el-tooltip
+                                        content="从素材中心选择产品截图，将在详情页展示为图片画廊"
+                                        placement="top"
+                                    >
+                                        <el-icon
+                                            style="margin-left: 4px; cursor: help; color: #909399"
+                                            ><QuestionFilled
+                                        /></el-icon>
+                                    </el-tooltip>
+                                </template>
+                                <div style="width: 100%">
+                                    <material-picker
+                                        v-model="screenshotList"
+                                        type="image"
+                                        :limit="20"
+                                        size="120px"
+                                    />
+                                </div>
+                            </el-form-item>
+                        </el-form>
+                    </div>
                 </el-tab-pane>
 
                 <!-- SEO 设置 -->
@@ -810,6 +829,7 @@ import {
     uiedWebsiteAdd,
     uiedWebsiteEdit,
     uiedWebsiteDetail,
+    uiedWebsiteCheckDuplicateUrl,
     uiedCategoryAll,
     uiedAiChat,
     uiedSeoScraperFetch
@@ -841,6 +861,12 @@ interface ChatStreamContextItem {
     role: 'user' | 'assistant'
     content: string
 }
+interface DuplicateUrlInfo {
+    id: number
+    name: string
+    url: string
+    status?: string
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -848,7 +874,11 @@ const router = useRouter()
 // 页面状态
 const pageLoading = ref(false)
 const submitLoading = ref(false)
+const duplicateUrlChecking = ref(false)
+const duplicateUrlInfo = ref<DuplicateUrlInfo | null>(null)
+const lastDuplicateCheckUrl = ref('')
 const activeTab = ref('basic')
+const detailEditSection = ref<'basic' | 'status' | 'traffic' | 'content'>('content')
 const detailEditorReady = ref(false)
 const isFirefoxBrowser =
     typeof window !== 'undefined' && /firefox/i.test(window.navigator.userAgent || '')
@@ -1082,6 +1112,7 @@ const editData = reactive({
     slug: '',
     url: '',
     categoryId: '' as string | number,
+    categoryIds: [] as Array<string | number>,
     description: '',
     iconUrl: '',
     tags: [] as string[],
@@ -1093,7 +1124,6 @@ const editData = reactive({
     statusReason: '',
     lastCheckedAt: '',
     detailContent: '',
-    visitBtnText: '',
     thumbnail: '',
     seoTitle: '',
     seoDescription: '',
@@ -1128,7 +1158,19 @@ const websiteStatusTagType = computed(() => {
 const editRules: FormRules = {
     name: [{ required: true, message: '请输入网站名称', trigger: 'blur' }],
     url: [{ required: true, message: '请输入网站URL', trigger: 'blur' }],
-    categoryId: [{ required: true, message: '请选择分类', trigger: 'change' }]
+    categoryIds: [
+        {
+            required: true,
+            validator: (_rule, value, callback) => {
+                if (Array.isArray(value) && value.length > 0) {
+                    callback()
+                    return
+                }
+                callback(new Error('请至少选择一个分类'))
+            },
+            trigger: 'change'
+        }
+    ]
 }
 
 // 加载网站详情
@@ -1144,7 +1186,21 @@ const loadDetail = async (id: string | number) => {
         editData.name = data.name || ''
         editData.slug = data.slug || ''
         editData.url = data.url || ''
-        editData.categoryId = data.categoryId || data.category_id || null
+        const resolvedCategoryIds = Array.isArray(data.categoryIds)
+            ? data.categoryIds
+            : String(data.categoryIds || '')
+                  .split(/[，,]/)
+                  .map((item: string) => Number(item))
+                  .filter((item: number) => Number.isInteger(item) && item > 0)
+        const fallbackCategoryId = Number(data.categoryId || data.category_id || 0)
+        const mergedCategoryIds = Array.from(
+            new Set([
+                ...resolvedCategoryIds,
+                ...(fallbackCategoryId > 0 ? [fallbackCategoryId] : [])
+            ])
+        )
+        editData.categoryIds = mergedCategoryIds
+        editData.categoryId = mergedCategoryIds[0] || ''
         editData.description = data.description || ''
         editData.iconUrl = data.iconUrl || data.icon_url || ''
         const parsedTagBundle = splitDisplayAndWeightTags(
@@ -1183,7 +1239,6 @@ const loadDetail = async (id: string | number) => {
         editData.statusReason = String(data.statusReason || data.status_message || '').trim()
         editData.lastCheckedAt = String(data.lastCheckedAt || data.last_checked_at || '')
         editData.detailContent = data.detailContent || data.detail_content || ''
-        editData.visitBtnText = data.visitBtnText || data.visit_btn_text || ''
         editData.thumbnail = data.thumbnail || ''
         editData.seoTitle = data.seoTitle || data.seo_title || ''
         editData.seoDescription = data.seoDescription || data.seo_description || ''
@@ -1361,6 +1416,121 @@ const mergeUniqueTags = (baseTags: string[], nextTags: string[]) => {
 }
 
 /**
+ * 提取主域名（用于仅主域名重复判定缓存键）。
+ */
+const normalizeWebsiteUrlForDuplicateCheck = (url: string) => {
+    const raw = String(url || '').trim()
+    if (!raw) return ''
+    let candidate = raw
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+        candidate = `https://${candidate}`
+    }
+    try {
+        const host = String(new URL(candidate).hostname || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\.$/, '')
+            .replace(/^www\./, '')
+        if (!host) return ''
+        if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return host
+        const segments = host.split('.').filter(Boolean)
+        if (segments.length <= 2) return host
+        const twoLevelSuffixSet = new Set([
+            'com.cn',
+            'net.cn',
+            'org.cn',
+            'gov.cn',
+            'edu.cn',
+            'co.uk',
+            'org.uk',
+            'gov.uk',
+            'ac.uk',
+            'com.au',
+            'net.au',
+            'org.au',
+            'co.jp',
+            'com.hk',
+            'com.tw'
+        ])
+        const tailTwo = `${segments[segments.length - 2]}.${segments[segments.length - 1]}`
+        if (twoLevelSuffixSet.has(tailTwo) && segments.length >= 3) {
+            return `${segments[segments.length - 3]}.${tailTwo}`
+        }
+        return tailTwo
+    } catch {
+        return raw
+            .toLowerCase()
+            .replace(/^https?:\/\//, '')
+            .split('/')[0]
+            .replace(/^www\./, '')
+    }
+}
+
+/**
+ * 校验当前网址是否重复；silent=true 时仅更新状态不弹提示。
+ */
+const handleCheckDuplicateUrl = async (silent = true): Promise<boolean> => {
+    const normalizedUrl = normalizeWebsiteUrlForDuplicateCheck(String(editData.url || ''))
+    if (!normalizedUrl) {
+        duplicateUrlInfo.value = null
+        lastDuplicateCheckUrl.value = ''
+        return false
+    }
+    if (normalizedUrl === lastDuplicateCheckUrl.value) {
+        return Boolean(duplicateUrlInfo.value)
+    }
+    if (duplicateUrlChecking.value) {
+        return Boolean(duplicateUrlInfo.value)
+    }
+
+    duplicateUrlChecking.value = true
+    try {
+        const res = await uiedWebsiteCheckDuplicateUrl({
+            url: editData.url,
+            excludeId: editData.id || undefined
+        })
+        const exists = Boolean(res?.exists ?? res?.data?.exists)
+        const website = (res?.website || res?.data?.website || null) as DuplicateUrlInfo | null
+        duplicateUrlInfo.value =
+            exists && website && Number(website.id || 0) > 0
+                ? {
+                      id: Number(website.id),
+                      name: String(website.name || ''),
+                      url: String(website.url || ''),
+                      status: String(website.status || '')
+                  }
+                : null
+        if (exists && !silent) {
+            feedback.msgWarning(
+                `检测到重复网址：${duplicateUrlInfo.value?.name || '未命名'}（ID: ${
+                    duplicateUrlInfo.value?.id || '-'
+                }）`
+            )
+        }
+        if (!exists && !silent) {
+            feedback.msgSuccess('未检测到重复网址')
+        }
+        return exists
+    } catch (error: any) {
+        if (!silent) {
+            feedback.msgError(error?.msg || error?.message || '重复网址校验失败')
+        }
+        return false
+    } finally {
+        lastDuplicateCheckUrl.value = normalizedUrl
+        duplicateUrlChecking.value = false
+    }
+}
+
+watch(
+    () => editData.url,
+    () => {
+        duplicateUrlInfo.value = null
+        lastDuplicateCheckUrl.value = ''
+    }
+)
+
+/**
  * 抓取网站 SEO（标题/简介/关键词/favicon），并按模式回填
  */
 const handleFetchSeo = async (overwrite = false) => {
@@ -1370,6 +1540,12 @@ const handleFetchSeo = async (overwrite = false) => {
     }
     fetchingSeo.value = true
     try {
+        const isDuplicate = await handleCheckDuplicateUrl(true)
+        if (isDuplicate && duplicateUrlInfo.value) {
+            feedback.msgWarning(
+                `该网址已存在：${duplicateUrlInfo.value.name}（ID: ${duplicateUrlInfo.value.id}）`
+            )
+        }
         const res = await uiedSeoScraperFetch({ url: editData.url })
         seoPreview.value = {
             title: resolveSeoField(res, 'title'),
@@ -2159,8 +2335,7 @@ const WEBSITE_FIELD_LIMITS = {
     seoTitle: 100,
     seoDescription: 300,
     seoKeywords: 200,
-    thumbnail: 500,
-    visitBtnText: 50
+    thumbnail: 500
 } as const
 
 /**
@@ -2176,8 +2351,7 @@ const applyWebsiteLengthGuards = (payload: Record<string, any>) => {
         seoTitle: 'SEO标题',
         seoDescription: 'SEO描述',
         seoKeywords: 'SEO关键词',
-        thumbnail: '缩略图URL',
-        visitBtnText: '访问按钮文案'
+        thumbnail: '缩略图URL'
     }
 
     ;(Object.keys(WEBSITE_FIELD_LIMITS) as Array<keyof typeof WEBSITE_FIELD_LIMITS>).forEach(
@@ -2202,10 +2376,32 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
     await editFormRef.value?.validate()
     submitLoading.value = true
     try {
+        const hasDuplicateUrl = await handleCheckDuplicateUrl(true)
+        if (hasDuplicateUrl && duplicateUrlInfo.value) {
+            feedback.msgWarning(
+                `当前网址已存在：${duplicateUrlInfo.value.name}（ID: ${duplicateUrlInfo.value.id}），请勿重复创建`
+            )
+            return
+        }
         const screenshots = screenshotList.value.filter((url: string) => url?.trim())
+        const normalizedCategoryIds = Array.from(
+            new Set(
+                (Array.isArray(editData.categoryIds) ? editData.categoryIds : [])
+                    .map((item) => Number(item))
+                    .filter((item) => Number.isInteger(item) && item > 0)
+            )
+        )
+        if (normalizedCategoryIds.length === 0 && Number(editData.categoryId || 0) > 0) {
+            normalizedCategoryIds.push(Number(editData.categoryId))
+        }
+        if (normalizedCategoryIds.length === 0) {
+            feedback.msgWarning('请至少选择一个分类')
+            return
+        }
         const submitData = {
             ...editData,
-            categoryId: Number(editData.categoryId || 0) || editData.categoryId,
+            categoryIds: normalizedCategoryIds,
+            categoryId: normalizedCategoryIds[0],
             slug: String(editData.slug || '').trim() || null,
             tags: Array.from(
                 new Set(
@@ -2258,12 +2454,22 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
             await uiedWebsiteAdd(submitData)
             feedback.msgSuccess(mode === 'draft' ? '草稿已创建' : '添加成功')
         }
-        handleBack()
+        await goWebsiteListWithRefresh()
     } catch (error: any) {
         feedback.msgError(resolveSubmitErrorMessage(error) || '保存失败')
     } finally {
         submitLoading.value = false
     }
+}
+
+/**
+ * 保存成功后回到列表并附带刷新标记，避免手动刷新才能看到新数据。
+ */
+const goWebsiteListWithRefresh = async () => {
+    await router.push({
+        path: '/uied/website',
+        query: { refresh: String(Date.now()) }
+    })
 }
 
 const handleBack = () => {
@@ -2420,6 +2626,21 @@ onBeforeUnmount(() => {
     gap: 12px;
     margin-bottom: 6px;
 }
+
+.detail-section-switch {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 10px;
+    background: var(--el-fill-color-extra-light);
+}
+
+.detail-section-switch :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 .detail-config-card {
     border: 1px solid var(--el-border-color-light);
     border-radius: 12px;

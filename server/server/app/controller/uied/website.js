@@ -82,9 +82,24 @@ class WebsiteController extends baseController {
     const { ctx } = this;
     try {
       const data = ctx.request.body || {};
+      const normalizedCategoryIds = Array.from(
+        new Set(
+          (Array.isArray(data.categoryIds)
+            ? data.categoryIds
+            : String(data.categoryIds || '').split(/[，,]/))
+            .map(item => Number.parseInt(String(item || '').trim(), 10))
+            .filter(item => Number.isInteger(item) && item > 0)
+        )
+      );
+      if (!data.categoryId && normalizedCategoryIds.length > 0) {
+        data.categoryId = normalizedCategoryIds[0];
+      }
+      if (normalizedCategoryIds.length > 0) {
+        data.categoryIds = normalizedCategoryIds;
+      }
       const normalizedStatus = String(data?.status || '').trim().toLowerCase();
       const isDraft = normalizedStatus === 'draft';
-      if (!data.categoryId) {
+      if (!data.categoryId && normalizedCategoryIds.length === 0) {
         return this.result({ code: 400, message: '请选择所属分类' });
       }
       if (!isDraft && (!data.name || !data.url)) {
@@ -116,6 +131,21 @@ class WebsiteController extends baseController {
     const { ctx } = this;
     try {
       const data = ctx.request.body || {};
+      const normalizedCategoryIds = Array.from(
+        new Set(
+          (Array.isArray(data.categoryIds)
+            ? data.categoryIds
+            : String(data.categoryIds || '').split(/[，,]/))
+            .map(item => Number.parseInt(String(item || '').trim(), 10))
+            .filter(item => Number.isInteger(item) && item > 0)
+        )
+      );
+      if (!data.categoryId && normalizedCategoryIds.length > 0) {
+        data.categoryId = normalizedCategoryIds[0];
+      }
+      if (normalizedCategoryIds.length > 0) {
+        data.categoryIds = normalizedCategoryIds;
+      }
       if (!data.id) {
         return this.result({ code: 400, message: '缺少网站ID' });
       }
@@ -131,6 +161,51 @@ class WebsiteController extends baseController {
         return this.result({ code: 400, message: '字段内容过长，请缩短后重试' });
       }
       this.result({ code: 500, message: rawMessage || '更新网站失败' });
+    }
+  }
+
+  /**
+   * 校验网址是否重复（用于后台添加网站时实时提示）
+   */
+  async checkDuplicateUrl() {
+    const { ctx } = this;
+    try {
+      const { url, excludeId } = ctx.query;
+      const normalizedUrl = String(url || '').trim();
+      if (!normalizedUrl) {
+        return this.result({ code: 400, message: '缺少网址URL' });
+      }
+      const duplicate = await ctx.service.uied.website.findDuplicateWebsiteByUrl(normalizedUrl, {
+        excludeId: Number.parseInt(String(excludeId || 0), 10),
+      });
+      this.result({
+        data: {
+          exists: Boolean(duplicate),
+          website: duplicate || null,
+        },
+      });
+    } catch (error) {
+      ctx.logger.error('校验重复网址失败:', error);
+      this.result({ code: 500, message: '校验重复网址失败' });
+    }
+  }
+
+  /**
+   * 批量导入网址（支持：抓取网站信息、AI 生成详情内容）
+   */
+  async batchImport() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const result = await ctx.service.uied.website.batchImport(payload);
+      this.result({
+        data: result,
+        message: `导入完成：新增 ${result.created} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`,
+      });
+    } catch (error) {
+      ctx.logger.error('批量导入网址失败:', error);
+      const message = String(error?.message || '').trim();
+      this.result({ code: 500, message: message || '批量导入失败' });
     }
   }
 

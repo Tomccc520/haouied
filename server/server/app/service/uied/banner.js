@@ -25,6 +25,13 @@ class BannerService extends Service {
    */
   normalizePosition(position) {
     const normalized = String(position || '').trim().toLowerCase();
+    /**
+     * 兼容历史错误拼写：detall -> detail
+     */
+    const normalizedWithTypoFixed = normalized
+      .replace(/^detall(?=$|[_-])/, 'detail')
+      .replace(/^website-detall/, 'website-detail')
+      .replace(/^website_detall/, 'website_detail');
     const map = {
       top: 'home',
       bottom: 'footer',
@@ -32,8 +39,19 @@ class BannerService extends Service {
       website_detail_sidebar: 'detail_sidebar',
       'website-detail-sidebar': 'detail_sidebar',
       website_detail: 'detail',
+      detail_sidebar: 'detail_sidebar',
+      'detail-sidebar': 'detail_sidebar',
+      detail_top: 'detail_top',
+      detail_inline: 'detail_inline',
+      detail_bottom: 'detail_bottom',
+      detall: 'detail',
+      detall_sidebar: 'detail_sidebar',
+      'detall-sidebar': 'detail_sidebar',
+      detall_top: 'detail_top',
+      detall_inline: 'detail_inline',
+      detall_bottom: 'detail_bottom',
     };
-    const value = map[normalized] || normalized || '';
+    const value = map[normalizedWithTypoFixed] || normalizedWithTypoFixed || '';
     if (value.length > 20 && /sidebar/i.test(value)) {
       return 'detail_sidebar';
     }
@@ -261,14 +279,19 @@ class BannerService extends Service {
       global_strip: [ 'global_strip' ],
       bottom: [ 'bottom', 'footer' ],
       footer: [ 'footer', 'bottom' ],
-      sidebar: [ 'sidebar', 'website_detail_sidebar', 'detail_sidebar' ],
-      website_detail_sidebar: [ 'website_detail_sidebar', 'sidebar', 'detail_sidebar' ],
-      detail_sidebar: [ 'detail_sidebar', 'website_detail_sidebar', 'sidebar' ],
-      popup: [ 'popup', 'detail' ],
-      detail: [ 'detail', 'popup' ],
-      detail_top: [ 'detail_top' ],
-      detail_inline: [ 'detail_inline' ],
-      detail_bottom: [ 'detail_bottom' ],
+      sidebar: [ 'sidebar', 'website_detail_sidebar', 'detail_sidebar', 'detall_sidebar' ],
+      website_detail_sidebar: [ 'website_detail_sidebar', 'sidebar', 'detail_sidebar', 'detall_sidebar' ],
+      detail_sidebar: [ 'detail_sidebar', 'website_detail_sidebar', 'sidebar', 'detall_sidebar' ],
+      detall_sidebar: [ 'detall_sidebar', 'detail_sidebar', 'website_detail_sidebar', 'sidebar' ],
+      popup: [ 'popup', 'detail', 'detall' ],
+      detail: [ 'detail', 'popup', 'detall' ],
+      detall: [ 'detall', 'detail', 'popup' ],
+      detail_top: [ 'detail_top', 'detall_top', 'detail' ],
+      detall_top: [ 'detall_top', 'detail_top', 'detail' ],
+      detail_inline: [ 'detail_inline', 'detall_inline', 'detail' ],
+      detall_inline: [ 'detall_inline', 'detail_inline', 'detail' ],
+      detail_bottom: [ 'detail_bottom', 'detall_bottom', 'detail' ],
+      detall_bottom: [ 'detall_bottom', 'detail_bottom', 'detail' ],
     };
 
     const aliases = aliasGroups[normalized] || [ normalized ];

@@ -14,11 +14,11 @@ import ToolCard from '../ToolCard';
 import DesignArticleGrid from '../DesignArticleGrid';
 import AdBanner from '../AdBanner';
 import SEO from '../SEO';
-import { DesignIcons, IconTool } from '../UI';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
 import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse } from '../../utils/apiResponse';
+import { createSvgIconMap } from '../../utils/svgIconLibrary';
 import { useNavigate } from 'react-router-dom';
 import { 
   CategorySidebarSkeleton, 
@@ -29,7 +29,6 @@ import { NavMenuType } from '../../types';
 import '../../styles/common.css';
 
 type HeroPageType = 'home' | 'ai' | 'uiux' | 'design' | 'search' | 'threed' | 'ecommerce' | 'interior' | 'font';
-type IconComponent = React.ElementType;
 type WebsiteWithExtra = Website & { slug?: string; oldId?: string };
 
 interface DirectVisitTarget {
@@ -51,99 +50,6 @@ const resolveHeroPageType = (input: string | NavMenuType | undefined): HeroPageT
   if (value === NavMenuType.FONT) return 'font';
   if (value === NavMenuType.THREE_D || value === 'threed') return 'threed';
   return 'home';
-};
-
-// 图标映射 - key 与后台 admin/src/config/icons.tsx 中的 availableIcons 对应
-const iconMap: Record<string, IconComponent> = {
-  // ============ 设计相关 ============
-  'inspiration': DesignIcons.Inspiration,
-  'ui': DesignIcons.UI,
-  'graphic': DesignIcons.Graphic,
-  'template': DesignIcons.Template,
-  'material': DesignIcons.Material,
-  'icons': DesignIcons.Icons,
-  'color': DesignIcons.Color,
-  'font': DesignIcons.Font,
-  'brand': DesignIcons.Brand,
-  'prototype': DesignIcons.Prototype,
-  'kit': DesignIcons.Kit,
-  'animation': DesignIcons.Animation,
-  '3d': DesignIcons['3D'],
-  'print': DesignIcons.Print,
-  'art': DesignIcons.Art,
-  'figma': DesignIcons.Figma,
-  'illustration': DesignIcons.Illustration,
-  'components': DesignIcons.Components,
-  'mockup': DesignIcons.Mockup,
-  'palette': DesignIcons.Palette,
-  
-  // ============ 媒体相关 ============
-  'image': DesignIcons.Image,
-  'photo': DesignIcons.Photo,
-  'video': DesignIcons.Video,
-  'audio': DesignIcons.Audio,
-  'camera': DesignIcons.Camera,
-  
-  // ============ 技术相关 ============
-  'ai': DesignIcons.AI,
-  'code': DesignIcons.Code,
-  'developer': DesignIcons.Developer,
-  'web': DesignIcons.Web,
-  'mobile': DesignIcons.Mobile,
-  'plugin': DesignIcons.Plugin,
-  'data': DesignIcons.Data,
-  'analytics': DesignIcons.Analytics,
-  'visualization': DesignIcons.Visualization,
-  'gameui': DesignIcons.gameui,
-  'metaverse': DesignIcons.metaverse,
-  'digital': DesignIcons.Digital,
-  'system': DesignIcons.System,
-  
-  // ============ 商业相关 ============
-  'ecommerce': DesignIcons.Ecommerce,
-  'store': DesignIcons.Store,
-  'marketing': DesignIcons.Marketing,
-  'platform': DesignIcons.Platform,
-  'livestreaming': DesignIcons.LiveStreaming,
-  'banner': DesignIcons.Banner,
-  'package': DesignIcons.Package,
-  
-  // ============ 电商相关 ============
-  'layout': DesignIcons.Layout,
-  'specs': DesignIcons.Specs,
-  
-  // ============ 室内设计 ============
-  'cad': DesignIcons.CAD,
-  'furniture': DesignIcons.Furniture,
-  'texture': DesignIcons.Texture,
-  'lighting': DesignIcons.Lighting,
-  'project': DesignIcons.Project,
-  'vr': DesignIcons.VR,
-  
-  // ============ 通用图标 ============
-  'tools': DesignIcons.Tools,
-  'tutorial': DesignIcons.Tutorial,
-  'learn': DesignIcons.Learn,
-  'blog': DesignIcons.Blog,
-  'community': DesignIcons.Community,
-  'book': DesignIcons.Book,
-  'education': DesignIcons.Education,
-  'resource': DesignIcons.Resource,
-  'carui': DesignIcons.CarUI,
-  'designteam': DesignIcons.DesignTeam,
-  'othercontent': DesignIcons.othercontent,
-  
-  // ============ 兼容性映射（Heroicons/其他风格名称） ============
-  'academic-cap': DesignIcons.Education,
-  'briefcase': DesignIcons.Tools,
-  'globe-alt': DesignIcons.Web,
-  'shopping-cart': DesignIcons.Ecommerce,
-  'music': DesignIcons.Audio,
-  'Flag01': DesignIcons.Tools,  // Untitled UI 图标名称兼容
-  'tool': IconTool,
-  
-  // 默认图标
-  'default': IconTool
 };
 
 interface DynamicPageProps {
@@ -253,13 +159,21 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     }
   }, [categories, activeCategory]);
 
+  /**
+   * 构建 svg:key 图标索引，供分类侧边栏渲染自定义 SVG。
+   */
+  const svgIconMap = useMemo(
+    () => createSvgIconMap(frontendConfig?.pageGlobalConfig?.categorySvgLibrary || []),
+    [frontendConfig?.pageGlobalConfig?.categorySvgLibrary]
+  );
+
   // 导航项 - 包含子分类信息
   const navItems: NavItem[] = useMemo(() => {
     return categories.map(cat => ({
       id: cat.id,
       name: cat.name,
       count: getWebsitesByCategory(cat.id).length,
-      icon: iconMap[cat.icon] || iconMap.default,
+      icon: String(cat.icon || 'default').trim() || 'default',
       color: cat.color,
       subcategories: cat.subCategories?.map(sub => ({
         id: sub.id,
@@ -425,6 +339,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
           <CategorySidebar
             config={sidebarConfig}
             navItems={navItems}
+            svgIconMap={svgIconMap}
             activeItem={activeCategory}
             onItemClick={handleNavItemClick}
             isSearchMode={isSearchMode}

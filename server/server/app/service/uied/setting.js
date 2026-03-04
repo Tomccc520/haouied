@@ -342,6 +342,59 @@ class SettingService extends Service {
   }
 
   /**
+   * 清洗 SVG 字符串，避免后台注入脚本。
+   * @param {unknown} value SVG 原始字符串
+   * @return {string} 清洗后的 SVG
+   */
+  sanitizeSvgMarkup(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    let sanitized = raw
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+      .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '')
+      .replace(/javascript:/gi, '');
+    sanitized = sanitized.trim();
+    if (!sanitized.toLowerCase().startsWith('<svg')) return '';
+    return sanitized;
+  }
+
+  /**
+   * 规范化分类 SVG 图标库。
+   * 支持数组、对象和 JSON 字符串三种输入格式。
+   * @param {unknown} value 图标库原始值
+   * @return {Array<{key:string,label:string,svg:string}>} 规范化后的图标库
+   */
+  normalizeCategorySvgLibrary(value) {
+    let source = value;
+    if (typeof source === 'string') {
+      try {
+        source = JSON.parse(source);
+      } catch (_error) {
+        source = [];
+      }
+    }
+    const rows = Array.isArray(source)
+      ? source
+      : (source && typeof source === 'object'
+        ? Object.keys(source).map(key => ({ key, svg: source[key] }))
+        : []);
+    return rows
+      .map((item, index) => {
+        const key = String(item?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+        if (!key) return null;
+        const svg = this.sanitizeSvgMarkup(item?.svg);
+        if (!svg) return null;
+        const label = String(item?.label || key).trim().slice(0, 40) || key;
+        const sort = Number.isFinite(Number(item?.sort)) ? Number(item.sort) : index + 1;
+        return { key, label, svg, sort };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ key, label, svg }) => ({ key, label, svg }));
+  }
+
+  /**
    * 规范化页面全局配置，确保分类与热门推荐为独立且统一语义
    */
   normalizePageGlobalConfig(config = {}) {
@@ -350,6 +403,7 @@ class SettingService extends Service {
     normalized.hotRecommendationClickMode = this.normalizeHotRecommendationClickMode(config.hotRecommendationClickMode);
     normalized.appendRefEnabled = config.appendRefEnabled === true;
     normalized.appendRefValue = String(config.appendRefValue || '').trim();
+    normalized.categorySvgLibrary = this.normalizeCategorySvgLibrary(config.categorySvgLibrary);
     return normalized;
   }
 
@@ -422,6 +476,7 @@ class SettingService extends Service {
    * 规范化详情页配置，确保 SEO 开关与数组字段结构稳定
    */
   normalizeDetailPageConfig(config = {}) {
+    const rawConfig = this.isPlainObject(config) ? config : {};
     const defaults = {
       seoCanonicalEnabled: true,
       seoNoindexEnabled: false,
@@ -446,7 +501,7 @@ class SettingService extends Service {
         { key: 'ad', name: '广告位', enabled: false, sort: 8 },
       ],
     };
-    const merged = { ...defaults, ...(config || {}) };
+    const merged = { ...defaults, ...rawConfig };
     const restConfig = { ...merged };
     delete restConfig.sidebarAdEnabled;
     delete restConfig.detailTopAdEnabled;
@@ -466,14 +521,64 @@ class SettingService extends Service {
       }))
       .sort((a, b) => a.sort - b.sort)
       .map((item, index) => ({ ...item, sort: index + 1 }));
+    /**
+     * 兼容旧字段：若历史配置仍使用 shareEnabled，则迁移到 sharingEnabled。
+     */
+    const sharingEnabled = typeof merged.sharingEnabled === 'boolean'
+      ? merged.sharingEnabled
+      : rawConfig.shareEnabled !== false;
     const normalizedShareChannels = normalizeSortableList(merged.shareChannels);
     const normalizedSidebarModules = normalizeSortableList(merged.sidebarModules);
+    const hasExplicitSidebarModules = Array.isArray(rawConfig.sidebarModules)
+      && rawConfig.sidebarModules.length > 0;
+    /**
+     * 兼容旧字段：仅在未配置 sidebarModules 时，使用 show* 迁移模块开关。
+     */
+    const migratedSidebarModules = !hasExplicitSidebarModules
+      ? normalizedSidebarModules.map(item => {
+          const legacyMap = {
+            category: 'showCategory',
+            related: 'showRelated',
+            hot_websites: 'showHotWebsites',
+            articles: 'showArticles',
+            tags: 'showTags',
+          };
+          const legacyKey = legacyMap[item.key];
+          if (!legacyKey) return item;
+          if (typeof rawConfig[legacyKey] !== 'boolean') return item;
+          return { ...item, enabled: rawConfig[legacyKey] !== false };
+        })
+      : normalizedSidebarModules;
+    /**
+     * 清理已废弃字段，避免运营后台出现重复开关语义。
+     */
+    delete restConfig.showRelated;
+    delete restConfig.showHotWebsites;
+    delete restConfig.showArticles;
+    delete restConfig.showTags;
+    delete restConfig.showCategory;
+    delete restConfig.shareEnabled;
+    delete restConfig.favoritesEnabled;
+    delete restConfig.relatedEnabled;
+    delete restConfig.tagsEnabled;
+    /**
+     * 规范化详情广告 slotKey，避免空字符串导致前台无法命中广告位。
+     */
+    const normalizeSlotKey = (value, fallback) => {
+      const text = String(value || '').trim();
+      return text || fallback;
+    };
     return {
       ...restConfig,
+      sidebarAdSlotKey: normalizeSlotKey(merged.sidebarAdSlotKey, 'website_detail_sidebar'),
+      detailTopAdSlotKey: normalizeSlotKey(merged.detailTopAdSlotKey, 'detail_top'),
+      detailInlineAdSlotKey: normalizeSlotKey(merged.detailInlineAdSlotKey, 'detail_inline'),
+      detailBottomAdSlotKey: normalizeSlotKey(merged.detailBottomAdSlotKey, 'detail_bottom'),
+      sharingEnabled: sharingEnabled !== false,
       seoCanonicalEnabled: merged.seoCanonicalEnabled !== false,
       seoNoindexEnabled: merged.seoNoindexEnabled === true,
       shareChannels: normalizedShareChannels.length > 0 ? normalizedShareChannels : defaults.shareChannels,
-      sidebarModules: normalizedSidebarModules.length > 0 ? normalizedSidebarModules : defaults.sidebarModules,
+      sidebarModules: migratedSidebarModules.length > 0 ? migratedSidebarModules : defaults.sidebarModules,
     };
   }
 
@@ -848,6 +953,7 @@ class SettingService extends Service {
       hotRecommendationClickMode: 'detail', // 热门推荐独立配置，默认进详情页
       appendRefEnabled: false,
       appendRefValue: '',
+      categorySvgLibrary: [],
     };
 
     const defaultAppearance = {
@@ -946,22 +1052,17 @@ class SettingService extends Service {
       dataPanelTitle: '站点访问数据',
       heroAccentGlassEnabled: true,
       enabled: true,
-      showRelated: true,
       relatedTitle: '你可能还喜欢',
       relatedCount: 6,
       relatedMode: 'same_category',
       manualWebsiteIds: '',
-      showHotWebsites: true,
       hotWebsitesTitle: '热门网址',
       hotWebsitesCount: 6,
-      showArticles: true,
       articlesTitle: '推荐文章',
       articlesCount: 5,
-      showTags: true,
       tagsTitle: '深入探索',
       tagSource: 'website',
       manualTags: '',
-      showCategory: true,
       categoryTitle: '相关分类',
       sidebarLinksNewWindow: false,
       sidebarAdSlotKey: 'website_detail_sidebar',
@@ -988,9 +1089,6 @@ class SettingService extends Service {
       ratingsEnabled: true,
       commentsEnabled: true,
       sharingEnabled: true,
-      favoritesEnabled: true,
-      relatedEnabled: true,
-      tagsEnabled: true,
       visitArrowEnabled: true,
       visitArrowText: '直达网站',
       copyrightEnabled: true,

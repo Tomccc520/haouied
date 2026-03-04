@@ -55,6 +55,45 @@ interface DailyHotBackendAggregateResponse {
   platforms?: DailyHotBackendPlatformResultRow[];
 }
 
+interface MemoryCacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const DAILY_HOT_AGGREGATE_CACHE_TTL_MS = 90 * 1000;
+const DAILY_HOT_PLATFORMS_CACHE_TTL_MS = 90 * 1000;
+const DAILY_HOT_DISPLAY_CONFIG_CACHE_TTL_MS = 60 * 1000;
+
+const dailyHotAggregateCache = new Map<string, MemoryCacheEntry<Record<string, DailyHotItem[]>>>();
+const dailyHotAggregatePendingMap = new Map<string, Promise<Record<string, DailyHotItem[]>>>();
+let dailyHotPlatformsCache: MemoryCacheEntry<DailyHotPlatform[]> | null = null;
+let dailyHotPlatformsPending: Promise<DailyHotPlatform[]> | null = null;
+let dailyHotDisplayConfigCache: MemoryCacheEntry<DailyHotDisplayConfig> | null = null;
+let dailyHotDisplayConfigPending: Promise<DailyHotDisplayConfig> | null = null;
+
+/**
+ * 判断缓存项是否仍在有效期内
+ * @param entry 缓存项
+ * @returns 是否有效
+ */
+const isCacheAlive = <T>(entry: MemoryCacheEntry<T> | null): entry is MemoryCacheEntry<T> => {
+  return Boolean(entry && entry.expiresAt > Date.now());
+};
+
+/**
+ * 序列化热榜请求参数，生成稳定缓存键
+ * @param params 请求参数
+ * @returns 缓存键
+ */
+const buildDailyHotCacheKey = (params?: DailyHotParams): string => {
+  if (!params) return 'default';
+  const entries = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+    .sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
+  if (!entries.length) return 'default';
+  return entries.map(([key, value]) => `${key}:${String(value)}`).join('|');
+};
+
 /**
  * 将热榜时间字段规范化为可读时间（兼容毫秒/秒级时间戳）
  */
@@ -198,14 +237,46 @@ const normalizeDailyHotPlatformsResponse = (payload: unknown): DailyHotPlatform[
  * @param params 查询参数
  */
 export const getDailyHot = async (params?: DailyHotParams): Promise<Record<string, DailyHotItem[]>> => {
+  const forceRefresh = Number(params?.refresh || 0) === 1;
+  const cacheKey = buildDailyHotCacheKey(params);
+  if (!forceRefresh) {
+    const cached = dailyHotAggregateCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+    const pending = dailyHotAggregatePendingMap.get(cacheKey);
+    if (pending) {
+      return pending;
+    }
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const payload = await requestWithCompatiblePath<unknown>(
+        '/daily-hot',
+        params ? (params as unknown as Record<string, unknown>) : undefined
+      );
+      const normalized = normalizeDailyHotListResponse(payload);
+      dailyHotAggregateCache.set(cacheKey, {
+        data: normalized,
+        expiresAt: Date.now() + DAILY_HOT_AGGREGATE_CACHE_TTL_MS,
+      });
+      return normalized;
+    } catch (error) {
+      console.error('获取每日热榜数据失败:', error);
+      throw error;
+    } finally {
+      dailyHotAggregatePendingMap.delete(cacheKey);
+    }
+  })();
+
+  if (!forceRefresh) {
+    dailyHotAggregatePendingMap.set(cacheKey, requestPromise);
+  }
+
   try {
-    const payload = await requestWithCompatiblePath<unknown>(
-      '/daily-hot',
-      params ? (params as unknown as Record<string, unknown>) : undefined
-    );
-    return normalizeDailyHotListResponse(payload);
+    return await requestPromise;
   } catch (error) {
-    console.error('获取每日热榜数据失败:', error);
     throw error;
   }
 };
@@ -215,14 +286,41 @@ export const getDailyHot = async (params?: DailyHotParams): Promise<Record<strin
  * @param refresh 是否强制刷新缓存
  */
 export const getDailyHotPlatforms = async (refresh?: boolean): Promise<DailyHotPlatform[]> => {
+  const forceRefresh = refresh === true;
+  if (!forceRefresh && isCacheAlive(dailyHotPlatformsCache)) {
+    return dailyHotPlatformsCache.data;
+  }
+  if (!forceRefresh && dailyHotPlatformsPending) {
+    return dailyHotPlatformsPending;
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const payload = await requestWithCompatiblePath<unknown>(
+        '/daily-hot/platforms',
+        { refresh: forceRefresh ? 1 : undefined }
+      );
+      const normalized = normalizeDailyHotPlatformsResponse(payload);
+      dailyHotPlatformsCache = {
+        data: normalized,
+        expiresAt: Date.now() + DAILY_HOT_PLATFORMS_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch (error) {
+      console.error('获取热榜平台列表失败:', error);
+      throw error;
+    } finally {
+      dailyHotPlatformsPending = null;
+    }
+  })();
+
+  if (!forceRefresh) {
+    dailyHotPlatformsPending = requestPromise;
+  }
+
   try {
-    const payload = await requestWithCompatiblePath<unknown>(
-      '/daily-hot/platforms',
-      { refresh: refresh ? 1 : undefined }
-    );
-    return normalizeDailyHotPlatformsResponse(payload);
+    return await requestPromise;
   } catch (error) {
-    console.error('获取热榜平台列表失败:', error);
     throw error;
   }
 };
@@ -230,7 +328,7 @@ export const getDailyHotPlatforms = async (refresh?: boolean): Promise<DailyHotP
 /**
  * 获取每日热榜公开展示配置（首页入口/导航快捷入口等）
  */
-export const getDailyHotDisplayConfig = async (): Promise<DailyHotDisplayConfig> => {
+export const getDailyHotDisplayConfig = async (refresh = false): Promise<DailyHotDisplayConfig> => {
   const fallback: DailyHotDisplayConfig = {
     enabled: true,
     defaultPlatforms: [ '哔哩哔哩', '知乎', '微博' ],
@@ -246,11 +344,37 @@ export const getDailyHotDisplayConfig = async (): Promise<DailyHotDisplayConfig>
     updatedAt: 0,
   };
 
+  if (!refresh && isCacheAlive(dailyHotDisplayConfigCache)) {
+    return dailyHotDisplayConfigCache.data;
+  }
+  if (!refresh && dailyHotDisplayConfigPending) {
+    return dailyHotDisplayConfigPending;
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const payload = await requestWithCompatiblePath<unknown>('/daily-hot/config');
+      const normalized = unwrapApiResponse<DailyHotDisplayConfig>(payload, fallback);
+      dailyHotDisplayConfigCache = {
+        data: normalized,
+        expiresAt: Date.now() + DAILY_HOT_DISPLAY_CONFIG_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch (error) {
+      console.error('获取每日热榜展示配置失败:', error);
+      return fallback;
+    } finally {
+      dailyHotDisplayConfigPending = null;
+    }
+  })();
+
+  if (!refresh) {
+    dailyHotDisplayConfigPending = requestPromise;
+  }
+
   try {
-    const payload = await requestWithCompatiblePath<unknown>('/daily-hot/config');
-    return unwrapApiResponse<DailyHotDisplayConfig>(payload, fallback);
+    return await requestPromise;
   } catch (error) {
-    console.error('获取每日热榜展示配置失败:', error);
     return fallback;
   }
 };

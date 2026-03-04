@@ -162,6 +162,146 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 归一化网站分类 ID 列表（支持 categoryId + categoryIds 混合输入）。
+   * 第一项视为主分类，用于兼容历史 category_id 字段。
+   * @param {Object} data 网站数据
+   * @return {number[]} 分类ID列表
+   */
+  normalizeWebsiteCategoryIds(data = {}) {
+    const fromList = this.parseCategoryIdList(data.categoryIds);
+    const primaryCategoryId = Number.parseInt(String(data.categoryId || 0), 10);
+    if (Number.isInteger(primaryCategoryId) && primaryCategoryId > 0) {
+      fromList.unshift(primaryCategoryId);
+    }
+    return Array.from(new Set(fromList));
+  }
+
+  /**
+   * 确保“网站-分类关联表”存在，支持一个网站挂多个分类。
+   */
+  async ensureWebsiteCategoryTable() {
+    if (this._websiteCategoryTableReady) return;
+    const { app } = this;
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_website_category\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`website_id\` BIGINT UNSIGNED NOT NULL COMMENT '网站ID',
+        \`category_id\` BIGINT UNSIGNED NOT NULL COMMENT '分类ID',
+        \`sort\` INT NOT NULL DEFAULT 0 COMMENT '排序（同网站内）',
+        \`is_delete\` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否删除',
+        \`create_time\` BIGINT NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`uniq_website_category\` (\`website_id\`, \`category_id\`),
+        KEY \`idx_category\` (\`category_id\`, \`is_delete\`),
+        KEY \`idx_website\` (\`website_id\`, \`is_delete\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站-分类多对多关联表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
+    this._websiteCategoryTableReady = true;
+  }
+
+  /**
+   * 保存网站与分类的关联关系（全量覆盖）。
+   * @param {number} websiteId 网站ID
+   * @param {number[]} categoryIds 分类ID列表
+   * @param {number} nowUnix 更新时间戳（秒）
+   */
+  async saveWebsiteCategoryRelations(websiteId, categoryIds = [], nowUnix = Math.floor(Date.now() / 1000)) {
+    const { app } = this;
+    const normalizedWebsiteId = Number.parseInt(String(websiteId || 0), 10);
+    if (!Number.isInteger(normalizedWebsiteId) || normalizedWebsiteId <= 0) return;
+
+    await this.ensureWebsiteCategoryTable();
+    const normalizedCategoryIds = Array.from(
+      new Set(
+        (Array.isArray(categoryIds) ? categoryIds : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+
+    await app.model.query(
+      'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id = ? AND is_delete = 0',
+      {
+        replacements: [ nowUnix, normalizedWebsiteId ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+
+    if (normalizedCategoryIds.length === 0) return;
+    const placeholders = normalizedCategoryIds.map(() => '(?, ?, ?, 0, ?, ?)').join(',');
+    const replacements = [];
+    normalizedCategoryIds.forEach((categoryId, index) => {
+      replacements.push(
+        normalizedWebsiteId,
+        categoryId,
+        index + 1,
+        nowUnix,
+        nowUnix
+      );
+    });
+    await app.model.query(
+      `INSERT INTO uied_website_category
+        (website_id, category_id, sort, is_delete, create_time, update_time)
+       VALUES ${placeholders}
+       ON DUPLICATE KEY UPDATE
+         is_delete = 0,
+         sort = VALUES(sort),
+         update_time = VALUES(update_time)`,
+      {
+        replacements,
+        type: app.Sequelize.QueryTypes.INSERT,
+      }
+    );
+  }
+
+  /**
+   * 批量读取网站关联分类，用于列表/详情回填 categoryIds。
+   * @param {Array<number|string>} websiteIds 网站ID数组
+   * @return {Promise<Map<number, number[]>>} 网站ID到分类ID列表映射
+   */
+  async getWebsiteCategoryIdMap(websiteIds = []) {
+    const { app } = this;
+    const normalizedWebsiteIds = Array.from(
+      new Set(
+        (Array.isArray(websiteIds) ? websiteIds : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    const resultMap = new Map();
+    normalizedWebsiteIds.forEach(id => resultMap.set(id, []));
+    if (normalizedWebsiteIds.length === 0) return resultMap;
+
+    await this.ensureWebsiteCategoryTable();
+    const rows = await app.model.query(
+      `SELECT website_id as websiteId, category_id as categoryId
+       FROM uied_website_category
+       WHERE is_delete = 0 AND website_id IN (?)
+       ORDER BY website_id ASC, sort ASC, id ASC`,
+      {
+        replacements: [ normalizedWebsiteIds ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      const websiteId = Number.parseInt(String(row.websiteId || 0), 10);
+      const categoryId = Number.parseInt(String(row.categoryId || 0), 10);
+      if (!Number.isInteger(websiteId) || websiteId <= 0) return;
+      if (!Number.isInteger(categoryId) || categoryId <= 0) return;
+      if (!resultMap.has(websiteId)) {
+        resultMap.set(websiteId, []);
+      }
+      const nextList = resultMap.get(websiteId);
+      if (!nextList.includes(categoryId)) {
+        nextList.push(categoryId);
+      }
+    });
+    return resultMap;
+  }
+
+  /**
    * 规范化 varchar 字段（去首尾空格 + 截断），避免写库时报 Data too long。
    * @param {unknown} value 原始值
    * @param {number} maxLength 最大长度
@@ -184,6 +324,321 @@ class WebsiteService extends Service {
       return normalized;
     }
     return normalized.slice(0, maxLength);
+  }
+
+  /**
+   * 提取 URL 对比用主机名（忽略协议与 www 前缀），用于缩小重复查询范围。
+   * @param {unknown} rawUrl 原始网址
+   * @return {string} 归一化主机名
+   */
+  extractWebsiteCompareHost(rawUrl) {
+    const source = String(rawUrl || '').trim();
+    if (!source) return '';
+    let candidate = source;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+      candidate = `https://${candidate}`;
+    }
+    try {
+      const parsed = new URL(candidate);
+      return String(parsed.hostname || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\.$/, '')
+        .replace(/^www\./, '');
+    } catch (error) {
+      return source
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .split('/')[0]
+        .replace(/\.$/, '')
+        .replace(/^www\./, '');
+    }
+  }
+
+  /**
+   * 从主机名提取主域名（示例：a.b.example.com -> example.com）
+   * 说明：用于“仅主域名”重复判定，忽略子域名差异。
+   * @param {string} host 主机名
+   * @return {string} 主域名
+   */
+  extractWebsiteRootDomain(host) {
+    const hostname = String(host || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\.$/, '')
+      .replace(/^www\./, '');
+    if (!hostname) return '';
+    if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return hostname;
+    }
+    const parts = hostname.split('.').filter(Boolean);
+    if (parts.length <= 2) return hostname;
+    const twoLevelSuffixSet = new Set([
+      'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn',
+      'co.uk', 'org.uk', 'gov.uk', 'ac.uk',
+      'com.au', 'net.au', 'org.au',
+      'co.jp', 'com.hk', 'com.tw',
+    ]);
+    const tailTwo = `${parts[parts.length - 2]}.${parts[parts.length - 1]}`;
+    if (twoLevelSuffixSet.has(tailTwo) && parts.length >= 3) {
+      return `${parts[parts.length - 3]}.${tailTwo}`;
+    }
+    return tailTwo;
+  }
+
+  /**
+   * 规范化网址用于重复校验：仅保留主域名（忽略协议、路径、参数、子域名差异）。
+   * @param {unknown} rawUrl 原始网址
+   * @return {string} 主域名对比键
+   */
+  normalizeWebsiteUrlForCompare(rawUrl) {
+    const source = String(rawUrl || '').trim();
+    if (!source) return '';
+    let candidate = source;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+      candidate = `https://${candidate}`;
+    }
+    try {
+      const parsed = new URL(candidate);
+      const hostname = String(parsed.hostname || '').trim();
+      return this.extractWebsiteRootDomain(hostname);
+    } catch (error) {
+      const host = source
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .split('/')[0]
+        .replace(/\.$/, '');
+      return this.extractWebsiteRootDomain(host);
+    }
+  }
+
+  /**
+   * 检查网址是否重复（兼容 http/https、www、尾斜杠差异）。
+   * @param {unknown} rawUrl 待校验网址
+   * @param {Object} options 选项
+   * @param {number} options.excludeId 需要排除的网站 ID（编辑态）
+   * @return {Promise<null|{id:number,name:string,url:string,status:string}>} 重复记录
+   */
+  async findDuplicateWebsiteByUrl(rawUrl, options = {}) {
+    const { app } = this;
+    const targetRootDomain = this.normalizeWebsiteUrlForCompare(rawUrl);
+    if (!targetRootDomain) return null;
+
+    const excludeId = Number.parseInt(String(options.excludeId || 0), 10);
+    const compareDomain = targetRootDomain;
+    const where = [ 'is_delete = 0', 'url IS NOT NULL', "TRIM(url) != ''" ];
+    const replacements = [];
+
+    if (Number.isInteger(excludeId) && excludeId > 0) {
+      where.push('id != ?');
+      replacements.push(excludeId);
+    }
+
+    if (compareDomain) {
+      where.push('LOWER(url) LIKE ?');
+      replacements.push(`%${compareDomain}%`);
+    }
+
+    const records = await app.model.query(
+      `SELECT id, name, url, status
+       FROM uied_website
+       WHERE ${where.join(' AND ')}
+       ORDER BY id DESC
+       LIMIT 300`,
+      { replacements, type: app.Sequelize.QueryTypes.SELECT }
+    );
+
+    for (const row of records) {
+      const existingRootDomain = this.normalizeWebsiteUrlForCompare(row.url);
+      if (!existingRootDomain) continue;
+      if (existingRootDomain !== targetRootDomain) continue;
+      return {
+        id: Number(row.id || 0),
+        name: String(row.name || ''),
+        url: String(row.url || ''),
+        status: this.normalizeWebsiteStatus(row.status, undefined, 'unchecked'),
+      };
+    }
+    return null;
+  }
+
+  /**
+   * 解析批量导入输入（支持换行、逗号、空格分隔），输出合法 URL 列表。
+   * @param {unknown} urls 原始输入（字符串或数组）
+   * @return {string[]} 规范化 URL 列表
+   */
+  normalizeBatchImportUrls(urls) {
+    const rows = Array.isArray(urls)
+      ? urls
+      : String(urls || '')
+        .split(/[\n\r,，;；\t ]+/g)
+        .map(item => item.trim())
+        .filter(Boolean);
+    const unique = [];
+    const seen = new Set();
+    rows.forEach(item => {
+      let candidate = String(item || '').trim();
+      if (!candidate) return;
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+        candidate = `https://${candidate}`;
+      }
+      try {
+        const parsed = new URL(candidate);
+        const url = String(parsed.href || '').trim();
+        if (!url) return;
+        if (seen.has(url)) return;
+        seen.add(url);
+        unique.push(url);
+      } catch (error) {
+        // 无效 URL 由上层统一记录失败原因
+      }
+    });
+    return unique;
+  }
+
+  /**
+   * 基于 URL 生成默认网站名称（当 SEO 抓取不到 title 时兜底）。
+   * @param {string} url 网址
+   * @return {string} 默认网站名称
+   */
+  buildWebsiteNameFromUrl(url) {
+    const host = this.extractWebsiteCompareHost(url);
+    if (!host) return '未命名网站';
+    const rootDomain = this.extractWebsiteRootDomain(host);
+    const segments = String(rootDomain || host).split('.');
+    if (!segments.length) return rootDomain || host;
+    return String(segments[0] || rootDomain || host);
+  }
+
+  /**
+   * 将 SEO keywords 文本转换为标签列表。
+   * @param {string} keywords 关键词文本
+   * @return {string[]} 标签数组
+   */
+  parseSeoKeywordsToTags(keywords) {
+    return String(keywords || '')
+      .split(/[，,；;、\n\r\t]/g)
+      .map(item => item.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+
+  /**
+   * 批量导入网址（可选：抓取网站信息、AI 生成详情内容）。
+   * @param {Object} payload 导入参数
+   * @return {Promise<{total:number,created:number,skipped:number,failed:number,rows:any[]}>} 导入结果
+   */
+  async batchImport(payload = {}) {
+    const { ctx } = this;
+    const urls = this.normalizeBatchImportUrls(payload.urls);
+    const categoryId = Number.parseInt(String(payload.categoryId || 0), 10);
+    const shouldFetchSeo = payload.fetchSeo !== false;
+    const shouldGenerateDetailContent = payload.generateDetailContent === true;
+    const publishStatus = this.normalizeWebsiteStatus(payload.status, payload.isActive, 'draft');
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      throw new Error('请选择所属分类');
+    }
+    if (!urls.length) {
+      return { total: 0, created: 0, skipped: 0, failed: 0, rows: [] };
+    }
+
+    const rows = [];
+    for (const rawUrl of urls) {
+      const currentUrl = String(rawUrl || '').trim();
+      if (!currentUrl) continue;
+      try {
+        const duplicate = await this.findDuplicateWebsiteByUrl(currentUrl);
+        if (duplicate) {
+          rows.push({
+            status: 'skipped',
+            url: currentUrl,
+            reason: `重复域名（已存在：ID ${duplicate.id} ${duplicate.name || ''}）`,
+            websiteId: duplicate.id,
+          });
+          continue;
+        }
+
+        let seoInfo = null;
+        if (shouldFetchSeo) {
+          try {
+            seoInfo = await ctx.service.uied.seoScraper.fetch(currentUrl);
+          } catch (seoError) {
+            // SEO 抓取失败不阻塞导入
+            seoInfo = null;
+          }
+        }
+
+        const generatedTags = this.parseSeoKeywordsToTags(String(seoInfo?.keywords || ''));
+        const savePayload = {
+          name: this.normalizeVarchar(
+            String(seoInfo?.title || '').trim() || this.buildWebsiteNameFromUrl(currentUrl),
+            200,
+            { allowNull: false, fallback: this.buildWebsiteNameFromUrl(currentUrl) || '未命名网站' }
+          ),
+          slug: null,
+          url: currentUrl,
+          categoryId,
+          description: this.normalizeVarchar(String(seoInfo?.description || '').trim(), 1000, { allowNull: true }) || '',
+          iconUrl: this.normalizeVarchar(String(seoInfo?.favicon || '').trim(), 500, { allowNull: true }),
+          tags: generatedTags,
+          order: 0,
+          isActive: publishStatus === 'active' ? 1 : 0,
+          status: publishStatus,
+          seoTitle: this.normalizeVarchar(String(seoInfo?.title || '').trim(), 100, { allowNull: true }),
+          seoDescription: this.normalizeVarchar(String(seoInfo?.description || '').trim(), 300, { allowNull: true }),
+          seoKeywords: this.normalizeVarchar(String(seoInfo?.keywords || '').trim(), 200, { allowNull: true }),
+          detailContent: null,
+          thumbnail: null,
+        };
+
+        const created = await this.add(savePayload);
+        const websiteId = Number(created?.id || 0);
+
+        let aiDetailGenerated = false;
+        let aiDetailError = '';
+        if (websiteId > 0 && shouldGenerateDetailContent) {
+          try {
+            const aiResult = await ctx.service.uied.aiConfig.generateDetailContent(websiteId);
+            const aiContent = String(aiResult?.content || '').trim();
+            if (aiContent) {
+              await this.edit({ id: websiteId, detailContent: aiContent });
+              aiDetailGenerated = true;
+            }
+          } catch (aiError) {
+            aiDetailError = String(aiError?.message || 'AI 详情生成失败').trim();
+          }
+        }
+
+        rows.push({
+          status: 'created',
+          url: currentUrl,
+          websiteId,
+          name: savePayload.name,
+          reason: aiDetailError ? `导入成功，AI详情生成失败：${aiDetailError}` : '导入成功',
+          fetchedSeo: Boolean(seoInfo),
+          aiDetailGenerated,
+          aiDetailError,
+        });
+      } catch (error) {
+        rows.push({
+          status: 'failed',
+          url: currentUrl,
+          reason: String(error?.message || '导入失败').trim(),
+        });
+      }
+    }
+
+    const created = rows.filter(item => item.status === 'created').length;
+    const skipped = rows.filter(item => item.status === 'skipped').length;
+    const failed = rows.filter(item => item.status === 'failed').length;
+    return {
+      total: rows.length,
+      created,
+      skipped,
+      failed,
+      rows,
+    };
   }
 
   /**
@@ -220,19 +675,32 @@ class WebsiteService extends Service {
       ])
     );
     if (categoryIdList.length > 0) {
-      const placeholders = categoryIdList.map(() => '?').join(',');
+      let effectiveCategoryIds = [ ...categoryIdList ];
       if (includeChildren) {
-        whereClause += ` AND (
-          w.category_id IN (${placeholders})
-          OR w.category_id IN (
-            SELECT id FROM uied_category WHERE parent_id IN (${placeholders}) AND is_delete = 0
-          )
-        )`;
-        replacements.push(...categoryIdList, ...categoryIdList);
-      } else {
-        whereClause += ` AND w.category_id IN (${placeholders})`;
-        replacements.push(...categoryIdList);
+        const childRows = await app.model.query(
+          'SELECT id FROM uied_category WHERE parent_id IN (?) AND is_delete = 0',
+          {
+            replacements: [ categoryIdList ],
+            type: app.Sequelize.QueryTypes.SELECT,
+          }
+        );
+        const childIds = (Array.isArray(childRows) ? childRows : [])
+          .map(item => Number.parseInt(String(item?.id || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0);
+        effectiveCategoryIds = Array.from(new Set([ ...effectiveCategoryIds, ...childIds ]));
       }
+      const placeholders = effectiveCategoryIds.map(() => '?').join(',');
+      whereClause += ` AND (
+        w.category_id IN (${placeholders})
+        OR EXISTS (
+          SELECT 1
+          FROM uied_website_category uwc
+          WHERE uwc.website_id = w.id
+            AND uwc.is_delete = 0
+            AND uwc.category_id IN (${placeholders})
+        )
+      )`;
+      replacements.push(...effectiveCategoryIds, ...effectiveCategoryIds);
     }
 
     if (keyword) {
@@ -333,9 +801,19 @@ class WebsiteService extends Service {
     );
 
     // 转换布尔值和解析 tags
+    const websiteIds = websites
+      .map(item => Number.parseInt(String(item?.id || 0), 10))
+      .filter(item => Number.isInteger(item) && item > 0);
+    const websiteCategoryIdMap = await this.getWebsiteCategoryIdMap(websiteIds);
+
     const list = websites.map(w => {
       const normalizedStatus = this.normalizeWebsiteStatus(w.status, undefined, 'active');
       const tagBundle = this.parseWebsiteTagBundle(w.tags);
+      const fallbackCategoryId = Number.parseInt(String(w.categoryId || 0), 10);
+      const categoryIdsForWebsite = websiteCategoryIdMap.get(Number(w.id || 0)) || [];
+      if (categoryIdsForWebsite.length === 0 && Number.isInteger(fallbackCategoryId) && fallbackCategoryId > 0) {
+        categoryIdsForWebsite.push(fallbackCategoryId);
+      }
       return {
         ...w,
         status: normalizedStatus,
@@ -344,6 +822,7 @@ class WebsiteService extends Service {
         isHot: w.isHot === 1,
         isPinned: w.isPinned === 1,
         isActive: normalizedStatus === 'active',
+        categoryIds: categoryIdsForWebsite,
         tags: tagBundle.tags,
         weightTags: tagBundle.weightTags,
       };
@@ -396,6 +875,11 @@ class WebsiteService extends Service {
     // 转换字段名和类型
     const normalizedStatus = this.normalizeWebsiteStatus(website.status, undefined, 'active');
     const tagBundle = this.parseWebsiteTagBundle(website.tags);
+    const websiteCategoryIdMap = await this.getWebsiteCategoryIdMap([ website.id ]);
+    const categoryIds = websiteCategoryIdMap.get(Number(website.id || 0)) || [];
+    if (categoryIds.length === 0 && Number(website.category_id || 0) > 0) {
+      categoryIds.push(Number(website.category_id));
+    }
     return {
       id: website.id,
       name: website.name,
@@ -404,6 +888,7 @@ class WebsiteService extends Service {
       url: website.url,
       iconUrl: website.icon_url,
       categoryId: website.category_id,
+      categoryIds,
       categoryName: website.categoryName,
       categorySlug: website.categorySlug,
       isNew: website.is_new === 1,
@@ -442,6 +927,21 @@ class WebsiteService extends Service {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const normalizedSlug = this.normalizeVarchar(data.slug, 200, { allowNull: true });
+    const normalizedUrl = this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' });
+    const normalizedCategoryIds = this.normalizeWebsiteCategoryIds(data);
+    const primaryCategoryId = normalizedCategoryIds[0] || Number.parseInt(String(data.categoryId || 0), 10);
+
+    if (!Number.isInteger(primaryCategoryId) || primaryCategoryId <= 0) {
+      throw new Error('请选择所属分类');
+    }
+
+    // 检查 URL 是否已存在（忽略协议与尾斜杠差异）
+    if (normalizedUrl) {
+      const duplicateUrl = await this.findDuplicateWebsiteByUrl(normalizedUrl);
+      if (duplicateUrl) {
+        throw new Error(`网站URL已存在（ID: ${duplicateUrl.id}，名称：${duplicateUrl.name || '未命名'}）`);
+      }
+    }
 
     // 检查 slug 是否已存在
     if (normalizedSlug) {
@@ -466,9 +966,9 @@ class WebsiteService extends Service {
           this.normalizeVarchar(data.name, 200, { allowNull: false, fallback: '' }),
           normalizedSlug,
           data.description || '',
-          this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' }),
+          normalizedUrl,
           this.normalizeVarchar(data.iconUrl, 500, { allowNull: true }),
-          Number(data.categoryId || 0),
+          primaryCategoryId,
           data.isNew ? 1 : 0,
           data.isFeatured ? 1 : 0,
           data.isHot ? 1 : 0,
@@ -492,6 +992,13 @@ class WebsiteService extends Service {
     );
 
     const websiteId = Number(result || 0);
+    if (websiteId > 0) {
+      await this.saveWebsiteCategoryRelations(
+        websiteId,
+        normalizedCategoryIds.length > 0 ? normalizedCategoryIds : [ primaryCategoryId ],
+        now
+      );
+    }
     if (websiteId > 0 && data.trafficMetrics !== undefined) {
       try {
         await this.ctx.service.uied.websiteTrafficMetric.saveByWebsiteId(websiteId, data.trafficMetrics || {});
@@ -511,13 +1018,18 @@ class WebsiteService extends Service {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const hasSlugField = Object.prototype.hasOwnProperty.call(data, 'slug');
+    const hasCategoryIdField = Object.prototype.hasOwnProperty.call(data, 'categoryId');
+    const hasCategoryIdsField = Object.prototype.hasOwnProperty.call(data, 'categoryIds');
     const normalizedSlug = hasSlugField
       ? this.normalizeVarchar(data.slug, 200, { allowNull: true })
       : undefined;
+    const normalizedCategoryIds = hasCategoryIdField || hasCategoryIdsField
+      ? this.normalizeWebsiteCategoryIds(data)
+      : [];
 
     // 检查网站是否存在
     const [ existing ] = await app.model.query(
-      'SELECT id, tags FROM uied_website WHERE id = ? AND is_delete = 0',
+      'SELECT id, tags, category_id as categoryId FROM uied_website WHERE id = ? AND is_delete = 0',
       { replacements: [ data.id ], type: app.Sequelize.QueryTypes.SELECT }
     );
     if (!existing) {
@@ -535,6 +1047,14 @@ class WebsiteService extends Service {
       }
     }
 
+    const primaryCategoryIdForUpdate = hasCategoryIdField || hasCategoryIdsField
+      ? (normalizedCategoryIds[0] || Number.parseInt(String(data.categoryId || existing.categoryId || 0), 10))
+      : Number.parseInt(String(existing.categoryId || 0), 10);
+    if ((hasCategoryIdField || hasCategoryIdsField)
+      && (!Number.isInteger(primaryCategoryIdForUpdate) || primaryCategoryIdForUpdate <= 0)) {
+      throw new Error('请选择所属分类');
+    }
+
     // 构建更新字段
     const updates = [];
     const values = [];
@@ -546,14 +1066,24 @@ class WebsiteService extends Service {
     if (hasSlugField) { updates.push('slug = ?'); values.push(normalizedSlug); }
     if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description); }
     if (data.url !== undefined) {
+      const normalizedUrl = this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' });
+      if (normalizedUrl) {
+        const duplicateUrl = await this.findDuplicateWebsiteByUrl(normalizedUrl, { excludeId: data.id });
+        if (duplicateUrl) {
+          throw new Error(`网站URL已存在（ID: ${duplicateUrl.id}，名称：${duplicateUrl.name || '未命名'}）`);
+        }
+      }
       updates.push('url = ?');
-      values.push(this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' }));
+      values.push(normalizedUrl);
     }
     if (data.iconUrl !== undefined) {
       updates.push('icon_url = ?');
       values.push(this.normalizeVarchar(data.iconUrl, 500, { allowNull: true }));
     }
-    if (data.categoryId !== undefined) { updates.push('category_id = ?'); values.push(data.categoryId); }
+    if (hasCategoryIdField || hasCategoryIdsField) {
+      updates.push('category_id = ?');
+      values.push(primaryCategoryIdForUpdate);
+    }
     if (data.isNew !== undefined) { updates.push('is_new = ?'); values.push(data.isNew ? 1 : 0); }
     if (data.isFeatured !== undefined) { updates.push('is_featured = ?'); values.push(data.isFeatured ? 1 : 0); }
     if (data.isHot !== undefined) { updates.push('is_hot = ?'); values.push(data.isHot ? 1 : 0); }
@@ -606,6 +1136,14 @@ class WebsiteService extends Service {
       { replacements: values, type: app.Sequelize.QueryTypes.UPDATE }
     );
 
+    if (hasCategoryIdField || hasCategoryIdsField) {
+      await this.saveWebsiteCategoryRelations(
+        Number(data.id),
+        normalizedCategoryIds.length > 0 ? normalizedCategoryIds : [ primaryCategoryIdForUpdate ],
+        now
+      );
+    }
+
     if (data.trafficMetrics !== undefined) {
       try {
         await this.ctx.service.uied.websiteTrafficMetric.saveByWebsiteId(data.id, data.trafficMetrics || {});
@@ -623,11 +1161,19 @@ class WebsiteService extends Service {
   async del(id) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const websiteId = Number.parseInt(String(id || 0), 10);
 
     await app.model.query(
       'UPDATE uied_website SET is_delete = 1, delete_time = ? WHERE id = ?',
       { replacements: [ now, id ], type: app.Sequelize.QueryTypes.UPDATE }
     );
+    if (Number.isInteger(websiteId) && websiteId > 0) {
+      await this.ensureWebsiteCategoryTable();
+      await app.model.query(
+        'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id = ? AND is_delete = 0',
+        { replacements: [ now, websiteId ], type: app.Sequelize.QueryTypes.UPDATE }
+      );
+    }
   }
 
   /**
@@ -636,11 +1182,25 @@ class WebsiteService extends Service {
   async batchDel(ids) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const websiteIds = Array.from(
+      new Set(
+        (Array.isArray(ids) ? ids : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
 
     await app.model.query(
       `UPDATE uied_website SET is_delete = 1, delete_time = ? WHERE id IN (${ids.join(',')})`,
       { replacements: [ now ], type: app.Sequelize.QueryTypes.UPDATE }
     );
+    if (websiteIds.length > 0) {
+      await this.ensureWebsiteCategoryTable();
+      await app.model.query(
+        'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id IN (?) AND is_delete = 0',
+        { replacements: [ now, websiteIds ], type: app.Sequelize.QueryTypes.UPDATE }
+      );
+    }
   }
 
   /**
@@ -667,11 +1227,25 @@ class WebsiteService extends Service {
 
     // 如果指定了页面，只搜索该页面的分类下的网站
     if (pageSlug) {
-      whereClause += ` AND w.category_id IN (
-        SELECT pc.category_id FROM uied_page_category pc
-        INNER JOIN uied_page p ON pc.page_id = p.id
-        WHERE p.slug = ? AND pc.is_delete = 0
+      whereClause += ` AND (
+        w.category_id IN (
+          SELECT pc.category_id FROM uied_page_category pc
+          INNER JOIN uied_page p ON pc.page_id = p.id
+          WHERE p.slug = ? AND pc.is_delete = 0
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM uied_website_category uwc
+          WHERE uwc.website_id = w.id
+            AND uwc.is_delete = 0
+            AND uwc.category_id IN (
+              SELECT pc.category_id FROM uied_page_category pc
+              INNER JOIN uied_page p ON pc.page_id = p.id
+              WHERE p.slug = ? AND pc.is_delete = 0
+            )
+        )
       )`;
+      replacements.push(pageSlug);
       replacements.push(pageSlug);
     }
 

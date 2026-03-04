@@ -69,6 +69,16 @@ export function uiedWebsiteEdit(params: any) {
     return request.post({ url: '/uied/website/edit', params })
 }
 
+// 校验网址是否重复
+export function uiedWebsiteCheckDuplicateUrl(params: any) {
+    return request.get({ url: '/uied/website/checkDuplicateUrl', params })
+}
+
+// 批量导入网址
+export function uiedWebsiteBatchImport(params: any) {
+    return request.post({ url: '/uied/website/batchImport', params })
+}
+
 // 删除网站
 export function uiedWebsiteDelete(params: any) {
     return request.post({ url: '/uied/website/del', params })

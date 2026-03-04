@@ -195,7 +195,7 @@ class ExportService extends Service {
     const { app } = this;
 
     const tables = [
-      'uied_category', 'uied_website', 'uied_page', 'uied_page_category',
+      'uied_category', 'uied_website', 'uied_website_category', 'uied_page', 'uied_page_category',
       'uied_hot_recommendation', 'uied_banner', 'uied_site_setting', 'uied_site_info',
       'uied_nav_menu', 'uied_footer_group', 'uied_footer_link', 'uied_friend_link',
       'uied_social_media_group', 'uied_social_media_item', 'uied_favicon_api',

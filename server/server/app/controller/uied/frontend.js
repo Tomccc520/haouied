@@ -709,6 +709,7 @@ class FrontendController extends Controller {
    */
   async aiSearch() {
     const { ctx } = this;
+    await ctx.service.uied.website.ensureWebsiteCategoryTable();
     const body = ctx.request.body || {};
     const query = String(body.query || '').trim();
     const limit = Math.min(this.parsePositiveInt(body.limit, 10), 100);
@@ -755,7 +756,18 @@ class FrontendController extends Controller {
       const pattern = `%${query}%`;
       const exactPattern = query;
       const prefixPattern = `${query}%`;
-      const whereSql = categoryId > 0 ? ' AND w.category_id = ? ' : '';
+      const whereSql = categoryId > 0
+        ? ` AND (
+          w.category_id = ?
+          OR EXISTS (
+            SELECT 1
+            FROM uied_website_category uwc
+            WHERE uwc.website_id = w.id
+              AND uwc.is_delete = 0
+              AND uwc.category_id = ?
+          )
+        )`
+        : '';
 
       /**
        * AI 搜索兜底为关键词检索时，仍按相关性优先排序，提升结果可用性。
@@ -772,7 +784,7 @@ class FrontendController extends Controller {
       `;
 
       const whereReplacements = categoryId > 0
-        ? [ pattern, pattern, pattern, pattern, categoryId ]
+        ? [ pattern, pattern, pattern, pattern, categoryId, categoryId ]
         : [ pattern, pattern, pattern, pattern ];
       const relevanceReplacements = [
         exactPattern,
@@ -2323,6 +2335,7 @@ class FrontendController extends Controller {
    */
   async categories() {
     const { ctx } = this;
+    await ctx.service.uied.website.ensureWebsiteCategoryTable();
 
     try {
       // 获取所有可见的主分类（parent_id IS NULL）及其子分类和网站数量
@@ -2330,7 +2343,14 @@ class FrontendController extends Controller {
         `SELECT c.id, c.name, c.slug, c.icon, c.color, c.description,
                 c.seo_title as seoTitle, c.seo_description as seoDescription, c.seo_keywords as seoKeywords,
                 c.parent_id as parentId,
-                (SELECT COUNT(*) FROM uied_website w WHERE w.category_id = c.id AND w.is_delete = 0) as websiteCount
+                (
+                  SELECT COUNT(DISTINCT w.id)
+                  FROM uied_website w
+                  LEFT JOIN uied_website_category uwc
+                    ON uwc.website_id = w.id AND uwc.is_delete = 0
+                  WHERE w.is_delete = 0
+                    AND (w.category_id = c.id OR uwc.category_id = c.id)
+                ) as websiteCount
          FROM uied_category c
          WHERE c.is_delete = 0 AND c.is_show = 1
          ORDER BY c.sort ASC, c.id ASC`,
@@ -2390,6 +2410,7 @@ class FrontendController extends Controller {
    */
   async categoryDetail() {
     const { ctx } = this;
+    await ctx.service.uied.website.ensureWebsiteCategoryTable();
     const { idOrSlug } = ctx.params;
     const { page = 1, pageSize = 24 } = ctx.query;
     const offset = (parseInt(page) - 1) * parseInt(pageSize);
@@ -2432,23 +2453,40 @@ class FrontendController extends Controller {
 
       const allCategoryIds = [ category.id, ...subCategories.map(s => s.id) ];
       const placeholders = allCategoryIds.map(() => '?').join(',');
+      const categoryMatchSql = `(
+        category_id IN (${placeholders})
+        OR EXISTS (
+          SELECT 1
+          FROM uied_website_category uwc
+          WHERE uwc.website_id = uied_website.id
+            AND uwc.is_delete = 0
+            AND uwc.category_id IN (${placeholders})
+        )
+      )`;
+      const categoryMatchReplacements = [ ...allCategoryIds, ...allCategoryIds ];
 
       // 获取网站总数
       const [ countResult ] = await ctx.app.model.query(
         `SELECT COUNT(*) as total FROM uied_website
-         WHERE category_id IN (${placeholders}) AND is_delete = 0`,
-        { replacements: allCategoryIds, type: ctx.app.Sequelize.QueryTypes.SELECT }
+         WHERE ${categoryMatchSql} AND is_delete = 0`,
+        {
+          replacements: categoryMatchReplacements,
+          type: ctx.app.Sequelize.QueryTypes.SELECT
+        }
       );
 
       // 获取分页网站
       const websites = await ctx.app.model.query(
-        `SELECT id, name, slug, description, url, icon_url as iconUrl,
+        `SELECT DISTINCT id, name, slug, description, url, icon_url as iconUrl,
                 is_hot as isHot, is_featured as isFeatured, is_new as isNew, tags
          FROM uied_website
-         WHERE category_id IN (${placeholders}) AND is_delete = 0
+         WHERE ${categoryMatchSql} AND is_delete = 0
          ORDER BY is_pinned DESC, is_hot DESC, is_featured DESC, sort ASC
          LIMIT ? OFFSET ?`,
-        { replacements: [ ...allCategoryIds, parseInt(pageSize), offset ], type: ctx.app.Sequelize.QueryTypes.SELECT }
+        {
+          replacements: [ ...categoryMatchReplacements, parseInt(pageSize), offset ],
+          type: ctx.app.Sequelize.QueryTypes.SELECT
+        }
       );
 
       // 获取父分类信息

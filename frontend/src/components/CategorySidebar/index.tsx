@@ -11,6 +11,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { IconSearch } from '../UI/Icons/index';
 import { NavMenuType } from '../../types';
 import { IconComponent } from '../../types/icon';
+import { resolveSvgIconMarkup } from '../../utils/svgIconLibrary';
 import { 
   DesignIcons, 
   IconTool, 
@@ -116,6 +117,7 @@ export interface CategorySidebarProps {
   onNavTypeChange?: (navType: NavMenuType) => void; // 导航类型切换回调
   // 新增：自定义徽章文本
   badgeText?: string;              // 自定义徽章文本，如果不传则使用type
+  svgIconMap?: Record<string, string>; // 自定义 SVG 图标库（svg:key）
 }
 
 // 新增：导航切换项接口
@@ -402,7 +404,8 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
   navSwitchItems = [],
   currentNavType,
   onNavTypeChange,
-  badgeText
+  badgeText,
+  svgIconMap = {}
 }) => {
   // 合并默认配置
   const finalConfig = { ...getDefaultConfig(config.type), ...config };
@@ -522,8 +525,13 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
         
         {/* 导航项列表 */}
         {navItems.map(item => {
-          // 获取图标组件：优先使用后台设置的图标
-          const IconComponent = getIconComponent(item.icon);
+          /**
+           * 优先解析 svg:key 图标库，未命中时回退内置图标组件。
+           */
+          const svgMarkup = typeof item.icon === 'string'
+            ? resolveSvgIconMarkup(item.icon, svgIconMap)
+            : '';
+          const IconComponent = svgMarkup ? null : getIconComponent(item.icon);
           
           const isActive = activeItem === item.id;
           const isDisabled = item.disabled;
@@ -539,7 +547,15 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                 aria-current={isActive ? 'page' : undefined}
               >
                 <div className="category-nav-icon">
-                  <IconComponent size={18} />
+                  {svgMarkup ? (
+                    <span
+                      className="category-nav-icon-svg"
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+                    />
+                  ) : (
+                    IconComponent ? <IconComponent size={18} /> : null
+                  )}
                 </div>
                 <span className="category-nav-name">{item.name}</span>
                 

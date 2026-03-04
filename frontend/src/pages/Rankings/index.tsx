@@ -20,6 +20,7 @@ import './index.css';
 
 type MetricTab = 'visit' | 'favorite' | 'like';
 type PeriodTab = 'day' | 'week' | 'month';
+type BoardViewMode = 'metric' | 'operations';
 
 const METRIC_TABS: Array<{ key: MetricTab; label: string }> = [
   { key: 'visit', label: '访问量' },
@@ -114,6 +115,7 @@ const RankingsPage: React.FC = () => {
   const [activeMetric, setActiveMetric] = useState<MetricTab>('visit');
   const [activePeriod, setActivePeriod] = useState<PeriodTab>('day');
   const [activeOpsBoardKey, setActiveOpsBoardKey] = useState<string>('');
+  const [activeViewMode, setActiveViewMode] = useState<BoardViewMode>('metric');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -230,6 +232,19 @@ const RankingsPage: React.FC = () => {
     });
   }, [operationsBoards]);
 
+  /**
+   * 根据可用榜单自动修正当前展示模式
+   */
+  useEffect(() => {
+    if (activeViewMode === 'metric' && !metricBoards.length && operationsBoards.length) {
+      setActiveViewMode('operations');
+      return;
+    }
+    if (activeViewMode === 'operations' && !operationsBoards.length && metricBoards.length) {
+      setActiveViewMode('metric');
+    }
+  }, [activeViewMode, metricBoards.length, operationsBoards.length]);
+
   const pageTitle = String(publicConfig?.displayLabel || '').trim() || '榜单系统';
   const openInNewTab = publicConfig?.displayOpenInNewTab === true;
   const linkTarget = openInNewTab ? '_blank' : undefined;
@@ -238,6 +253,15 @@ const RankingsPage: React.FC = () => {
     () => boards.reduce((sum, board) => sum + (Array.isArray(board.items) ? board.items.length : 0), 0),
     [boards]
   );
+
+  const currentBoard = useMemo(() => {
+    if (activeViewMode === 'operations') {
+      return activeOpsBoard;
+    }
+    return activeMetricBoard;
+  }, [activeViewMode, activeMetricBoard, activeOpsBoard]);
+
+  const currentBoardGroupLabel = activeViewMode === 'operations' ? '运营榜单内容' : '数据榜单内容';
 
   /**
    * 渲染榜单卡片列表
@@ -248,13 +272,25 @@ const RankingsPage: React.FC = () => {
     if (!board) {
       return <div className="rankings-page__state">暂无可展示榜单</div>;
     }
+    const boardTitle = board.title || board.boardName || board.key || board.boardKey || '未命名榜单';
+    const boardIcon = String(board.icon || '').trim();
+    const boardIconUrl = boardIcon ? getFullImageUrl(boardIcon) : '';
 
     return (
       <section className="rankings-page__board">
         <header className="rankings-page__board-header">
-          <div>
-            <h2>{board.title || board.boardName || board.key || board.boardKey}</h2>
-            <p>{board.description || '按后台配置规则生成的榜单内容'}</p>
+          <div className="rankings-page__board-title-wrap">
+            <div className="rankings-page__board-title-icon" aria-hidden="true">
+              {boardIconUrl ? (
+                <img src={boardIconUrl} alt={boardTitle} loading="lazy" />
+              ) : (
+                <span>{String(boardTitle).slice(0, 1)}</span>
+              )}
+            </div>
+            <div>
+              <h2>{boardTitle}</h2>
+              <p>{board.description || '按后台配置规则生成的榜单内容'}</p>
+            </div>
           </div>
           <div className="rankings-page__board-count">
             共 {Array.isArray(board.items) ? board.items.length : 0} 条
@@ -347,7 +383,10 @@ const RankingsPage: React.FC = () => {
         <header className="rankings-page__hero">
           <div>
             <div className="rankings-page__eyebrow">热门榜单中心</div>
-            <h1 className="rankings-page__title">{pageTitle}</h1>
+            <div className="rankings-page__title-row">
+              <span className="rankings-page__title-icon" aria-hidden="true" />
+              <h1 className="rankings-page__title">{pageTitle}</h1>
+            </div>
             <p className="rankings-page__desc">
               聚合站内热门与精选榜单，支持按指标与周期快速筛选，适合运营活动与日常内容分发。
             </p>
@@ -372,74 +411,127 @@ const RankingsPage: React.FC = () => {
         ) : error ? (
           <div className="rankings-page__state rankings-page__state--error">{error}</div>
         ) : (
-          <div className="rankings-page__dashboard-grid">
-            {metricBoards.length > 0 && (
-              <section className="rankings-page__metric-panel" aria-label="数据榜单切换">
-                <div className="rankings-page__metric-head">
-                  <div>
-                    <h2>数据榜单</h2>
-                    <p>按访问量、收藏量、点赞量快速切换，聚焦数据走势。</p>
+          <div className="rankings-page__workspace">
+            <aside className="rankings-page__control-column" aria-label="榜单筛选面板">
+              <section className="rankings-page__view-panel" aria-label="榜单内容模式切换">
+                <header className="rankings-page__view-panel-head">
+                  <h2>
+                    <span className="rankings-page__panel-icon rankings-page__panel-icon--switch" aria-hidden="true" />
+                    内容模式
+                  </h2>
+                  <p>左侧切换模式，右侧实时展示对应榜单内容。</p>
+                </header>
+                <div className="rankings-page__view-mode-tabs">
+                  <button
+                    type="button"
+                    className={`rankings-page__view-mode-tab ${activeViewMode === 'metric' ? 'is-active' : ''}`}
+                    onClick={() => setActiveViewMode('metric')}
+                    disabled={!metricBoards.length}
+                  >
+                    数据榜单
+                  </button>
+                  <button
+                    type="button"
+                    className={`rankings-page__view-mode-tab ${activeViewMode === 'operations' ? 'is-active' : ''}`}
+                    onClick={() => setActiveViewMode('operations')}
+                    disabled={!operationsBoards.length}
+                  >
+                    运营榜单
+                  </button>
+                </div>
+              </section>
+
+              {activeViewMode === 'metric' && metricBoards.length > 0 && (
+                <section className="rankings-page__metric-panel" aria-label="数据榜单切换">
+                  <div className="rankings-page__metric-head">
+                    <div>
+                      <h2>
+                        <span className="rankings-page__panel-icon rankings-page__panel-icon--metric" aria-hidden="true" />
+                        数据榜单
+                      </h2>
+                      <p>按访问量、收藏量、点赞量快速切换，聚焦数据走势。</p>
+                    </div>
                   </div>
-                </div>
-                <div className="rankings-page__metric-tabs">
-                  {METRIC_TABS.map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      className={`rankings-page__metric-tab ${activeMetric === tab.key ? 'is-active' : ''}`}
-                      onClick={() => setActiveMetric(tab.key)}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="rankings-page__period-tabs">
-                  {PERIOD_TABS.map((tab) => {
-                    const exists = metricBoards.some((board) => resolveBoardMetric(board) === activeMetric && resolveBoardPeriod(board) === tab.key);
-                    return (
+                  <div className="rankings-page__metric-tabs">
+                    {METRIC_TABS.map((tab) => (
                       <button
                         key={tab.key}
                         type="button"
-                        className={`rankings-page__period-tab ${activePeriod === tab.key ? 'is-active' : ''}`}
-                        onClick={() => setActivePeriod(tab.key)}
-                        disabled={!exists}
+                        className={`rankings-page__metric-tab ${activeMetric === tab.key ? 'is-active' : ''}`}
+                        onClick={() => setActiveMetric(tab.key)}
                       >
                         {tab.label}
                       </button>
-                    );
-                  })}
-                </div>
-                {renderBoardList(activeMetricBoard)}
-              </section>
-            )}
-
-            {operationsBoards.length > 0 && (
-              <section className="rankings-page__ops-panel" aria-label="运营榜单切换">
-                <header className="rankings-page__ops-head">
-                  <div>
-                    <h2>运营榜单</h2>
-                    <p>用于专题活动、编辑精选与重点内容曝光。</p>
+                    ))}
                   </div>
-                </header>
-                <div className="rankings-page__tabs">
-                  {operationsBoards.map((board) => {
-                    const boardKey = String(board.key || board.boardKey);
-                    return (
-                      <button
-                        key={boardKey}
-                        type="button"
-                        className={`rankings-page__tab ${String(activeOpsBoard?.key || activeOpsBoard?.boardKey) === boardKey ? 'is-active' : ''}`}
-                        onClick={() => setActiveOpsBoardKey(boardKey)}
-                      >
-                        <span className="rankings-page__tab-title">{board.title || board.boardName || boardKey}</span>
-                        <span className="rankings-page__tab-desc">{board.items?.length || 0} 条</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {renderBoardList(activeOpsBoard)}
-              </section>
-            )}
+                  <div className="rankings-page__period-tabs">
+                    {PERIOD_TABS.map((tab) => {
+                      const exists = metricBoards.some((board) => resolveBoardMetric(board) === activeMetric && resolveBoardPeriod(board) === tab.key);
+                      return (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          className={`rankings-page__period-tab ${activePeriod === tab.key ? 'is-active' : ''}`}
+                          onClick={() => setActivePeriod(tab.key)}
+                          disabled={!exists}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {activeViewMode === 'operations' && operationsBoards.length > 0 && (
+                <section className="rankings-page__ops-panel" aria-label="运营榜单切换">
+                  <header className="rankings-page__ops-head">
+                    <div>
+                      <h2>
+                        <span className="rankings-page__panel-icon rankings-page__panel-icon--ops" aria-hidden="true" />
+                        运营榜单
+                      </h2>
+                      <p>用于专题活动、编辑精选与重点内容曝光。</p>
+                    </div>
+                  </header>
+                  <div className="rankings-page__tabs">
+                    {operationsBoards.map((board) => {
+                      const boardKey = String(board.key || board.boardKey);
+                      return (
+                        <button
+                          key={boardKey}
+                          type="button"
+                          className={`rankings-page__tab ${String(activeOpsBoard?.key || activeOpsBoard?.boardKey) === boardKey ? 'is-active' : ''}`}
+                          onClick={() => setActiveOpsBoardKey(boardKey)}
+                        >
+                          <span className="rankings-page__tab-title">{board.title || board.boardName || boardKey}</span>
+                          <span className="rankings-page__tab-desc">{board.items?.length || 0} 条</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+            </aside>
+
+            <div className="rankings-page__board-column" aria-label="榜单内容区">
+              {currentBoard ? (
+                <section className="rankings-page__board-block">
+                  <header className="rankings-page__board-block-head">
+                    <h2>
+                      <span className={`rankings-page__panel-icon ${activeViewMode === 'operations' ? 'rankings-page__panel-icon--ops' : 'rankings-page__panel-icon--metric'}`} aria-hidden="true" />
+                      {currentBoardGroupLabel}
+                    </h2>
+                    <p>
+                      当前展示：{currentBoard.title || currentBoard.boardName || currentBoard.key || currentBoard.boardKey || '未命名榜单'}
+                    </p>
+                  </header>
+                  {renderBoardList(currentBoard)}
+                </section>
+              ) : (
+                <div className="rankings-page__state">暂无可展示榜单</div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -18,6 +18,7 @@ import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalink
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse, unwrapApiList } from '../../utils/apiResponse';
+import { createSvgIconMap, resolveSvgIconMarkup } from '../../utils/svgIconLibrary';
 import './index.css';
 import '../../styles/common.css';
 
@@ -78,6 +79,29 @@ interface CategoryDetail {
 }
 
 /**
+ * 渲染分类图标内容：优先 svg:key，未命中则回退文本图标。
+ */
+const renderCategoryIconContent = (
+  iconValue: unknown,
+  fallbackName: string,
+  svgIconMap: Record<string, string>,
+  svgClassName: string,
+) => {
+  const svgMarkup = resolveSvgIconMarkup(iconValue, svgIconMap);
+  if (svgMarkup) {
+    return (
+      <span
+        className={svgClassName}
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: svgMarkup }}
+      />
+    );
+  }
+  const iconText = String(iconValue || '').trim();
+  return iconText || String(fallbackName || '').trim().charAt(0);
+};
+
+/**
  * 分类页面组件
  */
 const CategoryPage: React.FC = () => {
@@ -96,6 +120,7 @@ const CategoryPage: React.FC = () => {
 const CategoryListView: React.FC = () => {
   const navigate = useNavigate();
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
+  const { config: frontendConfig } = useFrontendConfig();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -119,6 +144,7 @@ const CategoryListView: React.FC = () => {
     if (color) return { background: `${color}15`, color };
     return { background: '#f0f5ff', color: '#2563eb' };
   };
+  const svgIconMap = createSvgIconMap(frontendConfig?.pageGlobalConfig?.categorySvgLibrary || []);
 
   if (loading) {
     return (
@@ -158,7 +184,12 @@ const CategoryListView: React.FC = () => {
               >
                 <div className="category-card-header">
                   <div className="category-card-icon" style={iconStyle}>
-                    {cat.icon || cat.name.charAt(0)}
+                    {renderCategoryIconContent(
+                      cat.icon,
+                      cat.name,
+                      svgIconMap,
+                      'category-card-icon-svg',
+                    )}
                   </div>
                   <div>
                     <h3 className="category-card-name">{cat.name}</h3>
@@ -208,6 +239,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const directArrowNewWindow = frontendConfig?.pageGlobalConfig?.directArrowNewWindow ?? true;
   const detailPageNewWindow = frontendConfig?.pageGlobalConfig?.detailPageNewWindow ?? false;
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
+  const svgIconMap = createSvgIconMap(frontendConfig?.pageGlobalConfig?.categorySvgLibrary || []);
 
   // 获取分类详情
   useEffect(() => {
@@ -309,7 +341,12 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
       <div className="category-detail-header">
         <div className="category-header-top">
           <div className="category-header-icon" style={cat.color ? { background: `${cat.color}15`, color: cat.color } : undefined}>
-            {cat.icon || cat.name.charAt(0)}
+            {renderCategoryIconContent(
+              cat.icon,
+              cat.name,
+              svgIconMap,
+              'category-header-icon-svg',
+            )}
           </div>
           <div className="category-header-info">
             <h1 className="category-detail-title">{cat.seoTitle || cat.name}</h1>

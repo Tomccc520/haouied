@@ -94,6 +94,28 @@
   color: #2563eb;
 }
 
+.category-header-icon-svg,
+.category-card-icon-svg {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-header-icon-svg svg,
+.category-card-icon-svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.category-header-icon-svg :is(svg, path, rect, circle, g),
+.category-card-icon-svg :is(svg, path, rect, circle, g) {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
 .category-header-info {
   flex: 1;
   min-width: 0;
