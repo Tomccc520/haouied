@@ -29,8 +29,26 @@ const resolvePageSlugByPathname = (pathname: string): string => {
   if (normalized === '/daily-hot' || normalized === '/p/daily-hot') return 'daily-hot';
   if (normalized === '/daily-new' || normalized === '/p/daily-new') return 'daily-new';
   if (normalized === '/rankings' || normalized === '/p/rankings') return 'rankings';
-  if (normalized.startsWith('/category/')) return 'category';
-  if (normalized.startsWith('/tag/')) return 'tag';
+  if (
+    normalized === '/category'
+    || normalized === '/categories'
+    || normalized === '/p/category'
+    || normalized === '/p/categories'
+    || normalized.startsWith('/p/category/')
+    || normalized.startsWith('/p/categories/')
+    || normalized.startsWith('/category/')
+    || normalized.startsWith('/categories/')
+  ) return 'category';
+  if (
+    normalized === '/tag'
+    || normalized === '/tags'
+    || normalized === '/p/tag'
+    || normalized === '/p/tags'
+    || normalized.startsWith('/p/tag/')
+    || normalized.startsWith('/p/tags/')
+    || normalized.startsWith('/tag/')
+    || normalized.startsWith('/tags/')
+  ) return 'tag';
   if (normalized.startsWith('/articles')) return 'articles';
   if (normalized.startsWith('/article/')) return 'article-detail';
   if (normalized.startsWith('/p/')) {

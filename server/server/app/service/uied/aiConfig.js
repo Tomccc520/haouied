@@ -90,6 +90,250 @@ class AiConfigService extends Service {
   }
 
   /**
+   * 规范化模型列表接口地址
+   * 兼容输入 chat/completions、/v1 或仅域名的情况，统一转为 /models
+   * @param {string} provider - 提供商标识
+   * @param {string} rawUrl - 原始 API 地址
+   * @return {string} 可直接调用的模型列表地址
+   */
+  resolveModelsApiUrl(provider = '', rawUrl = '') {
+    const input = String(rawUrl || '').trim();
+    const fallbackChatUrl = this.resolveProviderDefaultApiUrl(provider);
+    const fallbackModelsUrl = fallbackChatUrl.replace(/\/chat\/completions\/?$/i, '/models');
+    if (!input) return fallbackModelsUrl;
+    if (/\/models\/?$/i.test(input)) {
+      return input.replace(/\/+$/, '');
+    }
+    const normalized = input.replace(/\/+$/, '');
+    if (/\/chat\/completions$/i.test(normalized)) {
+      return normalized.replace(/\/chat\/completions$/i, '/models');
+    }
+    if (/\/v\d+$/i.test(normalized)) {
+      return `${normalized}/models`;
+    }
+    if (/^https?:\/\//i.test(normalized) && !/\/v\d+\//i.test(normalized)) {
+      return `${normalized}/v1/models`;
+    }
+    return `${normalized}/models`;
+  }
+
+  /**
+   * 提供商内置模型预设（兜底用）
+   * 说明：当远程模型拉取失败时，仍可给运营可选模型，避免“模型下拉为空”。
+   * @param {string} provider - 提供商标识
+   * @return {Array<{label:string,value:string}>} 模型预设列表
+   */
+  getProviderBuiltinModelPresets(provider = '') {
+    const key = String(provider || '').trim().toLowerCase();
+    const map = {
+      siliconflow: [
+        { label: 'DeepSeek-V3.2（通用）', value: 'deepseek-ai/DeepSeek-V3.2' },
+        { label: 'DeepSeek-R1（推理）', value: 'deepseek-ai/DeepSeek-R1' },
+        { label: 'Qwen3-32B（通用）', value: 'Qwen/Qwen3-32B' },
+        { label: 'Qwen3-14B（通用）', value: 'Qwen/Qwen3-14B' },
+        { label: 'GLM-4.5（通用）', value: 'zai-org/GLM-4.5' },
+        { label: 'Llama-3.3-70B（通用）', value: 'meta-llama/Llama-3.3-70B-Instruct' },
+      ],
+      openai: [
+        { label: 'GPT-4.1', value: 'gpt-4.1' },
+        { label: 'GPT-4.1-mini', value: 'gpt-4.1-mini' },
+        { label: 'GPT-4o', value: 'gpt-4o' },
+        { label: 'GPT-4o-mini', value: 'gpt-4o-mini' },
+      ],
+      deepseek: [
+        { label: 'DeepSeek Chat', value: 'deepseek-chat' },
+        { label: 'DeepSeek Reasoner', value: 'deepseek-reasoner' },
+      ],
+      qwen: [
+        { label: 'Qwen Plus', value: 'qwen-plus' },
+        { label: 'Qwen Max', value: 'qwen-max' },
+        { label: 'Qwen Turbo', value: 'qwen-turbo' },
+      ],
+      glm: [
+        { label: 'GLM-4-Flash', value: 'glm-4-flash' },
+        { label: 'GLM-4-Plus', value: 'glm-4-plus' },
+      ],
+      moonshot: [
+        { label: 'Moonshot 8K', value: 'moonshot-v1-8k' },
+        { label: 'Moonshot 32K', value: 'moonshot-v1-32k' },
+      ],
+      kimi: [
+        { label: 'Moonshot 8K', value: 'moonshot-v1-8k' },
+        { label: 'Moonshot 32K', value: 'moonshot-v1-32k' },
+      ],
+      ollama: [
+        { label: 'qwen2.5:7b', value: 'qwen2.5:7b' },
+        { label: 'llama3.1:8b', value: 'llama3.1:8b' },
+      ],
+    };
+    return map[key] || [];
+  }
+
+  /**
+   * 规范化远程模型列表响应
+   * @param {Object|Array} payload - 模型列表接口返回
+   * @return {Array<{label:string,value:string,ownedBy:string}>} 标准化后的模型数组
+   */
+  normalizeRemoteModelList(payload) {
+    const rows = Array.isArray(payload)
+      ? payload
+      : (Array.isArray(payload?.data) ? payload.data : []);
+    const result = [];
+    const dedup = new Set();
+    rows.forEach(item => {
+      const value = String(item?.id || item?.model || item?.name || '').trim();
+      if (!value) return;
+      const dedupKey = value.toLowerCase();
+      if (dedup.has(dedupKey)) return;
+      dedup.add(dedupKey);
+      const ownedBy = String(item?.owned_by || item?.ownedBy || '').trim();
+      result.push({
+        label: ownedBy ? `${value}（${ownedBy}）` : value,
+        value,
+        ownedBy,
+      });
+    });
+    return result;
+  }
+
+  /**
+   * 请求模型列表接口（证书链失败时自动降级重试一次）
+   * @param {Object} options - 请求参数
+   * @param {string} options.url - 模型列表地址
+   * @param {string} options.apiKey - API Key
+   * @param {number} [options.timeout=20000] - 超时时间（毫秒）
+   * @return {Promise<any>} HTTP 响应
+   */
+  async requestModelList(options = {}) {
+    const { ctx } = this;
+    const url = String(options.url || '').trim();
+    const apiKey = String(options.apiKey || '').trim();
+    const timeout = Number(options.timeout || 20000);
+    const baseOptions = {
+      method: 'GET',
+      dataType: 'json',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+      },
+      timeout,
+    };
+
+    try {
+      return await ctx.curl(url, baseOptions);
+    } catch (error) {
+      if (!this.isTlsCertificateError(error)) {
+        throw error;
+      }
+      ctx.logger.warn(
+        `模型列表请求证书校验失败，准备使用不校验证书模式重试一次: ${error?.message || error}`
+      );
+      try {
+        return await ctx.curl(url, {
+          ...baseOptions,
+          rejectUnauthorized: false,
+        });
+      } catch (retryError) {
+        if (!this.isTlsCertificateError(retryError) || String(this.app.config.env || '').trim() === 'prod') {
+          throw retryError;
+        }
+        ctx.logger.warn(
+          `模型列表不校验证书重试仍失败，准备在开发环境使用 NODE_TLS_REJECT_UNAUTHORIZED=0 再重试一次: ${retryError?.message || retryError}`
+        );
+        const prevTlsEnv = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        try {
+          return await ctx.curl(url, baseOptions);
+        } finally {
+          if (prevTlsEnv === undefined) {
+            delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+          } else {
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = prevTlsEnv;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 获取可用模型列表
+   * 优先拉取远程接口，失败时自动回退到内置预设，保证后台可用性。
+   * @param {string} provider - 提供商
+   * @param {string} apiKey - API Key
+   * @param {string} apiUrl - API 地址
+   * @param {Object} [options={}] - 附加参数
+   * @param {string} [options.type='text'] - 模型类型
+   * @param {string} [options.subType='chat'] - 模型子类型
+   * @return {Promise<{source:string,requestUrl:string,total:number,models:Array<Object>,message?:string}>}
+   */
+  async listModels(provider, apiKey, apiUrl, options = {}) {
+    const providerKey = String(provider || '').trim().toLowerCase() || 'siliconflow';
+    const token = String(apiKey || '').trim();
+    if (!token) {
+      throw new Error('请先填写 API Key');
+    }
+
+    const requestUrl = this.resolveModelsApiUrl(providerKey, apiUrl);
+    const query = [];
+    const type = String(options.type || '').trim();
+    const subType = String(options.subType || '').trim();
+    // SiliconFlow 文档支持 type/sub_type 过滤，可优先拉取文本对话模型
+    if (providerKey === 'siliconflow') {
+      query.push(`type=${encodeURIComponent(type || 'text')}`);
+      query.push(`sub_type=${encodeURIComponent(subType || 'chat')}`);
+    }
+    const url = query.length > 0 ? `${requestUrl}?${query.join('&')}` : requestUrl;
+
+    try {
+      const response = await this.requestModelList({
+        url,
+        apiKey: token,
+        timeout: 20000,
+      });
+      if (Number(response?.status || 500) !== 200) {
+        throw new Error(`模型列表接口返回异常状态：${response?.status || 500}`);
+      }
+      const models = this.normalizeRemoteModelList(response?.data || {});
+      if (models.length > 0) {
+        return {
+          source: 'remote',
+          requestUrl,
+          total: models.length,
+          models,
+        };
+      }
+      const fallbackModels = this.getProviderBuiltinModelPresets(providerKey).map(item => ({
+        label: item.label,
+        value: item.value,
+        ownedBy: '',
+      }));
+      return {
+        source: 'fallback',
+        requestUrl,
+        total: fallbackModels.length,
+        models: fallbackModels,
+        message: '接口返回为空，已自动回退到内置预设模型',
+      };
+    } catch (error) {
+      const fallbackModels = this.getProviderBuiltinModelPresets(providerKey).map(item => ({
+        label: item.label,
+        value: item.value,
+        ownedBy: '',
+      }));
+      if (fallbackModels.length > 0) {
+        return {
+          source: 'fallback',
+          requestUrl,
+          total: fallbackModels.length,
+          models: fallbackModels,
+          message: `远程拉取失败，已使用预设模型：${error?.message || 'unknown error'}`,
+        };
+      }
+      throw error;
+    }
+  }
+
+  /**
    * AI 配置高级参数设置键（存放在 uied_site_setting）
    * 说明：避免频繁改动 uied_ai_config 表结构，先用 JSON 做兼容扩展
    * @return {string} 设置键名

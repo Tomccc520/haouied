@@ -527,6 +527,10 @@
                         <el-option label="OpenAI" value="openai" />
                         <el-option label="Azure OpenAI" value="azure" />
                         <el-option label="Claude" value="claude" />
+                        <el-option label="智谱 GLM" value="glm" />
+                        <el-option label="Moonshot" value="moonshot" />
+                        <el-option label="Kimi" value="kimi" />
+                        <el-option label="Ollama" value="ollama" />
                         <el-option label="通义千问" value="qwen" />
                         <el-option label="文心一言" value="wenxin" />
                         <el-option label="SiliconFlow" value="siliconflow" />
@@ -549,10 +553,46 @@
                     />
                 </el-form-item>
                 <el-form-item label="模型" prop="model">
-                    <el-input
-                        v-model="editForm.model"
-                        placeholder="请输入模型名称，如：deepseek-ai/DeepSeek-V3.2"
-                    />
+                    <div class="ai-model-field">
+                        <el-select
+                            v-model="editForm.model"
+                            clearable
+                            filterable
+                            allow-create
+                            default-first-option
+                            placeholder="请选择或输入模型名称"
+                            class="ai-model-field__select"
+                        >
+                            <el-option
+                                v-for="item in getProviderMergedModelOptions(editForm.provider, editForm.model)"
+                                :key="`${item.source}:${item.value}`"
+                                :label="item.label"
+                                :value="item.value"
+                            >
+                                <div class="ai-model-option">
+                                    <span class="ai-model-option__label">{{ item.label }}</span>
+                                    <el-tag
+                                        size="small"
+                                        effect="plain"
+                                        :type="item.source === 'remote' ? 'success' : 'info'"
+                                    >
+                                        {{ item.source === 'remote' ? '接口' : '预设' }}
+                                    </el-tag>
+                                </div>
+                            </el-option>
+                        </el-select>
+                        <el-button
+                            type="primary"
+                            plain
+                            :loading="modelOptionsLoading"
+                            @click="handleFetchProviderModels()"
+                        >
+                            拉取模型
+                        </el-button>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-2">
+                        {{ currentProviderModelFetchSummary }}
+                    </div>
                 </el-form-item>
                 <el-form-item label="模型预设">
                     <el-select
@@ -624,7 +664,12 @@
                         style="width: 100%"
                     >
                         <el-option
-                            v-for="item in getProviderReasoningPresets(editForm.provider)"
+                            v-for="
+                                item in getProviderMergedReasoningOptions(
+                                    editForm.provider,
+                                    editForm.reasoningModel
+                                )
+                            "
                             :key="item.value"
                             :label="item.label"
                             :value="item.value"
@@ -714,7 +759,7 @@
  * @version 2.0.0
  */
 
-import { ref, reactive, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -724,6 +769,7 @@ import {
     uiedAiConfigEdit,
     uiedAiConfigDelete,
     uiedAiConfigTest,
+    uiedAiConfigModels,
     uiedAiConfigBatchGenerate,
     uiedAiConfigBatchConfirm,
     uiedWebsiteList,
@@ -743,6 +789,10 @@ const providerMap: Record<string, string> = {
     openai: 'OpenAI',
     azure: 'Azure OpenAI',
     claude: 'Claude',
+    glm: '智谱 GLM',
+    moonshot: 'Moonshot',
+    kimi: 'Kimi',
+    ollama: 'Ollama',
     qwen: '通义千问',
     wenxin: '文心一言',
     siliconflow: 'SiliconFlow',
@@ -750,9 +800,19 @@ const providerMap: Record<string, string> = {
     other: '其他'
 }
 
+type ProviderModelPreset = { label: string; value: string; model: string }
+type RuntimeModelOption = { label: string; value: string; source: 'preset' | 'remote' }
+type RemoteModelMeta = {
+    source: 'remote' | 'fallback'
+    total: number
+    updatedAt: number
+    message: string
+    requestUrl: string
+}
+
 const providerModelPresetMap: Record<
     string,
-    Array<{ label: string; value: string; model: string }>
+    Array<ProviderModelPreset>
 > = {
     siliconflow: [
         {
@@ -761,14 +821,29 @@ const providerModelPresetMap: Record<
             model: 'deepseek-ai/DeepSeek-V3.2'
         },
         {
+            label: 'SiliconFlow / DeepSeek-R1（推理）',
+            value: 'siliconflow.reasoning.deepseek-r1',
+            model: 'deepseek-ai/DeepSeek-R1'
+        },
+        {
             label: 'SiliconFlow / Qwen3-32B（通用）',
             value: 'siliconflow.chat.qwen3-32b',
             model: 'Qwen/Qwen3-32B'
         },
         {
+            label: 'SiliconFlow / Qwen3-14B（通用）',
+            value: 'siliconflow.chat.qwen3-14b',
+            model: 'Qwen/Qwen3-14B'
+        },
+        {
             label: 'SiliconFlow / GLM-4.5（通用）',
             value: 'siliconflow.chat.glm-4.5',
             model: 'zai-org/GLM-4.5'
+        },
+        {
+            label: 'SiliconFlow / Llama-3.3-70B（通用）',
+            value: 'siliconflow.chat.llama-3.3-70b',
+            model: 'meta-llama/Llama-3.3-70B-Instruct'
         }
     ],
     deepseek: [
@@ -776,30 +851,66 @@ const providerModelPresetMap: Record<
         { label: 'DeepSeek Reasoner', value: 'deepseek.reasoner', model: 'deepseek-reasoner' }
     ],
     openai: [
+        { label: 'OpenAI / GPT-4.1', value: 'openai.gpt-4.1', model: 'gpt-4.1' },
         { label: 'OpenAI / GPT-4o-mini', value: 'openai.gpt-4o-mini', model: 'gpt-4o-mini' },
+        { label: 'OpenAI / GPT-4o', value: 'openai.gpt-4o', model: 'gpt-4o' },
         { label: 'OpenAI / GPT-4.1-mini', value: 'openai.gpt-4.1-mini', model: 'gpt-4.1-mini' }
+    ],
+    qwen: [
+        { label: 'Qwen Plus', value: 'qwen.plus', model: 'qwen-plus' },
+        { label: 'Qwen Max', value: 'qwen.max', model: 'qwen-max' },
+        { label: 'Qwen Turbo', value: 'qwen.turbo', model: 'qwen-turbo' }
+    ],
+    glm: [
+        { label: 'GLM-4-Flash', value: 'glm.4.flash', model: 'glm-4-flash' },
+        { label: 'GLM-4-Plus', value: 'glm.4.plus', model: 'glm-4-plus' }
+    ],
+    moonshot: [
+        { label: 'Moonshot 8K', value: 'moonshot.8k', model: 'moonshot-v1-8k' },
+        { label: 'Moonshot 32K', value: 'moonshot.32k', model: 'moonshot-v1-32k' }
+    ],
+    kimi: [
+        { label: 'Kimi 8K', value: 'kimi.8k', model: 'moonshot-v1-8k' },
+        { label: 'Kimi 32K', value: 'kimi.32k', model: 'moonshot-v1-32k' }
+    ],
+    ollama: [
+        { label: 'qwen2.5:7b', value: 'ollama.qwen2.5.7b', model: 'qwen2.5:7b' },
+        { label: 'llama3.1:8b', value: 'ollama.llama3.1.8b', model: 'llama3.1:8b' }
     ]
 }
 
 const providerReasoningPresetMap: Record<string, Array<{ label: string; value: string }>> = {
     siliconflow: [
         { label: 'DeepSeek-R1（推理）', value: 'deepseek-ai/DeepSeek-R1' },
-        { label: 'Qwen3-32B（思考）', value: 'Qwen/Qwen3-32B' }
+        { label: 'Qwen3-32B（思考）', value: 'Qwen/Qwen3-32B' },
+        { label: 'GLM-4.5（思考）', value: 'zai-org/GLM-4.5' }
     ],
-    deepseek: [{ label: 'DeepSeek Reasoner', value: 'deepseek-reasoner' }]
+    deepseek: [{ label: 'DeepSeek Reasoner', value: 'deepseek-reasoner' }],
+    qwen: [{ label: 'Qwen Plus', value: 'qwen-plus' }],
+    glm: [{ label: 'GLM-4-Plus', value: 'glm-4-plus' }]
 }
+
+const modelOptionsLoading = ref(false)
+const providerRemoteModelMap = reactive<Record<string, Array<{ label: string; value: string }>>>({})
+const providerModelFetchMetaMap = reactive<Record<string, RemoteModelMeta>>({})
 
 const getProviderLabel = (provider: string): string => {
     return providerMap[provider] || provider || '未知'
 }
 
 /**
+ * 规范化提供商标识
+ */
+const normalizeProviderKey = (provider: string) =>
+    String(provider || '')
+        .trim()
+        .toLowerCase() || 'siliconflow'
+
+/**
  * 获取当前提供商模型预设列表
  */
 const getProviderModelPresets = (provider: string) => {
-    const key = String(provider || '')
-        .trim()
-        .toLowerCase()
+    const key = normalizeProviderKey(provider)
     return providerModelPresetMap[key] || []
 }
 
@@ -807,10 +918,85 @@ const getProviderModelPresets = (provider: string) => {
  * 获取当前提供商推理模型预设列表
  */
 const getProviderReasoningPresets = (provider: string) => {
-    const key = String(provider || '')
-        .trim()
-        .toLowerCase()
+    const key = normalizeProviderKey(provider)
     return providerReasoningPresetMap[key] || []
+}
+
+/**
+ * 合并“接口模型 + 预设模型”为下拉选项
+ */
+const getProviderMergedModelOptions = (provider: string, currentModel = ''): Array<RuntimeModelOption> => {
+    const key = normalizeProviderKey(provider)
+    const remoteOptions = Array.isArray(providerRemoteModelMap[key]) ? providerRemoteModelMap[key] : []
+    const presetOptions = getProviderModelPresets(key).map((item) => ({
+        label: item.model === item.label ? item.label : `${item.model}（预设）`,
+        value: item.model,
+        source: 'preset' as const
+    }))
+    const merged: Array<RuntimeModelOption> = []
+    const dedup = new Set<string>()
+    remoteOptions.forEach((item) => {
+        const value = String(item?.value || '').trim()
+        if (!value) return
+        const dedupKey = value.toLowerCase()
+        if (dedup.has(dedupKey)) return
+        dedup.add(dedupKey)
+        merged.push({
+            label: String(item?.label || value).trim(),
+            value,
+            source: 'remote'
+        })
+    })
+    presetOptions.forEach((item) => {
+        const value = String(item.value || '').trim()
+        if (!value) return
+        const dedupKey = value.toLowerCase()
+        if (dedup.has(dedupKey)) return
+        dedup.add(dedupKey)
+        merged.push(item)
+    })
+    const normalizedCurrentModel = String(currentModel || '').trim()
+    if (normalizedCurrentModel && !dedup.has(normalizedCurrentModel.toLowerCase())) {
+        merged.unshift({
+            label: `${normalizedCurrentModel}（当前）`,
+            value: normalizedCurrentModel,
+            source: 'preset'
+        })
+    }
+    return merged
+}
+
+/**
+ * 合并推理模型选项（接口模型优先 + 推理预设）
+ */
+const getProviderMergedReasoningOptions = (
+    provider: string,
+    currentModel = ''
+): Array<{ label: string; value: string }> => {
+    const modelOptions = getProviderMergedModelOptions(provider, currentModel).map((item) => ({
+        label: item.label,
+        value: item.value
+    }))
+    const reasoningPresets = getProviderReasoningPresets(provider)
+    const merged: Array<{ label: string; value: string }> = []
+    const dedup = new Set<string>()
+    modelOptions.forEach((item) => {
+        const value = String(item.value || '').trim()
+        if (!value) return
+        const dedupKey = value.toLowerCase()
+        if (dedup.has(dedupKey)) return
+        dedup.add(dedupKey)
+        merged.push(item)
+    })
+    reasoningPresets.forEach((item) => {
+        const value = String(item.value || '').trim()
+        if (!value) return
+        const dedupKey = value.toLowerCase()
+        if (dedup.has(dedupKey)) return
+        dedup.add(dedupKey)
+        merged.push(item)
+    })
+    return merged
 }
 
 // ==================== 配置列表 ====================
@@ -917,14 +1103,24 @@ const testLoading = ref(false)
 const handleTestConnection = async (row: any) => {
     testLoading.value = true
     try {
+        let sourceRow = row
+        if (Number(row?.id || 0) > 0) {
+            try {
+                const detailRes = await uiedAiConfigDetail({ id: row.id })
+                sourceRow = detailRes?.data || detailRes || row
+            } catch (detailError) {
+                console.warn('[uied.aiConfig] 测试连接获取详情失败，回退列表数据', detailError)
+            }
+        }
+        const detail = normalizeConfigItem(sourceRow)
         await uiedAiConfigTest({
-            provider: row.provider,
-            apiKey: row.apiKey,
-            apiUrl: row.apiUrl,
-            model: row.model,
-            reasoningEnabled: row.reasoningEnabled,
-            reasoningModel: row.reasoningModel,
-            thinkingBudget: row.thinkingBudget
+            provider: detail.provider,
+            apiKey: detail.apiKey,
+            apiUrl: detail.apiUrl,
+            model: detail.model,
+            reasoningEnabled: detail.reasoningEnabled,
+            reasoningModel: detail.reasoningModel,
+            thinkingBudget: detail.thinkingBudget
         })
         ElMessage.success('连接成功')
     } catch (error: any) {
@@ -989,12 +1185,101 @@ const editRules: FormRules = {
 }
 
 /**
+ * 当前编辑提供商模型拉取摘要
+ */
+const currentProviderModelFetchSummary = computed(() => {
+    const key = normalizeProviderKey(editForm.provider)
+    const meta = providerModelFetchMetaMap[key]
+    if (modelOptionsLoading.value) {
+        return '正在拉取模型列表，请稍候...'
+    }
+    if (!meta) {
+        return '点击「拉取模型」可从提供商接口获取最新模型列表，失败时会自动回退预设模型。'
+    }
+    const timeText = meta.updatedAt
+        ? new Date(meta.updatedAt).toLocaleString('zh-CN', { hour12: false })
+        : '-'
+    const sourceText = meta.source === 'remote' ? '接口' : '预设回退'
+    const detailText = meta.message ? `，${meta.message}` : ''
+    return `最近同步：${timeText}，来源：${sourceText}，模型数：${meta.total}${detailText}`
+})
+
+/**
+ * 规范化后端模型列表返回
+ */
+const normalizeRemoteModelRows = (rows: any): Array<{ label: string; value: string }> => {
+    if (!Array.isArray(rows)) return []
+    const dedup = new Set<string>()
+    const result: Array<{ label: string; value: string }> = []
+    rows.forEach((item) => {
+        const value = String(item?.value || item?.id || item?.model || item?.name || '').trim()
+        if (!value) return
+        const dedupKey = value.toLowerCase()
+        if (dedup.has(dedupKey)) return
+        dedup.add(dedupKey)
+        const label = String(item?.label || value).trim() || value
+        result.push({ label, value })
+    })
+    return result
+}
+
+/**
+ * 拉取当前提供商模型列表
+ * @param options 额外参数（silent=true 时不弹成功提示）
+ */
+const handleFetchProviderModels = async (options: { silent?: boolean } = {}) => {
+    const providerKey = normalizeProviderKey(editForm.provider)
+    if (!String(editForm.apiKey || '').trim()) {
+        ElMessage.warning('请先填写 API 密钥，再拉取模型列表')
+        return
+    }
+    modelOptionsLoading.value = true
+    try {
+        const res = await uiedAiConfigModels({
+            configId: editForm.id || undefined,
+            provider: editForm.provider,
+            apiUrl: editForm.apiUrl,
+            apiKey: editForm.apiKey,
+            type: 'text',
+            subType: 'chat'
+        })
+        const data = res?.data || res || {}
+        const rows = normalizeRemoteModelRows(data?.models || [])
+        providerRemoteModelMap[providerKey] = rows
+        providerModelFetchMetaMap[providerKey] = {
+            source: data?.source === 'remote' ? 'remote' : 'fallback',
+            total: Number(data?.total || rows.length),
+            updatedAt: Date.now(),
+            message: String(data?.message || '').trim(),
+            requestUrl: String(data?.requestUrl || '').trim()
+        }
+        if (rows.length > 0 && !String(editForm.model || '').trim()) {
+            editForm.model = rows[0].value
+        }
+        if (!options.silent) {
+            if (data?.source === 'remote') {
+                ElMessage.success(`已同步 ${rows.length} 个模型`)
+            } else {
+                ElMessage.warning(
+                    data?.message || `接口拉取失败，已回退预设模型（${rows.length} 个）`
+                )
+            }
+        }
+    } catch (error: any) {
+        console.error('拉取模型列表失败:', error)
+        if (!options.silent) {
+            ElMessage.error(error?.msg || error?.message || '拉取模型列表失败')
+        }
+    } finally {
+        modelOptionsLoading.value = false
+    }
+}
+
+/**
  * 获取提供商默认地址与模型
  */
 const getProviderDefaults = (provider: string) => {
-    const current = String(provider || '')
-        .trim()
-        .toLowerCase()
+    const current = normalizeProviderKey(provider)
     const defaults: Record<string, { apiUrl: string; model: string; modelPreset: string }> = {
         siliconflow: {
             apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
@@ -1010,6 +1295,31 @@ const getProviderDefaults = (provider: string) => {
             apiUrl: 'https://api.deepseek.com/v1/chat/completions',
             model: 'deepseek-chat',
             modelPreset: 'deepseek.chat'
+        },
+        qwen: {
+            apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            model: 'qwen-plus',
+            modelPreset: 'qwen.plus'
+        },
+        glm: {
+            apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+            model: 'glm-4-flash',
+            modelPreset: 'glm.4.flash'
+        },
+        moonshot: {
+            apiUrl: 'https://api.moonshot.cn/v1/chat/completions',
+            model: 'moonshot-v1-8k',
+            modelPreset: 'moonshot.8k'
+        },
+        kimi: {
+            apiUrl: 'https://api.moonshot.cn/v1/chat/completions',
+            model: 'moonshot-v1-8k',
+            modelPreset: 'kimi.8k'
+        },
+        ollama: {
+            apiUrl: 'http://127.0.0.1:11434/v1/chat/completions',
+            model: 'qwen2.5:7b',
+            modelPreset: 'ollama.qwen2.5.7b'
         }
     }
     return defaults[current] || defaults.siliconflow
@@ -1127,6 +1437,14 @@ const handleEdit = async (row: any) => {
     nextTick(() => {
         editFormRef.value?.clearValidate()
     })
+    const providerKey = normalizeProviderKey(editForm.provider)
+    if (
+        String(editForm.apiKey || '').trim() &&
+        (!Array.isArray(providerRemoteModelMap[providerKey]) ||
+            providerRemoteModelMap[providerKey].length === 0)
+    ) {
+        handleFetchProviderModels({ silent: true })
+    }
 }
 
 /** 保存配置（新增或编辑） */
@@ -1505,13 +1823,26 @@ watch(activeTab, (newTab) => {
 watch(
     () => editForm.provider,
     (provider) => {
-        applyProviderDefaults(String(provider || ''), false)
-        const presetOptions = getProviderModelPresets(String(provider || ''))
+        const providerKey = normalizeProviderKey(String(provider || ''))
+        applyProviderDefaults(providerKey, false)
+        const presetOptions = getProviderModelPresets(providerKey)
         if (
             editForm.modelPreset &&
             !presetOptions.some((item) => item.value === editForm.modelPreset)
         ) {
             editForm.modelPreset = ''
+        }
+        const mergedModels = getProviderMergedModelOptions(providerKey, editForm.model)
+        if (!String(editForm.model || '').trim() && mergedModels.length > 0) {
+            editForm.model = mergedModels[0].value
+        }
+        if (
+            showEditDialog.value &&
+            String(editForm.apiKey || '').trim() &&
+            (!Array.isArray(providerRemoteModelMap[providerKey]) ||
+                providerRemoteModelMap[providerKey].length === 0)
+        ) {
+            handleFetchProviderModels({ silent: true })
         }
     }
 )
@@ -1564,6 +1895,28 @@ onMounted(() => {
     font-size: 12px;
     color: #909399;
     margin-top: 4px;
+}
+.ai-model-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+.ai-model-field__select {
+    flex: 1;
+    min-width: 0;
+}
+.ai-model-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ai-model-option__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 420px;
 }
 .ai-form-chip-wrap {
     display: flex;

@@ -119,9 +119,22 @@
                 <el-table-column
                     label="页面标识"
                     prop="pageSlug"
-                    min-width="120"
-                    show-overflow-tooltip
-                />
+                    min-width="180"
+                >
+                    <template #default="{ row }">
+                        <div class="banner-page-tags">
+                            <el-tag
+                                v-for="page in resolvePageSlugLabels(row)"
+                                :key="`${row.id}-${page}`"
+                                size="small"
+                                effect="plain"
+                                type="info"
+                            >
+                                {{ page }}
+                            </el-tag>
+                        </div>
+                    </template>
+                </el-table-column>
                 <el-table-column label="排序" prop="sortOrder" width="80" />
                 <el-table-column label="状态" width="80">
                     <template #default="{ row }">
@@ -201,11 +214,30 @@
                     </el-select>
                     <div class="text-xs text-gray-400 mt-1">支持多选，保存后会在所有选中位置生效。</div>
                 </el-form-item>
-                <el-form-item label="页面标识">
-                    <el-input
-                        v-model="editData.pageSlug"
-                        placeholder="例如：all / daily-hot / rankings / website-detail（可选）"
-                    />
+                <el-form-item label="显示页面" prop="pageSlugList">
+                    <el-select
+                        v-model="editData.pageSlugList"
+                        multiple
+                        filterable
+                        allow-create
+                        default-first-option
+                        collapse-tags
+                        collapse-tags-tooltip
+                        style="width: 100%"
+                        placeholder="默认 all（全部页面），可多选或输入自定义页面标识"
+                    >
+                        <el-option
+                            v-for="item in bannerPageOptions"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value"
+                        />
+                    </el-select>
+                    <div class="text-xs text-gray-400 mt-1">
+                        例如：<code>home</code>、<code>daily-hot</code>、<code>rankings</code>、<code
+                            >website-detail</code
+                        >；选择 <code>all</code> 表示全站通配。
+                    </div>
                 </el-form-item>
                 <el-form-item label="排序">
                     <el-input-number v-model="editData.sortOrder" :min="0" />
@@ -251,6 +283,27 @@ const bannerPositionLabelMap = bannerPositionOptions.reduce<Record<string, strin
     return acc
 }, {})
 bannerPositionLabelMap.website_detail_sidebar = bannerPositionLabelMap.detail_sidebar
+const bannerPageOptions = [
+    { label: '全部页面（all）', value: 'all' },
+    { label: '首页（home）', value: 'home' },
+    { label: '每日热榜（daily-hot）', value: 'daily-hot' },
+    { label: '榜单系统（rankings）', value: 'rankings' },
+    { label: '每日上新（daily-new）', value: 'daily-new' },
+    { label: '分类页（category）', value: 'category' },
+    { label: '标签页（tag）', value: 'tag' },
+    { label: '网址详情（website-detail）', value: 'website-detail' },
+    { label: '文章详情（article-detail）', value: 'article-detail' },
+    { label: '搜索页（search）', value: 'search' }
+]
+const bannerPageLabelMap = bannerPageOptions.reduce<Record<string, string>>((acc, item) => {
+    acc[item.value] = item.label
+    return acc
+}, {})
+bannerPageLabelMap['/'] = bannerPageLabelMap.home
+bannerPageLabelMap.index = bannerPageLabelMap.home
+bannerPageLabelMap.uiux = bannerPageLabelMap.home
+bannerPageLabelMap.website_detail = bannerPageLabelMap['website-detail']
+bannerPageLabelMap.article_detail = bannerPageLabelMap['article-detail']
 
 /**
  * 规范化广告位置列表，兼容数组与逗号分隔字符串。
@@ -266,12 +319,44 @@ const normalizePositionList = (value: unknown): string[] => {
 }
 
 /**
+ * 规范化页面标识列表，兼容数组与逗号分隔字符串。
+ */
+const normalizePageSlugList = (value: unknown): string[] => {
+    const source = Array.isArray(value)
+        ? value
+        : String(value || '')
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
+    const normalized = source
+        .map((item) => String(item || '').trim().toLowerCase())
+        .map((item) => {
+            if (!item) return ''
+            if (['/', 'index', 'uiux'].includes(item)) return 'home'
+            return item
+        })
+        .filter(Boolean)
+    if (normalized.length === 0) return ['all']
+    if (normalized.includes('all')) return ['all']
+    return Array.from(new Set(normalized))
+}
+
+/**
  * 渲染列表“位置/slot”列标签。
  */
 const resolvePositionLabels = (row: any): string[] => {
     const values = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
     if (values.length === 0) return [ '未设置' ]
     return values.map((value) => bannerPositionLabelMap[value] || value)
+}
+
+/**
+ * 渲染列表“显示页面”列标签。
+ */
+const resolvePageSlugLabels = (row: any): string[] => {
+    const values = normalizePageSlugList(row?.pageSlugList?.length ? row.pageSlugList : row?.pageSlug)
+    if (values.includes('all')) return [bannerPageLabelMap.all || '全部页面（all）']
+    return values.map((value) => bannerPageLabelMap[value] || value)
 }
 
 const editData = reactive({
@@ -285,6 +370,7 @@ const editData = reactive({
     contentType: 'image',
     htmlContent: '',
     pageSlug: 'all',
+    pageSlugList: ['all'] as string[],
     position: 'home',
     positionList: [ 'home' ] as string[],
     sortOrder: 0,
@@ -350,6 +436,7 @@ const resetEditData = () =>
         contentType: 'image',
         htmlContent: '',
         pageSlug: 'all',
+        pageSlugList: ['all'],
         position: 'home',
         positionList: [ 'home' ],
         sortOrder: 0,
@@ -369,6 +456,7 @@ const handleEdit = (row: any) => {
         contentType: row.contentType || 'image',
         htmlContent: row.htmlContent || '',
         pageSlug: row.pageSlug || 'all',
+        pageSlugList: normalizePageSlugList(row.pageSlugList?.length ? row.pageSlugList : row.pageSlug),
         positionList: normalizePositionList(row.positionList?.length ? row.positionList : row.position)
     })
     if (editData.positionList.length === 0) {
@@ -387,8 +475,11 @@ const handleSubmit = async () => {
     editLoading.value = true
     try {
         const positionList = normalizePositionList(editData.positionList)
+        const pageSlugList = normalizePageSlugList(editData.pageSlugList)
         const submitData = {
             ...editData,
+            pageSlugList,
+            pageSlug: pageSlugList.includes('all') ? 'all' : pageSlugList.join(','),
             positionList,
             position: positionList[0] || 'home'
         }
@@ -485,6 +576,12 @@ getLists()
 }
 
 .banner-position-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.banner-page-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;

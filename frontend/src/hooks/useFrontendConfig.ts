@@ -70,6 +70,7 @@ interface PageGlobalConfig {
   hotRecommendationClickMode?: 'detail' | 'direct'; // 热门推荐独立配置
   appendRefEnabled?: boolean;
   appendRefValue?: string;
+  sortZeroNewFirstEnabled?: boolean;
   categorySvgLibrary?: Array<{
     key: string;
     label?: string;
@@ -161,7 +162,17 @@ interface SearchConfig {
   resultsPerPage: number;
 }
 
+interface AuthConfig {
+  enable_register: number;
+  enable_login: number;
+  enable_user_center: number;
+  register_close_message: string;
+  login_close_message: string;
+  user_center_close_message: string;
+}
+
 interface FrontendConfig {
+  authConfig: AuthConfig;
   exitModalEnabled: boolean;
   exitModalConfig: ExitModalConfig;
   pageGlobalConfig: PageGlobalConfig;
@@ -173,6 +184,7 @@ interface FrontendConfig {
 }
 
 interface FrontendConfigData {
+  authConfig?: Partial<AuthConfig>;
   exitModalEnabled?: boolean;
   exitModalConfig?: Partial<ExitModalConfig>;
   pageGlobalConfig?: Partial<PageGlobalConfig>;
@@ -230,6 +242,7 @@ const defaultPageGlobalConfig: PageGlobalConfig = {
   hotRecommendationClickMode: 'detail', // 热门推荐默认跳转详情页
   appendRefEnabled: false,
   appendRefValue: '',
+  sortZeroNewFirstEnabled: false,
   categorySvgLibrary: [],
 };
 
@@ -306,7 +319,17 @@ const defaultSearchConfig: SearchConfig = {
   resultsPerPage: 20,
 };
 
+const defaultAuthConfig: AuthConfig = {
+  enable_register: 1,
+  enable_login: 1,
+  enable_user_center: 1,
+  register_close_message: '注册功能暂时关闭',
+  login_close_message: '系统维护中，暂时无法登录',
+  user_center_close_message: '个人中心功能暂时关闭',
+};
+
 const defaultConfig: FrontendConfig = {
+  authConfig: defaultAuthConfig,
   exitModalEnabled: true,
   exitModalConfig: defaultExitModalConfig,
   pageGlobalConfig: defaultPageGlobalConfig,
@@ -365,6 +388,7 @@ const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
     hotRecommendationClickMode: normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
     appendRefEnabled: mergedConfig.appendRefEnabled === true,
     appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
+    sortZeroNewFirstEnabled: mergedConfig.sortZeroNewFirstEnabled === true,
     categorySvgLibrary: normalizedCategorySvgLibrary,
   };
 };
@@ -442,7 +466,29 @@ const normalizeHomepageConfig = (config: unknown): HomepageConfig => {
   };
 };
 
+/**
+ * 规范化认证配置，确保登录/注册/个人中心开关字段稳定。
+ */
+const normalizeAuthConfig = (config: unknown): AuthConfig => {
+  const mergedConfig = { ...defaultAuthConfig, ...((config as Partial<AuthConfig>) || {}) };
+  return {
+    enable_register: mergedConfig.enable_register === 0 ? 0 : 1,
+    enable_login: mergedConfig.enable_login === 0 ? 0 : 1,
+    enable_user_center: mergedConfig.enable_user_center === 0 ? 0 : 1,
+    register_close_message: String(
+      mergedConfig.register_close_message || defaultAuthConfig.register_close_message
+    ).trim() || defaultAuthConfig.register_close_message,
+    login_close_message: String(
+      mergedConfig.login_close_message || defaultAuthConfig.login_close_message
+    ).trim() || defaultAuthConfig.login_close_message,
+    user_center_close_message: String(
+      mergedConfig.user_center_close_message || defaultAuthConfig.user_center_close_message
+    ).trim() || defaultAuthConfig.user_center_close_message,
+  };
+};
+
 const buildConfig = (data: FrontendConfigData): FrontendConfig => ({
+  authConfig: normalizeAuthConfig(data.authConfig),
   exitModalEnabled: data.exitModalEnabled ?? true,
   exitModalConfig: { ...defaultExitModalConfig, ...(data.exitModalConfig || {}) },
   pageGlobalConfig: normalizePageGlobalConfig(data.pageGlobalConfig),
@@ -482,6 +528,7 @@ export const useFrontendConfig = () => {
       try {
         const frontendConfig = await publicSettingService.getFrontendConfig();
         const hasFrontendConfig = Boolean(
+          frontendConfig.authConfig ||
           frontendConfig.exitModalConfig ||
           frontendConfig.pageGlobalConfig ||
           frontendConfig.appearanceConfig ||
@@ -494,6 +541,7 @@ export const useFrontendConfig = () => {
 
         if (hasFrontendConfig) {
           const newConfig = buildConfig({
+            authConfig: frontendConfig.authConfig,
             exitModalEnabled: frontendConfig.exitModalEnabled,
             exitModalConfig: frontendConfig.exitModalConfig,
             pageGlobalConfig: frontendConfig.pageGlobalConfig,
@@ -510,6 +558,7 @@ export const useFrontendConfig = () => {
 
         const settings = await publicSettingService.getPublicSettings();
         const newConfig = buildConfig({
+          authConfig: settings.authConfig,
           pageGlobalConfig: settings.pageGlobal,
           appearanceConfig: settings.appearance,
           homepageConfig: settings.homepage,
@@ -555,6 +604,7 @@ export const getFrontendConfig = async (forceRefresh = false): Promise<FrontendC
   try {
     const frontendConfig = await publicSettingService.getFrontendConfig();
     const hasFrontendConfig = Boolean(
+      frontendConfig.authConfig ||
       frontendConfig.exitModalConfig ||
       frontendConfig.pageGlobalConfig ||
       frontendConfig.appearanceConfig ||
@@ -567,6 +617,7 @@ export const getFrontendConfig = async (forceRefresh = false): Promise<FrontendC
 
     if (hasFrontendConfig) {
       cachedConfig = buildConfig({
+        authConfig: frontendConfig.authConfig,
         exitModalEnabled: frontendConfig.exitModalEnabled,
         exitModalConfig: frontendConfig.exitModalConfig,
         pageGlobalConfig: frontendConfig.pageGlobalConfig,
@@ -582,6 +633,7 @@ export const getFrontendConfig = async (forceRefresh = false): Promise<FrontendC
 
     const settings = await publicSettingService.getPublicSettings();
     cachedConfig = buildConfig({
+      authConfig: settings.authConfig,
       pageGlobalConfig: settings.pageGlobal,
       appearanceConfig: settings.appearance,
       homepageConfig: settings.homepage,
@@ -608,6 +660,7 @@ export type {
   CardStyleConfig,
   SidebarConfig,
   SearchConfig,
+  AuthConfig,
 };
 
 export default useFrontendConfig;

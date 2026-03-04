@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../contexts/UserContext';
+import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { userService } from '../../services/userService';
 import {
   getUserCollectedArticles,
@@ -167,6 +168,8 @@ const buildCommentThread = (list: any[]) => {
 
 const ProfilePage: React.FC = () => {
   const { user, loading, isLoggedIn, refreshProfile } = useUser();
+  const { config: frontendConfig, loading: frontendConfigLoading } = useFrontendConfig();
+  const userCenterEnabled = frontendConfig?.authConfig?.enable_user_center !== 0;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
   const [licenseFocusId, setLicenseFocusId] = useState(0);
@@ -179,12 +182,19 @@ const ProfilePage: React.FC = () => {
     websiteLikeTotal: 0,
   });
 
-  // 如果未登录，重定向到首页
   useEffect(() => {
-    if (!loading && !isLoggedIn) {
+    if (frontendConfigLoading) return;
+    if (!userCenterEnabled) {
       navigate('/');
     }
-  }, [loading, isLoggedIn, navigate]);
+  }, [frontendConfigLoading, navigate, userCenterEnabled]);
+
+  // 如果未登录，重定向到首页
+  useEffect(() => {
+    if (!frontendConfigLoading && userCenterEnabled && !loading && !isLoggedIn) {
+      navigate('/');
+    }
+  }, [frontendConfigLoading, userCenterEnabled, loading, isLoggedIn, navigate]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -214,8 +224,12 @@ const ProfilePage: React.FC = () => {
     });
   }, [isLoggedIn]);
 
-  if (loading || !user) {
+  if (frontendConfigLoading || loading || !user) {
     return <div className="loading-state">加载中...</div>;
+  }
+
+  if (!userCenterEnabled) {
+    return null;
   }
 
   const renderContent = () => {

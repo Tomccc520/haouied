@@ -31,6 +31,7 @@ import publicSettingService, {
   DEFAULT_DETAIL_PAGE,
   DEFAULT_ARTICLE_SETTING,
   DEFAULT_ARTICLE_TOPICS,
+  DEFAULT_AUTH_CONFIG,
 } from '../services/publicSettingService';
 import { debugLog } from '../utils/debugHelper';
 
@@ -51,6 +52,7 @@ interface UseSettingResult<T> {
  */
 export const usePublicSettings = (): UseSettingResult<PublicSettings> => {
   const [data, setData] = useState<PublicSettings>({
+    authConfig: DEFAULT_AUTH_CONFIG,
     siteInfo: DEFAULT_SITE_INFO,
     appearance: DEFAULT_APPEARANCE,
     homepage: DEFAULT_HOMEPAGE,

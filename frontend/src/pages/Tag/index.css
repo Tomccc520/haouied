@@ -275,6 +275,23 @@
   margin: 12px 0 0;
 }
 
+.tag-retry-btn {
+  margin-top: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.26);
+  background: rgba(239, 246, 255, 0.9);
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tag-retry-btn:hover {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: rgba(219, 234, 254, 0.7);
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
   .tag-list-container,

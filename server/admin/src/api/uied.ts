@@ -76,7 +76,38 @@ export function uiedWebsiteCheckDuplicateUrl(params: any) {
 
 // 批量导入网址
 export function uiedWebsiteBatchImport(params: any) {
-    return request.post({ url: '/uied/website/batchImport', params })
+    /**
+     * 批量导入可能触发 SEO 抓取与 AI 生成，单次耗时较长。
+     * 这里单独放宽超时，避免“后端已成功但前端 10s 超时报错”。
+     */
+    return request.post(
+        {
+            url: '/uied/website/batchImport',
+            params,
+            timeout: 5 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
+}
+
+// 批量 AI 生成网站详情正文
+export function uiedWebsiteBatchGenerateDetailContent(params: any) {
+    /**
+     * 批量 AI 生成正文会按网站逐条调用模型接口，耗时受模型响应影响较大。
+     * 单独放宽请求超时，降低误报超时风险。
+     */
+    return request.post(
+        {
+            url: '/uied/website/batchGenerateDetailContent',
+            params,
+            timeout: 5 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
 }
 
 // 删除网站
@@ -574,6 +605,20 @@ export function uiedAiConfigDelete(params: any) {
 // 测试 AI 连接
 export function uiedAiConfigTest(params: any) {
     return request.post({ url: '/uied/aiConfig/test', params })
+}
+
+// 拉取 AI 可用模型列表（优先远程接口，失败回退预设）
+export function uiedAiConfigModels(params: any) {
+    return request.post(
+        {
+            url: '/uied/aiConfig/models',
+            params,
+            timeout: 30 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
 }
 
 // ==================== AI 批量生成 ====================

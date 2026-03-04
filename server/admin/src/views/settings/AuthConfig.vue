@@ -64,6 +64,31 @@
                     />
                 </el-form-item>
 
+                <el-divider />
+
+                <!-- 个人中心开关 -->
+                <el-form-item label="开启个人中心">
+                    <el-switch
+                        v-model="form.enable_user_center"
+                        :active-value="1"
+                        :inactive-value="0"
+                        active-text="开启"
+                        inactive-text="关闭"
+                    />
+                    <div class="form-tip">关闭后，前端将隐藏登录/注册入口和个人中心入口</div>
+                </el-form-item>
+
+                <el-form-item label="个人中心关闭提示" v-if="form.enable_user_center === 0">
+                    <el-input
+                        v-model="form.user_center_close_message"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="请输入个人中心关闭时的提示信息"
+                        maxlength="255"
+                        show-word-limit
+                    />
+                </el-form-item>
+
                 <el-form-item>
                     <el-button type="primary" @click="handleSave" :loading="loading">
                         保存配置
@@ -85,6 +110,7 @@
                 <ul>
                     <li>关闭注册后，新用户将无法注册账号</li>
                     <li>关闭登录后，所有用户（包括已登录用户）将无法登录</li>
+                    <li>关闭个人中心后，前端将隐藏登录/注册和个人中心入口</li>
                     <li>管理员登录不受此开关影响</li>
                     <li>建议在系统维护时临时关闭登录功能</li>
                     <li>配置修改后立即生效，无需重启服务</li>
@@ -102,8 +128,10 @@ import request from '@/utils/request'
 const form = ref({
     enable_register: 1,
     enable_login: 1,
+    enable_user_center: 1,
     register_close_message: '注册功能暂时关闭，请稍后再试',
-    login_close_message: '系统维护中，暂时无法登录'
+    login_close_message: '系统维护中，暂时无法登录',
+    user_center_close_message: '个人中心功能暂时关闭，请稍后再试'
 })
 
 const loading = ref(false)
@@ -134,9 +162,12 @@ const loadConfig = async () => {
             form.value = {
                 enable_register: res.data.enable_register ?? 1,
                 enable_login: res.data.enable_login ?? 1,
+                enable_user_center: res.data.enable_user_center ?? 1,
                 register_close_message:
                     res.data.register_close_message || '注册功能暂时关闭，请稍后再试',
-                login_close_message: res.data.login_close_message || '系统维护中，暂时无法登录'
+                login_close_message: res.data.login_close_message || '系统维护中，暂时无法登录',
+                user_center_close_message:
+                    res.data.user_center_close_message || '个人中心功能暂时关闭，请稍后再试'
             }
             originalForm.value = { ...form.value }
         }

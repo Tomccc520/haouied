@@ -29,8 +29,10 @@ interface AuthModalProps {
 interface AuthConfig {
   enable_register: number;
   enable_login: number;
+  enable_user_center: number;
   register_close_message: string;
   login_close_message: string;
+  user_center_close_message: string;
 }
 
 /**
@@ -51,8 +53,10 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [authConfig, setAuthConfig] = useState<AuthConfig>({
     enable_register: 1,
     enable_login: 1,
+    enable_user_center: 1,
     register_close_message: '',
     login_close_message: '',
+    user_center_close_message: '',
   });
   
   // 表单状态
@@ -72,7 +76,15 @@ const AuthModal: React.FC<AuthModalProps> = ({
       try {
         const response = await api.get('/settings/public');
         if (response.data?.authConfig) {
-          setAuthConfig(response.data.authConfig);
+          const nextConfig = response.data.authConfig || {};
+          setAuthConfig({
+            enable_register: nextConfig.enable_register === 0 ? 0 : 1,
+            enable_login: nextConfig.enable_login === 0 ? 0 : 1,
+            enable_user_center: nextConfig.enable_user_center === 0 ? 0 : 1,
+            register_close_message: String(nextConfig.register_close_message || ''),
+            login_close_message: String(nextConfig.login_close_message || ''),
+            user_center_close_message: String(nextConfig.user_center_close_message || ''),
+          });
         }
       } catch (error) {
         console.error('加载认证配置失败:', error);
@@ -129,6 +141,12 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // 检查个人中心总开关
+    if (authConfig.enable_user_center === 0) {
+      alert(authConfig.user_center_close_message || '个人中心功能暂时关闭');
+      return;
+    }
 
     // 检查登录开关
     if (mode === 'login' && authConfig.enable_login === 0) {

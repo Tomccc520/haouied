@@ -44,8 +44,10 @@ class SettingService extends Service {
     return {
       enable_register: 1,
       enable_login: 1,
+      enable_user_center: 1,
       register_close_message: '注册功能暂时关闭',
       login_close_message: '系统维护中，暂时无法登录',
+      user_center_close_message: '个人中心功能暂时关闭',
     };
   }
 
@@ -57,12 +59,16 @@ class SettingService extends Service {
     return {
       enable_register: config?.enable_register === 0 ? 0 : 1,
       enable_login: config?.enable_login === 0 ? 0 : 1,
+      enable_user_center: config?.enable_user_center === 0 ? 0 : 1,
       register_close_message: String(
         config?.register_close_message || defaults.register_close_message
       ).trim() || defaults.register_close_message,
       login_close_message: String(
         config?.login_close_message || defaults.login_close_message
       ).trim() || defaults.login_close_message,
+      user_center_close_message: String(
+        config?.user_center_close_message || defaults.user_center_close_message
+      ).trim() || defaults.user_center_close_message,
     };
   }
 
@@ -403,6 +409,10 @@ class SettingService extends Service {
     normalized.hotRecommendationClickMode = this.normalizeHotRecommendationClickMode(config.hotRecommendationClickMode);
     normalized.appendRefEnabled = config.appendRefEnabled === true;
     normalized.appendRefValue = String(config.appendRefValue || '').trim();
+    /**
+     * 排序值为 0 的站点默认按“最新优先”排序，可由后台页面配置开关控制。
+     */
+    normalized.sortZeroNewFirstEnabled = config.sortZeroNewFirstEnabled === true;
     normalized.categorySvgLibrary = this.normalizeCategorySvgLibrary(config.categorySvgLibrary);
     return normalized;
   }
@@ -953,6 +963,7 @@ class SettingService extends Service {
       hotRecommendationClickMode: 'detail', // 热门推荐独立配置，默认进详情页
       appendRefEnabled: false,
       appendRefValue: '',
+      sortZeroNewFirstEnabled: false,
       categorySvgLibrary: [],
     };
 

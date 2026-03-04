@@ -1084,6 +1084,26 @@ const SearchPage: React.FC = () => {
   };
 
   const isLoading = loading || aiLoading;
+  /**
+   * 空状态推荐词：优先相关搜索，其次热门词与历史词，去重后用于快速二次检索。
+   */
+  const emptySuggestionKeywords = useMemo(() => {
+    const source = [ ...relatedKeywords, ...hotSearchTags, ...searchHistory ]
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    const seen = new Set<string>();
+    const normalizedQuery = normalizeText(searchQuery);
+    const result: string[] = [];
+    source.forEach((item) => {
+      const lower = normalizeText(item);
+      if (!lower) return;
+      if (lower === normalizedQuery) return;
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      result.push(item);
+    });
+    return result.slice(0, 10);
+  }, [relatedKeywords, hotSearchTags, searchHistory, searchQuery]);
 
   return (
     <div className="search-page" style={{ '--bg-image': `url(${bgImage})` } as React.CSSProperties}>
@@ -1254,11 +1274,45 @@ const SearchPage: React.FC = () => {
             </>
           ) : !showThinking && !isLoading ? (
             <div className="search-empty">
-              <div className="search-empty-icon">🔍</div>
-              <h3 className="search-empty-title">未找到相关结果</h3>
+              <div className="search-empty-icon-wrap">
+                <div className="search-empty-icon">🔍</div>
+                <span className="search-empty-icon-ring" />
+              </div>
+              <h3 className="search-empty-title">
+                {searchQuery ? `没有找到“${searchQuery}”相关结果` : '未找到相关结果'}
+              </h3>
               <p className="search-empty-description">
-                {searchErrorMessage || '试试其他关键词'}
+                {searchErrorMessage || '建议缩短关键词、替换同义词，或切换 AI 搜索进行语义匹配。'}
               </p>
+              <div className="search-empty-actions">
+                <button className="search-empty-action-btn" onClick={() => handleSearch('')}>
+                  清空重搜
+                </button>
+                {aiSearchEnabled && searchQuery && (
+                  <button
+                    className="search-empty-action-btn search-empty-action-btn--primary"
+                    onClick={() => performAiSearch(searchQuery)}
+                  >
+                    用 AI 语义搜索
+                  </button>
+                )}
+              </div>
+              {emptySuggestionKeywords.length > 0 && (
+                <div className="search-empty-suggestions">
+                  <div className="search-empty-suggestions__label">你可以试试：</div>
+                  <div className="search-empty-suggestions__tags">
+                    {emptySuggestionKeywords.map((keyword, index) => (
+                      <button
+                        key={`${keyword}-${index}`}
+                        className="search-empty-suggestion-tag"
+                        onClick={() => handleTagClick(keyword)}
+                      >
+                        {keyword}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>

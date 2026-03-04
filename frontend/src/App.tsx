@@ -95,8 +95,20 @@ function App() {
             <Route path="/home" element={<HomePage />} />
             <Route path="/category" element={<CategoryPage />} />
             <Route path="/category/:slug" element={<CategoryPage />} />
+            <Route path="/categories" element={<CategoryPage />} />
+            <Route path="/categories/:slug" element={<CategoryPage />} />
+            <Route path="/p/category" element={<CategoryPage />} />
+            <Route path="/p/categories" element={<CategoryPage />} />
+            <Route path="/p/category/:slug" element={<CategoryPage />} />
+            <Route path="/p/categories/:slug" element={<CategoryPage />} />
             <Route path="/tag" element={<TagPage />} />
             <Route path="/tag/:slug" element={<TagPage />} />
+            <Route path="/tags" element={<TagPage />} />
+            <Route path="/tags/:slug" element={<TagPage />} />
+            <Route path="/p/tag" element={<TagPage />} />
+            <Route path="/p/tags" element={<TagPage />} />
+            <Route path="/p/tag/:slug" element={<TagPage />} />
+            <Route path="/p/tags/:slug" element={<TagPage />} />
             <Route path="/site/:id" element={<SitePage />} />
             <Route path="/website/:idOrSlug" element={<WebsiteDetail />} />
             <Route path="/vs/:leftIdOrSlug/:rightIdOrSlug" element={<WebsiteComparePage />} />

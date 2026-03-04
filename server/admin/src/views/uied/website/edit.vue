@@ -76,7 +76,7 @@
                                 <template #title>
                                     检测到重复网址：ID {{ duplicateUrlInfo.id }} / {{ duplicateUrlInfo.name }}
                                 </template>
-                                当前已存在网址：{{ duplicateUrlInfo.url }}，建议直接编辑已有记录，避免重复收录。
+                                当前已存在网址：{{ duplicateUrlInfo.url }}。系统仅提醒，不阻止继续创建。
                             </el-alert>
                         </el-form-item>
                         <el-form-item label="所属分类" prop="categoryIds">
@@ -87,17 +87,19 @@
                                 filterable
                                 clearable
                                 default-first-option
+                                :filter-method="handleCategoryFilter"
+                                @visible-change="handleCategorySelectVisibleChange"
                                 style="width: 100%"
                             >
                                 <el-option
-                                    v-for="item in categoryOptions"
+                                    v-for="item in filteredCategoryOptions"
                                     :key="item.id"
                                     :label="item.label"
                                     :value="item.id"
                                 />
                             </el-select>
                             <div class="website-url-tools__tip">
-                                可选择多个分类，第一项会作为主分类用于默认展示。
+                                可按分类名/层级路径/slug 搜索；支持多选，第一项会作为主分类用于默认展示。
                             </div>
                         </el-form-item>
                         <el-form-item label="网站描述">
@@ -1000,20 +1002,37 @@ watch(
     { immediate: false }
 )
 
+interface WebsiteCategoryOption {
+    id: number | string
+    name: string
+    label: string
+    slug: string
+    fullPath: string
+    searchText: string
+}
+
 // 分类列表
 const categoryList = ref<any[]>([])
-const categoryOptions = computed(() => buildCategoryOptions(categoryList.value))
+const categoryKeyword = ref('')
+const categoryOptions = computed<WebsiteCategoryOption[]>(() =>
+    buildCategoryOptions(categoryList.value)
+)
+const filteredCategoryOptions = computed<WebsiteCategoryOption[]>(() => {
+    const keyword = String(categoryKeyword.value || '').trim().toLowerCase()
+    if (!keyword) return categoryOptions.value
+    return categoryOptions.value.filter((item) => item.searchText.includes(keyword))
+})
 
 /**
- * 构建可搜索的分类下拉选项（含父子层级缩进），避免分类过多时难以定位。
+ * 构建可搜索的分类下拉选项（含父子层级缩进 + 路径 + slug），提升多分类场景检索准确性。
  */
-const buildCategoryOptions = (categories: any[]) => {
+const buildCategoryOptions = (categories: any[]): WebsiteCategoryOption[] => {
     if (!Array.isArray(categories) || categories.length === 0) return []
 
     const parentMap = new Map<any, any[]>()
     const nodeMap = new Map<any, any>()
     const visited = new Set<any>()
-    const options: Array<{ id: number | string; name: string; label: string }> = []
+    const options: WebsiteCategoryOption[] = []
 
     categories.forEach((item) => {
         nodeMap.set(item.id, item)
@@ -1022,17 +1041,48 @@ const buildCategoryOptions = (categories: any[]) => {
         parentMap.get(parentId)?.push(item)
     })
 
+    /**
+     * 解析分类的完整层级路径（父 / 子 / 孙），用于搜索匹配。
+     */
+    const buildCategoryPath = (item: any): string => {
+        const chain: string[] = []
+        let current = item
+        let guard = 0
+        while (current && guard < 20) {
+            const text = String(current.name || '').trim()
+            if (text) chain.unshift(text)
+            const parentId = current.parentId ?? null
+            current = parentId !== null && parentId !== undefined ? nodeMap.get(parentId) : null
+            guard += 1
+        }
+        return chain.join(' / ')
+    }
+
+    /**
+     * 根据分类节点生成下拉项，统一附带搜索索引字段。
+     */
+    const buildOptionItem = (item: any, level = 0): WebsiteCategoryOption => {
+        const name = String(item?.name || '').trim()
+        const slug = String(item?.slug || '').trim()
+        const fullPath = buildCategoryPath(item)
+        const indent = level > 0 ? `${'　'.repeat(level)}└ ` : ''
+        const label = `${indent}${name}`
+        return {
+            id: item.id,
+            name,
+            label,
+            slug,
+            fullPath,
+            searchText: `${name} ${slug} ${fullPath}`.toLowerCase()
+        }
+    }
+
     const walk = (parentId: any, level = 0) => {
         const children = parentMap.get(parentId) || []
         children.forEach((item) => {
             if (visited.has(item.id)) return
             visited.add(item.id)
-            const indent = level > 0 ? `${'　'.repeat(level)}└ ` : ''
-            options.push({
-                id: item.id,
-                name: String(item.name || ''),
-                label: `${indent}${String(item.name || '')}`
-            })
+            options.push(buildOptionItem(item, level))
             walk(item.id, level + 1)
         })
     }
@@ -1043,14 +1093,24 @@ const buildCategoryOptions = (categories: any[]) => {
     categories.forEach((item) => {
         if (visited.has(item.id)) return
         const hasParent = item.parentId && nodeMap.has(item.parentId)
-        options.push({
-            id: item.id,
-            name: String(item.name || ''),
-            label: `${hasParent ? '　└ ' : ''}${String(item.name || '')}`
-        })
+        options.push(buildOptionItem(item, hasParent ? 1 : 0))
     })
 
     return options
+}
+
+/**
+ * 分类下拉搜索：支持按名称、slug、层级路径过滤。
+ */
+const handleCategoryFilter = (keyword: string) => {
+    categoryKeyword.value = String(keyword || '').trim().toLowerCase()
+}
+
+/**
+ * 分类下拉关闭时重置关键词，避免下次打开仍沿用旧筛选条件。
+ */
+const handleCategorySelectVisibleChange = (visible: boolean) => {
+    if (!visible) categoryKeyword.value = ''
 }
 /**
  * 获取分类选项
@@ -2379,9 +2439,8 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
         const hasDuplicateUrl = await handleCheckDuplicateUrl(true)
         if (hasDuplicateUrl && duplicateUrlInfo.value) {
             feedback.msgWarning(
-                `当前网址已存在：${duplicateUrlInfo.value.name}（ID: ${duplicateUrlInfo.value.id}），请勿重复创建`
+                `当前网址已存在：${duplicateUrlInfo.value.name}（ID: ${duplicateUrlInfo.value.id}），将继续执行保存`
             )
-            return
         }
         const screenshots = screenshotList.value.filter((url: string) => url?.trim())
         const normalizedCategoryIds = Array.from(
@@ -2419,6 +2478,7 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
             ),
             screenshots,
             thumbnail: editData.thumbnail || null,
+            allowDuplicate: !editData.id,
             order: editData.sortOrder,
             status: mode === 'draft' ? 'draft' : resolveWebsiteStatusFromForm(),
             trafficMetrics: {
@@ -2466,9 +2526,34 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
  * 保存成功后回到列表并附带刷新标记，避免手动刷新才能看到新数据。
  */
 const goWebsiteListWithRefresh = async () => {
+    /**
+     * 解析可用的网站列表路由：优先使用来源页，其次使用常见列表路径兜底。
+     */
+    const resolveWebsiteListRoute = () => {
+        const fromPath = String(route.query?.from || '').trim()
+        const candidates = [fromPath, '/website-manage/website', '/uied/website', '/uied/website/index']
+        for (const candidate of candidates) {
+            if (!candidate) continue
+            const resolved = router.resolve(candidate)
+            if (!resolved?.matched?.length) continue
+            if (resolved.path.includes('/uied/website/edit')) continue
+            return {
+                path: resolved.path,
+                query: resolved.query || {}
+            }
+        }
+        return {
+            path: '/website-manage/website',
+            query: {}
+        }
+    }
+    const target = resolveWebsiteListRoute()
     await router.push({
-        path: '/uied/website',
-        query: { refresh: String(Date.now()) }
+        path: target.path,
+        query: {
+            ...(target.query || {}),
+            refresh: String(Date.now())
+        }
     })
 }
 

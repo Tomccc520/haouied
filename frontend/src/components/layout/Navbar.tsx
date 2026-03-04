@@ -300,6 +300,11 @@ const Navbar = () => {
   const { pages: apiPages } = usePages(); // 获取页面列表
   const { config: frontendConfig } = useFrontendConfig();
   const { user, isLoggedIn, logout } = useUser();
+  const authConfig = frontendConfig?.authConfig;
+  const userCenterEnabled = authConfig?.enable_user_center !== 0;
+  const userCenterCloseMessage = String(
+    authConfig?.user_center_close_message || '个人中心功能暂时关闭'
+  ).trim() || '个人中心功能暂时关闭';
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -308,6 +313,24 @@ const Navbar = () => {
   const [navConfig, setNavConfig] = useState<NavbarConfig | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null); // 激活的二级菜单
   const [currentNavType, setCurrentNavType] = useState<string>('uiux'); // 当前选中的导航类型，默认为UIUX
+
+  /**
+   * 打开认证弹窗（受个人中心总开关控制）
+   */
+  const openAuthModal = () => {
+    if (!userCenterEnabled) {
+      window.alert(userCenterCloseMessage);
+      return;
+    }
+    setAuthMode('login');
+    setAuthModalVisible(true);
+  };
+
+  useEffect(() => {
+    if (!userCenterEnabled && authModalVisible) {
+      setAuthModalVisible(false);
+    }
+  }, [authModalVisible, userCenterEnabled]);
 
   /**
    * 统一组装导航切换项，优先使用后台 homepageConfig.navSwitchItems。
@@ -731,7 +754,7 @@ const Navbar = () => {
             </button>
             
             {/* 移动端用户头像 */}
-            {isLoggedIn && user && (
+            {userCenterEnabled && isLoggedIn && user && (
               <div 
                 className="navbar-mobile-user-avatar"
                 onClick={() => navigate('/profile')}
@@ -782,7 +805,7 @@ const Navbar = () => {
                 <div className="navbar-mobile-overlay" onClick={handleClose} style={{ zIndex: 2001 }} />
                 <div className="navbar-mobile-menu" style={{ zIndex: 2002 }}>
                   {/* 移动端菜单头部用户信息 */}
-                  {isLoggedIn && user ? (
+                  {userCenterEnabled && isLoggedIn && user ? (
                     <div className="navbar-mobile-user-info" style={{ padding: '1rem 1.5rem', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                         <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', background: '#fff' }}>
@@ -814,14 +837,30 @@ const Navbar = () => {
                         </button>
                       </div>
                     </div>
-                  ) : (
+                  ) : !userCenterEnabled && isLoggedIn ? (
+                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
+                      <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+                        {userCenterCloseMessage}
+                      </div>
+                      <button 
+                        onClick={() => { logout(); handleClose(); }}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, color: '#ff4d4f' }}
+                      >
+                        退出登录
+                      </button>
+                    </div>
+                  ) : userCenterEnabled ? (
                     <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
                       <button 
-                        onClick={() => { setAuthMode('login'); setAuthModalVisible(true); handleClose(); }}
+                        onClick={() => { openAuthModal(); handleClose(); }}
                         style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#1976d2', color: '#fff', border: 'none', fontWeight: 600 }}
                       >
                         登录 / 注册
                       </button>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
+                      <div style={{ fontSize: '12px', color: '#999' }}>{userCenterCloseMessage}</div>
                     </div>
                   )}
 
@@ -982,7 +1021,7 @@ const Navbar = () => {
             </Button>
 
             {/* 用户登录/信息 */}
-            {isLoggedIn && user ? (
+            {userCenterEnabled && isLoggedIn && user ? (
               <div className="navbar-user-container">
                 <div 
                   className="navbar-user-avatar"
@@ -1012,18 +1051,23 @@ const Navbar = () => {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : userCenterEnabled ? (
               <Button 
                 type="primary" 
                 className="navbar-login-btn"
-                onClick={() => {
-                  setAuthMode('login');
-                  setAuthModalVisible(true);
-                }}
+                onClick={openAuthModal}
               >
                 登录
               </Button>
-            )}
+            ) : isLoggedIn ? (
+              <Button 
+                type="text" 
+                className="navbar-login-btn"
+                onClick={() => logout()}
+              >
+                退出
+              </Button>
+            ) : null}
           </div>
         )}
       </div>
@@ -1031,11 +1075,13 @@ const Navbar = () => {
       {/* 背景装饰 */}
       <div className="navbar-decoration" />
       
-      <AuthModal 
-        visible={authModalVisible} 
-        onClose={() => setAuthModalVisible(false)}
-        initialMode={authMode}
-      />
+      {userCenterEnabled && (
+        <AuthModal 
+          visible={authModalVisible} 
+          onClose={() => setAuthModalVisible(false)}
+          initialMode={authMode}
+        />
+      )}
     </div>
   );
 };

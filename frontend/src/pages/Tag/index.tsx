@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
+import { AxiosError } from 'axios';
 import ToolCard from '../../components/ToolCard';
 import SEO from '../../components/SEO';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
@@ -63,6 +64,15 @@ interface TagDetail {
   page: number;
   pageSize: number;
 }
+
+/**
+ * 判断接口错误是否为 404（资源不存在）
+ * @param error 错误对象
+ * @returns 是否为 404
+ */
+const isNotFoundApiError = (error: unknown): boolean => {
+  return error instanceof AxiosError && error.response?.status === 404;
+};
 
 /**
  * 标签页面组件
@@ -162,7 +172,10 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [detail, setDetail] = useState<TagDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [page, setPage] = useState(1);
+  const [retrySeed, setRetrySeed] = useState(0);
   const pageSize = 24;
 
   // 获取前端配置
@@ -178,19 +191,33 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   useEffect(() => {
     const fetchDetail = async () => {
       setLoading(true);
+      setErrorMessage('');
+      setNotFound(false);
       try {
-        const res = await api.get(`/tags/${slug}`, { params: { page, pageSize } });
+        const normalizedSlug = decodeURIComponent(String(slug || '').trim());
+        const res = await api.get(`/tags/${normalizedSlug}`, { params: { page, pageSize } });
         const data = unwrapApiResponse<TagDetail | null>(res.data, null);
+        if (!data || !data.tag) {
+          setDetail(null);
+          setNotFound(true);
+          return;
+        }
         setDetail(data);
       } catch (error) {
         console.error('获取标签详情失败:', error);
+        setDetail(null);
+        if (isNotFoundApiError(error)) {
+          setNotFound(true);
+          return;
+        }
+        setErrorMessage('标签页面加载失败，请稍后重试');
       } finally {
         setLoading(false);
       }
     };
     fetchDetail();
     window.scrollTo(0, 0);
-  }, [slug, page]);
+  }, [slug, page, retrySeed]);
 
   // 处理网站点击
   const handleWebsiteClick = useCallback((website: WebsiteItem) => {
@@ -237,10 +264,35 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
     );
   }
 
-  if (!detail) {
+  if (!detail && errorMessage) {
+    return (
+      <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
+        <div className="tag-empty">
+          <p>{errorMessage}</p>
+          <button
+            type="button"
+            className="tag-retry-btn"
+            onClick={() => setRetrySeed((prev) => prev + 1)}
+          >
+            重新加载
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!detail && notFound) {
     return (
       <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
         <div className="tag-empty"><p>标签不存在</p></div>
+      </div>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <div className={`tag-page tag-page--layout-${detailLayoutWidthMode}`}>
+        <div className="tag-empty"><p>暂无标签数据</p></div>
       </div>
     );
   }

@@ -94,6 +94,7 @@ export interface PageGlobalConfig {
   hotRecommendationClickMode: 'detail' | 'direct';
   appendRefEnabled: boolean;
   appendRefValue: string;
+  sortZeroNewFirstEnabled?: boolean;
   categorySvgLibrary?: Array<{
     key: string;
     label?: string;
@@ -270,8 +271,19 @@ export interface ArticleTopicConfig {
 
 export type ArticleTopicsConfig = Record<string, ArticleTopicConfig>;
 
+// 登录/注册/个人中心配置
+export interface AuthConfig {
+  enable_register: number;
+  enable_login: number;
+  enable_user_center: number;
+  register_close_message: string;
+  login_close_message: string;
+  user_center_close_message: string;
+}
+
 // 公开设置（所有配置的集合）
 export interface PublicSettings {
+  authConfig: AuthConfig;
   siteInfo: SiteInfo;
   appearance: AppearanceConfig;
   homepage: HomepageConfig;
@@ -286,6 +298,7 @@ export interface PublicSettings {
 }
 
 interface PublicSettingsPayload {
+  authConfig?: Partial<AuthConfig>;
   siteInfo?: SiteInfo;
   appearance?: AppearanceConfig;
   homepage?: HomepageConfig;
@@ -301,6 +314,7 @@ interface PublicSettingsPayload {
 }
 
 export interface FrontendConfigPayload {
+  authConfig?: Partial<AuthConfig>;
   exitModalEnabled?: boolean;
   exitModalConfig?: ExitModalConfig;
   popupConfig?: ExitModalConfig;
@@ -378,6 +392,7 @@ export const DEFAULT_PAGE_GLOBAL: PageGlobalConfig = {
   hotRecommendationClickMode: 'detail',
   appendRefEnabled: false,
   appendRefValue: '',
+  sortZeroNewFirstEnabled: false,
   categorySvgLibrary: [],
 };
 
@@ -539,6 +554,15 @@ export const DEFAULT_ARTICLE_SETTING: ArticleConfig = {
 
 export const DEFAULT_ARTICLE_TOPICS: ArticleTopicsConfig = ARTICLE_TOPICS;
 
+export const DEFAULT_AUTH_CONFIG: AuthConfig = {
+  enable_register: 1,
+  enable_login: 1,
+  enable_user_center: 1,
+  register_close_message: '注册功能暂时关闭',
+  login_close_message: '系统维护中，暂时无法登录',
+  user_center_close_message: '个人中心功能暂时关闭',
+};
+
 // ==================== API 服务 ====================
 
 export const publicSettingService = {
@@ -598,6 +622,7 @@ export const publicSettingService = {
       hotRecommendationClickMode: publicSettingService.normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
       appendRefEnabled: mergedConfig.appendRefEnabled === true,
       appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
+      sortZeroNewFirstEnabled: mergedConfig.sortZeroNewFirstEnabled === true,
       categorySvgLibrary: normalizedCategorySvgLibrary,
     };
   },
@@ -887,6 +912,7 @@ export const publicSettingService = {
       const response = await api.get('/settings/frontend-config');
       const data = publicSettingService.unwrapResponseData<FrontendConfigPayload>(response.data, {});
       return {
+        authConfig: data.authConfig,
         exitModalEnabled: typeof data.exitModalEnabled === 'boolean' ? data.exitModalEnabled : undefined,
         exitModalConfig: data.exitModalConfig || data.popupConfig,
         pageGlobalConfig: data.pageGlobalConfig,
@@ -912,7 +938,23 @@ export const publicSettingService = {
       });
       const data = publicSettingService.unwrapResponseData<PublicSettingsPayload>(response.data, {});
       const exitModalConfig = data.exitModal || data.popup;
+      const rawAuthConfig = data.authConfig || {};
+      const authConfig: AuthConfig = {
+        enable_register: rawAuthConfig.enable_register === 0 ? 0 : 1,
+        enable_login: rawAuthConfig.enable_login === 0 ? 0 : 1,
+        enable_user_center: rawAuthConfig.enable_user_center === 0 ? 0 : 1,
+        register_close_message: String(
+          rawAuthConfig.register_close_message || DEFAULT_AUTH_CONFIG.register_close_message
+        ).trim() || DEFAULT_AUTH_CONFIG.register_close_message,
+        login_close_message: String(
+          rawAuthConfig.login_close_message || DEFAULT_AUTH_CONFIG.login_close_message
+        ).trim() || DEFAULT_AUTH_CONFIG.login_close_message,
+        user_center_close_message: String(
+          rawAuthConfig.user_center_close_message || DEFAULT_AUTH_CONFIG.user_center_close_message
+        ).trim() || DEFAULT_AUTH_CONFIG.user_center_close_message,
+      };
       return {
+        authConfig,
         siteInfo: data.siteInfo || DEFAULT_SITE_INFO,
         appearance: data.appearance || DEFAULT_APPEARANCE,
         homepage: publicSettingService.normalizeHomepageConfig(data.homepage),
@@ -929,6 +971,7 @@ export const publicSettingService = {
       debugLog.error('获取公开设置失败，使用默认配置:', error);
       // 返回默认配置
       return {
+        authConfig: DEFAULT_AUTH_CONFIG,
         siteInfo: DEFAULT_SITE_INFO,
         appearance: DEFAULT_APPEARANCE,
         homepage: DEFAULT_HOMEPAGE,

@@ -210,6 +210,25 @@ class WebsiteController extends baseController {
   }
 
   /**
+   * 批量 AI 生成网站详情正文
+   */
+  async batchGenerateDetailContent() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const result = await ctx.service.uied.website.batchGenerateDetailContent(payload);
+      this.result({
+        data: result,
+        message: `批量生成完成：成功 ${result.success} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`,
+      });
+    } catch (error) {
+      ctx.logger.error('批量 AI 生成网站详情正文失败:', error);
+      const message = String(error?.message || '').trim();
+      this.result({ code: 500, message: message || '批量 AI 生成失败' });
+    }
+  }
+
+  /**
    * 删除网站
    */
   async del() {

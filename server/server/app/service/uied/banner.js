@@ -64,7 +64,31 @@ class BannerService extends Service {
    * @return {string} 规范化结果
    */
   normalizePageSlug(pageSlug) {
-    return String(pageSlug || '').trim().toLowerCase();
+    const normalized = String(pageSlug || '').trim().toLowerCase();
+    if (!normalized) return '';
+    if ([ '/', 'index', 'uiux' ].includes(normalized)) return 'home';
+    return normalized;
+  }
+
+  /**
+   * 规范化页面标识列表，兼容数组/逗号串输入
+   * @param {unknown} value 页面标识输入
+   * @return {string[]} 去重后的页面标识列表
+   */
+  normalizePageSlugList(value) {
+    const source = Array.isArray(value)
+      ? value
+      : String(value || '')
+        .split(',')
+        .map(item => String(item || '').trim())
+        .filter(Boolean);
+    const list = source
+      .map(item => this.normalizePageSlug(item))
+      .filter(Boolean);
+    if (list.length === 0) return [ 'all' ];
+    // all 为全局通配值，若存在则仅保留 all
+    if (list.includes('all')) return [ 'all' ];
+    return Array.from(new Set(list));
   }
 
   /**
@@ -140,7 +164,14 @@ class BannerService extends Service {
     const parsedSort = Number.parseInt(String(rawSort || 0), 10);
     const visibleRaw = data.isShow !== undefined ? data.isShow : data.isActive;
     const isShow = visibleRaw === undefined ? 1 : (Number(visibleRaw) === 1 || visibleRaw === true ? 1 : 0);
-    const normalizedPageSlug = this.normalizePageSlug(data.pageSlug);
+    const normalizedPageSlugList = this.normalizePageSlugList(
+      Array.isArray(data.pageSlugList) && data.pageSlugList.length > 0
+        ? data.pageSlugList
+        : data.pageSlug
+    );
+    const normalizedPageSlug = normalizedPageSlugList.includes('all')
+      ? 'all'
+      : normalizedPageSlugList.join(',');
     return {
       title: String(data.title || '').trim(),
       description: data.description || '',
@@ -149,7 +180,7 @@ class BannerService extends Service {
       linkTarget: data.linkTarget || '_blank',
       contentType: data.contentType || 'image',
       htmlContent: data.htmlContent || '',
-      pageSlug: normalizedPageSlug || null,
+      pageSlug: normalizedPageSlug || 'all',
       sort: Number.isNaN(parsedSort) ? 0 : parsedSort,
       isShow,
       startTime: data.startTime || null,
@@ -476,8 +507,13 @@ class BannerService extends Service {
     if (pageSlug) {
       const pageSlugAliases = this.getPageSlugAliases(pageSlug);
       if (pageSlugAliases.length > 0) {
-        whereSql += ` AND (page_slug IS NULL OR page_slug = '' OR page_slug = 'all' OR page_slug IN (${pageSlugAliases.map(() => '?').join(',')}))`;
+        whereSql += ` AND (page_slug IS NULL OR page_slug = '' OR page_slug = 'all' OR FIND_IN_SET('all', REPLACE(page_slug, ' ', '')) > 0 OR page_slug IN (${pageSlugAliases.map(() => '?').join(',')})`;
         replacements.push(...pageSlugAliases);
+        pageSlugAliases.forEach(() => {
+          whereSql += ' OR FIND_IN_SET(?, REPLACE(page_slug, \' \', \'\')) > 0';
+        });
+        replacements.push(...pageSlugAliases);
+        whereSql += ')';
       }
     }
 
@@ -502,6 +538,7 @@ class BannerService extends Service {
 
   formatItem(item) {
     const positionList = this.normalizePositionList(item.position);
+    const pageSlugList = this.normalizePageSlugList(item.page_slug);
     return {
       id: item.id,
       oldId: item.old_id,
@@ -515,6 +552,7 @@ class BannerService extends Service {
       contentType: item.content_type,
       htmlContent: item.html_content,
       pageSlug: item.page_slug,
+      pageSlugList,
       position: item.position,
       positionList,
       sort: item.sort,

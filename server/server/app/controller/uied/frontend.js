@@ -974,6 +974,7 @@ class FrontendController extends Controller {
         searchConfig,
         articleConfig,
         articleTopicsConfig,
+        authConfig,
       ] = await Promise.all([
         ctx.service.uied.setting.get('exitModalConfig'),
         ctx.service.uied.setting.get('pageGlobalConfig'),
@@ -984,6 +985,7 @@ class FrontendController extends Controller {
         ctx.service.uied.setting.get('searchConfig'),
         ctx.service.uied.setting.get('articleConfig'),
         ctx.service.uied.setting.get('articleTopicsConfig'),
+        ctx.service.uied.setting.getAuthConfig(),
       ]);
 
       /**
@@ -1006,6 +1008,7 @@ class FrontendController extends Controller {
       );
 
       ctx.body = {
+        authConfig,
         exitModalEnabled: true,
         exitModalConfig: normalizedExitModalConfig,
         popupConfig: normalizedExitModalConfig,
@@ -1021,6 +1024,14 @@ class FrontendController extends Controller {
     } catch (error) {
       ctx.logger.error('获取前端配置失败:', error);
       ctx.body = {
+        authConfig: {
+          enable_register: 1,
+          enable_login: 1,
+          enable_user_center: 1,
+          register_close_message: '注册功能暂时关闭',
+          login_close_message: '系统维护中，暂时无法登录',
+          user_center_close_message: '个人中心功能暂时关闭',
+        },
         exitModalEnabled: true,
         exitModalConfig: {},
         pageGlobalConfig: {},
@@ -2454,21 +2465,28 @@ class FrontendController extends Controller {
       const allCategoryIds = [ category.id, ...subCategories.map(s => s.id) ];
       const placeholders = allCategoryIds.map(() => '?').join(',');
       const categoryMatchSql = `(
-        category_id IN (${placeholders})
+        w.category_id IN (${placeholders})
         OR EXISTS (
           SELECT 1
           FROM uied_website_category uwc
-          WHERE uwc.website_id = uied_website.id
+          WHERE uwc.website_id = w.id
             AND uwc.is_delete = 0
             AND uwc.category_id IN (${placeholders})
         )
       )`;
       const categoryMatchReplacements = [ ...allCategoryIds, ...allCategoryIds ];
+      const pageGlobalConfig = ctx.service.uied.setting.normalizePageGlobalConfig(
+        (await ctx.service.uied.setting.getSettingByKey('pageGlobalConfig').catch(() => ({}))) || {}
+      );
+      const sortZeroNewFirstEnabled = pageGlobalConfig?.sortZeroNewFirstEnabled === true;
+      const sortZeroOrderSql = sortZeroNewFirstEnabled
+        ? ', CASE WHEN w.sort = 0 THEN w.create_time ELSE 0 END DESC'
+        : '';
 
       // 获取网站总数
       const [ countResult ] = await ctx.app.model.query(
-        `SELECT COUNT(*) as total FROM uied_website
-         WHERE ${categoryMatchSql} AND is_delete = 0`,
+        `SELECT COUNT(*) as total FROM uied_website w
+         WHERE ${categoryMatchSql} AND w.is_delete = 0`,
         {
           replacements: categoryMatchReplacements,
           type: ctx.app.Sequelize.QueryTypes.SELECT
@@ -2477,11 +2495,13 @@ class FrontendController extends Controller {
 
       // 获取分页网站
       const websites = await ctx.app.model.query(
-        `SELECT DISTINCT id, name, slug, description, url, icon_url as iconUrl,
-                is_hot as isHot, is_featured as isFeatured, is_new as isNew, tags
-         FROM uied_website
-         WHERE ${categoryMatchSql} AND is_delete = 0
-         ORDER BY is_pinned DESC, is_hot DESC, is_featured DESC, sort ASC
+        `SELECT DISTINCT
+                w.id, w.name, w.slug, w.description, w.url, w.icon_url as iconUrl,
+                w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew,
+                w.is_pinned as isPinned, w.sort as sortOrder, w.create_time as createdAt, w.tags
+         FROM uied_website w
+         WHERE ${categoryMatchSql} AND w.is_delete = 0
+         ORDER BY w.is_pinned DESC, w.is_hot DESC, w.is_featured DESC, w.sort ASC${sortZeroOrderSql}, w.id DESC
          LIMIT ? OFFSET ?`,
         {
           replacements: [ ...categoryMatchReplacements, parseInt(pageSize), offset ],
@@ -2524,6 +2544,9 @@ class FrontendController extends Controller {
             isHot: w.isHot === 1,
             isFeatured: w.isFeatured === 1,
             isNew: w.isNew === 1,
+            isPinned: w.isPinned === 1,
+            sortOrder: Number(w.sortOrder || 0),
+            createdAt: Number(w.createdAt || 0),
             tags: tagBundle.tags,
             weightTags: tagBundle.weightTags,
           };
@@ -2618,15 +2641,23 @@ class FrontendController extends Controller {
          WHERE r.tag_id = ? AND w.is_delete = 0`,
         { replacements: [ tag.id ], type: ctx.app.Sequelize.QueryTypes.SELECT }
       );
+      const pageGlobalConfig = ctx.service.uied.setting.normalizePageGlobalConfig(
+        (await ctx.service.uied.setting.getSettingByKey('pageGlobalConfig').catch(() => ({}))) || {}
+      );
+      const sortZeroNewFirstEnabled = pageGlobalConfig?.sortZeroNewFirstEnabled === true;
+      const sortZeroOrderSql = sortZeroNewFirstEnabled
+        ? ', CASE WHEN w.sort = 0 THEN w.create_time ELSE 0 END DESC'
+        : '';
 
       // 获取分页网站
       const websites = await ctx.app.model.query(
         `SELECT w.id, w.name, w.slug, w.description, w.url, w.icon_url as iconUrl,
-                w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew, w.tags
+                w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew,
+                w.is_pinned as isPinned, w.sort as sortOrder, w.create_time as createdAt, w.tags
          FROM uied_website w
          INNER JOIN uied_website_tag_relation r ON w.id = r.website_id
          WHERE r.tag_id = ? AND w.is_delete = 0
-         ORDER BY w.is_pinned DESC, w.is_hot DESC, w.sort ASC
+         ORDER BY w.is_pinned DESC, w.is_hot DESC, w.sort ASC${sortZeroOrderSql}, w.id DESC
          LIMIT ? OFFSET ?`,
         { replacements: [ tag.id, parseInt(pageSize), offset ], type: ctx.app.Sequelize.QueryTypes.SELECT }
       );
@@ -2654,6 +2685,9 @@ class FrontendController extends Controller {
             isHot: w.isHot === 1,
             isFeatured: w.isFeatured === 1,
             isNew: w.isNew === 1,
+            isPinned: w.isPinned === 1,
+            sortOrder: Number(w.sortOrder || 0),
+            createdAt: Number(w.createdAt || 0),
             tags: tagBundle.tags,
             weightTags: tagBundle.weightTags,
           };

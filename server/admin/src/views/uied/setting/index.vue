@@ -932,6 +932,18 @@
                                 :max="100"
                             />
                         </el-form-item>
+                        <el-divider content-position="left">网站排序策略</el-divider>
+                        <el-form-item>
+                            <template #label
+                                ><span>排序=0新站优先</span
+                                ><el-tooltip
+                                    content="开启后，排序值为 0 的站点将按最新创建时间优先展示（同排序值内）。"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-switch v-model="pageConfigData.sortZeroNewFirstEnabled" />
+                        </el-form-item>
                         <el-divider content-position="left">热门推荐点击行为</el-divider>
                         <p class="section-desc">
                             热门推荐区域使用独立的点击行为配置，不受上方「分类区域」配置影响。
@@ -1989,6 +2001,7 @@ const pageConfigData = reactive({
     hotRecommendationClickMode: 'detail', // 热门推荐独立配置
     appendRefEnabled: false,
     appendRefValue: '',
+    sortZeroNewFirstEnabled: false,
     categorySvgLibrary: [] as CategorySvgLibraryItem[]
 })
 
@@ -2021,6 +2034,7 @@ const normalizePageConfigData = (config: any) => ({
     ),
     appendRefEnabled: config?.appendRefEnabled === true,
     appendRefValue: String(config?.appendRefValue || '').trim(),
+    sortZeroNewFirstEnabled: config?.sortZeroNewFirstEnabled === true,
     categorySvgLibrary: normalizeCategorySvgLibrary(config?.categorySvgLibrary)
 })
 

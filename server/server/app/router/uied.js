@@ -37,6 +37,7 @@ module.exports = app => {
   router.all('/api/uied/website/edit', controller.uied.website.edit);
   router.all('/api/uied/website/checkDuplicateUrl', controller.uied.website.checkDuplicateUrl);
   router.all('/api/uied/website/batchImport', controller.uied.website.batchImport);
+  router.all('/api/uied/website/batchGenerateDetailContent', controller.uied.website.batchGenerateDetailContent);
   router.all('/api/uied/website/del', controller.uied.website.del);
   router.all('/api/uied/website/batchDel', controller.uied.website.batchDel);
   router.all('/api/uied/website/click', controller.uied.website.click);
@@ -262,6 +263,7 @@ module.exports = app => {
   allFeature('/api/uied/aiConfig/detail', 'ai_assistant', controller.uied.aiConfig.get);
   allFeature('/api/uied/aiConfig/save', 'ai_assistant', controller.uied.aiConfig.save);
   allFeature('/api/uied/aiConfig/test', 'ai_assistant', controller.uied.aiConfig.test);
+  allFeature('/api/uied/aiConfig/models', 'ai_assistant', controller.uied.aiConfig.models);
   allFeature('/api/uied/aiConfig/add', 'ai_assistant', controller.uied.aiConfig.add);
   allFeature('/api/uied/aiConfig/edit', 'ai_assistant', controller.uied.aiConfig.edit);
   allFeature('/api/uied/aiConfig/del', 'ai_assistant', controller.uied.aiConfig.del);

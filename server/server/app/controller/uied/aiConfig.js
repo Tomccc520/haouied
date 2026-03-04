@@ -309,6 +309,62 @@ class AiConfigController extends baseController {
   }
 
   /**
+   * 拉取 AI 可用模型列表
+   * 说明：优先请求提供商 /models 接口，失败时服务端会自动回退内置预设。
+   */
+  async models() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      const query = ctx.request.query || {};
+      const payload = normalizeAiConfigPayload({
+        ...query,
+        ...body,
+      });
+      const configId = Number(
+        body.configId !== undefined
+          ? body.configId
+          : (query.configId !== undefined ? query.configId : payload.id)
+      ) || 0;
+
+      let provider = String(payload.provider || '').trim();
+      let apiKey = String(payload.apiKey || '').trim();
+      let apiUrl = String(payload.apiUrl || '').trim();
+
+      // 允许前端仅传 configId，服务端自动补齐 provider/apiKey/apiUrl，减少明文透传。
+      if (configId > 0 && (!provider || !apiKey || !apiUrl)) {
+        const detail = await ctx.service.uied.aiConfig.getDetail(configId);
+        if (detail) {
+          provider = provider || String(detail.provider || '').trim();
+          apiKey = apiKey || String(detail.apiKey || '').trim();
+          apiUrl = apiUrl || String(detail.apiUrl || '').trim();
+        }
+      }
+
+      if (!apiKey) {
+        return this.result({ code: 400, message: '请先填写 API Key 后再拉取模型' });
+      }
+
+      const type = String(body.type || query.type || 'text').trim();
+      const subType = String(body.subType || query.subType || 'chat').trim();
+      const result = await ctx.service.uied.aiConfig.listModels(provider, apiKey, apiUrl, {
+        type,
+        subType,
+      });
+      this.result({
+        data: result,
+        message: result.source === 'remote' ? '模型列表获取成功' : (result.message || '已回退预设模型'),
+      });
+    } catch (error) {
+      ctx.logger.error('拉取AI模型列表失败:', error);
+      this.result({
+        code: 500,
+        message: formatAiErrorMessage(error),
+      });
+    }
+  }
+
+  /**
    * 获取默认 AI 配置
    */
   async getDefault() {

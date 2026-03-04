@@ -24,6 +24,21 @@ class FrontendService extends Service {
   }
 
   /**
+   * 获取“排序=0 新站优先”开关（来自页面全局配置）。
+   * @return {Promise<boolean>} 开关状态
+   */
+  async getSortZeroNewFirstEnabled() {
+    try {
+      const raw = await this.ctx.service.uied.setting.getSettingByKey('pageGlobalConfig');
+      const normalized = this.ctx.service.uied.setting.normalizePageGlobalConfig(raw || {});
+      return normalized?.sortZeroNewFirstEnabled === true;
+    } catch (error) {
+      this.ctx.logger.warn('[uied.frontend] 读取 sortZeroNewFirstEnabled 配置失败，按关闭处理: %s', error?.message || error);
+      return false;
+    }
+  }
+
+  /**
    * 解析并去重分类 ID 列表
    * @param {Array<number|string>} categoryIds 分类ID列表
    * @return {number[]} 规范化后的分类ID
@@ -194,14 +209,18 @@ class FrontendService extends Service {
     // 获取所有相关网站
     let websites = [];
     if (allCategoryIds.length > 0) {
+      const sortZeroNewFirstEnabled = await this.getSortZeroNewFirstEnabled();
+      const sortZeroOrderSql = sortZeroNewFirstEnabled
+        ? ', CASE WHEN w.sort = 0 THEN w.create_time ELSE 0 END DESC'
+        : '';
       const categoryFilter = this.buildWebsiteCategoryFilterCondition(allCategoryIds, 'w');
       websites = await app.model.query(
         `SELECT w.id, w.name, w.description, w.url, w.icon_url as iconUrl, w.category_id as categoryId,
                 w.is_hot as isHot, w.is_featured as isFeatured, w.is_new as isNew, w.is_pinned as isPinned,
-                w.tags, w.sort as sortOrder
+                w.tags, w.sort as sortOrder, w.create_time as createdAt
          FROM uied_website w
          WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')}
-         ORDER BY w.is_pinned DESC, w.is_hot DESC, w.is_featured DESC, w.sort ASC`,
+         ORDER BY w.is_pinned DESC, w.is_hot DESC, w.is_featured DESC, w.sort ASC${sortZeroOrderSql}, w.id DESC`,
         { replacements: categoryFilter.replacements, type: app.Sequelize.QueryTypes.SELECT }
       );
     }
@@ -242,6 +261,9 @@ class FrontendService extends Service {
         isHot: website.isHot === 1,
         isFeatured: website.isFeatured === 1,
         isNew: website.isNew === 1,
+        isPinned: website.isPinned === 1,
+        sortOrder: Number(website.sortOrder || 0),
+        createdAt: Number(website.createdAt || 0),
         tags: tagBundle.tags,
         weightTags: tagBundle.weightTags,
       };

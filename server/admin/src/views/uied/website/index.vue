@@ -152,6 +152,15 @@
                     >
                         批量删除
                     </el-button>
+                    <el-button
+                        type="warning"
+                        plain
+                        :loading="batchGenerateDetailLoading"
+                        :disabled="!selectedIds.length || batchGenerateDetailLoading"
+                        @click="handleBatchGenerateDetailContent"
+                    >
+                        批量AI生成正文
+                    </el-button>
                 </div>
                 <div class="text-gray-400">共 {{ pager.count }} 个网站</div>
             </div>
@@ -224,103 +233,234 @@
             v-model="batchImportDialogVisible"
             title="批量导入网址"
             width="760px"
+            :close-on-click-modal="!batchImportLoading"
+            :close-on-press-escape="!batchImportLoading"
+            :show-close="!batchImportLoading"
+            :before-close="handleBatchImportDialogBeforeClose"
             destroy-on-close
         >
-            <el-form :model="batchImportForm" label-width="120px">
-                <el-form-item label="所属分类" required>
-                    <el-select
-                        v-model="batchImportForm.categoryId"
-                        placeholder="请选择分类"
-                        filterable
-                        clearable
-                        style="width: 100%"
-                    >
-                        <el-option
-                            v-for="item in categoryOptions"
-                            :key="item.id"
-                            :label="item.label"
-                            :value="item.id"
-                        />
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="网址列表" required>
-                    <el-input
-                        v-model="batchImportForm.urlsText"
-                        type="textarea"
-                        :rows="9"
-                        placeholder="每行一个网址，支持不带协议（示例：openai.com）"
-                    />
-                    <div class="text-xs text-tx-secondary mt-2">
-                        导入规则：自动校验重复主域名；已存在域名会自动跳过，不重复收录。
-                    </div>
-                </el-form-item>
-                <el-form-item label="发布状态">
-                    <el-radio-group v-model="batchImportForm.status">
-                        <el-radio-button label="draft">草稿</el-radio-button>
-                        <el-radio-button label="active">发布</el-radio-button>
-                        <el-radio-button label="disabled">隐藏</el-radio-button>
-                    </el-radio-group>
-                </el-form-item>
-                <el-form-item label="导入选项">
-                    <el-space direction="vertical" alignment="start" :size="8">
-                        <el-checkbox v-model="batchImportForm.fetchSeo">
-                            自动获取网站信息（标题/简介/关键词/标签/favicon）
-                        </el-checkbox>
-                        <el-checkbox v-model="batchImportForm.generateDetailContent">
-                            导入后自动用 AI 生成详情正文
-                        </el-checkbox>
-                    </el-space>
-                </el-form-item>
-            </el-form>
-
-            <el-alert
-                v-if="batchImportResult"
-                class="mt-2"
-                type="info"
-                :closable="false"
-                :title="`导入结果：新增 ${batchImportResult.created}，跳过 ${batchImportResult.skipped}，失败 ${batchImportResult.failed}`"
-            />
-            <el-card
-                v-if="batchImportResult && batchImportResult.rows.length > 0"
-                class="mt-3"
-                shadow="never"
+            <div
+                v-loading="batchImportLoading"
+                element-loading-text="正在批量导入，请勿关闭弹窗或切换页面..."
             >
-                <template #header>
-                    <div class="flex items-center justify-between">
-                        <span>结果明细（{{ batchImportResult.rows.length }} 条）</span>
-                        <el-button link type="primary" @click="handleExportBatchImportCsv">
-                            一键导出 CSV
-                        </el-button>
-                    </div>
-                </template>
-                <el-table :data="batchImportResult.rows" size="small" max-height="320">
-                    <el-table-column type="index" label="#" width="56" />
-                    <el-table-column label="状态" width="88">
-                        <template #default="{ row }">
-                            <el-tag :type="getBatchImportStatusTagType(row.status)" size="small">
-                                {{ getBatchImportStatusLabel(row.status) }}
-                            </el-tag>
-                        </template>
-                    </el-table-column>
-                    <el-table-column label="网址" min-width="220" show-overflow-tooltip>
-                        <template #default="{ row }">{{ row.url || '-' }}</template>
-                    </el-table-column>
-                    <el-table-column label="网站ID" width="90">
-                        <template #default="{ row }">{{ row.websiteId || '-' }}</template>
-                    </el-table-column>
-                    <el-table-column label="网站名称" min-width="160" show-overflow-tooltip>
-                        <template #default="{ row }">{{ row.name || '-' }}</template>
-                    </el-table-column>
-                    <el-table-column label="原因/说明" min-width="240" show-overflow-tooltip>
-                        <template #default="{ row }">{{ row.reason || row.message || '-' }}</template>
-                    </el-table-column>
-                </el-table>
-            </el-card>
+                <el-alert
+                    v-if="batchImportLoading"
+                    class="mb-4"
+                    type="warning"
+                    :closable="false"
+                    title="导入进行中：已锁定弹窗关闭与页面离开，任务完成后会自动展示结果明细。"
+                />
+                <el-form :model="batchImportForm" label-width="120px">
+                    <el-form-item label="所属分类" required>
+                        <el-select
+                            v-model="batchImportForm.categoryIds"
+                            placeholder="请选择分类（可多选）"
+                            multiple
+                            filterable
+                            clearable
+                            collapse-tags
+                            collapse-tags-tooltip
+                            style="width: 100%"
+                            :disabled="batchImportLoading"
+                        >
+                            <el-option
+                                v-for="item in categoryOptions"
+                                :key="item.id"
+                                :label="item.label"
+                                :value="item.id"
+                            />
+                        </el-select>
+                        <div class="text-xs text-tx-secondary mt-2">
+                            支持多选分类，第一项会作为主分类；后续可在“编辑网站”中切换分类顺序。
+                        </div>
+                    </el-form-item>
+                    <el-form-item label="主分类" required>
+                        <el-select
+                            v-model="batchImportForm.primaryCategoryId"
+                            placeholder="请选择主分类"
+                            :disabled="
+                                selectedBatchImportCategoryOptions.length === 0 || batchImportLoading
+                            "
+                            clearable
+                            style="width: 100%"
+                        >
+                            <el-option
+                                v-for="item in selectedBatchImportCategoryOptions"
+                                :key="item.id"
+                                :label="item.label"
+                                :value="item.id"
+                            />
+                        </el-select>
+                        <div class="text-xs text-tx-secondary mt-2">
+                            主分类用于默认归属展示；你可以随时切换，不影响多分类关联。
+                        </div>
+                    </el-form-item>
+                    <el-form-item label="网址列表" required>
+                        <el-input
+                            v-model="batchImportForm.urlsText"
+                            type="textarea"
+                            :rows="9"
+                            placeholder="每行一个网址，支持不带协议（示例：openai.com）"
+                            :disabled="batchImportLoading"
+                        />
+                        <div class="text-xs text-tx-secondary mt-2">
+                            导入规则：自动检测重复主域名，默认仅提醒并继续导入。
+                        </div>
+                    </el-form-item>
+                    <el-form-item label="发布状态">
+                        <el-radio-group
+                            v-model="batchImportForm.status"
+                            :disabled="batchImportLoading"
+                        >
+                            <el-radio-button label="draft">草稿</el-radio-button>
+                            <el-radio-button label="active">发布</el-radio-button>
+                            <el-radio-button label="disabled">隐藏</el-radio-button>
+                        </el-radio-group>
+                    </el-form-item>
+                    <el-form-item label="导入选项">
+                        <el-space direction="vertical" alignment="start" :size="8">
+                            <el-checkbox v-model="batchImportForm.allowDuplicate" :disabled="batchImportLoading">
+                                重复主域名仅提醒，继续导入
+                            </el-checkbox>
+                            <el-checkbox v-model="batchImportForm.fetchSeo" :disabled="batchImportLoading">
+                                自动获取网站信息（标题/简介/关键词/标签/favicon）
+                            </el-checkbox>
+                            <el-checkbox
+                                v-model="batchImportForm.generateDetailContent"
+                                :disabled="batchImportLoading"
+                            >
+                                导入后自动用 AI 生成详情正文
+                            </el-checkbox>
+                        </el-space>
+                    </el-form-item>
+                </el-form>
+
+                <el-skeleton v-if="batchImportLoading" class="mt-2" :rows="3" animated />
+
+                <el-alert
+                    v-if="batchImportResult"
+                    class="mt-2"
+                    type="info"
+                    :closable="false"
+                    :title="`导入结果：新增 ${batchImportResult.created}，跳过 ${batchImportResult.skipped}，失败 ${batchImportResult.failed}`"
+                />
+                <el-card
+                    v-if="batchImportResult && batchImportResult.rows.length > 0"
+                    class="mt-3"
+                    shadow="never"
+                >
+                    <template #header>
+                        <div class="flex items-center justify-between">
+                            <span>结果明细（{{ batchImportResult.rows.length }} 条）</span>
+                            <el-button link type="primary" @click="handleExportBatchImportCsv">
+                                一键导出 CSV
+                            </el-button>
+                        </div>
+                    </template>
+                    <el-table :data="batchImportResult.rows" size="small" max-height="320">
+                        <el-table-column type="index" label="#" width="56" />
+                        <el-table-column label="状态" width="88">
+                            <template #default="{ row }">
+                                <el-tag :type="getBatchImportStatusTagType(row.status)" size="small">
+                                    {{ getBatchImportStatusLabel(row.status) }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="网址" min-width="220" show-overflow-tooltip>
+                            <template #default="{ row }">{{ row.url || '-' }}</template>
+                        </el-table-column>
+                        <el-table-column label="网站ID" width="90">
+                            <template #default="{ row }">{{ row.websiteId || '-' }}</template>
+                        </el-table-column>
+                        <el-table-column label="网站名称" min-width="160" show-overflow-tooltip>
+                            <template #default="{ row }">{{ row.name || '-' }}</template>
+                        </el-table-column>
+                        <el-table-column label="原因/说明" min-width="240" show-overflow-tooltip>
+                            <template #default="{ row }">{{ row.reason || row.message || '-' }}</template>
+                        </el-table-column>
+                    </el-table>
+                </el-card>
+            </div>
 
             <template #footer>
-                <el-button @click="batchImportDialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="batchImportLoading" @click="handleBatchImportSubmit">
+                <el-button :disabled="batchImportLoading" @click="batchImportDialogVisible = false">
+                    取消
+                </el-button>
+                <el-button
+                    type="primary"
+                    :loading="batchImportLoading"
+                    :disabled="batchImportLoading"
+                    @click="handleBatchImportSubmit"
+                >
                     开始导入
+                </el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="batchGenerateDetailProgressVisible"
+            title="批量AI生成正文进行中"
+            width="560px"
+            :close-on-click-modal="false"
+            :close-on-press-escape="false"
+            :show-close="false"
+            :before-close="handleBatchGenerateProgressBeforeClose"
+            destroy-on-close
+        >
+            <el-alert
+                type="warning"
+                :closable="false"
+                :title="`正在处理 ${batchGenerateTargetCount} 个网站，期间请勿关闭页面。`"
+            />
+            <el-skeleton class="mt-4" :rows="4" animated />
+            <div class="text-xs text-tx-secondary mt-3">
+                说明：该任务会逐条调用模型接口，耗时与模型负载和网络状况相关，完成后会自动弹出结果明细。
+            </div>
+            <template #footer>
+                <el-button disabled>处理中...</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="batchGenerateDetailResultVisible"
+            title="批量AI生成正文结果"
+            width="760px"
+            destroy-on-close
+        >
+            <el-alert
+                v-if="batchGenerateDetailResult"
+                type="info"
+                :closable="false"
+                :title="`总计 ${batchGenerateDetailResult.total} 条：成功 ${batchGenerateDetailResult.success}，跳过 ${batchGenerateDetailResult.skipped}，失败 ${batchGenerateDetailResult.failed}`"
+            />
+            <el-table
+                v-if="batchGenerateDetailResult && batchGenerateDetailResult.rows.length > 0"
+                :data="batchGenerateDetailResult.rows"
+                size="small"
+                max-height="360"
+                class="mt-3"
+            >
+                <el-table-column type="index" label="#" width="56" />
+                <el-table-column label="状态" width="88">
+                    <template #default="{ row }">
+                        <el-tag :type="getBatchGenerateStatusTagType(row.status)" size="small">
+                            {{ getBatchGenerateStatusLabel(row.status) }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="网站ID" width="88">
+                    <template #default="{ row }">{{ row.websiteId || '-' }}</template>
+                </el-table-column>
+                <el-table-column label="网站名称" min-width="160" show-overflow-tooltip>
+                    <template #default="{ row }">{{ row.name || '-' }}</template>
+                </el-table-column>
+                <el-table-column label="说明" min-width="280" show-overflow-tooltip>
+                    <template #default="{ row }">{{ row.reason || '-' }}</template>
+                </el-table-column>
+            </el-table>
+            <template #footer>
+                <el-button type="primary" @click="batchGenerateDetailResultVisible = false">
+                    知道了
                 </el-button>
             </template>
         </el-dialog>
@@ -333,10 +473,12 @@ import {
     uiedWebsiteDelete,
     uiedWebsiteBatchDelete,
     uiedWebsiteBatchImport,
+    uiedWebsiteBatchGenerateDetailContent,
     uiedCategoryAll
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
+import { onBeforeRouteLeave } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
@@ -380,6 +522,16 @@ interface BatchImportResultRow {
     message?: string
 }
 
+/**
+ * 批量 AI 生成详情正文明细行
+ */
+interface BatchGenerateDetailResultRow {
+    status: string
+    websiteId?: number
+    name?: string
+    reason?: string
+}
+
 const batchImportDialogVisible = ref(false)
 const batchImportLoading = ref(false)
 const batchImportResult = ref<{
@@ -389,12 +541,29 @@ const batchImportResult = ref<{
     rows: BatchImportResultRow[]
 } | null>(null)
 const batchImportForm = reactive({
-    categoryId: '' as string | number,
+    categoryIds: [] as Array<string | number>,
+    primaryCategoryId: '' as string | number,
     urlsText: '',
+    allowDuplicate: true,
     fetchSeo: true,
     generateDetailContent: false,
     status: 'draft'
 })
+const batchGenerateDetailLoading = ref(false)
+const batchGenerateDetailProgressVisible = ref(false)
+const batchGenerateTargetCount = ref(0)
+const batchGenerateDetailResultVisible = ref(false)
+const batchGenerateDetailResult = ref<{
+    total: number
+    success: number
+    skipped: number
+    failed: number
+    rows: BatchGenerateDetailResultRow[]
+} | null>(null)
+const runningBatchTaskLeaveMessage = '当前有批量任务执行中，离开页面后可能无法及时看到结果，确定继续离开吗？'
+const hasRunningBatchTask = computed(
+    () => batchImportLoading.value || batchGenerateDetailLoading.value
+)
 
 /**
  * 列表请求参数归一化：多选字段统一转逗号串，后端可直接解析。
@@ -506,9 +675,25 @@ const handleSelectionChange = (rows: any[]) => {
     selectedIds.value = rows.map((row) => row.id)
 }
 
+/**
+ * 构建网站编辑页路由，并携带来源列表地址，便于保存后精准返回。
+ */
+const buildWebsiteEditRoute = (id?: number) => {
+    const query: Record<string, string> = {
+        from: String(route.fullPath || '/website-manage/website')
+    }
+    if (Number.isInteger(Number(id)) && Number(id) > 0) {
+        query.id = String(id)
+    }
+    return {
+        path: '/uied/website/edit',
+        query
+    }
+}
+
 // 跳转到编辑页面
 const handleAdd = () => {
-    router.push('/uied/website/edit')
+    router.push(buildWebsiteEditRoute())
 }
 
 /**
@@ -517,7 +702,74 @@ const handleAdd = () => {
 const openBatchImportDialog = () => {
     batchImportDialogVisible.value = true
     batchImportResult.value = null
+    batchImportForm.categoryIds = []
+    batchImportForm.primaryCategoryId = ''
+    batchImportForm.urlsText = ''
+    batchImportForm.allowDuplicate = true
+    batchImportForm.fetchSeo = true
+    batchImportForm.generateDetailContent = false
+    batchImportForm.status = 'draft'
 }
+
+/**
+ * 批量导入弹窗关闭前校验：执行中禁止关闭，避免误操作中断感知。
+ */
+const handleBatchImportDialogBeforeClose = (done: () => void) => {
+    if (batchImportLoading.value) {
+        feedback.msgWarning('批量导入进行中，请等待任务完成后再关闭弹窗')
+        return
+    }
+    done()
+}
+
+/**
+ * 批量 AI 进度弹窗关闭前校验：执行中固定展示，不允许手动关闭。
+ */
+const handleBatchGenerateProgressBeforeClose = (done: () => void) => {
+    if (batchGenerateDetailLoading.value) {
+        feedback.msgWarning('批量 AI 生成进行中，请等待完成')
+        return
+    }
+    done()
+}
+
+/**
+ * 批量导入已选分类项（用于主分类切换下拉）。
+ */
+const selectedBatchImportCategoryOptions = computed(() => {
+    const selectedSet = new Set(
+        (Array.isArray(batchImportForm.categoryIds) ? batchImportForm.categoryIds : [])
+            .map((item) => Number(item))
+            .filter((item) => Number.isInteger(item) && item > 0)
+    )
+    return categoryOptions.value.filter((item) => selectedSet.has(Number(item.id)))
+})
+
+/**
+ * 当多分类选择变化时，自动校正主分类字段，确保主分类始终在已选范围内。
+ */
+watch(
+    () => [ ...(Array.isArray(batchImportForm.categoryIds) ? batchImportForm.categoryIds : []) ],
+    (value) => {
+        const normalized = Array.from(
+            new Set(
+                value
+                    .map((item) => Number(item))
+                    .filter((item) => Number.isInteger(item) && item > 0)
+            )
+        )
+        if (normalized.length === 0) {
+            batchImportForm.primaryCategoryId = ''
+            return
+        }
+        const currentPrimary = Number(batchImportForm.primaryCategoryId || 0)
+        if (Number.isInteger(currentPrimary) && currentPrimary > 0 && normalized.includes(currentPrimary)) {
+            return
+        }
+        batchImportForm.primaryCategoryId = normalized[0]
+    },
+    { immediate: true }
+)
 
 /**
  * 规范化批量导入明细行，兼容后端不同返回结构。
@@ -554,6 +806,28 @@ const getBatchImportStatusLabel = (status: string) => {
 const getBatchImportStatusTagType = (status: string) => {
     const normalized = String(status || '').trim().toLowerCase()
     if (normalized === 'created' || normalized === 'success') return 'success'
+    if (normalized === 'skipped' || normalized === 'skip') return 'warning'
+    if (normalized === 'failed' || normalized === 'error') return 'danger'
+    return 'info'
+}
+
+/**
+ * 批量 AI 生成状态文案
+ */
+const getBatchGenerateStatusLabel = (status: string) => {
+    const normalized = String(status || '').trim().toLowerCase()
+    if (normalized === 'success' || normalized === 'created') return '成功'
+    if (normalized === 'skipped' || normalized === 'skip') return '跳过'
+    if (normalized === 'failed' || normalized === 'error') return '失败'
+    return '未知'
+}
+
+/**
+ * 批量 AI 生成状态标签样式
+ */
+const getBatchGenerateStatusTagType = (status: string) => {
+    const normalized = String(status || '').trim().toLowerCase()
+    if (normalized === 'success' || normalized === 'created') return 'success'
     if (normalized === 'skipped' || normalized === 'skip') return 'warning'
     if (normalized === 'failed' || normalized === 'error') return 'danger'
     return 'info'
@@ -603,10 +877,21 @@ const handleExportBatchImportCsv = () => {
  * 提交批量导入任务
  */
 const handleBatchImportSubmit = async () => {
-    const categoryId = Number(batchImportForm.categoryId || 0)
+    const normalizedCategoryIds = Array.from(
+        new Set(
+            (Array.isArray(batchImportForm.categoryIds) ? batchImportForm.categoryIds : [])
+                .map((item) => Number(item))
+                .filter((item) => Number.isInteger(item) && item > 0)
+        )
+    )
+    const currentPrimary = Number(batchImportForm.primaryCategoryId || 0)
+    const categoryId =
+        Number.isInteger(currentPrimary) && currentPrimary > 0 && normalizedCategoryIds.includes(currentPrimary)
+            ? currentPrimary
+            : normalizedCategoryIds[0] || 0
     const urlsText = String(batchImportForm.urlsText || '').trim()
-    if (!categoryId) {
-        feedback.msgWarning('请选择所属分类')
+    if (normalizedCategoryIds.length === 0) {
+        feedback.msgWarning('请至少选择一个分类')
         return
     }
     if (!urlsText) {
@@ -617,7 +902,9 @@ const handleBatchImportSubmit = async () => {
     try {
         const result = await uiedWebsiteBatchImport({
             categoryId,
+            categoryIds: normalizedCategoryIds,
             urls: urlsText,
+            allowDuplicate: batchImportForm.allowDuplicate === true,
             fetchSeo: batchImportForm.fetchSeo,
             generateDetailContent: batchImportForm.generateDetailContent,
             status: batchImportForm.status
@@ -641,8 +928,64 @@ const handleBatchImportSubmit = async () => {
     }
 }
 
+/**
+ * 批量 AI 生成网站详情正文（默认跳过已有正文）。
+ */
+const handleBatchGenerateDetailContent = async () => {
+    if (!selectedIds.value.length) {
+        feedback.msgWarning('请先选择要处理的网站')
+        return
+    }
+    await feedback.confirm(
+        `将为选中的 ${selectedIds.value.length} 个网站批量生成详情正文（已有正文默认跳过），是否继续？`
+    )
+    batchGenerateTargetCount.value = selectedIds.value.length
+    batchGenerateDetailProgressVisible.value = true
+    batchGenerateDetailLoading.value = true
+    try {
+        const result = await uiedWebsiteBatchGenerateDetailContent({
+            ids: selectedIds.value,
+            overwrite: false
+        })
+        const payload = result?.data?.data || result?.data || result || {}
+        batchGenerateDetailResult.value = {
+            total: Number(payload?.total || 0),
+            success: Number(payload?.success || 0),
+            skipped: Number(payload?.skipped || 0),
+            failed: Number(payload?.failed || 0),
+            rows: Array.isArray(payload?.rows)
+                ? payload.rows.map((item: any) => ({
+                      status: String(item?.status || ''),
+                      websiteId: Number(item?.websiteId || 0) || undefined,
+                      name: String(item?.name || ''),
+                      reason: String(item?.reason || '')
+                  }))
+                : []
+        }
+        batchGenerateDetailResultVisible.value = true
+        feedback.msgSuccess(
+            `批量生成完成：成功 ${batchGenerateDetailResult.value.success}，跳过 ${batchGenerateDetailResult.value.skipped}，失败 ${batchGenerateDetailResult.value.failed}`
+        )
+        getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '批量 AI 生成失败')
+    } finally {
+        batchGenerateDetailLoading.value = false
+        batchGenerateDetailProgressVisible.value = false
+    }
+}
+
+/**
+ * 页面关闭前拦截：批量任务进行中时给出浏览器原生二次确认。
+ */
+const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (!hasRunningBatchTask.value) return
+    event.preventDefault()
+    event.returnValue = runningBatchTaskLeaveMessage
+}
+
 const handleEdit = (row: any) => {
-    router.push(`/uied/website/edit?id=${row.id}`)
+    router.push(buildWebsiteEditRoute(Number(row?.id || 0)))
 }
 
 const handleDelete = async (id: number) => {
@@ -671,8 +1014,26 @@ watch(
     }
 )
 
+/**
+ * 路由离开守卫：批量任务执行中时提醒用户，避免误切页。
+ */
+onBeforeRouteLeave(async () => {
+    if (!hasRunningBatchTask.value) return true
+    try {
+        await feedback.confirm(runningBatchTaskLeaveMessage)
+        return true
+    } catch (error) {
+        return false
+    }
+})
+
 onMounted(() => {
     getCategoryList()
+    window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onUnmounted(() => {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 getLists()

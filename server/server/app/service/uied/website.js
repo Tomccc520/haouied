@@ -531,9 +531,11 @@ class WebsiteService extends Service {
   async batchImport(payload = {}) {
     const { ctx } = this;
     const urls = this.normalizeBatchImportUrls(payload.urls);
-    const categoryId = Number.parseInt(String(payload.categoryId || 0), 10);
+    const normalizedCategoryIds = this.normalizeWebsiteCategoryIds(payload);
+    const categoryId = normalizedCategoryIds[0] || Number.parseInt(String(payload.categoryId || 0), 10);
     const shouldFetchSeo = payload.fetchSeo !== false;
     const shouldGenerateDetailContent = payload.generateDetailContent === true;
+    const allowDuplicate = payload.allowDuplicate !== false;
     const publishStatus = this.normalizeWebsiteStatus(payload.status, payload.isActive, 'draft');
 
     if (!Number.isInteger(categoryId) || categoryId <= 0) {
@@ -549,7 +551,7 @@ class WebsiteService extends Service {
       if (!currentUrl) continue;
       try {
         const duplicate = await this.findDuplicateWebsiteByUrl(currentUrl);
-        if (duplicate) {
+        if (duplicate && !allowDuplicate) {
           rows.push({
             status: 'skipped',
             url: currentUrl,
@@ -558,6 +560,9 @@ class WebsiteService extends Service {
           });
           continue;
         }
+        const duplicateNotice = duplicate
+          ? `检测到重复主域名（已存在：ID ${duplicate.id} ${duplicate.name || ''}），已按“允许重复”继续导入`
+          : '';
 
         let seoInfo = null;
         if (shouldFetchSeo) {
@@ -579,12 +584,14 @@ class WebsiteService extends Service {
           slug: null,
           url: currentUrl,
           categoryId,
+          categoryIds: normalizedCategoryIds.length > 0 ? normalizedCategoryIds : [ categoryId ],
           description: this.normalizeVarchar(String(seoInfo?.description || '').trim(), 1000, { allowNull: true }) || '',
           iconUrl: this.normalizeVarchar(String(seoInfo?.favicon || '').trim(), 500, { allowNull: true }),
           tags: generatedTags,
           order: 0,
           isActive: publishStatus === 'active' ? 1 : 0,
           status: publishStatus,
+          allowDuplicate: true,
           seoTitle: this.normalizeVarchar(String(seoInfo?.title || '').trim(), 100, { allowNull: true }),
           seoDescription: this.normalizeVarchar(String(seoInfo?.description || '').trim(), 300, { allowNull: true }),
           seoKeywords: this.normalizeVarchar(String(seoInfo?.keywords || '').trim(), 200, { allowNull: true }),
@@ -615,8 +622,12 @@ class WebsiteService extends Service {
           url: currentUrl,
           websiteId,
           name: savePayload.name,
-          reason: aiDetailError ? `导入成功，AI详情生成失败：${aiDetailError}` : '导入成功',
+          reason: aiDetailError
+            ? `${duplicateNotice ? `${duplicateNotice}；` : ''}导入成功，AI详情生成失败：${aiDetailError}`
+            : `${duplicateNotice ? `${duplicateNotice}；` : ''}导入成功`,
           fetchedSeo: Boolean(seoInfo),
+          duplicated: Boolean(duplicate),
+          duplicateWebsiteId: duplicate ? Number(duplicate.id || 0) : undefined,
           aiDetailGenerated,
           aiDetailError,
         });
@@ -635,6 +646,101 @@ class WebsiteService extends Service {
     return {
       total: rows.length,
       created,
+      skipped,
+      failed,
+      rows,
+    };
+  }
+
+  /**
+   * 批量 AI 生成网站详情正文。
+   * 默认跳过已有正文的网站，避免覆盖已人工编辑内容。
+   * @param {{ids?: Array<number|string>, overwrite?: boolean}} payload 批量生成参数
+   * @return {Promise<{total:number,success:number,skipped:number,failed:number,rows:Array<object>}>} 批量结果
+   */
+  async batchGenerateDetailContent(payload = {}) {
+    const { app, ctx } = this;
+    const ids = Array.from(
+      new Set(
+        (Array.isArray(payload.ids) ? payload.ids : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    const overwrite = payload.overwrite === true;
+    if (ids.length === 0) {
+      return { total: 0, success: 0, skipped: 0, failed: 0, rows: [] };
+    }
+
+    const websiteRows = await app.model.query(
+      'SELECT id, name, detail_content as detailContent FROM uied_website WHERE is_delete = 0 AND id IN (?)',
+      { replacements: [ ids ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    const websiteMap = new Map();
+    (Array.isArray(websiteRows) ? websiteRows : []).forEach(item => {
+      const websiteId = Number.parseInt(String(item?.id || 0), 10);
+      if (!Number.isInteger(websiteId) || websiteId <= 0) return;
+      websiteMap.set(websiteId, item);
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+    const rows = [];
+    for (const websiteId of ids) {
+      const website = websiteMap.get(websiteId);
+      if (!website) {
+        rows.push({
+          status: 'failed',
+          websiteId,
+          reason: '网站不存在或已删除',
+        });
+        continue;
+      }
+      const hasDetailContent = String(website.detailContent || '').trim().length > 0;
+      if (hasDetailContent && !overwrite) {
+        rows.push({
+          status: 'skipped',
+          websiteId,
+          name: String(website.name || ''),
+          reason: '已存在正文，默认跳过（可开启覆盖模式）',
+        });
+        continue;
+      }
+      try {
+        const aiResult = await ctx.service.uied.aiConfig.generateDetailContent(websiteId);
+        const aiContent = String(aiResult?.content || '').trim();
+        if (!aiContent) {
+          throw new Error('AI 返回内容为空');
+        }
+        await app.model.query(
+          'UPDATE uied_website SET detail_content = ?, update_time = ? WHERE id = ?',
+          {
+            replacements: [ aiContent, now, websiteId ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+        rows.push({
+          status: 'success',
+          websiteId,
+          name: String(website.name || ''),
+          reason: hasDetailContent ? '已覆盖正文并更新成功' : '正文生成成功',
+          contentLength: aiContent.length,
+        });
+      } catch (error) {
+        rows.push({
+          status: 'failed',
+          websiteId,
+          name: String(website.name || ''),
+          reason: String(error?.message || 'AI 生成失败').trim() || 'AI 生成失败',
+        });
+      }
+    }
+
+    const success = rows.filter(item => item.status === 'success').length;
+    const skipped = rows.filter(item => item.status === 'skipped').length;
+    const failed = rows.filter(item => item.status === 'failed').length;
+    return {
+      total: rows.length,
+      success,
       skipped,
       failed,
       rows,
@@ -928,6 +1034,7 @@ class WebsiteService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const normalizedSlug = this.normalizeVarchar(data.slug, 200, { allowNull: true });
     const normalizedUrl = this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' });
+    const allowDuplicate = data.allowDuplicate === true;
     const normalizedCategoryIds = this.normalizeWebsiteCategoryIds(data);
     const primaryCategoryId = normalizedCategoryIds[0] || Number.parseInt(String(data.categoryId || 0), 10);
 
@@ -936,7 +1043,7 @@ class WebsiteService extends Service {
     }
 
     // 检查 URL 是否已存在（忽略协议与尾斜杠差异）
-    if (normalizedUrl) {
+    if (normalizedUrl && !allowDuplicate) {
       const duplicateUrl = await this.findDuplicateWebsiteByUrl(normalizedUrl);
       if (duplicateUrl) {
         throw new Error(`网站URL已存在（ID: ${duplicateUrl.id}，名称：${duplicateUrl.name || '未命名'}）`);
@@ -1017,6 +1124,7 @@ class WebsiteService extends Service {
   async edit(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const allowDuplicate = data.allowDuplicate === true;
     const hasSlugField = Object.prototype.hasOwnProperty.call(data, 'slug');
     const hasCategoryIdField = Object.prototype.hasOwnProperty.call(data, 'categoryId');
     const hasCategoryIdsField = Object.prototype.hasOwnProperty.call(data, 'categoryIds');
@@ -1067,7 +1175,7 @@ class WebsiteService extends Service {
     if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description); }
     if (data.url !== undefined) {
       const normalizedUrl = this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' });
-      if (normalizedUrl) {
+      if (normalizedUrl && !allowDuplicate) {
         const duplicateUrl = await this.findDuplicateWebsiteByUrl(normalizedUrl, { excludeId: data.id });
         if (duplicateUrl) {
           throw new Error(`网站URL已存在（ID: ${duplicateUrl.id}，名称：${duplicateUrl.name || '未命名'}）`);

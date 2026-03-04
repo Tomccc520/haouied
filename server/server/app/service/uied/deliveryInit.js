@@ -138,6 +138,7 @@ class DeliveryInitService extends Service {
           detailPageNewWindow: false,
           appendRefEnabled: false,
           appendRefValue: '',
+          sortZeroNewFirstEnabled: false,
           pageSize: 24,
         },
         searchConfig: {

@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
+import { AxiosError } from 'axios';
 import ToolCard from '../../components/ToolCard';
 import SEO from '../../components/SEO';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
@@ -99,6 +100,15 @@ const renderCategoryIconContent = (
   }
   const iconText = String(iconValue || '').trim();
   return iconText || String(fallbackName || '').trim().charAt(0);
+};
+
+/**
+ * 判断接口错误是否为 404（资源不存在）
+ * @param error 错误对象
+ * @returns 是否为 404
+ */
+const isNotFoundApiError = (error: unknown): boolean => {
+  return error instanceof AxiosError && error.response?.status === 404;
 };
 
 /**
@@ -228,7 +238,10 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [detail, setDetail] = useState<CategoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [page, setPage] = useState(1);
+  const [retrySeed, setRetrySeed] = useState(0);
   const pageSize = 24;
 
   // 获取前端配置
@@ -245,19 +258,33 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   useEffect(() => {
     const fetchDetail = async () => {
       setLoading(true);
+      setErrorMessage('');
+      setNotFound(false);
       try {
-        const res = await api.get(`/categories/${slug}`, { params: { page, pageSize } });
+        const normalizedSlug = decodeURIComponent(String(slug || '').trim());
+        const res = await api.get(`/categories/${normalizedSlug}`, { params: { page, pageSize } });
         const data = unwrapApiResponse<CategoryDetail | null>(res.data, null);
+        if (!data || !data.category) {
+          setDetail(null);
+          setNotFound(true);
+          return;
+        }
         setDetail(data);
       } catch (error) {
         console.error('获取分类详情失败:', error);
+        setDetail(null);
+        if (isNotFoundApiError(error)) {
+          setNotFound(true);
+          return;
+        }
+        setErrorMessage('分类页面加载失败，请稍后重试');
       } finally {
         setLoading(false);
       }
     };
     fetchDetail();
     window.scrollTo(0, 0);
-  }, [slug, page]);
+  }, [slug, page, retrySeed]);
 
   // 处理网站点击
   const handleWebsiteClick = useCallback((website: WebsiteItem) => {
@@ -304,10 +331,35 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
     );
   }
 
-  if (!detail) {
+  if (!detail && errorMessage) {
+    return (
+      <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
+        <div className="category-empty">
+          <p>{errorMessage}</p>
+          <button
+            type="button"
+            className="category-retry-btn"
+            onClick={() => setRetrySeed((prev) => prev + 1)}
+          >
+            重新加载
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!detail && notFound) {
     return (
       <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
         <div className="category-empty"><p>分类不存在</p></div>
+      </div>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
+        <div className="category-empty"><p>暂无分类数据</p></div>
       </div>
     );
   }
