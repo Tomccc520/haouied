@@ -367,7 +367,7 @@ const Home: React.FC = () => {
   const dailyHotEntryView = useMemo(() => {
     const fallback = {
       label: '全网热榜',
-      href: '/p/daily-hot',
+      href: '/p/hot?tab=daily-hot',
       target: '_self' as '_self' | '_blank',
       rel: undefined as string | undefined,
     };
@@ -418,7 +418,7 @@ const Home: React.FC = () => {
   const dailyNewEntryView = useMemo(() => {
     const fallback = {
       label: '每日上新',
-      href: '/p/daily-new',
+      href: '/p/hot?tab=daily-new',
       target: '_self' as '_self' | '_blank',
       rel: undefined as string | undefined,
     };
@@ -468,7 +468,7 @@ const Home: React.FC = () => {
   const rankingsEntryView = useMemo(() => {
     const fallback = {
       label: '榜单系统',
-      href: '/p/rankings',
+      href: '/p/hot?tab=rankings',
       target: '_self' as '_self' | '_blank',
       rel: undefined as string | undefined,
     };

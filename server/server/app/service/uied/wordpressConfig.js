@@ -498,24 +498,48 @@ class WordpressConfigService extends Service {
       return [];
     }
 
-    return rows.map(item => ({
-      id: item.id,
-      configId: item.config_id,
-      widgetKey: item.widget_key,
-      widgetName: item.widget_name,
-      title: item.title,
-      content: item.content || '',
-      meta: (() => {
+    return rows.map(item => {
+      const meta = (() => {
         try {
           return item.meta_json ? JSON.parse(item.meta_json) : {};
         } catch (error) {
           return {};
         }
-      })(),
-      order: item.sort,
-      visible: item.visible === 1,
-      pageSlug: item.page_slug,
-    }));
+      })();
+      const normalizeNumberList = value => {
+        const source = Array.isArray(value)
+          ? value
+          : String(value || '')
+            .split(',')
+            .map(text => String(text || '').trim())
+            .filter(Boolean);
+        return Array.from(
+          new Set(
+            source
+              .map(text => Number.parseInt(String(text || ''), 10))
+              .filter(number => Number.isFinite(number) && number > 0)
+          )
+        );
+      };
+      return {
+        id: item.id,
+        configId: item.config_id,
+        widgetKey: item.widget_key,
+        widgetName: item.widget_name,
+        title: item.title,
+        content: item.content || '',
+        meta,
+        position: String(meta?.position || '').trim(),
+        componentType: String(meta?.componentType || '').trim(),
+        limit: Number.isFinite(Number(meta?.limit)) ? Number(meta.limit) : 0,
+        showMoreLink: String(meta?.showMoreLink || '').trim(),
+        categoryIds: normalizeNumberList(meta?.categoryIds),
+        tagIds: normalizeNumberList(meta?.tagIds),
+        order: item.sort,
+        visible: item.visible === 1,
+        pageSlug: item.page_slug,
+      };
+    });
   }
 
   /**
@@ -718,9 +742,12 @@ class WordpressConfigService extends Service {
       }
 
       const authorName = post?._embedded?.author?.[0]?.name || '';
+      const authorAvatar = String(post?._embedded?.author?.[0]?.avatar_urls?.['96'] || '').trim();
       const description = this.toPlainText(post?.excerpt?.rendered || post?.content?.rendered || '');
       const title = String(post?.title?.rendered || '').trim() || '未命名文章';
       const dateRaw = String(post?.date || '').trim();
+      const viewCount = Number.parseInt(String(post?.views || post?.page_views || 0), 10);
+      const commentCount = Number.parseInt(String(post?.comment_count || post?.comments || post?.commentCount || 0), 10);
 
       return {
         id: String(post?.id || ''),
@@ -730,6 +757,9 @@ class WordpressConfigService extends Service {
         thumbnail,
         date: dateRaw ? new Date(dateRaw).toLocaleDateString() : '',
         authorName,
+        authorAvatar,
+        viewCount: Number.isFinite(viewCount) && viewCount > 0 ? viewCount : 0,
+        commentCount: Number.isFinite(commentCount) && commentCount > 0 ? commentCount : 0,
         isNew: this.isNewPost(dateRaw),
       };
     });
@@ -774,8 +804,19 @@ class WordpressConfigService extends Service {
           || item?.user?.name
           || ''
       ).trim();
+      const authorAvatar = String(
+        item?.authorAvatar
+          || item?.author_avatar
+          || item?.author?.avatar
+          || item?.author?.avatar_url
+          || item?.user?.avatar
+          || item?.avatar
+          || ''
+      ).trim();
       const rawDate = String(item?.date || item?.post_date || item?.create_time || '').trim();
       const id = String(item?.id || item?.post_id || item?.topic_id || '').trim();
+      const viewCount = Number.parseInt(String(item?.views || item?.view_count || item?.visit_count || 0), 10);
+      const commentCount = Number.parseInt(String(item?.comment_count || item?.comments || item?.commentCount || 0), 10);
 
       return {
         id,
@@ -785,6 +826,9 @@ class WordpressConfigService extends Service {
         thumbnail,
         date: rawDate ? new Date(rawDate).toLocaleDateString() : '',
         authorName,
+        authorAvatar,
+        viewCount: Number.isFinite(viewCount) && viewCount > 0 ? viewCount : 0,
+        commentCount: Number.isFinite(commentCount) && commentCount > 0 ? commentCount : 0,
         isNew: this.isNewPost(rawDate),
       };
     });

@@ -304,10 +304,10 @@ const linkRules: FormRules = {
  * 内置页脚入口选项
  */
 const builtinFooterEntryOptions = [
-    { key: 'daily_hot', label: '每日热榜', defaultPath: '/p/daily-hot' },
-    { key: 'daily_new', label: '每日上新', defaultPath: '/p/daily-new' },
+    { key: 'daily_hot', label: '每日热榜', defaultPath: '/p/hot?tab=daily-hot' },
+    { key: 'daily_new', label: '每日上新', defaultPath: '/p/hot?tab=daily-new' },
     { key: 'hot_articles', label: '热门文章', defaultPath: '/p/hot' },
-    { key: 'rankings', label: '热门榜单', defaultPath: '/p/rankings' }
+    { key: 'rankings', label: '热门榜单', defaultPath: '/p/hot?tab=rankings' }
 ]
 
 /**

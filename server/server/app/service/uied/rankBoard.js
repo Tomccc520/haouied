@@ -37,7 +37,7 @@ class RankBoardService extends Service {
       enabled: true,
       displayPlacements: [ 'nav_quick_entry', 'home_block' ],
       displayLabel: '榜单系统',
-      displayPath: '/p/rankings',
+      displayPath: '/p/hot?tab=rankings',
       displaySort: 88,
       displayDesktop: true,
       displayMobile: true,
@@ -289,7 +289,10 @@ class RankBoardService extends Service {
     const source = payload && typeof payload === 'object' ? payload : {};
     const defaults = this.getDefaultPublicConfig();
     const displayPlacements = this.normalizeDisplayPlacements(source.displayPlacements);
-    const displayPath = String(source.displayPath || defaults.displayPath).trim() || defaults.displayPath;
+    const rawDisplayPath = String(source.displayPath || defaults.displayPath).trim();
+    const displayPath = rawDisplayPath === '/p/rankings' || rawDisplayPath === '/rankings'
+      ? '/p/hot?tab=rankings'
+      : (rawDisplayPath || defaults.displayPath);
     const defaultMetric = String(source.defaultMetric || defaults.defaultMetric).trim().toLowerCase();
     const defaultPeriod = String(source.defaultPeriod || defaults.defaultPeriod).trim().toLowerCase();
 
@@ -297,7 +300,9 @@ class RankBoardService extends Service {
       enabled: this.parseBoolean(source.enabled, defaults.enabled),
       displayPlacements: displayPlacements.length > 0 ? displayPlacements : defaults.displayPlacements,
       displayLabel: String(source.displayLabel || defaults.displayLabel).trim() || defaults.displayLabel,
-      displayPath: displayPath.startsWith('/') ? displayPath : `/${displayPath}`,
+      displayPath: /^(https?:)?\/\//i.test(displayPath)
+        ? displayPath
+        : (displayPath.startsWith('/') ? displayPath : `/${displayPath}`),
       displaySort: this.parsePositiveInt(source.displaySort, defaults.displaySort, 1, 9999),
       displayDesktop: this.parseBoolean(source.displayDesktop, defaults.displayDesktop),
       displayMobile: this.parseBoolean(source.displayMobile, defaults.displayMobile),
@@ -810,7 +815,7 @@ class RankBoardService extends Service {
         { key: 'enabled', type: 'switch', label: '启用榜单系统入口', required: true, defaultValue: true },
         { key: 'displayPlacements', type: 'checkbox-group', label: '前台显示位置', required: true, options: displayPlacementOptions, defaultValue: [ 'nav_quick_entry', 'home_block' ] },
         { key: 'displayLabel', type: 'input', label: '入口名称', required: true, defaultValue: '榜单系统' },
-        { key: 'displayPath', type: 'input', label: '入口路径', required: true, defaultValue: '/p/rankings' },
+        { key: 'displayPath', type: 'input', label: '入口路径', required: true, defaultValue: '/p/hot?tab=rankings' },
         { key: 'displaySort', type: 'number', label: '入口排序', required: true, min: 1, max: 9999, defaultValue: 88 },
         { key: 'displayDesktop', type: 'switch', label: '桌面端显示', required: true, defaultValue: true },
         { key: 'displayMobile', type: 'switch', label: '移动端显示', required: true, defaultValue: true },

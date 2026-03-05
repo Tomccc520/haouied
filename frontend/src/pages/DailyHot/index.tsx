@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SEO from '../../components/SEO';
+import ContentHubSwitch from '../../components/ContentHubSwitch';
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import {
   getDailyHot,
@@ -27,6 +28,10 @@ import './index.css';
 interface DailyHotSection {
   platform: DailyHotPlatform;
   items: DailyHotItem[];
+}
+
+interface DailyHotPageProps {
+  embedded?: boolean;
 }
 
 /**
@@ -139,7 +144,7 @@ function getPlatformInitial(platform: DailyHotPlatform): string {
 /**
  * 每日热榜页面组件（卡片式）
  */
-const DailyHotPage: React.FC = () => {
+const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [displayConfig, setDisplayConfig] = useState<DailyHotDisplayConfig | null>(null);
   const [platforms, setPlatforms] = useState<DailyHotPlatform[]>([]);
@@ -361,14 +366,16 @@ const DailyHotPage: React.FC = () => {
   }, [lastUpdated]);
 
   return (
-    <div className={`daily-hot-page daily-hot-page--layout-${detailLayoutWidthMode}`}>
-      <SEO
-        title={pageTitle}
-        description="聚合多平台今日热榜内容，支持后台配置默认平台、排序与展示策略。"
-        keywords="每日热榜,今日热榜,全网热榜,热点聚合,UIED设计导航"
-        url="https://hao.uied.cn/p/daily-hot"
-        type="website"
-      />
+    <div className={`daily-hot-page daily-hot-page--layout-${detailLayoutWidthMode} ${embedded ? 'daily-hot-page--embedded' : ''}`.trim()}>
+      {!embedded && (
+        <SEO
+          title={pageTitle}
+          description="聚合多平台今日热榜内容，支持后台配置默认平台、排序与展示策略。"
+          keywords="每日热榜,今日热榜,全网热榜,热点聚合,UIED设计导航"
+          url="https://hao.uied.cn/p/hot?tab=daily-hot"
+          type="website"
+        />
+      )}
 
       <div className="daily-hot-page__container">
         <header className="daily-hot-page__hero">
@@ -394,6 +401,12 @@ const DailyHotPage: React.FC = () => {
             {refreshing ? '刷新中...' : '刷新热榜'}
           </button>
         </header>
+
+        {!embedded && (
+          <section className="daily-hot-page__channel-switch">
+            <ContentHubSwitch />
+          </section>
+        )}
 
         <section className="daily-hot-page__platform-filter" aria-label="平台筛选">
           <div className="daily-hot-page__platform-filter-head">
@@ -522,11 +535,6 @@ const DailyHotPage: React.FC = () => {
                               <div className="daily-hot-page__item-desc">{item.desc}</div>
                             )}
                           </div>
-                          {index === 0 && item.cover && (
-                            <div className="daily-hot-page__item-cover">
-                              <img src={item.cover} alt={item.title} loading="lazy" />
-                            </div>
-                          )}
                         </a>
                       </li>
                     ))}

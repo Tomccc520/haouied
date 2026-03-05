@@ -1191,6 +1191,219 @@ const editData = reactive({
     trafficMetrics: createDefaultTrafficMetrics()
 })
 
+const WEBSITE_ADD_DRAFT_STORAGE_KEY = 'uied:website:add:draft:v1'
+const WEBSITE_ADD_DRAFT_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000
+let websiteAddDraftSaveTimer: number | null = null
+const websiteAddDraftRestoring = ref(false)
+
+interface WebsiteAddDraftData {
+    name: string
+    slug: string
+    url: string
+    categoryId: string | number
+    categoryIds: Array<string | number>
+    description: string
+    iconUrl: string
+    tags: string[]
+    weightTags: string[]
+    sortOrder: number
+    isActive: number
+    isPinned: number
+    websiteStatus: string
+    statusReason: string
+    lastCheckedAt: string
+    detailContent: string
+    thumbnail: string
+    seoTitle: string
+    seoDescription: string
+    seoKeywords: string
+    trafficMetrics: ReturnType<typeof createDefaultTrafficMetrics>
+    screenshots: string[]
+    activeTab: string
+    detailEditSection: 'basic' | 'status' | 'traffic' | 'content'
+}
+
+interface WebsiteAddDraftPayload {
+    savedAt: number
+    data: WebsiteAddDraftData
+}
+
+/**
+ * 生成“添加网址”草稿快照（仅用于本地自动保存）。
+ */
+const buildWebsiteAddDraftData = (): WebsiteAddDraftData => ({
+    name: String(editData.name || ''),
+    slug: String(editData.slug || ''),
+    url: String(editData.url || ''),
+    categoryId: editData.categoryId,
+    categoryIds: Array.isArray(editData.categoryIds) ? [ ...editData.categoryIds ] : [],
+    description: String(editData.description || ''),
+    iconUrl: String(editData.iconUrl || ''),
+    tags: Array.isArray(editData.tags) ? [ ...editData.tags ] : [],
+    weightTags: Array.isArray(editData.weightTags) ? [ ...editData.weightTags ] : [],
+    sortOrder: Number(editData.sortOrder || 0),
+    isActive: Number(editData.isActive || 0),
+    isPinned: Number(editData.isPinned || 0),
+    websiteStatus: String(editData.websiteStatus || ''),
+    statusReason: String(editData.statusReason || ''),
+    lastCheckedAt: String(editData.lastCheckedAt || ''),
+    detailContent: String(editData.detailContent || ''),
+    thumbnail: String(editData.thumbnail || ''),
+    seoTitle: String(editData.seoTitle || ''),
+    seoDescription: String(editData.seoDescription || ''),
+    seoKeywords: String(editData.seoKeywords || ''),
+    trafficMetrics: {
+        ...createDefaultTrafficMetrics(),
+        ...(editData.trafficMetrics || {}),
+        sourceBreakdown: {
+            ...createDefaultTrafficMetrics().sourceBreakdown,
+            ...(editData.trafficMetrics?.sourceBreakdown || {})
+        }
+    },
+    screenshots: Array.isArray(screenshotList.value) ? [ ...screenshotList.value ] : [],
+    activeTab: String(activeTab.value || 'basic'),
+    detailEditSection: detailEditSection.value
+})
+
+/**
+ * 判断当前草稿是否包含有效内容；空草稿不写入本地存储。
+ */
+const hasWebsiteAddDraftContent = (draft: WebsiteAddDraftData): boolean => {
+    if (!draft) return false
+    if (
+        draft.name.trim() ||
+        draft.slug.trim() ||
+        draft.url.trim() ||
+        draft.description.trim() ||
+        draft.iconUrl.trim() ||
+        draft.detailContent.trim() ||
+        draft.thumbnail.trim() ||
+        draft.seoTitle.trim() ||
+        draft.seoDescription.trim() ||
+        draft.seoKeywords.trim()
+    ) {
+        return true
+    }
+    if ((draft.categoryIds || []).length > 0) return true
+    if ((draft.tags || []).length > 0 || (draft.weightTags || []).length > 0) return true
+    if ((draft.screenshots || []).length > 0) return true
+    return false
+}
+
+/**
+ * 清除“添加网址”本地草稿。
+ */
+const clearWebsiteAddDraftStorage = () => {
+    if (typeof window === 'undefined') return
+    window.localStorage.removeItem(WEBSITE_ADD_DRAFT_STORAGE_KEY)
+}
+
+/**
+ * 立即保存本地草稿（仅新增模式）。
+ */
+const persistWebsiteAddDraftStorage = () => {
+    if (typeof window === 'undefined') return
+    if (isEdit.value || websiteAddDraftRestoring.value) return
+    const draft = buildWebsiteAddDraftData()
+    if (!hasWebsiteAddDraftContent(draft)) {
+        clearWebsiteAddDraftStorage()
+        return
+    }
+    const payload: WebsiteAddDraftPayload = {
+        savedAt: Date.now(),
+        data: draft
+    }
+    window.localStorage.setItem(WEBSITE_ADD_DRAFT_STORAGE_KEY, JSON.stringify(payload))
+}
+
+/**
+ * 防抖保存本地草稿，减少频繁写 localStorage。
+ */
+const schedulePersistWebsiteAddDraftStorage = () => {
+    if (typeof window === 'undefined') return
+    if (isEdit.value || websiteAddDraftRestoring.value) return
+    if (websiteAddDraftSaveTimer) {
+        window.clearTimeout(websiteAddDraftSaveTimer)
+        websiteAddDraftSaveTimer = null
+    }
+    websiteAddDraftSaveTimer = window.setTimeout(() => {
+        persistWebsiteAddDraftStorage()
+        websiteAddDraftSaveTimer = null
+    }, 420)
+}
+
+/**
+ * 应用本地草稿数据到表单（仅新增模式）。
+ */
+const applyWebsiteAddDraftToForm = (draft: WebsiteAddDraftData) => {
+    editData.name = String(draft?.name || '')
+    editData.slug = String(draft?.slug || '')
+    editData.url = String(draft?.url || '')
+    editData.categoryId = draft?.categoryId || ''
+    editData.categoryIds = Array.isArray(draft?.categoryIds) ? [ ...draft.categoryIds ] : []
+    editData.description = String(draft?.description || '')
+    editData.iconUrl = String(draft?.iconUrl || '')
+    editData.tags = Array.isArray(draft?.tags) ? [ ...draft.tags ] : []
+    editData.weightTags = Array.isArray(draft?.weightTags) ? [ ...draft.weightTags ] : []
+    editData.sortOrder = Number(draft?.sortOrder || 0)
+    editData.isActive = Number(draft?.isActive || 0) === 1 ? 1 : 0
+    editData.isPinned = Number(draft?.isPinned || 0) === 1 ? 1 : 0
+    editData.websiteStatus = String(draft?.websiteStatus || 'unchecked')
+    editData.statusReason = String(draft?.statusReason || '')
+    editData.lastCheckedAt = String(draft?.lastCheckedAt || '')
+    editData.detailContent = String(draft?.detailContent || '')
+    editData.thumbnail = String(draft?.thumbnail || '')
+    editData.seoTitle = String(draft?.seoTitle || '')
+    editData.seoDescription = String(draft?.seoDescription || '')
+    editData.seoKeywords = String(draft?.seoKeywords || '')
+    Object.assign(editData.trafficMetrics, createDefaultTrafficMetrics(), {
+        ...(draft?.trafficMetrics || {}),
+        sourceBreakdown: {
+            ...createDefaultTrafficMetrics().sourceBreakdown,
+            ...(draft?.trafficMetrics?.sourceBreakdown || {})
+        }
+    })
+    screenshotList.value = Array.isArray(draft?.screenshots) ? [ ...draft.screenshots ] : []
+    activeTab.value = String(draft?.activeTab || 'basic')
+    detailEditSection.value =
+        draft?.detailEditSection && [ 'basic', 'status', 'traffic', 'content' ].includes(draft.detailEditSection)
+            ? draft.detailEditSection
+            : 'content'
+}
+
+/**
+ * 恢复本地草稿（仅新增模式，默认保留 7 天）。
+ */
+const restoreWebsiteAddDraftStorage = () => {
+    if (typeof window === 'undefined') return false
+    if (isEdit.value) return false
+    const raw = window.localStorage.getItem(WEBSITE_ADD_DRAFT_STORAGE_KEY)
+    if (!raw) return false
+    try {
+        const parsed = JSON.parse(raw) as WebsiteAddDraftPayload
+        const savedAt = Number(parsed?.savedAt || 0)
+        if (!savedAt || Date.now() - savedAt > WEBSITE_ADD_DRAFT_EXPIRE_MS) {
+            clearWebsiteAddDraftStorage()
+            return false
+        }
+        const draftData = parsed?.data
+        if (!draftData || !hasWebsiteAddDraftContent(draftData)) {
+            clearWebsiteAddDraftStorage()
+            return false
+        }
+        websiteAddDraftRestoring.value = true
+        applyWebsiteAddDraftToForm(draftData)
+        feedback.msgSuccess('已自动恢复上次未提交的添加草稿')
+        return true
+    } catch (error) {
+        console.warn('恢复添加网址草稿失败:', error)
+        clearWebsiteAddDraftStorage()
+        return false
+    } finally {
+        websiteAddDraftRestoring.value = false
+    }
+}
+
 /**
  * 后台编辑页：站点状态标签文案
  */
@@ -2513,6 +2726,7 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
         } else {
             await uiedWebsiteAdd(submitData)
             feedback.msgSuccess(mode === 'draft' ? '草稿已创建' : '添加成功')
+            clearWebsiteAddDraftStorage()
         }
         await goWebsiteListWithRefresh()
     } catch (error: any) {
@@ -2558,6 +2772,7 @@ const goWebsiteListWithRefresh = async () => {
 }
 
 const handleBack = () => {
+    persistWebsiteAddDraftStorage()
     router.back()
 }
 
@@ -2601,6 +2816,7 @@ const getAiGeneratingLeaveMessage = () =>
  * 浏览器刷新/关闭拦截（AI 生成中）
  */
 const handlePageBeforeUnload = (event: BeforeUnloadEvent) => {
+    persistWebsiteAddDraftStorage()
     if (!aiGenerating.value) return
     event.preventDefault()
     event.returnValue = ''
@@ -2609,6 +2825,7 @@ const handlePageBeforeUnload = (event: BeforeUnloadEvent) => {
 onBeforeRouteLeave(
     (_to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
         if (!aiGenerating.value) {
+            persistWebsiteAddDraftStorage()
             next()
             return
         }
@@ -2617,6 +2834,7 @@ onBeforeRouteLeave(
             next(false)
             return
         }
+        persistWebsiteAddDraftStorage()
         aiAbortController.value?.abort()
         aiAbortController.value = null
         stopStream()
@@ -2625,14 +2843,43 @@ onBeforeRouteLeave(
     }
 )
 
+watch(
+    editData,
+    () => {
+        schedulePersistWebsiteAddDraftStorage()
+    },
+    { deep: true }
+)
+
+watch(
+    screenshotList,
+    () => {
+        schedulePersistWebsiteAddDraftStorage()
+    },
+    { deep: true }
+)
+
+watch([activeTab, detailEditSection], () => {
+    schedulePersistWebsiteAddDraftStorage()
+})
+
 onMounted(async () => {
     await getCategoryList()
-    if (route.query.id) await loadDetail(route.query.id as string)
+    if (route.query.id) {
+        await loadDetail(route.query.id as string)
+    } else {
+        restoreWebsiteAddDraftStorage()
+    }
     window.addEventListener('wangeditor-ai-hover', handleAiHover)
     window.addEventListener('beforeunload', handlePageBeforeUnload)
 })
 
 onBeforeUnmount(() => {
+    persistWebsiteAddDraftStorage()
+    if (websiteAddDraftSaveTimer) {
+        window.clearTimeout(websiteAddDraftSaveTimer)
+        websiteAddDraftSaveTimer = null
+    }
     aiAbortController.value?.abort()
     aiAbortController.value = null
     stopStream()

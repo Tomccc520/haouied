@@ -81,7 +81,7 @@ class DailyHotService extends Service {
       maxPlatforms: 20,
       displayPlacements: [ 'home_menu', 'footer_link' ],
       displayLabel: '每日热榜',
-      displayPath: '/p/daily-hot',
+      displayPath: '/p/hot?tab=daily-hot',
       displaySort: 90,
       displayDesktop: true,
       displayMobile: true,
@@ -163,7 +163,10 @@ class DailyHotService extends Service {
     const maxPlatforms = this.parsePositiveInt(source.maxPlatforms, defaults.maxPlatforms, 1, 50);
     const defaultLimit = this.parsePositiveInt(source.defaultLimit, defaults.defaultLimit, 1, 30);
     const displayPlacements = this.normalizeDisplayPlacements(source.displayPlacements);
-    const displayPath = String(source.displayPath || defaults.displayPath).trim() || defaults.displayPath;
+    const rawDisplayPath = String(source.displayPath || defaults.displayPath).trim();
+    const displayPath = rawDisplayPath === '/p/daily-hot' || rawDisplayPath === '/daily-hot'
+      ? '/p/hot?tab=daily-hot'
+      : (rawDisplayPath || defaults.displayPath);
     const displayLabel = String(source.displayLabel || defaults.displayLabel).trim() || defaults.displayLabel;
 
     return {
@@ -178,7 +181,9 @@ class DailyHotService extends Service {
       maxPlatforms,
       displayPlacements: displayPlacements.length > 0 ? displayPlacements : defaults.displayPlacements,
       displayLabel,
-      displayPath: displayPath.startsWith('/') ? displayPath : `/${displayPath}`,
+      displayPath: /^(https?:)?\/\//i.test(displayPath)
+        ? displayPath
+        : (displayPath.startsWith('/') ? displayPath : `/${displayPath}`),
       displaySort: this.parsePositiveInt(source.displaySort, defaults.displaySort, 1, 9999),
       displayDesktop: this.parseBoolean(source.displayDesktop, defaults.displayDesktop),
       displayMobile: this.parseBoolean(source.displayMobile, defaults.displayMobile),
@@ -446,7 +451,7 @@ class DailyHotService extends Service {
         { key: 'defaultPlatforms', type: 'array-string', label: '默认平台（按序）', required: true, defaultValue: [ '哔哩哔哩', '知乎', '微博' ] },
         { key: 'displayPlacements', type: 'checkbox-group', label: '前台显示位置', required: true, options: placementOptions, defaultValue: [ 'home_menu', 'footer_link' ] },
         { key: 'displayLabel', type: 'input', label: '入口名称', required: true, defaultValue: '每日热榜' },
-        { key: 'displayPath', type: 'input', label: '入口路径', required: true, defaultValue: '/p/daily-hot' },
+        { key: 'displayPath', type: 'input', label: '入口路径', required: true, defaultValue: '/p/hot?tab=daily-hot' },
         { key: 'displaySort', type: 'number', label: '入口排序', required: true, min: 1, max: 9999, defaultValue: 90 },
         { key: 'displayDesktop', type: 'switch', label: '桌面端显示', required: true, defaultValue: true },
         { key: 'displayMobile', type: 'switch', label: '移动端显示', required: true, defaultValue: true },

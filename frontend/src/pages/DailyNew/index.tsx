@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SEO from '../../components/SEO';
+import ContentHubSwitch from '../../components/ContentHubSwitch';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
@@ -26,6 +27,7 @@ import {
 import './index.css';
 
 const PAGE_SIZE = 30;
+const DEFAULT_DAY_RANGE = 7;
 const BASE_DAY_OPTIONS = [
   { value: 1, label: '今天' },
   { value: 3, label: '近3天' },
@@ -36,6 +38,10 @@ interface DailyNewDayGroup {
   key: string;
   label: string;
   items: DailyNewWebsiteItem[];
+}
+
+interface DailyNewPageProps {
+  embedded?: boolean;
 }
 
 /**
@@ -125,14 +131,14 @@ const getEntryStatusLabel = (item: DailyNewWebsiteItem): string => {
   return '';
 };
 
-const DailyNewPage: React.FC = () => {
+const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
   const navigate = useNavigate();
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const { config: frontendConfig } = useFrontendConfig();
   const { config: permalinkConfig } = usePermalinkConfig();
   const pageGlobal = frontendConfig.pageGlobalConfig;
   const [displayConfig, setDisplayConfig] = useState<DailyNewDisplayConfig | null>(null);
-  const [days, setDays] = useState<number>(1);
+  const [days, setDays] = useState<number>(DEFAULT_DAY_RANGE);
   const defaultDaysInitialized = useRef(false);
   const [page, setPage] = useState<number>(1);
   const [items, setItems] = useState<DailyNewWebsiteItem[]>([]);
@@ -154,13 +160,10 @@ const DailyNewPage: React.FC = () => {
       || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
   ).trim() || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。';
 
-  const defaultDays = useMemo(() => {
-    const value = Number(
-      displayConfig?.defaultDays || frontendConfig.homepageConfig.dailyNewDefaultDays || 1,
-    );
-    if (!Number.isFinite(value)) return 1;
-    return Math.max(1, Math.min(30, value));
-  }, [displayConfig?.defaultDays, frontendConfig.homepageConfig.dailyNewDefaultDays]);
+  /**
+   * 每日上新默认固定近 7 天，避免运营配置差异导致前台默认范围不一致。
+   */
+  const defaultDays = DEFAULT_DAY_RANGE;
 
   const dayOptions = useMemo(() => {
     const exists = BASE_DAY_OPTIONS.some((item) => item.value === defaultDays);
@@ -294,12 +297,14 @@ const DailyNewPage: React.FC = () => {
   const dayGroups = useMemo(() => buildDayGroups(items), [items]);
 
   return (
-    <div className={`daily-new-page daily-new-page--layout-${detailLayoutWidthMode}`}>
-      <SEO
-        title={`${pageTitle} - UIED设计导航`}
-        description={pageDescription}
-        keywords="每日上新,新网址,设计资源,AI工具"
-      />
+    <div className={`daily-new-page daily-new-page--layout-${detailLayoutWidthMode} ${embedded ? 'daily-new-page--embedded' : ''}`.trim()}>
+      {!embedded && (
+        <SEO
+          title={`${pageTitle} - UIED设计导航`}
+          description={pageDescription}
+          keywords="每日上新,新网址,设计资源,AI工具"
+        />
+      )}
 
       <header className="daily-new-page__hero">
         <div className="daily-new-page__hero-main">
@@ -320,9 +325,6 @@ const DailyNewPage: React.FC = () => {
                 </button>
               ))}
             </div>
-            <Link className="daily-new-page__hot-link" to="/p/daily-hot">
-              去看每日热榜
-            </Link>
             <Link className="daily-new-page__back-link" to="/">
               返回首页
             </Link>
@@ -343,6 +345,12 @@ const DailyNewPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {!embedded && (
+        <section className="daily-new-page__channel-switch">
+          <ContentHubSwitch />
+        </section>
+      )}
 
       <section className="daily-new-page__content">
         <div className="daily-new-page__meta">
@@ -392,7 +400,7 @@ const DailyNewPage: React.FC = () => {
                             iconUrl={item.iconUrl}
                             websiteUrl={item.url}
                             name={item.name}
-                            size={30}
+                            size={40}
                           />
                           <h3>{item.name}</h3>
                           {statusLabel && (

@@ -110,6 +110,13 @@ class BannerService extends Service {
       set.add('uiux');
       set.add('index');
     }
+    /**
+     * 搜索页广告默认复用首页投放，避免运营仅配置 home 时搜索页为空。
+     */
+    if (normalized === 'search') {
+      set.add('home');
+      set.add('uiux');
+    }
     if (normalized === 'website-detail' || normalized === 'website_detail') {
       set.add('website-detail');
       set.add('website_detail');

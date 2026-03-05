@@ -28,10 +28,10 @@ class NavMenuService extends Service {
    */
   getBuiltinEntryMap() {
     return {
-      daily_hot: '/p/daily-hot',
-      daily_new: '/p/daily-new',
+      daily_hot: '/p/hot?tab=daily-hot',
+      daily_new: '/p/hot?tab=daily-new',
       hot_articles: '/p/hot',
-      rankings: '/p/rankings',
+      rankings: '/p/hot?tab=rankings',
       submit: '/submit',
       articles: '/articles',
     };

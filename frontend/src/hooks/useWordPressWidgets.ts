@@ -21,7 +21,9 @@ export interface WordPressWidget {
   tagIds: number[];
   order: number;
   visible: boolean;
+  widgetKey?: string;
   settings?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
 }
 
 interface UseWordPressWidgetsOptions {
@@ -37,6 +39,60 @@ interface UseWordPressWidgetsReturn {
   refetch: () => Promise<void>;
   getWidgetByPosition: (position: string) => WordPressWidget | undefined;
 }
+
+/**
+ * 规范化正整数，异常时使用默认值。
+ */
+const toPositiveInt = (value: unknown, fallback: number): number => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+/**
+ * 统一解析 ID 列表，兼容数组和逗号字符串。
+ */
+const normalizeIdList = (value: unknown): number[] => {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  return Array.from(
+    new Set(
+      source
+        .map((item) => Number.parseInt(String(item || ''), 10))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ),
+  );
+};
+
+/**
+ * 统一规范化 WordPress 组件配置，兼容 meta 与扁平字段两种结构。
+ */
+const normalizeWidget = (row: Record<string, any>): WordPressWidget => {
+  const metaRaw = row?.meta && typeof row.meta === 'object' ? row.meta : {};
+  const meta = metaRaw as Record<string, any>;
+  const categoryIds = normalizeIdList(meta.categoryIds ?? row.categoryIds);
+  const tagIds = normalizeIdList(meta.tagIds ?? row.tagIds);
+  return {
+    id: String(row?.id ?? ''),
+    name: String(row?.widgetName || row?.name || row?.widgetKey || '').trim(),
+    pageSlug: String(row?.pageSlug || '').trim(),
+    position: String(meta.position || row?.position || 'main').trim() || 'main',
+    componentType: String(meta.componentType || row?.componentType || row?.widgetKey || '').trim(),
+    title: String(row?.title || meta.title || '').trim(),
+    limit: toPositiveInt(meta.limit ?? row?.limit, 8),
+    showMoreLink: String(meta.showMoreLink || row?.showMoreLink || '').trim(),
+    categoryIds,
+    tagIds,
+    order: Number.isFinite(Number(row?.order)) ? Number(row.order) : 0,
+    visible: row?.visible !== false,
+    widgetKey: String(row?.widgetKey || '').trim(),
+    settings: meta.settings && typeof meta.settings === 'object' ? meta.settings : {},
+    meta,
+  };
+};
 
 /**
  * WordPress 组件配置 Hook
@@ -67,7 +123,8 @@ export const useWordPressWidgets = (
       
       const response = await api.get('/wordpress/widgets/active', { params });
       
-      const data = unwrapApiList<WordPressWidget>(response.data);
+      const data = unwrapApiList<Record<string, any>>(response.data)
+        .map((item) => normalizeWidget(item));
       
       // 注意：不在这里按 position 筛选，让 getWidgetByPosition 来处理
       // 这样 widgets 数组包含该页面的所有组件
@@ -88,12 +145,13 @@ export const useWordPressWidgets = (
 
   // 根据位置获取组件配置
   const getWidgetByPosition = useCallback((pos: string) => {
+    const normalizedPos = String(pos || '').trim().toLowerCase();
     // 先精确匹配位置
-    let found = widgets.find(w => w.position === pos);
+    let found = widgets.find((w) => String(w.position || '').trim().toLowerCase() === normalizedPos);
     
     // 如果没找到，尝试使用第一个可用的组件（兼容旧配置）
     if (!found && widgets.length > 0) {
-      found = widgets[0];
+      found = widgets.find((w) => String(w.widgetKey || '').trim() === 'design-article-grid-container') || widgets[0];
     }
     
     return found;

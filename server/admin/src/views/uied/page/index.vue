@@ -257,6 +257,53 @@
                         <el-form-item label="显示侧边栏">
                             <el-switch v-model="editData.showSidebar" />
                         </el-form-item>
+                        <el-divider content-position="left">设计文章 API 配置</el-divider>
+                        <el-form-item label="启用文章模块">
+                            <el-switch v-model="editData.designArticleEnabled" />
+                        </el-form-item>
+                        <el-form-item label="模块标题">
+                            <el-input
+                                v-model="editData.designArticleTitle"
+                                :disabled="!editData.designArticleEnabled"
+                                placeholder="例如：设计文章"
+                            />
+                        </el-form-item>
+                        <el-form-item label="展示数量">
+                            <el-input-number
+                                v-model="editData.designArticleLimit"
+                                :min="1"
+                                :max="50"
+                                :disabled="!editData.designArticleEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="分类ID列表">
+                            <el-input
+                                v-model="editData.designArticleCategoryIdsText"
+                                type="textarea"
+                                :rows="2"
+                                :disabled="!editData.designArticleEnabled"
+                                placeholder="多个分类ID用英文逗号分隔，如 307,338"
+                            />
+                        </el-form-item>
+                        <el-form-item label="标签ID列表">
+                            <el-input
+                                v-model="editData.designArticleTagIdsText"
+                                type="textarea"
+                                :rows="2"
+                                :disabled="!editData.designArticleEnabled"
+                                placeholder="多个标签ID用英文逗号分隔，如 393,417"
+                            />
+                        </el-form-item>
+                        <el-form-item label="更多链接">
+                            <el-input
+                                v-model="editData.designArticleShowMoreLink"
+                                :disabled="!editData.designArticleEnabled"
+                                placeholder="/article 或 https://www.uied.cn/article"
+                            />
+                            <div class="text-gray-400 text-xs mt-1">
+                                用于前端设计文章模块“查看更多”按钮；留空则走前端默认值。
+                            </div>
+                        </el-form-item>
                         <el-form-item label="主题色">
                             <el-color-picker v-model="editData.themeColor" />
                             <span class="ml-2 text-gray-400">{{
@@ -414,7 +461,10 @@ import {
     uiedCategoryAll,
     uiedSettingGet,
     uiedWebsiteSearch,
-    uiedWebsiteList
+    uiedWebsiteList,
+    uiedWordpressWidgetAdd,
+    uiedWordpressWidgetEdit,
+    uiedWordpressWidgetList
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
@@ -437,6 +487,21 @@ interface CategorySvgLibraryOption {
     key: string
     label: string
     svg: string
+}
+
+interface WordPressWidgetRow {
+    id: number
+    widgetKey?: string
+    widgetName?: string
+    title?: string
+    order?: number
+    visible?: boolean
+    pageSlug?: string
+    meta?: Record<string, any>
+    categoryIds?: number[]
+    tagIds?: number[]
+    limit?: number
+    showMoreLink?: string
 }
 
 const queryParams = reactive({
@@ -487,7 +552,14 @@ const editData = reactive({
     showHotRecommendations: true,
     showCategories: true,
     showSidebar: true,
-    themeColor: ''
+    themeColor: '',
+    designArticleWidgetId: 0,
+    designArticleEnabled: true,
+    designArticleTitle: '设计文章',
+    designArticleLimit: 8,
+    designArticleShowMoreLink: '',
+    designArticleCategoryIdsText: '',
+    designArticleTagIdsText: ''
 })
 
 const editRules: FormRules = {
@@ -506,6 +578,114 @@ const buildSlugFromName = (name: string): string => {
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '')
     return normalized.slice(0, 80)
+}
+
+/**
+ * 解析数字 ID 列表，兼容英文逗号、中文逗号、空格和换行。
+ */
+const parseNumberIdList = (value: unknown): number[] => {
+    return Array.from(
+        new Set(
+            String(value || '')
+                .split(/[,\n，\s]+/)
+                .map((item) => Number.parseInt(String(item || '').trim(), 10))
+                .filter((item) => Number.isFinite(item) && item > 0)
+        )
+    )
+}
+
+/**
+ * 把 ID 列表序列化为逗号文本，便于在表单内编辑。
+ */
+const toNumberIdText = (value: unknown): string => {
+    const rows = Array.isArray(value) ? value : []
+    return rows
+        .map((item) => Number.parseInt(String(item || ''), 10))
+        .filter((item) => Number.isFinite(item) && item > 0)
+        .join(',')
+}
+
+/**
+ * 从页面 slug 拉取设计文章组件配置并回填编辑表单。
+ */
+const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
+    const normalizedSlug = String(pageSlug || '').trim()
+    if (!normalizedSlug) {
+        editData.designArticleWidgetId = 0
+        editData.designArticleEnabled = true
+        editData.designArticleTitle = '设计文章'
+        editData.designArticleLimit = 8
+        editData.designArticleShowMoreLink = ''
+        editData.designArticleCategoryIdsText = ''
+        editData.designArticleTagIdsText = ''
+        return
+    }
+    try {
+        const rows = (await uiedWordpressWidgetList({ pageSlug: normalizedSlug })) as WordPressWidgetRow[] | undefined
+        const list = Array.isArray(rows) ? rows : []
+        const target = list.find((item) => {
+            const key = String(item?.widgetKey || '').trim()
+            const position = String(item?.meta?.position || '').trim().toLowerCase()
+            return key === 'design-article-grid-container' || position === 'main'
+        })
+        if (!target) {
+            editData.designArticleWidgetId = 0
+            editData.designArticleEnabled = true
+            editData.designArticleTitle = '设计文章'
+            editData.designArticleLimit = 8
+            editData.designArticleShowMoreLink = ''
+            editData.designArticleCategoryIdsText = ''
+            editData.designArticleTagIdsText = ''
+            return
+        }
+        const meta = target.meta && typeof target.meta === 'object' ? target.meta : {}
+        const categoryIds = Array.isArray(meta.categoryIds) ? meta.categoryIds : target.categoryIds || []
+        const tagIds = Array.isArray(meta.tagIds) ? meta.tagIds : target.tagIds || []
+        editData.designArticleWidgetId = Number(target.id || 0)
+        editData.designArticleEnabled = target.visible !== false
+        editData.designArticleTitle = String(target.title || meta.title || '设计文章').trim() || '设计文章'
+        editData.designArticleLimit = Number.parseInt(String(meta.limit ?? target.limit ?? 8), 10) || 8
+        editData.designArticleShowMoreLink = String(meta.showMoreLink || target.showMoreLink || '').trim()
+        editData.designArticleCategoryIdsText = toNumberIdText(categoryIds)
+        editData.designArticleTagIdsText = toNumberIdText(tagIds)
+    } catch (error) {
+        console.error('加载设计文章组件配置失败:', error)
+        editData.designArticleWidgetId = 0
+    }
+}
+
+/**
+ * 同步页面对应的设计文章组件配置（design-article-grid-container）。
+ */
+const syncDesignArticleWidgetConfig = async (pageSlug: string) => {
+    const normalizedSlug = String(pageSlug || '').trim()
+    if (!normalizedSlug) return
+    const categoryIds = parseNumberIdList(editData.designArticleCategoryIdsText)
+    const tagIds = parseNumberIdList(editData.designArticleTagIdsText)
+    const payload = {
+        id: editData.designArticleWidgetId || undefined,
+        widgetKey: 'design-article-grid-container',
+        widgetName: 'DesignArticleGrid',
+        title: String(editData.designArticleTitle || '设计文章').trim() || '设计文章',
+        content: '',
+        order: 10,
+        visible: editData.designArticleEnabled !== false,
+        pageSlug: normalizedSlug,
+        meta: {
+            position: 'main',
+            componentType: 'designArticleGrid',
+            limit: Number.parseInt(String(editData.designArticleLimit || 8), 10) || 8,
+            showMoreLink: String(editData.designArticleShowMoreLink || '').trim(),
+            categoryIds,
+            tagIds,
+        },
+    }
+    if (editData.designArticleWidgetId > 0) {
+        await uiedWordpressWidgetEdit(payload)
+        return
+    }
+    const addResult = (await uiedWordpressWidgetAdd(payload)) as any
+    editData.designArticleWidgetId = Number(addResult?.id || editData.designArticleWidgetId || 0)
 }
 
 /**
@@ -633,7 +813,14 @@ const resetEditData = () => {
         showHotRecommendations: true,
         showCategories: true,
         showSidebar: true,
-        themeColor: ''
+        themeColor: '',
+        designArticleWidgetId: 0,
+        designArticleEnabled: true,
+        designArticleTitle: '设计文章',
+        designArticleLimit: 8,
+        designArticleShowMoreLink: '',
+        designArticleCategoryIdsText: '',
+        designArticleTagIdsText: ''
     })
     slugTouched.value = false
     selectedScrollCategoryIds.value = []
@@ -678,6 +865,8 @@ const handleEdit = async (row: any) => {
         showCategories: row.showCategories !== false,
         showSidebar: row.showSidebar !== false
     })
+
+    await loadDesignArticleWidgetConfig(String(row.slug || ''))
 
     // 加载分类列表
     await loadScrollCategories()
@@ -738,13 +927,16 @@ const handleSubmit = async () => {
         }
         delete (submitData as any).hotSearchTagsStr
 
-        if (editData.id) {
-            await uiedPageEdit(submitData)
-            feedback.msgSuccess('编辑成功')
+        let savedPage: any = null
+        const isEditing = Boolean(editData.id)
+        if (isEditing) {
+            savedPage = await uiedPageEdit(submitData)
         } else {
-            await uiedPageAdd(submitData)
-            feedback.msgSuccess('添加成功')
+            savedPage = await uiedPageAdd(submitData)
         }
+        const savedSlug = String(savedPage?.slug || submitData.slug || '').trim()
+        await syncDesignArticleWidgetConfig(savedSlug)
+        feedback.msgSuccess(isEditing ? '编辑成功' : '添加成功')
         showEdit.value = false
         getLists()
     } finally {

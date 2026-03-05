@@ -118,6 +118,12 @@
   background: var(--primary-700);
 }
 
+/* 搜索页头部广告位 */
+.search-page__top-banner {
+  margin: 10px auto 0;
+  width: min(100rem, calc(100% - var(--spacing-8)));
+}
+
 /* 主要内容区域 */
 .search-content {
   margin: 0 auto;
@@ -608,12 +614,10 @@
   text-align: center;
   padding: var(--spacing-10) var(--spacing-8);
   color: var(--neutral-600);
-  background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--primary-500) 8%, transparent 92%) 0%, transparent 60%),
-    linear-gradient(160deg, var(--neutral-0) 0%, color-mix(in srgb, var(--neutral-0) 90%, var(--primary-50) 10%) 100%);
-  border: 1px solid color-mix(in srgb, var(--primary-500) 18%, var(--neutral-200) 82%);
+  background: var(--neutral-0);
+  border: 1px solid var(--neutral-200);
   border-radius: var(--radius-lg);
-  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
 .search-empty-title {
@@ -649,17 +653,12 @@
   justify-content: center;
   background: color-mix(in srgb, var(--primary-500) 12%, #ffffff 88%);
   border: 1px solid color-mix(in srgb, var(--primary-500) 25%, #ffffff 75%);
-  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.16);
+  box-shadow: none;
   z-index: 1;
 }
 
 .search-empty-icon-ring {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 1px dashed color-mix(in srgb, var(--primary-500) 35%, transparent 65%);
-  animation: search-empty-ring-rotate 10s linear infinite;
+  display: none;
 }
 
 .search-empty-actions {
@@ -681,13 +680,12 @@
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .search-empty-action-btn:hover {
-  transform: translateY(-1px);
   border-color: var(--primary-500);
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
+  background: color-mix(in srgb, var(--primary-50) 70%, #ffffff 30%);
 }
 
 .search-empty-action-btn--primary {
@@ -715,9 +713,9 @@
 }
 
 .search-empty-suggestion-tag {
-  border: 1px solid color-mix(in srgb, var(--primary-500) 25%, var(--neutral-300) 75%);
-  background: color-mix(in srgb, var(--primary-50) 70%, #ffffff 30%);
-  color: var(--primary-700);
+  border: 1px solid var(--neutral-300);
+  background: var(--neutral-0);
+  color: var(--neutral-700);
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   font-size: var(--text-xs);
@@ -726,18 +724,9 @@
 }
 
 .search-empty-suggestion-tag:hover {
-  background: var(--primary-500);
+  background: var(--primary-50);
   border-color: var(--primary-500);
-  color: var(--neutral-0);
-}
-
-@keyframes search-empty-ring-rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  color: var(--primary-700);
 }
 
 /* 搜索建议 */
@@ -1277,6 +1266,46 @@
   border-color: var(--primary-500);
   background: color-mix(in srgb, var(--primary-100) 75%, #fff 25%);
   box-shadow: 0 8px 20px color-mix(in srgb, var(--primary-500) 14%, transparent 86%);
+}
+
+.hover-preview-chip {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-preview-chip:hover::after {
+    content: attr(data-preview);
+    position: absolute;
+    z-index: 12;
+    left: 50%;
+    bottom: calc(100% + 10px);
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(420px, 70vw);
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--primary-500) 20%, #d1d5db 80%);
+    background: rgba(15, 23, 42, 0.9);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+    text-align: left;
+    pointer-events: none;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.22);
+  }
+
+  .hover-preview-chip:hover::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 4px);
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(15, 23, 42, 0.9);
+    pointer-events: none;
+    z-index: 12;
+  }
 }
 
 @media (max-width: 768px) {

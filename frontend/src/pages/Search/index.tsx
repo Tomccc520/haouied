@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import HeroBanner from '../../components/HeroBanner';
+import AdBanner from '../../components/AdBanner';
 import ToolCard from '../../components/ToolCard';
 import AISearchSidebar from '../../components/AISearchSidebar';
 import api from '../../services/api';
@@ -26,7 +27,7 @@ import './index.css';
 const bgImage = '/bg.jpg';
 const SEARCH_HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 10;
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 40;
 const HOT_SEARCH_TAGS = ['AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG'];
 
 // 搜索结果接口
@@ -489,7 +490,7 @@ const SearchPage: React.FC = () => {
   const searchConfig = frontendConfig?.searchConfig;
   const searchEnabled = searchConfig?.enabled !== false;
   const aiSearchEnabled = searchEnabled && searchConfig?.aiSearchEnabled !== false;
-  const resultPageSize = normalizeResultPageSize(searchConfig?.resultsPerPage);
+  const resultPageSize = Math.max(40, normalizeResultPageSize(searchConfig?.resultsPerPage));
   const suggestionDebounceDelay = normalizeDebounceDelay(searchConfig?.debounceDelay);
   const searchInputPlaceholder = String(searchConfig?.placeholder || '').trim() || '搜索网站名称、描述、标签...';
   const aiSearchButtonText = String(searchConfig?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索';
@@ -1105,6 +1106,33 @@ const SearchPage: React.FC = () => {
     return result.slice(0, 10);
   }, [relatedKeywords, hotSearchTags, searchHistory, searchQuery]);
 
+  /**
+   * 构建关键词悬停预览文案，用于“相关搜索/推荐词”的 hover preview。
+   */
+  const buildKeywordPreviewText = useCallback((keyword: string): string => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) return '点击检索该关键词';
+    const matched = allResults.filter((item) => {
+      const name = normalizeText(item.name);
+      const category = normalizeText(item.category || '');
+      const description = normalizeText(item.description);
+      const tags = Array.isArray(item.tags) ? item.tags.map((tag) => normalizeText(tag)) : [];
+      return (
+        name.includes(normalizedKeyword) ||
+        category.includes(normalizedKeyword) ||
+        description.includes(normalizedKeyword) ||
+        tags.some((tag) => tag.includes(normalizedKeyword))
+      );
+    });
+    if (matched.length === 0) return '点击检索该关键词';
+    const examples = matched
+      .slice(0, 3)
+      .map((item) => String(item.name || '').trim())
+      .filter(Boolean)
+      .join(' / ');
+    return examples ? `匹配 ${matched.length} 条：${examples}` : `匹配 ${matched.length} 条结果`;
+  }, [allResults]);
+
   return (
     <div className="search-page" style={{ '--bg-image': `url(${bgImage})` } as React.CSSProperties}>
       <HeroBanner
@@ -1120,6 +1148,12 @@ const SearchPage: React.FC = () => {
         customDescription={`收录 ${totalWebsites.toLocaleString()} 个优质网站资源`}
         aiSearchEnabled={aiSearchEnabled}
         aiSearchBtnText={aiSearchButtonText}
+      />
+      <AdBanner
+        pageSlug="search"
+        position="home"
+        limit={1}
+        className="search-page__top-banner"
       />
 
       <div className="search-content">
@@ -1301,15 +1335,20 @@ const SearchPage: React.FC = () => {
                 <div className="search-empty-suggestions">
                   <div className="search-empty-suggestions__label">你可以试试：</div>
                   <div className="search-empty-suggestions__tags">
-                    {emptySuggestionKeywords.map((keyword, index) => (
-                      <button
-                        key={`${keyword}-${index}`}
-                        className="search-empty-suggestion-tag"
-                        onClick={() => handleTagClick(keyword)}
-                      >
-                        {keyword}
-                      </button>
-                    ))}
+                    {emptySuggestionKeywords.map((keyword, index) => {
+                      const preview = buildKeywordPreviewText(keyword);
+                      return (
+                        <button
+                          key={`${keyword}-${index}`}
+                          className="search-empty-suggestion-tag hover-preview-chip"
+                          title={preview}
+                          data-preview={preview}
+                          onClick={() => handleTagClick(keyword)}
+                        >
+                          {keyword}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1331,11 +1370,20 @@ const SearchPage: React.FC = () => {
           <div className="related-search">
             <h4>相关搜索</h4>
             <div className="related-tags">
-              {relatedKeywords.map((keyword, i) => (
-                <button key={i} className="related-tag" onClick={() => handleTagClick(keyword)}>
-                  {keyword}
-                </button>
-              ))}
+              {relatedKeywords.map((keyword, i) => {
+                const preview = buildKeywordPreviewText(keyword);
+                return (
+                  <button
+                    key={i}
+                    className="related-tag hover-preview-chip"
+                    title={preview}
+                    data-preview={preview}
+                    onClick={() => handleTagClick(keyword)}
+                  >
+                    {keyword}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

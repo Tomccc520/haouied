@@ -255,6 +255,7 @@ class SettingService extends Service {
     const normalizeDailyNewPath = (value, fallback) => {
       const text = String(value || '').trim();
       if (!text) return fallback;
+      if (text === '/p/daily-new' || text === '/daily-new') return '/p/hot?tab=daily-new';
       if (/^(https?:)?\/\//i.test(text)) return text;
       return text.startsWith('/') ? text : `/${text}`;
     };
@@ -279,11 +280,11 @@ class SettingService extends Service {
       navSwitchItems: this.getDefaultNavSwitchItems(),
       dailyNewEnabled: true,
       dailyNewDisplayLabel: '每日上新',
-      dailyNewDisplayPath: '/p/daily-new',
+      dailyNewDisplayPath: '/p/hot?tab=daily-new',
       dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
       dailyNewDisplaySort: 86,
       dailyNewDisplayOpenInNewTab: false,
-      dailyNewDefaultDays: 1,
+      dailyNewDefaultDays: 7,
       dailyNewPageKicker: 'Daily Fresh',
       dailyNewPageTitle: '每日上新网址',
       dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
@@ -378,6 +379,7 @@ class SettingService extends Service {
         iconKey: 'ai',
         source: 'uied_latest',
         presetKey: 'aigc',
+        presetKeys: [ 'all', 'aigc', 'nano-banana', 'midjourney', 'stable-diffusion', 'deepseek', 'jimeng', 'gpt4o', 'gpt' ],
         fallbackType: 'category',
         fallbackId: 417,
         enabled: true,
@@ -390,6 +392,7 @@ class SettingService extends Service {
         iconKey: 'product',
         source: 'uied_latest',
         presetKey: 'ai-tools',
+        presetKeys: [ 'all', 'ai-tools', 'aixiezuo', 'aihuihua', 'aishipin', 'aibangong', 'aisheji', 'aikaifa', 'aishuziren' ],
         fallbackType: 'category',
         fallbackId: 3351,
         enabled: true,
@@ -402,6 +405,7 @@ class SettingService extends Service {
         iconKey: 'design',
         source: 'uied_latest',
         presetKey: 'design',
+        presetKeys: [ 'all', 'design', 'ui', 'ux', 'product', 'graphic', '3d', 'tips', 'inspiration' ],
         fallbackType: 'category',
         fallbackId: 307,
         enabled: true,
@@ -413,9 +417,10 @@ class SettingService extends Service {
         mode: 'preset',
         iconKey: 'resource',
         source: 'uied_latest',
-        presetKey: 'productivity',
+        presetKey: 'all-resources',
+        presetKeys: [ 'all', 'all-resources', 'portfolio', 'card', 'big-data', 'dashboard', 'icon', 'ar', 'app', 'watch', 'web', 'design-system', '3d-icon', 'font-resource', 'font', 'ps-plugin', 'sketch-plugin', 'mockup' ],
         fallbackType: 'category',
-        fallbackId: 338,
+        fallbackId: 4,
         enabled: true,
         sort: 60,
       },
@@ -477,6 +482,9 @@ class SettingService extends Service {
       apiSourceMode: 'auto',
       motionEnabled: true,
       heroTagline: '聚合国内外AI精选内容，探索AI技术前沿与应用',
+      hubHeaderKicker: 'CONTENT HUB',
+      hubHeaderTitle: '内容中心',
+      hubHeaderDescription: '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。',
       linksNewWindow: true,
       filterPresets: defaultFilterPresets,
       workbenchMenuItems: defaultWorkbenchMenuItems,
@@ -612,10 +620,15 @@ class SettingService extends Service {
     /**
      * 规范化工作台菜单，保证 key 唯一、模式和查询字段可控。
      */
-    const normalizeWorkbenchMenuItems = value => {
+    const normalizeWorkbenchMenuItems = (value, filterPresets = []) => {
       const rows = Array.isArray(value) ? value : defaultWorkbenchMenuItems;
       const allowModeSet = new Set([ 'latest', 'hot', 'preset', 'authorHot', 'circle', 'external' ]);
       const allowFallbackTypeSet = new Set([ 'category', 'tag' ]);
+      const validPresetKeys = new Set(
+        (Array.isArray(filterPresets) ? filterPresets : [])
+          .map(item => String(item?.key || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
       const usedKeySet = new Set();
       const normalizedRows = rows
         .map((item, index) => {
@@ -631,13 +644,31 @@ class SettingService extends Service {
             ? String(item?.fallbackType).trim()
             : 'category';
           const externalUrlRaw = String(item?.externalUrl || '').trim();
+          const presetKey = String(item?.presetKey || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          /**
+           * 菜单级筛选项白名单：支持数组、逗号字符串，且自动兼容 presetKey。
+           */
+          const presetKeysRaw = Array.isArray(item?.presetKeys)
+            ? item.presetKeys
+            : String(item?.presetKeys || '')
+              .split(',')
+              .map(keyText => String(keyText || '').trim())
+              .filter(Boolean);
+          const presetKeys = Array.from(new Set([
+            ...presetKeysRaw,
+            presetKey,
+          ]
+            .map(keyText => String(keyText || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''))
+            .filter(Boolean)
+            .filter(keyText => validPresetKeys.size === 0 || validPresetKeys.has(keyText))));
           return {
             key,
             label: String(item?.label || key).trim() || key,
             mode,
             iconKey,
             source: normalizeSource(item?.source),
-            presetKey: String(item?.presetKey || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''),
+            presetKey,
+            presetKeys,
             fallbackType,
             fallbackId: Number.isInteger(fallbackId) && fallbackId > 0 ? fallbackId : 0,
             categoryId: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 0,
@@ -667,6 +698,7 @@ class SettingService extends Service {
 
     const defaultCategoryId = Number.parseInt(String(merged.defaultCategoryId || 0), 10);
     const defaultTagId = Number.parseInt(String(merged.defaultTagId || 0), 10);
+    const normalizedFilterPresets = normalizeFilterPresets(merged.filterPresets);
 
     return {
       ...merged,
@@ -691,9 +723,12 @@ class SettingService extends Service {
       apiSourceMode: normalizeSource(merged.apiSourceMode),
       motionEnabled: merged.motionEnabled !== false,
       heroTagline: String(merged.heroTagline || defaults.heroTagline).trim() || defaults.heroTagline,
+      hubHeaderKicker: String(merged.hubHeaderKicker || defaults.hubHeaderKicker).trim() || defaults.hubHeaderKicker,
+      hubHeaderTitle: String(merged.hubHeaderTitle || defaults.hubHeaderTitle).trim() || defaults.hubHeaderTitle,
+      hubHeaderDescription: String(merged.hubHeaderDescription || defaults.hubHeaderDescription).trim() || defaults.hubHeaderDescription,
       linksNewWindow: merged.linksNewWindow !== false,
-      filterPresets: normalizeFilterPresets(merged.filterPresets),
-      workbenchMenuItems: normalizeWorkbenchMenuItems(merged.workbenchMenuItems),
+      filterPresets: normalizedFilterPresets,
+      workbenchMenuItems: normalizeWorkbenchMenuItems(merged.workbenchMenuItems, normalizedFilterPresets),
     };
   }
 
@@ -1374,11 +1409,11 @@ class SettingService extends Service {
       navSwitchItems: this.getDefaultNavSwitchItems(),
       dailyNewEnabled: true,
       dailyNewDisplayLabel: '每日上新',
-      dailyNewDisplayPath: '/p/daily-new',
+      dailyNewDisplayPath: '/p/hot?tab=daily-new',
       dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
       dailyNewDisplaySort: 86,
       dailyNewDisplayOpenInNewTab: false,
-      dailyNewDefaultDays: 1,
+      dailyNewDefaultDays: 7,
       dailyNewPageKicker: 'Daily Fresh',
       dailyNewPageTitle: '每日上新网址',
       dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
@@ -1559,6 +1594,9 @@ class SettingService extends Service {
       apiSourceMode: 'auto',
       motionEnabled: true,
       heroTagline: '聚合国内外AI精选内容，探索AI技术前沿与应用',
+      hubHeaderKicker: 'CONTENT HUB',
+      hubHeaderTitle: '内容中心',
+      hubHeaderDescription: '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。',
       linksNewWindow: true,
       filterPresets: [
         { key: 'all', name: '全部', type: 'all', id: 0, description: '全部热门文章', enabled: true, sort: 10 },
@@ -1570,10 +1608,10 @@ class SettingService extends Service {
       workbenchMenuItems: [
         { key: 'latest-articles', label: '最新文章', mode: 'latest', iconKey: 'latest', source: 'uied_latest', orderBy: 'date', order: 'desc', period: 'all', categoryId: 0, tagId: 0, enabled: true, sort: 10 },
         { key: 'hot-articles', label: '热门文章', mode: 'hot', iconKey: 'hot', source: 'uied_hot', orderBy: 'views', order: 'desc', period: 'all', categoryId: 417, tagId: 0, enabled: true, sort: 20 },
-        { key: 'ai-realtime', label: 'AI实时文章', mode: 'preset', iconKey: 'ai', source: 'uied_latest', presetKey: 'aigc', fallbackType: 'category', fallbackId: 417, enabled: true, sort: 30 },
-        { key: 'ai-products', label: 'AI产品榜单', mode: 'preset', iconKey: 'product', source: 'uied_latest', presetKey: 'ai-tools', fallbackType: 'category', fallbackId: 3351, enabled: true, sort: 40 },
-        { key: 'design-articles', label: '设计文章', mode: 'preset', iconKey: 'design', source: 'uied_latest', presetKey: 'design', fallbackType: 'category', fallbackId: 307, enabled: true, sort: 50 },
-        { key: 'design-resources', label: '设计素材', mode: 'preset', iconKey: 'resource', source: 'uied_latest', presetKey: 'productivity', fallbackType: 'category', fallbackId: 338, enabled: true, sort: 60 },
+        { key: 'ai-realtime', label: 'AI实时文章', mode: 'preset', iconKey: 'ai', source: 'uied_latest', presetKey: 'aigc', presetKeys: [ 'all', 'aigc', 'nano-banana', 'midjourney', 'stable-diffusion', 'deepseek', 'jimeng', 'gpt4o', 'gpt' ], fallbackType: 'category', fallbackId: 417, enabled: true, sort: 30 },
+        { key: 'ai-products', label: 'AI产品榜单', mode: 'preset', iconKey: 'product', source: 'uied_latest', presetKey: 'ai-tools', presetKeys: [ 'all', 'ai-tools', 'aixiezuo', 'aihuihua', 'aishipin', 'aibangong', 'aisheji', 'aikaifa', 'aishuziren' ], fallbackType: 'category', fallbackId: 3351, enabled: true, sort: 40 },
+        { key: 'design-articles', label: '设计文章', mode: 'preset', iconKey: 'design', source: 'uied_latest', presetKey: 'design', presetKeys: [ 'all', 'design', 'ui', 'ux', 'product', 'graphic', '3d', 'tips', 'inspiration' ], fallbackType: 'category', fallbackId: 307, enabled: true, sort: 50 },
+        { key: 'design-resources', label: '设计素材', mode: 'preset', iconKey: 'resource', source: 'uied_latest', presetKey: 'all-resources', presetKeys: [ 'all', 'all-resources', 'portfolio', 'card', 'big-data', 'dashboard', 'icon', 'ar', 'app', 'watch', 'web', 'design-system', '3d-icon', 'font-resource', 'font', 'ps-plugin', 'sketch-plugin', 'mockup' ], fallbackType: 'category', fallbackId: 4, enabled: true, sort: 60 },
         { key: 'top-authors', label: '优秀作者', mode: 'authorHot', iconKey: 'author', source: 'uied_hot', orderBy: 'comment_count', order: 'desc', period: 'weekly', categoryId: 0, tagId: 0, enabled: true, sort: 70 },
         { key: 'study-circles', label: '学习圈子', mode: 'circle', iconKey: 'circle', source: 'uied_latest', orderBy: 'date', order: 'desc', period: 'all', categoryId: 0, tagId: 393, enabled: true, sort: 80 },
         { key: 'back-main-site', label: '返回主站', mode: 'external', iconKey: 'home', source: 'auto', externalUrl: 'https://www.uied.cn', enabled: true, sort: 999 },

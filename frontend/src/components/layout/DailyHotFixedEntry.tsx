@@ -70,7 +70,7 @@ const DailyHotFixedEntry: React.FC = () => {
   const entryView = useMemo<DailyHotFixedEntryView>(() => {
     const fallback: DailyHotFixedEntryView = {
       label: '全网热榜',
-      href: '/p/daily-hot',
+      href: '/p/hot?tab=daily-hot',
       target: '_self',
     };
 

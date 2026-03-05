@@ -22,13 +22,20 @@ interface LayoutProps {
 /**
  * 根据当前路径推断页面标识，用于广告位按 pageSlug 定向投放。
  */
-const resolvePageSlugByPathname = (pathname: string): string => {
+const resolvePageSlugByPathname = (pathname: string, search = ''): string => {
   const normalized = String(pathname || '').trim().toLowerCase();
+  const searchParams = new URLSearchParams(String(search || ''));
+  const hotTab = String(searchParams.get('tab') || '').trim().toLowerCase();
   if (!normalized || normalized === '/' || normalized === '/home') return 'home';
   if (normalized.startsWith('/website/')) return 'website-detail';
   if (normalized === '/daily-hot' || normalized === '/p/daily-hot') return 'daily-hot';
   if (normalized === '/daily-new' || normalized === '/p/daily-new') return 'daily-new';
-  if (normalized === '/hot' || normalized === '/p/hot') return 'hot-articles';
+  if (normalized === '/hot' || normalized === '/p/hot') {
+    if (hotTab === 'daily-hot') return 'daily-hot';
+    if (hotTab === 'daily-new') return 'daily-new';
+    if (hotTab === 'rankings') return 'rankings';
+    return 'hot-articles';
+  }
   if (normalized === '/rankings' || normalized === '/p/rankings') return 'rankings';
   if (
     normalized === '/category'
@@ -69,7 +76,7 @@ const resolvePageSlugByPathname = (pathname: string): string => {
  */
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const currentPageSlug = resolvePageSlugByPathname(location.pathname);
+  const currentPageSlug = resolvePageSlugByPathname(location.pathname, location.search);
 
   return (
     <div className="layout">

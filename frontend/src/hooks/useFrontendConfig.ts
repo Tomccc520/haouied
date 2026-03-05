@@ -277,7 +277,7 @@ const defaultHomepageConfig: HomepageConfig = {
   homeRecommendationSort: 20,
   dailyNewEnabled: true,
   dailyNewDisplayLabel: '每日上新',
-  dailyNewDisplayPath: '/p/daily-new',
+  dailyNewDisplayPath: '/p/hot?tab=daily-new',
   dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
   dailyNewDisplaySort: 86,
   dailyNewDisplayOpenInNewTab: false,

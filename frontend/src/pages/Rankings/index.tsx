@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../../components/SEO';
+import ContentHubSwitch from '../../components/ContentHubSwitch';
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import { getRankingsAggregate } from '../../services/rankingService';
 import type { RankingBoardData, RankingPublicConfig, RankedWebsite } from '../../types/ranking';
@@ -21,6 +22,10 @@ import './index.css';
 type MetricTab = 'visit' | 'favorite' | 'like';
 type PeriodTab = 'day' | 'week' | 'month';
 type BoardViewMode = 'metric' | 'operations';
+
+interface RankingsPageProps {
+  embedded?: boolean;
+}
 
 const METRIC_TABS: Array<{ key: MetricTab; label: string }> = [
   { key: 'visit', label: '访问量' },
@@ -108,7 +113,7 @@ function getBoardSort(board: RankingBoardData): number {
 /**
  * 榜单系统页面组件
  */
-const RankingsPage: React.FC = () => {
+const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [boards, setBoards] = useState<RankingBoardData[]>([]);
   const [publicConfig, setPublicConfig] = useState<RankingPublicConfig | null>(null);
@@ -370,14 +375,16 @@ const RankingsPage: React.FC = () => {
   };
 
   return (
-    <div className={`rankings-page rankings-page--layout-${detailLayoutWidthMode}`}>
-      <SEO
-        title={pageTitle}
-        description="按访问量、收藏量、点赞量等指标查看每日/每周/每月榜单，并支持后台运营配置。"
-        keywords="榜单系统,访问量榜单,收藏榜单,点赞榜单,每日榜单,每周榜单,每月榜单"
-        url="https://hao.uied.cn/p/rankings"
-        type="website"
-      />
+    <div className={`rankings-page rankings-page--layout-${detailLayoutWidthMode} ${embedded ? 'rankings-page--embedded' : ''}`.trim()}>
+      {!embedded && (
+        <SEO
+          title={pageTitle}
+          description="按访问量、收藏量、点赞量等指标查看每日/每周/每月榜单，并支持后台运营配置。"
+          keywords="榜单系统,访问量榜单,收藏榜单,点赞榜单,每日榜单,每周榜单,每月榜单"
+          url="https://hao.uied.cn/p/hot?tab=rankings"
+          type="website"
+        />
+      )}
 
       <div className="rankings-page__container">
         <header className="rankings-page__hero">
@@ -405,6 +412,8 @@ const RankingsPage: React.FC = () => {
             {loading ? '加载中...' : '刷新榜单'}
           </button>
         </header>
+
+        {!embedded && <ContentHubSwitch className="rankings-page__channel-switch" />}
 
         {loading ? (
           <div className="rankings-page__state">榜单加载中...</div>

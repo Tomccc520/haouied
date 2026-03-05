@@ -45,10 +45,10 @@ class FooterService extends Service {
    */
   getBuiltinDefaultUrl(builtinKey) {
     const normalized = this.normalizeBuiltinKey(builtinKey);
-    if (normalized === 'daily_hot') return '/p/daily-hot';
-    if (normalized === 'daily_new') return '/p/daily-new';
+    if (normalized === 'daily_hot') return '/p/hot?tab=daily-hot';
+    if (normalized === 'daily_new') return '/p/hot?tab=daily-new';
     if (normalized === 'hot_articles') return '/p/hot';
-    if (normalized === 'rankings') return '/p/rankings';
+    if (normalized === 'rankings') return '/p/hot?tab=rankings';
     return '';
   }
 

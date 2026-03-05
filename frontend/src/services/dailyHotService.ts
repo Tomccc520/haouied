@@ -336,7 +336,7 @@ export const getDailyHotDisplayConfig = async (refresh = false): Promise<DailyHo
     maxPlatforms: 12,
     displayPlacements: [],
     displayLabel: '每日热榜',
-    displayPath: '/p/daily-hot',
+    displayPath: '/p/hot?tab=daily-hot',
     displaySort: 90,
     displayDesktop: true,
     displayMobile: true,

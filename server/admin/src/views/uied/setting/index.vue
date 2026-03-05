@@ -736,106 +736,13 @@
                                 </div>
                             </div>
                         </el-form-item>
-                        <el-divider content-position="left">每日上新入口</el-divider>
+                        <el-divider content-position="left">内容中心配置</el-divider>
                         <p class="section-desc">
-                            配置“每日上新”页面的运营入口开关、文案、展示位置和默认时间范围。
+                            “热门文章 / 榜单系统 / 每日热榜 / 最新上新”已统一迁移到内容中心配置页，避免重复配置冲突。
                         </p>
                         <el-form-item>
-                            <template #label
-                                ><span>启用每日上新</span
-                                ><el-tooltip
-                                    content="关闭后首页快捷入口、菜单注入和页脚注入都不会展示"
-                                    placement="top"
-                                    ><el-icon class="label-tip-icon"
-                                        ><QuestionFilled /></el-icon></el-tooltip
-                            ></template>
-                            <el-switch v-model="homepageData.dailyNewEnabled" />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>入口文案</span></template>
-                            <el-input
-                                v-model="homepageData.dailyNewDisplayLabel"
-                                placeholder="每日上新"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>入口路径</span></template>
-                            <el-input
-                                v-model="homepageData.dailyNewDisplayPath"
-                                placeholder="/p/daily-new"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>显示位置</span></template>
-                            <el-checkbox-group
-                                v-model="homepageData.dailyNewDisplayPlacements"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            >
-                                <el-checkbox label="nav_quick_entry">首页快捷入口</el-checkbox>
-                                <el-checkbox label="home_menu">顶部导航菜单</el-checkbox>
-                                <el-checkbox label="footer_link">页脚链接</el-checkbox>
-                            </el-checkbox-group>
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>入口排序</span></template>
-                            <el-input-number
-                                v-model="homepageData.dailyNewDisplaySort"
-                                :min="1"
-                                :max="9999"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>新窗口打开</span></template>
-                            <el-switch
-                                v-model="homepageData.dailyNewDisplayOpenInNewTab"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>默认天数</span></template>
-                            <el-input-number
-                                v-model="homepageData.dailyNewDefaultDays"
-                                :min="1"
-                                :max="30"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>页面角标</span></template>
-                            <el-input
-                                v-model="homepageData.dailyNewPageKicker"
-                                placeholder="Daily Fresh"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>页面标题</span></template>
-                            <el-input
-                                v-model="homepageData.dailyNewPageTitle"
-                                placeholder="每日上新网址"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-form-item>
-                            <template #label><span>页面描述</span></template>
-                            <el-input
-                                v-model="homepageData.dailyNewPageDescription"
-                                type="textarea"
-                                :rows="3"
-                                placeholder="每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。"
-                                :disabled="!homepageData.dailyNewEnabled"
-                            />
-                        </el-form-item>
-                        <el-divider content-position="left">热门文章（Hot）</el-divider>
-                        <p class="section-desc">
-                            热门文章页面已独立到专属配置页，便于单独运营。
-                        </p>
-                        <el-form-item>
-                            <el-button type="primary" plain @click="router.push('/system-setting/base-config/hot-articles')">
-                                打开热门文章配置页
+                            <el-button type="primary" plain @click="router.push('/system-setting/base-config/content-hub')">
+                                打开内容中心配置页
                             </el-button>
                         </el-form-item>
                         <el-divider content-position="left">广告位</el-divider>
@@ -1868,7 +1775,7 @@ const homepageData = reactive({
     homeRecommendationSort: 20,
     dailyNewEnabled: true,
     dailyNewDisplayLabel: '每日上新',
-    dailyNewDisplayPath: '/p/daily-new',
+    dailyNewDisplayPath: '/p/hot?tab=daily-new',
     dailyNewDisplayPlacements: ['nav_quick_entry'],
     dailyNewDisplaySort: 86,
     dailyNewDisplayOpenInNewTab: false,
@@ -2003,7 +1910,8 @@ const normalizeHomepageConfigData = (config: any) => ({
         String(config?.dailyNewDisplayLabel || '').trim() || '每日上新',
     dailyNewDisplayPath: (() => {
         const text = String(config?.dailyNewDisplayPath || '').trim()
-        if (!text) return '/p/daily-new'
+        if (!text) return '/p/hot?tab=daily-new'
+        if (text === '/p/daily-new' || text === '/daily-new') return '/p/hot?tab=daily-new'
         if (/^(https?:)?\/\//i.test(text)) return text
         return text.startsWith('/') ? text : `/${text}`
     })(),

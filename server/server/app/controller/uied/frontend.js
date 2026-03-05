@@ -226,7 +226,7 @@ class FrontendController extends Controller {
        * days 未传时，使用后台“每日上新默认天数”配置。
        */
       const dailyNewDisplayConfig = await this.getDailyNewDisplayConfig().catch(() => null);
-      const defaultDays = this.parsePositiveInt(dailyNewDisplayConfig?.defaultDays, 1);
+      const defaultDays = this.parsePositiveInt(dailyNewDisplayConfig?.defaultDays, 7);
       const requestedDays = ctx.query?.days;
       const days = requestedDays === undefined || requestedDays === null || requestedDays === ''
         ? defaultDays
@@ -911,7 +911,11 @@ class FrontendController extends Controller {
     const pageSlug = String(ctx.query?.pageSlug || '').trim();
     try {
       const widgets = await ctx.service.uied.wordpressConfig.listWidgets(pageSlug || undefined);
-      ctx.body = (Array.isArray(widgets) ? widgets : []).filter(item => item?.visible !== false);
+      /**
+       * 返回完整组件配置（含 visible=false），由前端按场景决定是否展示。
+       * 这样可支持“后台关闭某页面文章模块”后前台即时隐藏。
+       */
+      ctx.body = Array.isArray(widgets) ? widgets : [];
     } catch (error) {
       ctx.logger.error('获取 WordPress 组件失败:', error);
       ctx.body = [];
@@ -1410,7 +1414,7 @@ class FrontendController extends Controller {
         maxPlatforms: Number(config?.maxPlatforms || 12),
         displayPlacements: Array.isArray(config?.displayPlacements) ? config.displayPlacements : [],
         displayLabel: String(config?.displayLabel || '每日热榜'),
-        displayPath: String(config?.displayPath || '/p/daily-hot'),
+        displayPath: String(config?.displayPath || '/p/hot?tab=daily-hot'),
         displaySort: Number(config?.displaySort || 90),
         displayDesktop: config?.displayDesktop !== false,
         displayMobile: config?.displayMobile !== false,
@@ -1437,10 +1441,10 @@ class FrontendController extends Controller {
         enabled: config.enabled !== false,
         displayPlacements: Array.isArray(config.displayPlacements) ? config.displayPlacements : [],
         displayLabel: String(config.displayLabel || '每日上新'),
-        displayPath: String(config.displayPath || '/p/daily-new'),
+        displayPath: String(config.displayPath || '/p/hot?tab=daily-new'),
         displaySort: Number(config.displaySort || 86),
         displayOpenInNewTab: config.displayOpenInNewTab === true,
-        defaultDays: Number(config.defaultDays || 1),
+        defaultDays: Number(config.defaultDays || 7),
         pageKicker: String(config.pageKicker || 'Daily Fresh'),
         pageTitle: String(config.pageTitle || '每日上新网址'),
         pageDescription: String(
@@ -1483,6 +1487,11 @@ class FrontendController extends Controller {
         apiSourceMode: String(config.apiSourceMode || 'auto').trim().toLowerCase() || 'auto',
         motionEnabled: config.motionEnabled !== false,
         heroTagline: String(config.heroTagline || '聚合国内外AI精选内容，探索AI技术前沿与应用').trim() || '聚合国内外AI精选内容，探索AI技术前沿与应用',
+        hubHeaderKicker: String(config.hubHeaderKicker || 'CONTENT HUB').trim() || 'CONTENT HUB',
+        hubHeaderTitle: String(config.hubHeaderTitle || '内容中心').trim() || '内容中心',
+        hubHeaderDescription: String(
+          config.hubHeaderDescription || '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。'
+        ).trim() || '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。',
         linksNewWindow: config.linksNewWindow !== false,
         filterPresets: Array.isArray(config.filterPresets) ? config.filterPresets : [],
         workbenchMenuItems: Array.isArray(config.workbenchMenuItems) ? config.workbenchMenuItems : [],
@@ -2876,7 +2885,7 @@ class FrontendController extends Controller {
       enabled: config?.enabled !== false,
       displayPlacements: Array.from(new Set(placements)),
       displayLabel: String(config?.displayLabel || '每日热榜').trim() || '每日热榜',
-      displayPath: this.normalizePath(config?.displayPath || '/p/daily-hot'),
+      displayPath: this.normalizePath(config?.displayPath || '/p/hot?tab=daily-hot'),
       displaySort: this.parsePositiveInt(config?.displaySort, 90),
       displayDesktop: config?.displayDesktop !== false,
       displayMobile: config?.displayMobile !== false,
@@ -2898,10 +2907,10 @@ class FrontendController extends Controller {
       enabled: homepageConfig?.dailyNewEnabled !== false,
       displayPlacements: Array.from(new Set(placements)),
       displayLabel: String(homepageConfig?.dailyNewDisplayLabel || '每日上新').trim() || '每日上新',
-      displayPath: this.normalizePath(homepageConfig?.dailyNewDisplayPath || '/p/daily-new'),
+      displayPath: this.normalizePath(homepageConfig?.dailyNewDisplayPath || '/p/hot?tab=daily-new'),
       displaySort: this.parsePositiveInt(homepageConfig?.dailyNewDisplaySort, 86),
       displayOpenInNewTab: homepageConfig?.dailyNewDisplayOpenInNewTab === true,
-      defaultDays: this.parsePositiveInt(homepageConfig?.dailyNewDefaultDays, 1),
+      defaultDays: this.parsePositiveInt(homepageConfig?.dailyNewDefaultDays, 7),
       pageKicker: String(homepageConfig?.dailyNewPageKicker || 'Daily Fresh').trim() || 'Daily Fresh',
       pageTitle: String(homepageConfig?.dailyNewPageTitle || '每日上新网址').trim() || '每日上新网址',
       pageDescription: String(
@@ -2945,6 +2954,11 @@ class FrontendController extends Controller {
       heroTagline: String(
         hotArticlesConfig?.heroTagline || '聚合国内外AI精选内容，探索AI技术前沿与应用'
       ).trim() || '聚合国内外AI精选内容，探索AI技术前沿与应用',
+      hubHeaderKicker: String(hotArticlesConfig?.hubHeaderKicker || 'CONTENT HUB').trim() || 'CONTENT HUB',
+      hubHeaderTitle: String(hotArticlesConfig?.hubHeaderTitle || '内容中心').trim() || '内容中心',
+      hubHeaderDescription: String(
+        hotArticlesConfig?.hubHeaderDescription || '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。'
+      ).trim() || '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。',
       linksNewWindow: hotArticlesConfig?.linksNewWindow !== false,
       filterPresets: Array.isArray(hotArticlesConfig?.filterPresets) ? hotArticlesConfig.filterPresets : [],
       workbenchMenuItems: Array.isArray(hotArticlesConfig?.workbenchMenuItems) ? hotArticlesConfig.workbenchMenuItems : [],
@@ -2965,7 +2979,7 @@ class FrontendController extends Controller {
       enabled: config?.enabled !== false,
       displayPlacements: Array.from(new Set(placements)),
       displayLabel: String(config?.displayLabel || '榜单系统').trim() || '榜单系统',
-      displayPath: this.normalizePath(config?.displayPath || '/p/rankings'),
+      displayPath: this.normalizePath(config?.displayPath || '/p/hot?tab=rankings'),
       displaySort: this.parsePositiveInt(config?.displaySort, 88),
       displayDesktop: config?.displayDesktop !== false,
       displayMobile: config?.displayMobile !== false,
@@ -3002,12 +3016,12 @@ class FrontendController extends Controller {
       };
       const builtinKey = String(next?.builtinKey || '').trim().toLowerCase();
       if (builtinKey === 'daily_hot' && dailyHotConfig) {
-        next.link = dailyHotConfig.displayPath || next.link || '/p/daily-hot';
+        next.link = dailyHotConfig.displayPath || next.link || '/p/hot?tab=daily-hot';
         if (!String(next.text || '').trim()) {
           next.text = dailyHotConfig.displayLabel || '每日热榜';
         }
       } else if (builtinKey === 'daily_new' && dailyNewConfig) {
-        next.link = dailyNewConfig.displayPath || next.link || '/p/daily-new';
+        next.link = dailyNewConfig.displayPath || next.link || '/p/hot?tab=daily-new';
         if (!String(next.text || '').trim()) {
           next.text = dailyNewConfig.displayLabel || '每日上新';
         }
@@ -3017,7 +3031,7 @@ class FrontendController extends Controller {
           next.text = hotArticlesConfig.displayLabel || '热门文章';
         }
       } else if (builtinKey === 'rankings' && rankBoardConfig) {
-        next.link = rankBoardConfig.displayPath || next.link || '/p/rankings';
+        next.link = rankBoardConfig.displayPath || next.link || '/p/hot?tab=rankings';
         if (!String(next.text || '').trim()) {
           next.text = rankBoardConfig.displayLabel || '榜单系统';
         }
@@ -3042,12 +3056,12 @@ class FrontendController extends Controller {
         const next = { ...link };
         const builtinKey = String(next?.builtinKey || '').trim().toLowerCase();
         if (builtinKey === 'daily_hot' && dailyHotConfig) {
-          next.url = dailyHotConfig.displayPath || next.url || '/p/daily-hot';
+          next.url = dailyHotConfig.displayPath || next.url || '/p/hot?tab=daily-hot';
           if (!String(next.text || '').trim()) {
             next.text = dailyHotConfig.displayLabel || '每日热榜';
           }
         } else if (builtinKey === 'daily_new' && dailyNewConfig) {
-          next.url = dailyNewConfig.displayPath || next.url || '/p/daily-new';
+          next.url = dailyNewConfig.displayPath || next.url || '/p/hot?tab=daily-new';
           if (!String(next.text || '').trim()) {
             next.text = dailyNewConfig.displayLabel || '每日上新';
           }
@@ -3057,7 +3071,7 @@ class FrontendController extends Controller {
             next.text = hotArticlesConfig.displayLabel || '热门文章';
           }
         } else if (builtinKey === 'rankings' && rankBoardConfig) {
-          next.url = rankBoardConfig.displayPath || next.url || '/p/rankings';
+          next.url = rankBoardConfig.displayPath || next.url || '/p/hot?tab=rankings';
           if (!String(next.text || '').trim()) {
             next.text = rankBoardConfig.displayLabel || '榜单系统';
           }
@@ -3126,7 +3140,7 @@ class FrontendController extends Controller {
     list.push({
       id: 'builtin:daily-new',
       text: config.displayLabel || '每日上新',
-      link: config.displayPath || '/p/daily-new',
+      link: config.displayPath || '/p/hot?tab=daily-new',
       external: config.displayOpenInNewTab === true,
       label: '内置',
       labelType: 'info',
@@ -3249,7 +3263,7 @@ class FrontendController extends Controller {
     const builtinLink = {
       id: 'builtin:daily-new-footer',
       text: config.displayLabel || '每日上新',
-      url: config.displayPath || '/p/daily-new',
+      url: config.displayPath || '/p/hot?tab=daily-new',
       external: config.displayOpenInNewTab === true,
       order: Number(config.displaySort || 86),
       visible: true,
@@ -3335,7 +3349,7 @@ class FrontendController extends Controller {
     list.push({
       id: 'builtin:rankings',
       text: config.displayLabel || '榜单系统',
-      link: config.displayPath || '/p/rankings',
+      link: config.displayPath || '/p/hot?tab=rankings',
       external: config.displayOpenInNewTab === true,
       label: '内置',
       labelType: 'info',
@@ -3368,7 +3382,7 @@ class FrontendController extends Controller {
     const builtinLink = {
       id: 'builtin:rankings-footer',
       text: config.displayLabel || '榜单系统',
-      url: config.displayPath || '/p/rankings',
+      url: config.displayPath || '/p/hot?tab=rankings',
       external: config.displayOpenInNewTab === true,
       order: Number(config.displaySort || 88),
       visible: true,

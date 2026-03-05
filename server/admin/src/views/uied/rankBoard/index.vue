@@ -101,7 +101,7 @@
                     </el-col>
                     <el-col :span="10">
                         <el-form-item label="入口路径">
-                            <el-input v-model="moduleForm.displayPath" placeholder="/p/rankings" />
+                            <el-input v-model="moduleForm.displayPath" placeholder="/p/hot?tab=rankings" />
                         </el-form-item>
                     </el-col>
                     <el-col :span="6">
@@ -438,7 +438,7 @@ const moduleForm = reactive<RankBoardModuleForm>({
     enabled: true,
     displayPlacements: ['nav_quick_entry', 'home_block'],
     displayLabel: '榜单系统',
-    displayPath: '/p/rankings',
+    displayPath: '/p/hot?tab=rankings',
     displaySort: 88,
     displayDesktop: true,
     displayMobile: true,
@@ -510,7 +510,7 @@ const filteredBoardRows = computed(() => {
  */
 const normalizedDisplayPath = computed(() => {
     const path = String(moduleForm.displayPath || '').trim()
-    if (!path) return '/p/rankings'
+    if (!path) return '/p/hot?tab=rankings'
     return path.startsWith('/') ? path : `/${path}`
 })
 
@@ -559,7 +559,7 @@ const patchModuleForm = (source: any) => {
         value.displayPlacements || ['nav_quick_entry', 'home_block']
     )
     moduleForm.displayLabel = String(value.displayLabel || '榜单系统')
-    moduleForm.displayPath = String(value.displayPath || '/p/rankings')
+    moduleForm.displayPath = String(value.displayPath || '/p/hot?tab=rankings')
     moduleForm.displaySort = toInt(value.displaySort, 88, 1, 9999)
     moduleForm.displayDesktop = value.displayDesktop !== false
     moduleForm.displayMobile = value.displayMobile !== false

@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 
 // Context
 import { SiteProvider } from './contexts/SiteContext';
@@ -24,9 +24,6 @@ import SearchPage from './pages/Search';
 import ProfilePage from './pages/Profile';
 import SubmitPage from './pages/Submit';
 import ChangelogPage from './pages/Changelog';
-import DailyHotPage from './pages/DailyHot';
-import DailyNewPage from './pages/DailyNew';
-import RankingsPage from './pages/Rankings';
 import HotArticlesPage from './pages/HotArticles';
 import WebsiteComparePage from './pages/WebsiteCompare';
 import NotFoundPage from './pages/NotFound';
@@ -72,6 +69,18 @@ const RootEntryRoute: React.FC = () => {
     return <Navigate to={`/p/${normalizedHomePageSlug}`} replace />;
   }
   return <FixedDynamicPageRoute slug={ROOT_NAV_SLUG} />;
+};
+
+/**
+ * 旧频道路由兼容跳转：
+ * /p/rankings /p/daily-hot /p/daily-new 统一跳转到 /p/hot?tab=xxx
+ */
+const LegacyContentHubRedirect: React.FC<{ tab: 'hot' | 'rankings' | 'daily-hot' | 'daily-new' }> = ({ tab }) => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search || '');
+  params.set('tab', tab);
+  const query = params.toString();
+  return <Navigate to={`/p/hot${query ? `?${query}` : ''}`} replace />;
 };
 
 function App() {
@@ -125,13 +134,13 @@ function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/submit" element={<SubmitPage />} />
             <Route path="/changelog" element={<ChangelogPage />} />
-            {/* 每日热榜专用路由：避免落入动态页 /p/:slug 后请求 pages/daily-hot/full 导致 404 */}
-            <Route path="/p/daily-hot" element={<DailyHotPage />} />
-            <Route path="/daily-hot" element={<DailyHotPage />} />
-            <Route path="/p/daily-new" element={<DailyNewPage />} />
-            <Route path="/daily-new" element={<DailyNewPage />} />
-            <Route path="/p/rankings" element={<RankingsPage />} />
-            <Route path="/rankings" element={<RankingsPage />} />
+            {/* 内容中心旧路由兼容：统一汇聚到 /p/hot 单页内切换 */}
+            <Route path="/p/daily-hot" element={<LegacyContentHubRedirect tab="daily-hot" />} />
+            <Route path="/daily-hot" element={<LegacyContentHubRedirect tab="daily-hot" />} />
+            <Route path="/p/daily-new" element={<LegacyContentHubRedirect tab="daily-new" />} />
+            <Route path="/daily-new" element={<LegacyContentHubRedirect tab="daily-new" />} />
+            <Route path="/p/rankings" element={<LegacyContentHubRedirect tab="rankings" />} />
+            <Route path="/rankings" element={<LegacyContentHubRedirect tab="rankings" />} />
             <Route path="/p/hot" element={<HotArticlesPage />} />
             <Route path="/hot" element={<HotArticlesPage />} />
             

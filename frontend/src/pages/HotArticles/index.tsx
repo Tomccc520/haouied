@@ -10,6 +10,19 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  AiOutlineAppstore,
+  AiOutlineCrown,
+  AiOutlineDesktop,
+  AiOutlineFileText,
+  AiOutlineHome,
+  AiOutlinePlus,
+  AiOutlineRead,
+  AiOutlineRobot,
+  AiOutlineStar,
+  AiOutlineTrophy,
+} from 'react-icons/ai';
 import SEO from '../../components/SEO';
 import {
   getHotArticles,
@@ -20,8 +33,18 @@ import {
   type HotArticlesDisplayConfig,
   type HotWorkbenchMenuItem,
 } from '../../services/hotArticleService';
+import { getDailyHotDisplayConfig } from '../../services/dailyHotService';
+import { getDailyNewDisplayConfig } from '../../services/dailyNewService';
+import { getRankingsAggregate } from '../../services/rankingService';
+import ContentHubSwitch from '../../components/ContentHubSwitch';
+import DailyHotPage from '../DailyHot';
+import DailyNewPage from '../DailyNew';
+import RankingsPage from '../Rankings';
+import useDetailLayoutWidthMode from '../../hooks/useDetailLayoutWidthMode';
 import HotMotionHero from './HotMotionHero';
 import './index.css';
+
+type ContentHubTabKey = 'hot' | 'rankings' | 'daily-hot' | 'daily-new';
 
 type WorkbenchIconKey =
   | 'latest'
@@ -40,23 +63,66 @@ interface RuntimeMenuItem {
   label: string;
   mode: HotWorkbenchMenuItem['mode'];
   iconKey: WorkbenchIconKey;
+  presetKey?: string;
+  presetKeys: string[];
   subtitle: string;
   externalUrl?: string;
   query?: HotArticleListParams;
 }
 
 const WEEKDAY_TEXT = [ '周日', '周一', '周二', '周三', '周四', '周五', '周六' ];
-const MENU_ICON_PATH_MAP: Record<WorkbenchIconKey, string> = {
-  latest: 'M4 5.5h16M4 10.5h16M4 15.5h12',
-  hot: 'M12 3l2.4 4.9L20 9l-4 3.9.9 5.6L12 16l-4.9 2.5.9-5.6L4 9l5.6-.1L12 3z',
-  ai: 'M8 4h8l2 2v8l-2 2H8l-2-2V6l2-2zm0 4h8M8 12h4',
-  product: 'M4 7l8-3 8 3-8 3-8-3zm2 4l6 3 6-3m-12 4l6 3 6-3',
-  design: 'M4 16l4-4m3-3l5-5 2 2-5 5m-2 2l-3 1 1-3',
-  resource: 'M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4h7',
-  author: 'M12 12a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0',
-  circle: 'M12 3a9 9 0 100 18 9 9 0 000-18zm-4 7h8m-8 4h8',
-  extra: 'M6 12h12M12 6v12',
-  home: 'M4 10l8-6 8 6v9h-5v-5H9v5H4v-9z',
+const CONTENT_HUB_TAB_KEYS: ContentHubTabKey[] = [ 'hot', 'rankings', 'daily-hot', 'daily-new' ];
+const DEFAULT_CONTENT_HUB_SWITCH_ITEMS = [
+  { key: 'hot', label: '热门文章', to: '/p/hot', description: '编辑精选 + 热门阅读' },
+  { key: 'rankings', label: '热门榜单', to: '/p/hot', description: '按指标与周期查看' },
+  { key: 'daily-hot', label: '每日热榜', to: '/p/hot', description: '全网热点卡片速览' },
+  { key: 'daily-new', label: '最新上新', to: '/p/hot', description: '近7日新收录站点' },
+] as const;
+
+/**
+ * 解析内容中心当前标签。
+ */
+const resolveContentHubTab = (value: unknown): ContentHubTabKey => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return CONTENT_HUB_TAB_KEYS.includes(normalized as ContentHubTabKey)
+    ? (normalized as ContentHubTabKey)
+    : 'hot';
+};
+
+/**
+ * 格式化数字（用于阅读/评论计数展示）。
+ */
+const formatCompactCount = (value: unknown): string => {
+  const count = Number(value || 0);
+  if (!Number.isFinite(count) || count <= 0) return '';
+  if (count >= 10000) return `${(count / 10000).toFixed(1).replace(/\.0$/, '')}w`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(Math.round(count));
+};
+
+/**
+ * 基于作者名生成稳定颜色，避免默认头像单调。
+ */
+const resolveAuthorColorToken = (authorName: string): string => {
+  const palette = [ 'is-blue', 'is-green', 'is-orange', 'is-purple', 'is-slate' ];
+  const text = String(authorName || '').trim();
+  if (!text) return 'is-slate';
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash << 5) - hash + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return palette[Math.abs(hash) % palette.length];
+};
+
+/**
+ * 根据互动数据提取“热读”标签。
+ */
+const resolveHeatLabel = (viewCount: unknown, commentCount: unknown): string => {
+  const views = Number(viewCount || 0);
+  const comments = Number(commentCount || 0);
+  if (views >= 10000 || comments >= 120) return '热读';
+  return '';
 };
 
 /**
@@ -87,14 +153,13 @@ const resolvePresetQuery = (
 };
 
 /**
- * 组装左侧菜单（优先使用后台 workbenchMenuItems，自动补未使用预设）。
+ * 组装左侧菜单（仅使用后台 workbenchMenuItems，避免前端自动补齐导致配置错觉）。
  */
 const buildRuntimeMenuItems = (
   config: HotArticlesDisplayConfig | null,
   presets: HotArticleFilterPreset[],
 ): RuntimeMenuItem[] => {
   const presetMap = new Map<string, HotArticleFilterPreset>(presets.map((item) => [ item.key, item ]));
-  const usedPresetKeySet = new Set<string>();
   const rawMenuRows = Array.isArray(config?.workbenchMenuItems)
     ? config?.workbenchMenuItems || []
     : [];
@@ -116,15 +181,32 @@ const buildRuntimeMenuItems = (
       categoryId: item.categoryId && item.categoryId > 0 ? item.categoryId : undefined,
       tagId: item.tagId && item.tagId > 0 ? item.tagId : undefined,
     };
+    const normalizedPresetKeys = Array.isArray(item.presetKeys)
+      ? item.presetKeys
+      : String(item.presetKeys || '')
+        .split(',')
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+    const resolvedPresetKeys = Array.from(
+      new Set(
+        normalizedPresetKeys
+          .map((value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''))
+          .filter((value) => Boolean(value) && presetMap.has(value)),
+      ),
+    );
+    if (item.presetKey && presetMap.has(item.presetKey) && !resolvedPresetKeys.includes(item.presetKey)) {
+      resolvedPresetKeys.push(item.presetKey);
+    }
 
     if (item.mode === 'preset') {
-      if (item.presetKey) usedPresetKeySet.add(item.presetKey);
       const presetQuery = resolvePresetQuery(item.presetKey, presetMap, item.fallbackType, item.fallbackId);
       return {
         key: item.key,
         label: item.label,
         mode: item.mode,
         iconKey: item.iconKey || 'extra',
+        presetKey: item.presetKey || '',
+        presetKeys: resolvedPresetKeys,
         subtitle,
         query: {
           ...queryBase,
@@ -139,6 +221,8 @@ const buildRuntimeMenuItems = (
         label: item.label,
         mode: item.mode,
         iconKey: item.iconKey || 'latest',
+        presetKey: '',
+        presetKeys: resolvedPresetKeys,
         subtitle: subtitle || '按发布时间实时更新',
         query: {
           ...queryBase,
@@ -155,6 +239,8 @@ const buildRuntimeMenuItems = (
         label: item.label,
         mode: item.mode,
         iconKey: item.iconKey || 'hot',
+        presetKey: '',
+        presetKeys: resolvedPresetKeys,
         subtitle: subtitle || '按热度优先展示',
         query: {
           ...queryBase,
@@ -173,6 +259,8 @@ const buildRuntimeMenuItems = (
         label: item.label,
         mode: item.mode,
         iconKey: item.iconKey || 'home',
+        presetKey: '',
+        presetKeys: resolvedPresetKeys,
         subtitle,
         externalUrl: item.externalUrl || 'https://www.uied.cn',
       };
@@ -183,33 +271,31 @@ const buildRuntimeMenuItems = (
       label: item.label,
       mode: item.mode,
       iconKey: item.iconKey || 'extra',
+      presetKey: '',
+      presetKeys: resolvedPresetKeys,
       subtitle,
       query: queryBase,
     };
   });
+  return list;
+};
 
-  const extraPresetItems = presets
-    .filter((item) => item.enabled !== false && item.type !== 'all' && !usedPresetKeySet.has(item.key))
-    .sort((a, b) => a.sort - b.sort)
-    .map<RuntimeMenuItem>((item) => ({
-      key: `preset-${item.key}`,
-      label: item.name,
-      mode: 'preset',
-      iconKey: 'extra',
-      subtitle: item.description || '来自后台筛选预设',
-      query: {
-        source: config?.apiSourceMode || 'auto',
-        orderBy: config?.defaultOrderBy || 'date',
-        order: config?.defaultOrder || 'desc',
-        categoryId: item.type === 'category' ? item.id : undefined,
-        tagId: item.type === 'tag' ? item.id : undefined,
-      },
-    }));
-
-  if (!extraPresetItems.length) return list;
-  const homeItem = list.find((item) => item.mode === 'external');
-  const regularItems = list.filter((item) => item.mode !== 'external');
-  return homeItem ? [ ...regularItems, ...extraPresetItems, homeItem ] : [ ...regularItems, ...extraPresetItems ];
+/**
+ * 根据当前菜单筛选可见预设：若菜单未配置筛选组，则回退到全量预设。
+ */
+const resolveVisiblePresets = (
+  menuItem: RuntimeMenuItem | null,
+  presets: HotArticleFilterPreset[],
+): HotArticleFilterPreset[] => {
+  if (!Array.isArray(presets) || presets.length === 0) return [];
+  if (!menuItem) return presets;
+  const menuPresetKeys = Array.isArray(menuItem.presetKeys) ? menuItem.presetKeys : [];
+  if (menuPresetKeys.length === 0) return presets;
+  const keySet = new Set(menuPresetKeys.map((key) => String(key || '').trim().toLowerCase()).filter(Boolean));
+  const allPreset = presets.find((item) => item.key === 'all');
+  if (allPreset && !keySet.has(allPreset.key)) keySet.add(allPreset.key);
+  const filtered = presets.filter((item) => keySet.has(item.key));
+  return filtered.length > 0 ? filtered : presets;
 };
 
 /**
@@ -236,13 +322,71 @@ const formatDateText = (value: Date): string => {
  * 渲染左侧菜单图标字徽。
  */
 const renderMenuIcon = (iconKey: WorkbenchIconKey) => {
-  const path = MENU_ICON_PATH_MAP[iconKey] || MENU_ICON_PATH_MAP.extra;
+  /**
+   * 使用固定分支渲染，规避动态组件在 TS + React19 下的类型推断问题。
+   */
+  const createIconNode = (IconComponent: unknown) => React.createElement(IconComponent as React.ComponentType<any>, { size: 14 });
+  const iconNode = (() => {
+    if (iconKey === 'latest') return createIconNode(AiOutlineFileText);
+    if (iconKey === 'hot') return createIconNode(AiOutlineStar);
+    if (iconKey === 'ai') return createIconNode(AiOutlineRobot);
+    if (iconKey === 'product') return createIconNode(AiOutlineTrophy);
+    if (iconKey === 'design') return createIconNode(AiOutlineDesktop);
+    if (iconKey === 'resource') return createIconNode(AiOutlineAppstore);
+    if (iconKey === 'author') return createIconNode(AiOutlineCrown);
+    if (iconKey === 'circle') return createIconNode(AiOutlineRead);
+    if (iconKey === 'home') return createIconNode(AiOutlineHome);
+    return createIconNode(AiOutlinePlus);
+  })();
   return (
     <span className="hot-articles-page__menu-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d={path} />
-      </svg>
+      {iconNode}
     </span>
+  );
+};
+
+/**
+ * 根据当前预设覆盖分类/标签查询参数。
+ */
+const applyFilterPresetToParams = (
+  params: HotArticleListParams,
+  preset: HotArticleFilterPreset | null,
+): HotArticleListParams => {
+  if (!preset || preset.type === 'all' || Number(preset.id) <= 0) return params;
+  if (preset.type === 'tag') {
+    return {
+      ...params,
+      tagId: Number(preset.id),
+      categoryId: undefined,
+    };
+  }
+  if (preset.type === 'category') {
+    return {
+      ...params,
+      categoryId: Number(preset.id),
+      tagId: undefined,
+    };
+  }
+  return params;
+};
+
+/**
+ * Hot 页面首屏预加载过渡组件，避免重内容页面首次进入突兀闪动。
+ */
+const HotPagePreloader: React.FC<{ title: string }> = ({ title }) => {
+  return (
+    <div className="hot-articles-page__preloader" role="status" aria-live="polite">
+      <div className="hot-articles-page__preloader-head">
+        <span className="hot-articles-page__preloader-dot" />
+        <strong>{title}</strong>
+      </div>
+      <div className="hot-articles-page__preloader-lines">
+        <span />
+        <span />
+        <span />
+      </div>
+      <p>正在准备热门内容...</p>
+    </div>
   );
 };
 
@@ -250,13 +394,23 @@ const renderMenuIcon = (iconKey: WorkbenchIconKey) => {
  * 热门文章页面组件。
  */
 const HotArticlesPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [displayConfig, setDisplayConfig] = useState<HotArticlesDisplayConfig | null>(null);
   const [activeMenuKey, setActiveMenuKey] = useState<string>('');
+  const [activePresetKey, setActivePresetKey] = useState<string>('all');
   const [articleList, setArticleList] = useState<HotArticleItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [bootCompleted, setBootCompleted] = useState<boolean>(false);
+  const [hubSwitchItems, setHubSwitchItems] = useState<Array<{
+    key: ContentHubTabKey;
+    label: string;
+    to: string;
+    description: string;
+  }>>([ ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS ]);
 
   /**
    * 生效筛选项（按后台排序，自动过滤禁用项）。
@@ -282,14 +436,89 @@ const HotArticlesPage: React.FC = () => {
   const activeMenu = useMemo<RuntimeMenuItem | null>(() => {
     return menuItems.find((item) => item.key === activeMenuKey) || menuItems.find((item) => item.mode !== 'external') || null;
   }, [activeMenuKey, menuItems]);
+  /**
+   * 当前菜单对应可见预设。
+   */
+  const visiblePresets = useMemo<HotArticleFilterPreset[]>(() => {
+    return resolveVisiblePresets(activeMenu, enabledPresets);
+  }, [activeMenu, enabledPresets]);
+  /**
+   * 当前激活预设（分类/标签切换）。
+   */
+  const activePreset = useMemo<HotArticleFilterPreset | null>(() => {
+    if (!visiblePresets.length) return null;
+    return visiblePresets.find((item) => item.key === activePresetKey) || visiblePresets[0] || null;
+  }, [activePresetKey, visiblePresets]);
 
   const isPageDisabled = displayConfig?.enabled === false;
   const pageTitle = String(displayConfig?.pageTitle || '热门文章').trim() || '热门文章';
   const pageDescription = String(displayConfig?.pageDescription || '聚合国内外AI精选内容，探索AI技术前沿与应用').trim();
   const pageKicker = String(displayConfig?.pageKicker || 'HOT ARTICLES').trim() || 'HOT ARTICLES';
   const heroTagline = String(displayConfig?.heroTagline || pageDescription).trim() || pageDescription;
+  const hubHeaderKicker = String(displayConfig?.hubHeaderKicker || pageKicker).trim() || pageKicker;
+  const hubHeaderTitle = String(displayConfig?.hubHeaderTitle || '内容中心').trim() || '内容中心';
+  const hubHeaderDescription = String(displayConfig?.hubHeaderDescription || '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。').trim()
+    || '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。';
+  const activeHubTab = useMemo<ContentHubTabKey>(
+    () => resolveContentHubTab(searchParams.get('tab')),
+    [searchParams],
+  );
   const linkTarget = displayConfig?.linksNewWindow !== false ? '_blank' : undefined;
   const linkRel = displayConfig?.linksNewWindow !== false ? 'noopener noreferrer' : undefined;
+
+  /**
+   * 拉取内容中心四个模块的公开文案，驱动顶部切换菜单名称。
+   */
+  const refreshHubSwitchItems = useCallback(async (hotConfig: HotArticlesDisplayConfig) => {
+    const fallbackHotLabel = String(hotConfig?.displayLabel || '热门文章').trim() || '热门文章';
+    const fallbackItems = [
+      { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[0], label: fallbackHotLabel },
+      { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[1] },
+      { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[2] },
+      { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[3] },
+    ];
+    try {
+      const [dailyHotConfig, dailyNewConfig, rankingAggregate] = await Promise.all([
+        getDailyHotDisplayConfig(),
+        getDailyNewDisplayConfig(),
+        getRankingsAggregate(1),
+      ]);
+      const rankingsLabel = String(rankingAggregate?.publicConfig?.displayLabel || '').trim() || '热门榜单';
+      const dailyHotLabel = String(dailyHotConfig?.displayLabel || '').trim() || '每日热榜';
+      const dailyNewLabel = String(dailyNewConfig?.displayLabel || '').trim() || '最新上新';
+      setHubSwitchItems([
+        { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[0], label: fallbackHotLabel },
+        { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[1], label: rankingsLabel },
+        { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[2], label: dailyHotLabel },
+        { ...DEFAULT_CONTENT_HUB_SWITCH_ITEMS[3], label: dailyNewLabel },
+      ]);
+    } catch (switchError) {
+      console.warn('加载内容中心切换菜单文案失败，使用默认文案:', switchError);
+      setHubSwitchItems(fallbackItems);
+    }
+  }, []);
+
+  /**
+   * 处理顶部频道切换：保持 /p/hot 路由，仅更新 tab 参数。
+   */
+  const handleHubTabChange = useCallback((nextKey: string) => {
+    const nextTab = resolveContentHubTab(nextKey);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', nextTab);
+    setSearchParams(nextParams, { replace: false });
+  }, [searchParams, setSearchParams]);
+
+  /**
+   * 首屏完成判定：配置加载并完成首轮内容请求后关闭 Preloader。
+   */
+  useEffect(() => {
+    if (bootCompleted) return;
+    if (!displayConfig) return;
+    if (loading) return;
+    if (!activeMenu && !isPageDisabled) return;
+    const timer = window.setTimeout(() => setBootCompleted(true), 220);
+    return () => window.clearTimeout(timer);
+  }, [activeMenu, bootCompleted, displayConfig, isPageDisabled, loading]);
 
   /**
    * 拉取热门文章公开配置。
@@ -297,15 +526,21 @@ const HotArticlesPage: React.FC = () => {
   const fetchConfig = useCallback(async (forceRefresh = false) => {
     const config = await getHotArticlesDisplayConfig(forceRefresh);
     setDisplayConfig(config);
+    await refreshHubSwitchItems(config);
     return config;
-  }, []);
+  }, [refreshHubSwitchItems]);
 
   /**
    * 按菜单项拉取文章列表。
    */
   const requestArticleList = useCallback(
-    async (menuItem: RuntimeMenuItem, config: HotArticlesDisplayConfig, forceRefresh = false): Promise<HotArticleItem[]> => {
-      const params: HotArticleListParams = {
+    async (
+      menuItem: RuntimeMenuItem,
+      config: HotArticlesDisplayConfig,
+      preset: HotArticleFilterPreset | null,
+      forceRefresh = false,
+    ): Promise<HotArticleItem[]> => {
+      const baseParams: HotArticleListParams = {
         page: 1,
         perPage: Number(config.pageSize || 24),
         source: config.apiSourceMode || 'auto',
@@ -313,6 +548,7 @@ const HotArticlesPage: React.FC = () => {
         order: config.defaultOrder || 'desc',
         ...menuItem.query,
       };
+      const params = applyFilterPresetToParams(baseParams, preset);
       return await getHotArticles(params, forceRefresh);
     },
     [],
@@ -348,16 +584,26 @@ const HotArticlesPage: React.FC = () => {
     const firstMenu = menuItems.find((item) => item.mode !== 'external');
     if (firstMenu) setActiveMenuKey(firstMenu.key);
   }, [activeMenuKey, menuItems]);
+  /**
+   * 自动校正筛选预设，防止 key 失效。
+   */
+  useEffect(() => {
+    if (!visiblePresets.length) return;
+    const valid = visiblePresets.some((item) => item.key === activePresetKey);
+    if (valid) return;
+    setActivePresetKey(visiblePresets[0].key);
+  }, [activePresetKey, visiblePresets]);
 
   /**
    * 菜单切换后加载内容。
    */
   useEffect(() => {
+    if (activeHubTab !== 'hot') return;
     if (!displayConfig || isPageDisabled || !activeMenu || activeMenu.mode === 'external') return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    requestArticleList(activeMenu, displayConfig)
+    requestArticleList(activeMenu, displayConfig, activePreset)
       .then((rows) => {
         if (!cancelled) setArticleList(Array.isArray(rows) ? rows : []);
       })
@@ -371,7 +617,7 @@ const HotArticlesPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeMenu, displayConfig, isPageDisabled, requestArticleList]);
+  }, [activeHubTab, activeMenu, activePreset, displayConfig, isPageDisabled, requestArticleList]);
 
   /**
    * 每秒更新时间显示。
@@ -391,6 +637,11 @@ const HotArticlesPage: React.FC = () => {
       window.location.href = item.externalUrl;
       return;
     }
+    const nextVisiblePresets = resolveVisiblePresets(item, enabledPresets);
+    const defaultPresetKey = item.presetKey && nextVisiblePresets.some((preset) => preset.key === item.presetKey)
+      ? item.presetKey
+      : (nextVisiblePresets[0]?.key || enabledPresets[0]?.key || 'all');
+    setActivePresetKey(defaultPresetKey);
     setActiveMenuKey(item.key);
   };
 
@@ -403,7 +654,7 @@ const HotArticlesPage: React.FC = () => {
     setError(null);
     try {
       const latestConfig = await fetchConfig(true);
-      const rows = await requestArticleList(activeMenu, latestConfig, true);
+      const rows = await requestArticleList(activeMenu, latestConfig, activePreset, true);
       setArticleList(Array.isArray(rows) ? rows : []);
     } catch (err: any) {
       console.error('刷新热门文章失败:', err);
@@ -431,14 +682,33 @@ const HotArticlesPage: React.FC = () => {
   };
 
   return (
-    <div className="hot-articles-page">
+    <div className={`hot-articles-page hot-articles-page--layout-${detailLayoutWidthMode}`.trim()}>
       <SEO title={pageTitle} description={pageDescription} url="https://hao.uied.cn/p/hot" />
       <div className="hot-articles-page__shell">
         {displayConfig?.motionEnabled !== false ? (
           <HotMotionHero description={heroTagline} />
         ) : null}
 
-        <section className="hot-articles-page__workbench">
+        <section className="hot-articles-page__hub-header" aria-label="内容中心头部">
+          <div className="hot-articles-page__hub-header-main">
+            <span>{hubHeaderKicker}</span>
+            <h1>{hubHeaderTitle}</h1>
+            <p>{hubHeaderDescription}</p>
+          </div>
+          <div className="hot-articles-page__hub-header-extra">
+            <strong>{formatClockText(currentTime)}</strong>
+            <span>{formatDateText(currentTime)}</span>
+          </div>
+        </section>
+        <ContentHubSwitch
+          className="hot-articles-page__channel-switch"
+          items={hubSwitchItems}
+          activeKey={activeHubTab}
+          onChange={handleHubTabChange}
+        />
+
+        {activeHubTab === 'hot' ? (
+          <section className="hot-articles-page__workbench">
           <aside className="hot-articles-page__sidebar" aria-label="热门文章菜单">
             <div className="hot-articles-page__sidebar-title">
               <span>{pageKicker}</span>
@@ -470,10 +740,6 @@ const HotArticlesPage: React.FC = () => {
                 {activeMenu?.subtitle ? <p>{activeMenu.subtitle}</p> : null}
               </div>
               <div className="hot-articles-page__panel-actions">
-                <div className="hot-articles-page__time-block">
-                  <strong>{formatClockText(currentTime)}</strong>
-                  <span>{formatDateText(currentTime)}</span>
-                </div>
                 <button
                   type="button"
                   className={`hot-articles-page__refresh ${refreshing ? 'is-refreshing' : ''}`}
@@ -485,6 +751,25 @@ const HotArticlesPage: React.FC = () => {
                 </button>
               </div>
             </header>
+            {!isPageDisabled && visiblePresets.length > 0 && (
+              <div className="hot-articles-page__preset-switch" role="tablist" aria-label="分类与标签筛选">
+                {visiblePresets.map((item) => {
+                  const isActive = activePreset?.key === item.key;
+                  const idBadge = item.type !== 'all' && item.id > 0 ? `${item.type === 'tag' ? 'Tag' : 'Cat'} #${item.id}` : '';
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`hot-articles-page__preset-chip ${isActive ? 'is-active' : ''}`}
+                      onClick={() => setActivePresetKey(item.key)}
+                    >
+                      <span>{item.name}</span>
+                      {idBadge ? <em>{idBadge}</em> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {isPageDisabled && (
               <div className="hot-articles-page__state">
@@ -511,8 +796,18 @@ const HotArticlesPage: React.FC = () => {
                   const desc = String(item?.description || '').trim();
                   const link = String(item?.link || '').trim();
                   const thumb = String(item?.thumbnail || '').trim();
+                  const authorName = String(item?.authorName || '').trim() || '匿名作者';
+                  const authorAvatar = String(item?.authorAvatar || '').trim();
+                  const viewText = formatCompactCount(item?.viewCount);
+                  const commentText = formatCompactCount(item?.commentCount);
+                  const authorColorToken = resolveAuthorColorToken(authorName);
+                  const heatLabel = resolveHeatLabel(item?.viewCount, item?.commentCount);
                   return (
-                    <article key={`${item.id || title}-${index}`} className="hot-articles-page__row">
+                    <article
+                      key={`${item.id || title}-${index}`}
+                      className="hot-articles-page__row hot-articles-page__row--animated"
+                      style={{ '--row-index': index } as React.CSSProperties}
+                    >
                       <div className={`hot-articles-page__rank-badge ${index < 3 ? `is-top-${index + 1}` : ''}`}>
                         {index + 1}
                       </div>
@@ -529,15 +824,36 @@ const HotArticlesPage: React.FC = () => {
                         )}
                       </a>
                       <div className="hot-articles-page__info">
-                        <h2>
-                          <a href={link || '#'} target={linkTarget} rel={linkRel}>
-                            {title}
-                          </a>
-                        </h2>
+                        <div className="hot-articles-page__title-row">
+                          <h2>
+                            <a href={link || '#'} target={linkTarget} rel={linkRel}>
+                              {title}
+                            </a>
+                          </h2>
+                          <div className="hot-articles-page__title-tags">
+                            {heatLabel ? <span className="hot-articles-page__title-heat">{heatLabel}</span> : null}
+                            {index < 3 ? (
+                              <span className={`hot-articles-page__top-update is-top-${index + 1}`}>
+                                TOP{index + 1}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                         <p>{desc || '暂无摘要'}</p>
                         <div className="hot-articles-page__meta">
-                          {item?.authorName ? <span>{item.authorName}</span> : null}
+                          <div className="hot-articles-page__author-chip">
+                            {authorAvatar ? (
+                              <img src={authorAvatar} alt={authorName} loading="lazy" decoding="async" />
+                            ) : (
+                              <span className={`hot-articles-page__author-fallback ${authorColorToken}`}>
+                                {authorName.slice(0, 1)}
+                              </span>
+                            )}
+                            <strong>{authorName}</strong>
+                          </div>
                           {item?.date ? <span>{item.date}</span> : null}
+                          {viewText ? <span>阅读 {viewText}</span> : null}
+                          {commentText ? <span>评论 {commentText}</span> : null}
                           {item?.isNew ? <em>NEW</em> : null}
                         </div>
                       </div>
@@ -547,8 +863,16 @@ const HotArticlesPage: React.FC = () => {
               </section>
             )}
           </main>
-        </section>
+          </section>
+        ) : (
+          <section className="hot-articles-page__hub-panel" aria-label="内容中心主内容区">
+            {activeHubTab === 'rankings' && <RankingsPage embedded />}
+            {activeHubTab === 'daily-hot' && <DailyHotPage embedded />}
+            {activeHubTab === 'daily-new' && <DailyNewPage embedded />}
+          </section>
+        )}
       </div>
+      {!bootCompleted && activeHubTab === 'hot' && <HotPagePreloader title={pageTitle} />}
     </div>
   );
 };

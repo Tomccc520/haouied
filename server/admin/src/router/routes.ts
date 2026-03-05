@@ -69,9 +69,22 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         component: LAYOUT,
         children: [
             {
+                path: 'content-hub',
+                name: Symbol(),
+                component: () => import('@/views/uied/setting/contentHub.vue'),
+                meta: {
+                    title: '内容中心配置',
+                    hidden: true,
+                    activeMenu: '/system-setting/base-config/setting'
+                }
+            },
+            {
                 path: 'hot-articles',
                 name: Symbol(),
-                component: () => import('@/views/uied/setting/hotArticles.vue'),
+                redirect: {
+                    path: '/system-setting/base-config/content-hub',
+                    query: { tab: 'hot' }
+                },
                 meta: {
                     title: '热门文章配置',
                     hidden: true,
@@ -143,10 +156,66 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         path: '/settings/detail-page-config',
         redirect: '/system-setting/base-config/detail-page-config'
     },
-    // 热门文章配置（独立入口）
+    // 热门文章配置（兼容旧入口）
     {
         path: '/settings/hot-articles-config',
-        redirect: '/system-setting/base-config/hot-articles'
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'hot' }
+        }
+    },
+    // 每日热榜配置（兼容旧入口）
+    {
+        path: '/settings/daily-hot-config',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'dailyHot' }
+        }
+    },
+    // 榜单系统配置（兼容旧入口）
+    {
+        path: '/settings/rank-board-config',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'rankings' }
+        }
+    },
+    // 最新上新配置（兼容旧入口）
+    {
+        path: '/settings/daily-new-config',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'dailyNew' }
+        }
+    },
+    // 旧业务路由兼容（后台菜单历史地址）
+    {
+        path: '/uied/dailyHot',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'dailyHot' }
+        }
+    },
+    {
+        path: '/uied/dailyHot/:pathMatch(.*)*',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'dailyHot' }
+        }
+    },
+    {
+        path: '/uied/rankBoard',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'rankings' }
+        }
+    },
+    {
+        path: '/uied/rankBoard/:pathMatch(.*)*',
+        redirect: {
+            path: '/system-setting/base-config/content-hub',
+            query: { tab: 'rankings' }
+        }
     }
 ]
 

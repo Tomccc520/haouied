@@ -46,10 +46,10 @@
                             <el-button size="small" @click="openPreviewPage('/')"
                                 >前端首页</el-button
                             >
-                            <el-button size="small" @click="openPreviewPage('/p/daily-hot')"
+                            <el-button size="small" @click="openPreviewPage('/p/hot?tab=daily-hot')"
                                 >每日热榜</el-button
                             >
-                            <el-button size="small" @click="openPreviewPage('/p/rankings')"
+                            <el-button size="small" @click="openPreviewPage('/p/hot?tab=rankings')"
                                 >榜单系统</el-button
                             >
                             <el-button size="small" @click="openPreviewPage('/website/1')"

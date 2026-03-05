@@ -266,6 +266,10 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   
   // 从组件配置中获取设置
   const widgetConfig = getWidgetByPosition(position);
+  /**
+   * 当页面存在显式组件配置且已关闭时，不再回退到默认展示，避免“后台关闭前台仍显示”。
+   */
+  const isWidgetExplicitlyHidden = Boolean(pageSlug && widgetConfig && widgetConfig.visible === false);
   
   // 使用组件配置覆盖默认值
   const effectiveTitle = widgetConfig?.title || title;
@@ -701,6 +705,10 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       </motion.div>
     ));
   };
+
+  if (isWidgetExplicitlyHidden) {
+    return null;
+  }
 
   return (
     <div className="design-article-grid-container">

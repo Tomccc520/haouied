@@ -153,6 +153,13 @@
   background: rgba(254, 242, 242, 0.8);
 }
 
+.rankings-page__channel-switch {
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
 .rankings-page__metric-panel,
 .rankings-page__view-panel,
 .rankings-page__ops-panel {

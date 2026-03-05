@@ -41,6 +41,9 @@ export interface HotArticlesDisplayConfig {
   apiSourceMode: 'auto' | 'uied' | 'uied_hot' | 'uied_latest' | 'wp_v2';
   motionEnabled: boolean;
   heroTagline: string;
+  hubHeaderKicker: string;
+  hubHeaderTitle: string;
+  hubHeaderDescription: string;
   linksNewWindow: boolean;
   filterPresets: HotArticleFilterPreset[];
   workbenchMenuItems: HotWorkbenchMenuItem[];
@@ -54,6 +57,9 @@ export interface HotArticleItem {
   thumbnail?: string;
   date?: string;
   authorName?: string;
+  authorAvatar?: string;
+  viewCount?: number;
+  commentCount?: number;
   isNew?: boolean;
 }
 
@@ -76,6 +82,7 @@ export interface HotWorkbenchMenuItem {
   iconKey: 'latest' | 'hot' | 'ai' | 'product' | 'design' | 'resource' | 'author' | 'circle' | 'extra' | 'home';
   source: 'auto' | 'uied' | 'uied_hot' | 'uied_latest' | 'wp_v2';
   presetKey?: string;
+  presetKeys?: string[];
   fallbackType?: 'category' | 'tag';
   fallbackId?: number;
   categoryId?: number;
@@ -137,6 +144,25 @@ const normalizeMenuIconKey = (value: unknown): HotWorkbenchMenuItem['iconKey'] =
   return aliasMap[lower] || 'extra';
 };
 
+/**
+ * 统一菜单筛选预设 key 列表（支持数组/逗号文本，自动去重）。
+ */
+const normalizePresetKeyList = (value: unknown): string[] => {
+  const rows = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  return Array.from(
+    new Set(
+      rows
+        .map((item) => String(item || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''))
+        .filter(Boolean),
+    ),
+  );
+};
+
 const DEFAULT_HOT_ARTICLE_CONFIG: HotArticlesDisplayConfig = {
   enabled: true,
   displayPlacements: [ 'nav_quick_entry', 'home_menu' ],
@@ -155,6 +181,9 @@ const DEFAULT_HOT_ARTICLE_CONFIG: HotArticlesDisplayConfig = {
   apiSourceMode: 'auto',
   motionEnabled: true,
   heroTagline: '聚合国内外AI精选内容，探索AI技术前沿与应用',
+  hubHeaderKicker: 'CONTENT HUB',
+  hubHeaderTitle: '内容中心',
+  hubHeaderDescription: '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。',
   linksNewWindow: true,
   filterPresets: [
     { key: 'all', name: '全部', type: 'all', id: 0, description: '全部热门文章', enabled: true, sort: 10 },
@@ -166,10 +195,10 @@ const DEFAULT_HOT_ARTICLE_CONFIG: HotArticlesDisplayConfig = {
   workbenchMenuItems: [
     { key: 'latest-articles', label: '最新文章', mode: 'latest', iconKey: 'latest', source: 'uied_latest', orderBy: 'date', order: 'desc', period: 'all', categoryId: 0, tagId: 0, enabled: true, sort: 10 },
     { key: 'hot-articles', label: '热门文章', mode: 'hot', iconKey: 'hot', source: 'uied_hot', orderBy: 'views', order: 'desc', period: 'all', categoryId: 417, tagId: 0, enabled: true, sort: 20 },
-    { key: 'ai-realtime', label: 'AI实时文章', mode: 'preset', iconKey: 'ai', source: 'uied_latest', presetKey: 'aigc', fallbackType: 'category', fallbackId: 417, enabled: true, sort: 30 },
-    { key: 'ai-products', label: 'AI产品榜单', mode: 'preset', iconKey: 'product', source: 'uied_latest', presetKey: 'ai-tools', fallbackType: 'category', fallbackId: 3351, enabled: true, sort: 40 },
-    { key: 'design-articles', label: '设计文章', mode: 'preset', iconKey: 'design', source: 'uied_latest', presetKey: 'design', fallbackType: 'category', fallbackId: 307, enabled: true, sort: 50 },
-    { key: 'design-resources', label: '设计素材', mode: 'preset', iconKey: 'resource', source: 'uied_latest', presetKey: 'productivity', fallbackType: 'category', fallbackId: 338, enabled: true, sort: 60 },
+    { key: 'ai-realtime', label: 'AI实时文章', mode: 'preset', iconKey: 'ai', source: 'uied_latest', presetKey: 'aigc', presetKeys: [ 'all', 'aigc', 'nano-banana', 'midjourney', 'stable-diffusion', 'deepseek', 'jimeng', 'gpt4o', 'gpt' ], fallbackType: 'category', fallbackId: 417, enabled: true, sort: 30 },
+    { key: 'ai-products', label: 'AI产品榜单', mode: 'preset', iconKey: 'product', source: 'uied_latest', presetKey: 'ai-tools', presetKeys: [ 'all', 'ai-tools', 'aixiezuo', 'aihuihua', 'aishipin', 'aibangong', 'aisheji', 'aikaifa', 'aishuziren' ], fallbackType: 'category', fallbackId: 3351, enabled: true, sort: 40 },
+    { key: 'design-articles', label: '设计文章', mode: 'preset', iconKey: 'design', source: 'uied_latest', presetKey: 'design', presetKeys: [ 'all', 'design', 'ui', 'ux', 'product', 'graphic', '3d', 'tips', 'inspiration' ], fallbackType: 'category', fallbackId: 307, enabled: true, sort: 50 },
+    { key: 'design-resources', label: '设计素材', mode: 'preset', iconKey: 'resource', source: 'uied_latest', presetKey: 'all-resources', presetKeys: [ 'all', 'all-resources', 'portfolio', 'card', 'big-data', 'dashboard', 'icon', 'ar', 'app', 'watch', 'web', 'design-system', '3d-icon', 'font-resource', 'font', 'ps-plugin', 'sketch-plugin', 'mockup' ], fallbackType: 'category', fallbackId: 4, enabled: true, sort: 60 },
     { key: 'top-authors', label: '优秀作者', mode: 'authorHot', iconKey: 'author', source: 'uied_hot', orderBy: 'comment_count', order: 'desc', period: 'weekly', categoryId: 0, tagId: 0, enabled: true, sort: 70 },
     { key: 'study-circles', label: '学习圈子', mode: 'circle', iconKey: 'circle', source: 'uied_latest', orderBy: 'date', order: 'desc', period: 'all', categoryId: 0, tagId: 393, enabled: true, sort: 80 },
     { key: 'back-main-site', label: '返回主站', mode: 'external', iconKey: 'home', source: 'auto', externalUrl: 'https://www.uied.cn', enabled: true, sort: 999 },
@@ -227,6 +256,7 @@ const normalizeHotArticlesConfig = (payload: unknown): HotArticlesDisplayConfig 
         .filter((item) => Boolean(item.key))
         .sort((a, b) => a.sort - b.sort)
     : [];
+  const validPresetKeys = new Set(filterPresets.map((item) => item.key));
   const allowSourceSet = new Set([ 'auto', 'uied', 'uied_hot', 'uied_latest', 'wp_v2' ]);
   const allowMenuModeSet = new Set([ 'latest', 'hot', 'preset', 'authorHot', 'circle', 'external' ]);
   const allowFallbackTypeSet = new Set([ 'category', 'tag' ]);
@@ -251,6 +281,8 @@ const normalizeHotArticlesConfig = (payload: unknown): HotArticlesDisplayConfig 
             iconKey: normalizeMenuIconKey(item?.iconKey),
             source: allowSourceSet.has(sourceText) ? (sourceText as HotWorkbenchMenuItem['source']) : 'auto',
             presetKey: String(item?.presetKey || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''),
+            presetKeys: normalizePresetKeyList(item?.presetKeys)
+              .filter((presetKey) => validPresetKeys.size === 0 || validPresetKeys.has(presetKey)),
             fallbackType: allowFallbackTypeSet.has(fallbackTypeText) ? (fallbackTypeText as 'category' | 'tag') : 'category',
             fallbackId: Number.isInteger(fallbackId) && fallbackId > 0 ? fallbackId : 0,
             categoryId: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 0,
@@ -297,6 +329,9 @@ const normalizeHotArticlesConfig = (payload: unknown): HotArticlesDisplayConfig 
       : DEFAULT_HOT_ARTICLE_CONFIG.apiSourceMode,
     motionEnabled: config?.motionEnabled !== false,
     heroTagline: String(config?.heroTagline || DEFAULT_HOT_ARTICLE_CONFIG.heroTagline).trim() || DEFAULT_HOT_ARTICLE_CONFIG.heroTagline,
+    hubHeaderKicker: String(config?.hubHeaderKicker || DEFAULT_HOT_ARTICLE_CONFIG.hubHeaderKicker).trim() || DEFAULT_HOT_ARTICLE_CONFIG.hubHeaderKicker,
+    hubHeaderTitle: String(config?.hubHeaderTitle || DEFAULT_HOT_ARTICLE_CONFIG.hubHeaderTitle).trim() || DEFAULT_HOT_ARTICLE_CONFIG.hubHeaderTitle,
+    hubHeaderDescription: String(config?.hubHeaderDescription || DEFAULT_HOT_ARTICLE_CONFIG.hubHeaderDescription).trim() || DEFAULT_HOT_ARTICLE_CONFIG.hubHeaderDescription,
     linksNewWindow: config?.linksNewWindow !== false,
     filterPresets: filterPresets.length > 0 ? filterPresets : DEFAULT_HOT_ARTICLE_CONFIG.filterPresets,
     workbenchMenuItems: workbenchMenuItems.length > 0 ? workbenchMenuItems : DEFAULT_HOT_ARTICLE_CONFIG.workbenchMenuItems,
@@ -320,6 +355,9 @@ const normalizeHotArticleItems = (payload: unknown): HotArticleItem[] => {
     thumbnail: String(item?.thumbnail || ''),
     date: String(item?.date || ''),
     authorName: String(item?.authorName || ''),
+    authorAvatar: String(item?.authorAvatar || ''),
+    viewCount: Number.isFinite(Number(item?.viewCount)) ? Number(item?.viewCount) : 0,
+    commentCount: Number.isFinite(Number(item?.commentCount)) ? Number(item?.commentCount) : 0,
     isNew: Boolean(item?.isNew),
   }));
 };

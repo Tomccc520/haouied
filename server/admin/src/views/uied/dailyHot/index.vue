@@ -204,7 +204,7 @@
                     </el-col>
                     <el-col :span="10">
                         <el-form-item label="入口路径">
-                            <el-input v-model="globalForm.displayPath" placeholder="/p/daily-hot" />
+                            <el-input v-model="globalForm.displayPath" placeholder="/p/hot?tab=daily-hot" />
                         </el-form-item>
                     </el-col>
                     <el-col :span="6">
@@ -457,7 +457,7 @@ const globalForm = reactive<GlobalForm>({
     maxPlatforms: 20,
     displayPlacements: ['home_menu', 'footer_link'],
     displayLabel: '每日热榜',
-    displayPath: '/p/daily-hot',
+    displayPath: '/p/hot?tab=daily-hot',
     displaySort: 90,
     displayDesktop: true,
     displayMobile: true,
@@ -518,7 +518,7 @@ const enabledPlatformQuickOptions = computed(() => {
 const schemaText = computed(() => JSON.stringify(schemaData.value || {}, null, 2))
 const normalizedDisplayPath = computed(() => {
     const path = String(globalForm.displayPath || '').trim()
-    if (!path) return '/p/daily-hot'
+    if (!path) return '/p/hot?tab=daily-hot'
     return path.startsWith('/') ? path : `/${path}`
 })
 
@@ -542,7 +542,7 @@ const loadGlobalConfig = async () => {
             ? data.displayPlacements.map((item: any) => String(item || '')).filter(Boolean)
             : ['home_menu', 'footer_link']
         globalForm.displayLabel = String(data?.displayLabel || '每日热榜')
-        globalForm.displayPath = String(data?.displayPath || '/p/daily-hot')
+        globalForm.displayPath = String(data?.displayPath || '/p/hot?tab=daily-hot')
         globalForm.displaySort = toInt(data?.displaySort, 90, 1, 9999)
         globalForm.displayDesktop = data?.displayDesktop !== false
         globalForm.displayMobile = data?.displayMobile !== false
@@ -619,7 +619,7 @@ const handleSaveGlobalConfig = async () => {
                       .filter(Boolean)
                 : [],
             displayLabel: String(globalForm.displayLabel || '').trim() || '每日热榜',
-            displayPath: String(globalForm.displayPath || '').trim() || '/p/daily-hot',
+            displayPath: String(globalForm.displayPath || '').trim() || '/p/hot?tab=daily-hot',
             displaySort: toInt(globalForm.displaySort, 90, 1, 9999),
             displayDesktop: globalForm.displayDesktop !== false,
             displayMobile: globalForm.displayMobile !== false,

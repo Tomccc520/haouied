@@ -7,6 +7,113 @@ import useUserStore from '@/stores/modules/user'
 // 匹配views里面所有的.vue文件，动态引入
 const modules = import.meta.glob('/src/views/**/*.vue')
 
+/**
+ * 统一内容中心历史菜单路由，避免“热门文章/榜单/每日热榜”在侧边栏重复出现。
+ */
+function normalizeContentHubLegacyRoute(route: any) {
+    const next = { ...(route || {}) }
+    const rawPath = String(next.paths || '').trim().replace(/^\/+/, '')
+    if (!rawPath) return next
+
+    /**
+     * 统一新入口：支持“content-hub-config”历史写法，最终都落到基础配置下的内容中心页。
+     */
+    if (rawPath === 'content-hub-config') {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.selected = '/system-setting/base-config/setting'
+        return next
+    }
+
+    /**
+     * 旧入口（每日热榜）兼容并隐藏，避免后台侧边栏重复展示。
+     */
+    if (rawPath === 'uied/dailyHot' || rawPath.startsWith('uied/dailyHot/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'dailyHot' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+    if (rawPath === 'daily-hot' || rawPath.startsWith('daily-hot/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'dailyHot' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    /**
+     * 旧入口（榜单系统）兼容并隐藏。
+     */
+    if (rawPath === 'uied/rankBoard' || rawPath.startsWith('uied/rankBoard/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'rankings' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+    if (rawPath === 'rank-board' || rawPath.startsWith('rank-board/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'rankings' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    /**
+     * 旧入口（热门文章）兼容并隐藏。
+     */
+    if (rawPath === 'system-setting/base-config/hot-articles' || rawPath.startsWith('system-setting/base-config/hot-articles/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'hot' })
+        next.menuName = next.menuName || '内容中心配置'
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+    if (rawPath === 'hot-articles-config' || rawPath.startsWith('hot-articles-config/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'hot' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    if (rawPath === 'settings/hot-articles-config') {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'hot' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    if (rawPath === 'settings/daily-hot-config' || rawPath.startsWith('settings/daily-hot-config/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'dailyHot' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    if (rawPath === 'settings/rank-board-config' || rawPath.startsWith('settings/rank-board-config/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'rankings' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    if (rawPath === 'settings/daily-new-config' || rawPath.startsWith('settings/daily-new-config/')) {
+        next.paths = 'system-setting/base-config/content-hub'
+        next.params = JSON.stringify({ tab: 'dailyNew' })
+        next.isShow = 0
+        next.selected = '/system-setting/base-config/content-hub'
+        return next
+    }
+
+    return next
+}
+
 //
 export function getModulesKey() {
     return Object.keys(modules).map((item) => item.replace('/src/views/', '').replace('.vue', ''))
@@ -25,30 +132,35 @@ export function filterAsyncRoutes(routes: any[], firstRoute = true) {
 
 // 创建一条路由记录
 export function createRouteRecord(route: any, firstRoute: boolean): RouteRecordRaw {
+    const normalizedRoute = normalizeContentHubLegacyRoute(route)
     //@ts-ignore
     const routeRecord: RouteRecordRaw = {
-        path: isExternal(route.paths) ? route.paths : firstRoute ? `/${route.paths}` : route.paths,
-        name: Symbol(route.paths),
+        path: isExternal(normalizedRoute.paths)
+            ? normalizedRoute.paths
+            : firstRoute
+                ? `/${normalizedRoute.paths}`
+                : normalizedRoute.paths,
+        name: Symbol(normalizedRoute.paths),
         meta: {
-            hidden: !route.isShow,
-            keepAlive: !!route.isCache,
-            title: route.menuName,
-            perms: route.perms,
-            query: route.params,
-            icon: route.menuIcon,
-            type: route.menuType,
-            activeMenu: route.selected
+            hidden: !normalizedRoute.isShow,
+            keepAlive: !!normalizedRoute.isCache,
+            title: normalizedRoute.menuName,
+            perms: normalizedRoute.perms,
+            query: normalizedRoute.params,
+            icon: normalizedRoute.menuIcon,
+            type: normalizedRoute.menuType,
+            activeMenu: normalizedRoute.selected
         }
     }
-    switch (route.menuType) {
+    switch (normalizedRoute.menuType) {
         case MenuEnum.CATALOGUE:
             routeRecord.component = firstRoute ? LAYOUT : RouterView
-            if (!route.children) {
+            if (!normalizedRoute.children) {
                 routeRecord.component = RouterView
             }
             break
         case MenuEnum.MENU:
-            routeRecord.component = loadRouteView(route.component)
+            routeRecord.component = loadRouteView(normalizedRoute.component)
             break
     }
     return routeRecord
