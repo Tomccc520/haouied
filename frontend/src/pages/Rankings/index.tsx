@@ -322,6 +322,13 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
                 </div>
                 <div className="rankings-page__item-main">
                   <div className="rankings-page__item-head">
+                    <div className="rankings-page__favicon">
+                      {iconUrl ? (
+                        <img src={iconUrl} alt={name} loading="lazy" />
+                      ) : (
+                        <span>{name.slice(0, 1)}</span>
+                      )}
+                    </div>
                     {openInNewTab ? (
                       <Link to={detailLink} className="rankings-page__item-title" target={linkTarget} rel={linkRel}>
                         {name}
@@ -358,13 +365,6 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
                       查看详情
                     </Link>
                   )}
-                  <div className="rankings-page__favicon">
-                    {iconUrl ? (
-                      <img src={iconUrl} alt={name} loading="lazy" />
-                    ) : (
-                      <span>{name.slice(0, 1)}</span>
-                    )}
-                  </div>
                 </div>
               </article>
             );

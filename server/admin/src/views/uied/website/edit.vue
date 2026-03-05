@@ -33,7 +33,7 @@
                         :model="editData"
                         :rules="editRules"
                         label-width="100px"
-                        style="max-width: 800px"
+                        class="form-max-800"
                     >
                         <el-form-item label="网站名称" prop="name">
                             <el-input
@@ -89,7 +89,7 @@
                                 default-first-option
                                 :filter-method="handleCategoryFilter"
                                 @visible-change="handleCategorySelectVisibleChange"
-                                style="width: 100%"
+                                class="w-100"
                             >
                                 <el-option
                                     v-for="item in filteredCategoryOptions"
@@ -146,7 +146,7 @@
                                     </div>
                                 </el-form-item>
                                 <el-form-item label="图标URL">
-                                    <div class="flex gap-2" style="width: 100%">
+                                    <div class="flex gap-2 w-100">
                                         <el-input
                                             v-model="editData.iconUrl"
                                             placeholder="请输入图标URL"
@@ -167,7 +167,7 @@
                                         allow-create
                                         default-first-option
                                         placeholder="输入标签后回车添加"
-                                        style="width: 100%"
+                                        class="w-100"
                                     />
                                 </el-form-item>
                                 <el-form-item label="站点权重标签">
@@ -178,7 +178,7 @@
                                         collapse-tags
                                         collapse-tags-tooltip
                                         placeholder="用于前台卡片透出：官方 / 推荐 / 企业认证"
-                                        style="width: 100%"
+                                        class="w-100"
                                     >
                                         <el-option
                                             v-for="item in WEBSITE_WEIGHT_TAG_OPTIONS"
@@ -198,7 +198,7 @@
                                                 v-model="editData.sortOrder"
                                                 :min="0"
                                                 :max="9999"
-                                                style="width: 100%"
+                                                class="w-100"
                                             />
                                         </el-form-item>
                                     </el-col>
@@ -247,17 +247,12 @@
                                             content="网站预览缩略图，支持从素材中心选择或输入URL"
                                             placement="top"
                                         >
-                                            <el-icon
-                                                style="
-                                                    margin-left: 4px;
-                                                    cursor: help;
-                                                    color: #909399;
-                                                "
+                                            <el-icon class="tooltip-help-icon"
                                                 ><QuestionFilled
                                             /></el-icon>
                                         </el-tooltip>
                                     </template>
-                                    <div style="width: 100%">
+                                    <div class="w-100">
                                         <div class="detail-thumbnail-toolbar">
                                             <el-input
                                                 v-model="editData.thumbnail"
@@ -745,7 +740,7 @@
                         </div>
 
                         <el-divider content-position="left">产品截图</el-divider>
-                        <el-form :model="editData" label-width="100px" style="max-width: 900px">
+                        <el-form :model="editData" label-width="100px" class="form-max-900">
                             <el-form-item>
                                 <template #label>
                                     <span>产品截图</span>
@@ -753,13 +748,12 @@
                                         content="从素材中心选择产品截图，将在详情页展示为图片画廊"
                                         placement="top"
                                     >
-                                        <el-icon
-                                            style="margin-left: 4px; cursor: help; color: #909399"
+                                        <el-icon class="tooltip-help-icon"
                                             ><QuestionFilled
                                         /></el-icon>
                                     </el-tooltip>
                                 </template>
-                                <div style="width: 100%">
+                                <div class="w-100">
                                     <material-picker
                                         v-model="screenshotList"
                                         type="image"
@@ -774,7 +768,7 @@
 
                 <!-- SEO 设置 -->
                 <el-tab-pane label="SEO" name="seo">
-                    <el-form :model="editData" label-width="100px" style="max-width: 800px">
+                    <el-form :model="editData" label-width="100px" class="form-max-800">
                         <el-form-item label="SEO 标题">
                             <el-input
                                 v-model="editData.seoTitle"
@@ -2745,12 +2739,15 @@ const goWebsiteListWithRefresh = async () => {
      */
     const resolveWebsiteListRoute = () => {
         const fromPath = String(route.query?.from || '').trim()
-        const candidates = [fromPath, '/website-manage/website', '/uied/website', '/uied/website/index']
+        const candidates = [fromPath, '/website-manage/website', '/uied/website/index']
         for (const candidate of candidates) {
             if (!candidate) continue
             const resolved = router.resolve(candidate)
             if (!resolved?.matched?.length) continue
+            const lastMatchedPath = String(resolved?.matched?.[resolved.matched.length - 1]?.path || '')
+            if (lastMatchedPath === '/:pathMatch(.*)*') continue
             if (resolved.path.includes('/uied/website/edit')) continue
+            if (resolved.path === '/uied/website') continue
             return {
                 path: resolved.path,
                 query: resolved.query || {}
@@ -2889,6 +2886,24 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.form-max-800 {
+    max-width: 800px;
+}
+
+.form-max-900 {
+    max-width: 900px;
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.tooltip-help-icon {
+    margin-left: 4px;
+    cursor: help;
+    color: #909399;
+}
+
 .website-url-tools {
     width: 100%;
     display: grid;

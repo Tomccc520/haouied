@@ -110,6 +110,11 @@ export function uiedWebsiteBatchGenerateDetailContent(params: any) {
     )
 }
 
+// 批量处理网站权重标签
+export function uiedWebsiteBatchWeightTags(params: any) {
+    return request.post({ url: '/uied/website/batchWeightTags', params })
+}
+
 // 删除网站
 export function uiedWebsiteDelete(params: any) {
     return request.post({ url: '/uied/website/del', params })
@@ -708,6 +713,26 @@ export function uiedSeoScraperFetch(params: any) {
 // WordPress 标签列表
 export function uiedWordpressTagList(params?: any) {
     return request.get({ url: '/uied/wordpress/tags', params })
+}
+
+// WordPress 分类列表
+export function uiedWordpressCategoryList(params?: any) {
+    return request.get({ url: '/uied/wordpress/categories', params })
+}
+
+// 新增 WordPress 分类
+export function uiedWordpressCategoryAdd(params: any) {
+    return request.post({ url: '/uied/wordpress/categories/add', params })
+}
+
+// 编辑 WordPress 分类
+export function uiedWordpressCategoryEdit(params: any) {
+    return request.post({ url: '/uied/wordpress/categories/edit', params })
+}
+
+// 删除 WordPress 分类
+export function uiedWordpressCategoryDel(params: any) {
+    return request.post({ url: '/uied/wordpress/categories/del', params })
 }
 
 // 新增 WordPress 标签

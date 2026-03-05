@@ -69,6 +69,42 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '3.0.0-rc.4',
+    date: '2026-03-05',
+    title: '内容中心统一路由与 Hot 页面运营化增强',
+    changes: [
+      { type: 'feature', text: '热门文章 / 榜单系统 / 每日热榜 / 最新上新合并为单路由 /p/hot，顶部切换不跳页' },
+      { type: 'feature', text: '新增内容中心统一配置入口，切换菜单文案可后台统一管理并实时生效' },
+      { type: 'improve', text: '热门文章页面支持左侧运营菜单 + 右侧筛选组联动，补齐旧版筛选映射能力' },
+      { type: 'improve', text: '新增搜索页头部广告位对接与默认结果数量扩展，首屏信息密度提升' },
+      { type: 'fix', text: '修复 Hot 页面遗留写死数据导致的菜单与筛选不一致问题' },
+    ]
+  },
+  {
+    version: '3.0.0-rc.3',
+    date: '2026-03-04',
+    title: '网站管理批量能力增强与运营流程补齐',
+    changes: [
+      { type: 'feature', text: '网站管理新增批量导入结果明细表 + 一键导出 CSV，支持成功/跳过/失败原因追踪' },
+      { type: 'feature', text: '批量导入支持多分类、主分类选择、重复主域名提醒后继续导入' },
+      { type: 'feature', text: '新增批量 AI 生成详情正文流程，带执行中锁定与结果回执弹窗' },
+      { type: 'improve', text: '添加网站与批量导入统一接入“获取网站信息”（SEO 标题/简介/关键词）能力' },
+      { type: 'fix', text: '修复批量任务 10 秒超时报错但后端已成功写入的误报问题（前端超时放宽）' },
+    ]
+  },
+  {
+    version: '3.0.0-rc.2',
+    date: '2026-03-03',
+    title: '导航菜单与页面配置链路稳定性修复',
+    changes: [
+      { type: 'feature', text: '导航菜单编辑预览支持拖拽排序与结构化配置，后台保存后前端同步生效' },
+      { type: 'feature', text: '页面管理新增 design-article-grid-container 配置同步能力，支持分类/标签/数量运营化设置' },
+      { type: 'improve', text: 'SVG 图标库能力扩展，支持后台上传与页面分类图标调用' },
+      { type: 'improve', text: '广告管理多位置配置链路增强，统一接入首页/详情页/搜索页等运营位' },
+      { type: 'fix', text: '修复分类页/标签页部分场景 500 与详情页配置冲突导致的页面不可访问问题' },
+    ]
+  },
+  {
     version: '3.0.0-rc.1',
     date: '2026-02-27',
     title: '首发候选包生成与发布健康检查通过',

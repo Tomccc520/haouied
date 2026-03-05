@@ -45,7 +45,7 @@
                             配置网站的基本信息，包括名称、SEO、备案等。修改后保存即可生效。
                         </p>
                     </div>
-                    <el-form :model="siteInfoData" label-width="120px" style="max-width: 600px">
+                    <el-form :model="siteInfoData" label-width="120px" class="form-max-600">
                         <el-form-item>
                             <template #label>
                                 <span>站点名称</span>
@@ -112,27 +112,21 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; gap: 12px; align-items: flex-start">
+                            <div class="row-start-gap-12">
                                 <el-input
                                     v-model="siteInfoData.logo"
                                     placeholder="Logo URL"
-                                    style="flex: 1"
+                                    class="flex-1"
                                 />
                                 <material-picker v-model="siteInfoData.logo" :limit="1">
                                     <el-button>选择图片</el-button>
                                 </material-picker>
                             </div>
-                            <div v-if="siteInfoData.logo" style="margin-top: 8px">
+                            <div v-if="siteInfoData.logo" class="mt-8">
                                 <img
                                     :src="siteInfoData.logo"
                                     alt="Logo预览"
-                                    style="
-                                        max-width: 200px;
-                                        max-height: 50px;
-                                        border: 1px solid #dcdfe6;
-                                        border-radius: 4px;
-                                        padding: 4px;
-                                    "
+                                    class="logo-preview-image"
                                 />
                             </div>
                         </el-form-item>
@@ -145,27 +139,21 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; gap: 12px; align-items: flex-start">
+                            <div class="row-start-gap-12">
                                 <el-input
                                     v-model="siteInfoData.favicon"
                                     placeholder="Favicon URL"
-                                    style="flex: 1"
+                                    class="flex-1"
                                 />
                                 <material-picker v-model="siteInfoData.favicon" :limit="1">
                                     <el-button>选择图片</el-button>
                                 </material-picker>
                             </div>
-                            <div v-if="siteInfoData.favicon" style="margin-top: 8px">
+                            <div v-if="siteInfoData.favicon" class="mt-8">
                                 <img
                                     :src="siteInfoData.favicon"
                                     alt="Favicon预览"
-                                    style="
-                                        width: 32px;
-                                        height: 32px;
-                                        border: 1px solid #dcdfe6;
-                                        border-radius: 4px;
-                                        padding: 2px;
-                                    "
+                                    class="favicon-preview-image"
                                 />
                             </div>
                         </el-form-item>
@@ -241,7 +229,7 @@
                             自定义网站的视觉风格，包括主题色、字体、圆角、间距等。类似WordPress主题自定义器。
                         </p>
                     </div>
-                    <el-form :model="appearanceData" label-width="140px" style="max-width: 650px">
+                    <el-form :model="appearanceData" label-width="140px" class="form-max-650">
                         <el-divider content-position="left">主题色彩</el-divider>
                         <p class="section-desc">
                             设置网站的主色调和辅助色彩，影响按钮、链接、高亮等元素的颜色。
@@ -255,11 +243,11 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; align-items: center; gap: 12px">
+                            <div class="row-center-gap-12">
                                 <el-color-picker v-model="appearanceData.primaryColor" />
                                 <el-input
                                     v-model="appearanceData.primaryColor"
-                                    style="width: 140px"
+                                    class="input-w-140"
                                     placeholder="#0066ff"
                                 />
                                 <el-button
@@ -277,11 +265,11 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; align-items: center; gap: 12px">
+                            <div class="row-center-gap-12">
                                 <el-color-picker v-model="appearanceData.backgroundColor" />
                                 <el-input
                                     v-model="appearanceData.backgroundColor"
-                                    style="width: 140px"
+                                    class="input-w-140"
                                     placeholder="#f6f8fb"
                                 />
                                 <el-button
@@ -299,11 +287,11 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; align-items: center; gap: 12px">
+                            <div class="row-center-gap-12">
                                 <el-color-picker v-model="appearanceData.cardBackgroundColor" />
                                 <el-input
                                     v-model="appearanceData.cardBackgroundColor"
-                                    style="width: 140px"
+                                    class="input-w-140"
                                     placeholder="#ffffff"
                                 />
                             </div>
@@ -315,11 +303,11 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; align-items: center; gap: 12px">
+                            <div class="row-center-gap-12">
                                 <el-color-picker v-model="appearanceData.textPrimaryColor" />
                                 <el-input
                                     v-model="appearanceData.textPrimaryColor"
-                                    style="width: 140px"
+                                    class="input-w-140"
                                     placeholder="#333333"
                                 />
                             </div>
@@ -369,7 +357,7 @@
                                 :max="24"
                                 :step="2"
                                 show-stops
-                                style="width: 300px"
+                                class="input-w-300"
                             />
                             <span class="form-tip">{{ appearanceData.borderRadius }}px</span>
                         </el-form-item>
@@ -382,7 +370,7 @@
                             ></template>
                             <el-select
                                 v-model="appearanceData.contentMaxWidth"
-                                style="width: 200px"
+                                class="input-w-200"
                             >
                                 <el-option label="窄版 (1000px)" :value="1000" />
                                 <el-option label="标准 (1200px)" :value="1200" />
@@ -428,7 +416,7 @@
                             配置首页各区块的显示、顺序和内容。可以自由开关和排列首页的各个模块。
                         </p>
                     </div>
-                    <el-form :model="homepageData" label-width="140px" style="max-width: 700px">
+                    <el-form :model="homepageData" label-width="140px" class="form-max-700">
                         <el-divider content-position="left">横幅区域 (Hero Banner)</el-divider>
                         <p class="section-desc">
                             首页顶部的大横幅区域，包含标题、搜索框和热门标签。
@@ -453,7 +441,7 @@
                             ></template>
                             <el-select
                                 v-model="homepageData.heroBgType"
-                                style="width: 200px"
+                                class="input-w-200"
                                 :disabled="!homepageData.heroBannerEnabled"
                             >
                                 <el-option label="默认背景图" value="default" />
@@ -464,11 +452,11 @@
                         </el-form-item>
                         <el-form-item v-if="homepageData.heroBgType === 'color'">
                             <template #label><span>背景颜色</span></template>
-                            <div style="display: flex; align-items: center; gap: 12px">
+                            <div class="row-center-gap-12">
                                 <el-color-picker v-model="homepageData.heroBgValue" />
                                 <el-input
                                     v-model="homepageData.heroBgValue"
-                                    style="width: 200px"
+                                    class="input-w-200"
                                     placeholder="#1a1a2e"
                                 />
                             </div>
@@ -498,7 +486,7 @@
                             ></template>
                             <el-select
                                 v-model="homepageData.heroDisplayMode"
-                                style="width: 200px"
+                                class="input-w-200"
                                 :disabled="!homepageData.heroBannerEnabled"
                             >
                                 <el-option label="搜索模式" value="search" />
@@ -643,10 +631,10 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="display: flex; align-items: center; gap: 12px; width: 100%">
+                            <div class="row-center-gap-12 w-100">
                                 <el-select
                                     v-model="homepageData.homePageSlug"
-                                    style="flex: 1"
+                                    class="flex-1"
                                     placeholder="请选择要作为首页的页面"
                                     filterable
                                     clearable
@@ -769,15 +757,15 @@
                         <p class="setting-desc">
                             控制前端网站卡片的点击行为、直达箭头、窗口打开方式等全局页面交互配置。
                         </p>
-                        <el-alert type="info" :closable="false" show-icon style="margin-top: 12px">
+                        <el-alert type="info" :closable="false" show-icon class="mt-12">
                             <template #title>
-                                <span style="font-weight: 500"
+                                <span class="font-500"
                                     >注意：此配置仅对「分类区域」的网站卡片生效，「热门推荐」区域有独立配置</span
                                 >
                             </template>
                         </el-alert>
                     </div>
-                    <el-form :model="pageConfigData" label-width="140px" style="max-width: 650px">
+                    <el-form :model="pageConfigData" label-width="140px" class="form-max-650">
                         <el-divider content-position="left">分类区域点击行为</el-divider>
                         <el-form-item>
                             <template #label
@@ -791,7 +779,7 @@
                             ></template>
                             <el-select
                                 v-model="pageConfigData.websiteClickMode"
-                                style="width: 100%"
+                                class="w-100"
                             >
                                 <el-option label="跳转详情页" value="detail" />
                                 <el-option label="直达网站" value="direct" />
@@ -877,7 +865,7 @@
                             ></template>
                             <el-select
                                 v-model="pageConfigData.hotRecommendationClickMode"
-                                style="width: 100%"
+                                class="w-100"
                             >
                                 <el-option label="跳转详情页" value="detail" />
                                 <el-option label="直达网站" value="direct" />
@@ -919,7 +907,7 @@
                             type="info"
                             :closable="false"
                             show-icon
-                            style="margin-bottom: 16px"
+                            class="mb-16"
                         >
                             <template #title>
                                 SVG 图标库已迁移到「素材中心 -> SVG图标库」统一维护，避免重复配置入口。
@@ -929,10 +917,10 @@
                             type="success"
                             :closable="false"
                             show-icon
-                            style="margin-bottom: 16px"
+                            class="mb-16"
                         >
                             <template #title>
-                                <span style="font-weight: 500">点击行为预览</span>
+                                <span class="font-500">点击行为预览</span>
                             </template>
                             <div class="behavior-preview">
                                 <p>
@@ -984,7 +972,7 @@
                             自定义网站卡片的展示样式，控制卡片上显示哪些信息。
                         </p>
                     </div>
-                    <el-form :model="cardStyleData" label-width="140px" style="max-width: 650px">
+                    <el-form :model="cardStyleData" label-width="140px" class="form-max-650">
                         <el-divider content-position="left">卡片布局</el-divider>
                         <p class="section-desc">设置网站列表的默认展示方式和列数。</p>
                         <el-form-item>
@@ -994,7 +982,7 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <el-select v-model="cardStyleData.defaultLayout" style="width: 200px">
+                            <el-select v-model="cardStyleData.defaultLayout" class="input-w-200">
                                 <el-option label="网格布局" value="grid" />
                                 <el-option label="列表布局" value="list" />
                             </el-select>
@@ -1008,7 +996,7 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <el-select v-model="cardStyleData.gridColumns" style="width: 200px">
+                            <el-select v-model="cardStyleData.gridColumns" class="input-w-200">
                                 <el-option label="3列" :value="3" />
                                 <el-option label="4列（推荐）" :value="4" />
                                 <el-option label="5列" :value="5" />
@@ -1081,7 +1069,7 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <el-select v-model="cardStyleData.hoverEffect" style="width: 200px">
+                            <el-select v-model="cardStyleData.hoverEffect" class="input-w-200">
                                 <el-option label="上移 + 边框变色" value="translateUp" />
                                 <el-option label="仅边框变色" value="borderOnly" />
                                 <el-option label="阴影效果" value="shadow" />
@@ -1107,7 +1095,7 @@
                             配置前端页面的侧边栏显示方式和内容。侧边栏用于展示分类导航。
                         </p>
                     </div>
-                    <el-form :model="sidebarData" label-width="140px" style="max-width: 650px">
+                    <el-form :model="sidebarData" label-width="140px" class="form-max-650">
                         <el-divider content-position="left">侧边栏基础</el-divider>
                         <p class="section-desc">控制侧边栏的显示和位置。</p>
                         <el-form-item>
@@ -1132,7 +1120,7 @@
                             ></template>
                             <el-select
                                 v-model="sidebarData.position"
-                                style="width: 200px"
+                                class="input-w-200"
                                 :disabled="!sidebarData.enabled"
                             >
                                 <el-option label="左侧" value="left" />
@@ -1228,7 +1216,7 @@
                         <h2 class="setting-title">搜索配置</h2>
                         <p class="setting-desc">配置前端搜索功能的行为和展示方式。</p>
                     </div>
-                    <el-form :model="searchData" label-width="140px" style="max-width: 650px">
+                    <el-form :model="searchData" label-width="140px" class="form-max-650">
                         <el-divider content-position="left">搜索基础</el-divider>
                         <p class="section-desc">控制搜索功能的基本行为。</p>
                         <el-form-item>
@@ -1346,7 +1334,7 @@
                             统一管理前端登录、注册、个人中心开关。关闭个人中心后，前端将隐藏登录/注册与个人中心入口。
                         </p>
                     </div>
-                    <el-form :model="authConfigData" label-width="140px" style="max-width: 650px">
+                    <el-form :model="authConfigData" label-width="140px" class="form-max-650">
                         <el-divider content-position="left">注册与登录</el-divider>
                         <el-form-item label="允许用户注册">
                             <el-switch
@@ -1435,31 +1423,25 @@
                             type="warning"
                             :closable="false"
                             show-icon
-                            style="margin-top: 12px"
+                            class="mt-12"
                         >
                             <template #title>
-                                <span style="font-weight: 500"
+                                <span class="font-500"
                                     >注意：分类区域与热门推荐区域已使用独立的「详情页/直达」逻辑，跳转提醒不参与这两类卡片点击行为</span
                                 >
                             </template>
                         </el-alert>
                     </div>
-                    <el-form :model="exitModalData" label-width="120px" style="max-width: 600px">
+                    <el-form :model="exitModalData" label-width="120px" class="form-max-600">
                         <!-- 提示：当前跳转提醒不参与分类区域与热门推荐卡片点击行为 -->
                         <el-alert
                             type="warning"
                             :closable="false"
                             show-icon
-                            style="margin-bottom: 20px"
+                            class="mb-20"
                         >
                             <template #title>
-                                <div
-                                    style="
-                                        display: flex;
-                                        align-items: center;
-                                        justify-content: space-between;
-                                    "
-                                >
+                                <div class="row-between-center">
                                     <span
                                         >当前配置仅用于其他扩展跳转场景，分类区域与热门推荐卡片点击不会触发此弹窗</span
                                     >
@@ -1467,7 +1449,7 @@
                                         type="primary"
                                         size="small"
                                         @click="activeTab = 'pageConfig'"
-                                        style="margin-left: 12px"
+                                        class="ml-12"
                                     >
                                         前往设置
                                     </el-button>
@@ -1518,18 +1500,18 @@
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
-                            <div style="width: 100%">
+                            <div class="w-100">
                                 <el-input
                                     v-model="exitModalData.logo"
                                     placeholder="请输入Logo地址或通过素材库选择"
                                 />
                                 <material-picker v-model="exitModalData.logo" :limit="1">
-                                    <el-button style="margin-top: 8px">从素材库选择</el-button>
+                                    <el-button class="mt-8">从素材库选择</el-button>
                                 </material-picker>
-                                <div v-if="exitModalData.logo" style="margin-top: 8px">
+                                <div v-if="exitModalData.logo" class="mt-8">
                                     <el-image
                                         :src="exitModalData.logo"
-                                        style="width: 120px; height: 40px"
+                                        class="exit-logo-preview-image"
                                         fit="contain"
                                     />
                                 </div>
@@ -2834,6 +2816,101 @@ onMounted(() => {
     flex: 1;
     font-size: 13px;
     color: #303133;
+}
+
+.form-max-600 {
+    max-width: 600px;
+}
+
+.form-max-650 {
+    max-width: 650px;
+}
+
+.form-max-700 {
+    max-width: 700px;
+}
+
+.row-start-gap-12 {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.row-center-gap-12 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.row-between-center {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.input-w-140 {
+    width: 140px;
+}
+
+.input-w-200 {
+    width: 200px;
+}
+
+.input-w-300 {
+    width: 300px;
+}
+
+.mt-8 {
+    margin-top: 8px;
+}
+
+.mt-12 {
+    margin-top: 12px;
+}
+
+.mb-16 {
+    margin-bottom: 16px;
+}
+
+.mb-20 {
+    margin-bottom: 20px;
+}
+
+.ml-12 {
+    margin-left: 12px;
+}
+
+.font-500 {
+    font-weight: 500;
+}
+
+.logo-preview-image {
+    max-width: 200px;
+    max-height: 50px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+.favicon-preview-image {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.exit-logo-preview-image {
+    width: 120px;
+    height: 40px;
 }
 
 </style>

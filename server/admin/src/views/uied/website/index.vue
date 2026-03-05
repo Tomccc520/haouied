@@ -161,6 +161,14 @@
                     >
                         批量AI生成正文
                     </el-button>
+                    <el-button
+                        type="info"
+                        plain
+                        :disabled="batchWeightTagLoading"
+                        @click="openBatchWeightTagDialog"
+                    >
+                        批量权重标签
+                    </el-button>
                 </div>
                 <div class="text-gray-400">共 {{ pager.count }} 个网站</div>
             </div>
@@ -464,6 +472,59 @@
                 </el-button>
             </template>
         </el-dialog>
+
+        <el-dialog
+            v-model="batchWeightTagDialogVisible"
+            title="批量处理站点权重标签"
+            width="620px"
+            destroy-on-close
+        >
+            <el-alert
+                type="info"
+                :closable="false"
+                title="仅处理当前已勾选的网站；普通标签不会受影响，只更新权重标签。"
+            />
+            <el-form class="mt-4" label-width="110px">
+                <el-form-item label="处理模式" required>
+                    <el-radio-group v-model="batchWeightTagForm.operation">
+                        <el-radio-button label="add">追加标签</el-radio-button>
+                        <el-radio-button label="remove">移除标签</el-radio-button>
+                        <el-radio-button label="replace">覆盖标签</el-radio-button>
+                        <el-radio-button label="clear">清空标签</el-radio-button>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="权重标签" required>
+                    <el-select
+                        v-model="batchWeightTagForm.weightTags"
+                        multiple
+                        filterable
+                        clearable
+                        collapse-tags
+                        collapse-tags-tooltip
+                        style="width: 100%"
+                        :disabled="batchWeightTagForm.operation === 'clear'"
+                    >
+                        <el-option
+                            v-for="item in WEBSITE_WEIGHT_TAG_OPTIONS"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="目标网站">
+                    <el-tag size="small" type="success">已选 {{ selectedIds.length }} 个网站</el-tag>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button :disabled="batchWeightTagLoading" @click="batchWeightTagDialogVisible = false">
+                    取消
+                </el-button>
+                <el-button type="primary" :loading="batchWeightTagLoading" @click="handleBatchWeightTagSubmit">
+                    确认处理
+                </el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -474,11 +535,13 @@ import {
     uiedWebsiteBatchDelete,
     uiedWebsiteBatchImport,
     uiedWebsiteBatchGenerateDetailContent,
+    uiedWebsiteBatchWeightTags,
     uiedCategoryAll
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import { onBeforeRouteLeave } from 'vue-router'
+import { onActivated } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -532,6 +595,15 @@ interface BatchGenerateDetailResultRow {
     reason?: string
 }
 
+/**
+ * 站点权重标签选项（与前端展示字段保持一致）。
+ */
+const WEBSITE_WEIGHT_TAG_OPTIONS = [
+    { label: '官方', value: 'official' },
+    { label: '推荐', value: 'recommended' },
+    { label: '企业认证', value: 'enterprise_verified' }
+]
+
 const batchImportDialogVisible = ref(false)
 const batchImportLoading = ref(false)
 const batchImportResult = ref<{
@@ -560,9 +632,18 @@ const batchGenerateDetailResult = ref<{
     failed: number
     rows: BatchGenerateDetailResultRow[]
 } | null>(null)
+const batchWeightTagDialogVisible = ref(false)
+const batchWeightTagLoading = ref(false)
+const batchWeightTagForm = reactive({
+    operation: 'add',
+    weightTags: [] as string[]
+})
 const runningBatchTaskLeaveMessage = '当前有批量任务执行中，离开页面后可能无法及时看到结果，确定继续离开吗？'
 const hasRunningBatchTask = computed(
-    () => batchImportLoading.value || batchGenerateDetailLoading.value
+    () =>
+        batchImportLoading.value ||
+        batchGenerateDetailLoading.value ||
+        batchWeightTagLoading.value
 )
 
 /**
@@ -976,6 +1057,60 @@ const handleBatchGenerateDetailContent = async () => {
 }
 
 /**
+ * 打开批量权重标签弹窗，并重置默认值。
+ */
+const openBatchWeightTagDialog = () => {
+    if (!selectedIds.value.length) {
+        feedback.msgWarning('请先选择要处理的网站')
+        return
+    }
+    batchWeightTagForm.operation = 'add'
+    batchWeightTagForm.weightTags = [ 'official' ]
+    batchWeightTagDialogVisible.value = true
+}
+
+/**
+ * 提交批量权重标签处理任务。
+ */
+const handleBatchWeightTagSubmit = async () => {
+    if (!selectedIds.value.length) {
+        feedback.msgWarning('请先选择要处理的网站')
+        return
+    }
+    if (
+        batchWeightTagForm.operation !== 'clear' &&
+        (!Array.isArray(batchWeightTagForm.weightTags) || batchWeightTagForm.weightTags.length === 0)
+    ) {
+        feedback.msgWarning('请至少选择一个权重标签')
+        return
+    }
+    await feedback.confirm(
+        `将对 ${selectedIds.value.length} 个网站执行「${batchWeightTagForm.operation}」操作，是否继续？`
+    )
+    batchWeightTagLoading.value = true
+    try {
+        const result = await uiedWebsiteBatchWeightTags({
+            ids: selectedIds.value,
+            operation: batchWeightTagForm.operation,
+            weightTags:
+                batchWeightTagForm.operation === 'clear'
+                    ? []
+                    : batchWeightTagForm.weightTags
+        })
+        const payload = result?.data?.data || result?.data || result || {}
+        const updated = Number(payload?.updated || 0)
+        const skipped = Number(payload?.skipped || 0)
+        feedback.msgSuccess(`处理完成：更新 ${updated} 条，跳过 ${skipped} 条`)
+        batchWeightTagDialogVisible.value = false
+        getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '批量处理权重标签失败')
+    } finally {
+        batchWeightTagLoading.value = false
+    }
+}
+
+/**
  * 页面关闭前拦截：批量任务进行中时给出浏览器原生二次确认。
  */
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1030,6 +1165,13 @@ onBeforeRouteLeave(async () => {
 onMounted(() => {
     getCategoryList()
     window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+/**
+ * keep-alive 场景下页面重新激活时主动刷新一次，规避“返回列表空白需手动刷新”问题。
+ */
+onActivated(() => {
+    getLists()
 })
 
 onUnmounted(() => {

@@ -748,6 +748,119 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 批量处理网站权重标签。
+   * 支持 add/remove/replace/clear 四种模式，避免运营逐条编辑。
+   * @param {{ids?: Array<number|string>, operation?: string, weightTags?: Array<string>|string}} payload 批量参数
+   * @return {Promise<{total:number,updated:number,skipped:number,rows:Array<object>}>} 处理结果
+   */
+  async batchUpdateWeightTags(payload = {}) {
+    const { app } = this;
+    const ids = Array.from(
+      new Set(
+        (Array.isArray(payload.ids) ? payload.ids : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    if (ids.length === 0) {
+      throw new Error('请选择要处理的网站');
+    }
+
+    const normalizedOperation = String(payload.operation || 'add').trim().toLowerCase();
+    const operationAllowSet = new Set([ 'add', 'remove', 'replace', 'clear' ]);
+    const operation = operationAllowSet.has(normalizedOperation) ? normalizedOperation : 'add';
+    const normalizedWeightTags = Array.from(
+      new Set(
+        this.parseStringList(payload.weightTags)
+          .map(item => this.normalizeWebsiteWeightTag(item))
+          .filter(Boolean)
+      )
+    );
+    if (operation !== 'clear' && normalizedWeightTags.length === 0) {
+      throw new Error('请至少选择一个权重标签');
+    }
+
+    const websiteRows = await app.model.query(
+      `SELECT id, name, tags
+       FROM uied_website
+       WHERE is_delete = 0 AND id IN (?)`,
+      {
+        replacements: [ ids ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    const websiteMap = new Map();
+    (Array.isArray(websiteRows) ? websiteRows : []).forEach(item => {
+      const websiteId = Number.parseInt(String(item?.id || 0), 10);
+      if (!Number.isInteger(websiteId) || websiteId <= 0) return;
+      websiteMap.set(websiteId, item);
+    });
+
+    const rows = [];
+    const now = Math.floor(Date.now() / 1000);
+    for (const websiteId of ids) {
+      const website = websiteMap.get(websiteId);
+      if (!website) {
+        rows.push({
+          status: 'skipped',
+          websiteId,
+          reason: '网站不存在或已删除',
+        });
+        continue;
+      }
+      const tagBundle = this.parseWebsiteTagBundle(website.tags);
+      const nextWeightTagSet = new Set(tagBundle.weightTags);
+      if (operation === 'clear' || operation === 'replace') {
+        nextWeightTagSet.clear();
+      }
+      if (operation === 'add' || operation === 'replace') {
+        normalizedWeightTags.forEach(item => nextWeightTagSet.add(item));
+      }
+      if (operation === 'remove') {
+        normalizedWeightTags.forEach(item => nextWeightTagSet.delete(item));
+      }
+      const nextWeightTags = Array.from(nextWeightTagSet);
+      const currentStorageTags = this.buildStoredWebsiteTags(tagBundle.tags, tagBundle.weightTags);
+      const nextStorageTags = this.buildStoredWebsiteTags(tagBundle.tags, nextWeightTags);
+      const currentStorageJson = JSON.stringify(currentStorageTags);
+      const nextStorageJson = JSON.stringify(nextStorageTags);
+      if (currentStorageJson === nextStorageJson) {
+        rows.push({
+          status: 'skipped',
+          websiteId,
+          name: String(website?.name || ''),
+          reason: '权重标签无变化',
+        });
+        continue;
+      }
+
+      await app.model.query(
+        'UPDATE uied_website SET tags = ?, update_time = ? WHERE id = ?',
+        {
+          replacements: [ nextStorageJson, now, websiteId ],
+          type: app.Sequelize.QueryTypes.UPDATE,
+        }
+      );
+      rows.push({
+        status: 'updated',
+        websiteId,
+        name: String(website?.name || ''),
+        weightTags: nextWeightTags,
+        reason: '更新成功',
+      });
+    }
+
+    const updated = rows.filter(item => item.status === 'updated').length;
+    const skipped = rows.filter(item => item.status === 'skipped').length;
+    return {
+      total: rows.length,
+      updated,
+      skipped,
+      rows,
+    };
+  }
+
+  /**
    * 获取网站列表（分页）
    * @param {Object} params
    * @param {number} params.categoryId - 分类ID
@@ -1327,11 +1440,34 @@ class WebsiteService extends Service {
    */
   async search({ keyword, pageSlug, page = 1, pageSize = 20 }) {
     const { app } = this;
-    const offset = (page - 1) * pageSize;
-    const likeKeyword = `%${keyword}%`;
+    const normalizedKeyword = String(keyword || '').trim();
+    if (!normalizedKeyword) {
+      return {
+        lists: [],
+        count: 0,
+        page,
+        pageSize,
+      };
+    }
 
-    let whereClause = 'w.is_delete = 0 AND (w.name LIKE ? OR w.description LIKE ? OR w.tags LIKE ?)';
-    const replacements = [ likeKeyword, likeKeyword, likeKeyword ];
+    const safePage = Number.isFinite(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+    const safePageSize = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0
+      ? Math.min(Number(pageSize), 100)
+      : 20;
+    const offset = (safePage - 1) * safePageSize;
+    const likeKeyword = `%${normalizedKeyword}%`;
+    const prefixKeyword = `${normalizedKeyword}%`;
+    const keywordForUrl = this.extractWebsiteCompareHost(normalizedKeyword) || normalizedKeyword;
+    const urlLikeKeyword = `%${keywordForUrl}%`;
+
+    let whereClause = `w.is_delete = 0 AND (
+      w.name LIKE ?
+      OR w.description LIKE ?
+      OR w.tags LIKE ?
+      OR w.url LIKE ?
+      OR w.slug LIKE ?
+    )`;
+    const replacements = [ likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword ];
 
     // 如果指定了页面，只搜索该页面的分类下的网站
     if (pageSlug) {
@@ -1363,18 +1499,50 @@ class WebsiteService extends Service {
       { replacements, type: app.Sequelize.QueryTypes.SELECT }
     );
 
+    const relevanceSql = `(
+      CASE
+        WHEN w.name = ? THEN 120
+        WHEN w.slug = ? THEN 110
+        WHEN w.url = ? THEN 100
+        WHEN w.name LIKE ? THEN 90
+        WHEN w.slug LIKE ? THEN 86
+        WHEN w.url LIKE ? THEN 82
+        WHEN w.url LIKE ? THEN 80
+        WHEN w.tags LIKE ? THEN 70
+        WHEN w.description LIKE ? THEN 60
+        ELSE 0
+      END
+    )`;
+
     // 获取列表
     const websites = await app.model.query(
       `SELECT w.id, w.name, w.slug, w.description, w.url, w.icon_url as iconUrl,
               w.category_id as categoryId, c.name as categoryName,
               w.is_new as isNew, w.is_featured as isFeatured, w.is_hot as isHot,
-              w.tags, w.click_count as clickCount
+              w.tags, w.click_count as clickCount,
+              ${relevanceSql} as relevanceScore
        FROM uied_website w
        LEFT JOIN uied_category c ON w.category_id = c.id
        WHERE ${whereClause}
-       ORDER BY w.click_count DESC, w.id DESC
+       ORDER BY relevanceScore DESC, w.click_count DESC, w.id DESC
        LIMIT ? OFFSET ?`,
-      { replacements: [ ...replacements, pageSize, offset ], type: app.Sequelize.QueryTypes.SELECT }
+      {
+        replacements: [
+          ...replacements,
+          normalizedKeyword,
+          normalizedKeyword,
+          normalizedKeyword,
+          prefixKeyword,
+          prefixKeyword,
+          prefixKeyword,
+          urlLikeKeyword,
+          likeKeyword,
+          likeKeyword,
+          safePageSize,
+          offset,
+        ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
     );
 
     const list = websites.map(w => ({
@@ -1388,8 +1556,8 @@ class WebsiteService extends Service {
     return {
       lists: list,
       count: countResult.total,
-      page,
-      pageSize,
+      page: safePage,
+      pageSize: safePageSize,
     };
   }
 

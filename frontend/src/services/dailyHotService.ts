@@ -41,7 +41,14 @@ interface DailyHotBackendItemRow {
   hot?: string | number;
   desc?: string;
   cover?: string;
-  timestamp?: string;
+  timestamp?: string | number;
+  time?: string | number;
+  pubTime?: string | number;
+  publishTime?: string | number;
+  createdAt?: string | number;
+  createTime?: string | number;
+  updateTime?: string | number;
+  date?: string | number;
 }
 
 interface DailyHotBackendPlatformResultRow {
@@ -95,43 +102,123 @@ const buildDailyHotCacheKey = (params?: DailyHotParams): string => {
 };
 
 /**
- * 将热榜时间字段规范化为可读时间（兼容毫秒/秒级时间戳）
+ * 把 Date 对象格式化为热榜展示时间（MM/DD HH:mm）
+ * @param date 日期对象
+ * @returns 格式化时间文本
+ */
+const formatDailyHotTimestamp = (date: Date): string => {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+};
+
+/**
+ * 判断毫秒时间戳是否在合理范围（2000-2100）
+ * @param timestampMs 毫秒时间戳
+ * @returns 是否合理
+ */
+const isReasonableTimestampMs = (timestampMs: number): boolean => {
+  const min = Date.UTC(2000, 0, 1, 0, 0, 0, 0);
+  const max = Date.UTC(2100, 11, 31, 23, 59, 59, 999);
+  return Number.isFinite(timestampMs) && timestampMs >= min && timestampMs <= max;
+};
+
+/**
+ * 将热榜时间字段规范化为可读时间（兼容秒/毫秒/微秒时间戳与日期字符串）
+ * @param value 原始时间值
+ * @returns 规范化后时间文本
  */
 const normalizeDailyHotTimestamp = (value: unknown): string => {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
 
-  // 已是常见可读格式时直接返回，避免重复格式化
-  if (/[-/:年月日]/.test(raw) && !/^\d+$/.test(raw)) {
+  const lowerRaw = raw.toLowerCase();
+  if ([ '0', '-', '--', 'null', 'undefined', 'nan' ].includes(lowerRaw)) {
+    return '';
+  }
+
+  // 已经是“刚刚/xx分钟前/xx小时前”等相对时间，直接透传。
+  if (/(刚刚|刚才|分钟前|小时前|天前|昨天|前天)/.test(raw)) {
     return raw;
   }
 
-  if (!/^\d{10,13}$/.test(raw)) {
+  // 纯数字时间戳：兼容秒(10位)/毫秒(13位)/微秒(16位)。
+  if (/^\d{10,16}$/.test(raw)) {
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '';
+    let timestampMs = numeric;
+    if (raw.length === 10) {
+      timestampMs = numeric * 1000;
+    } else if (raw.length === 16) {
+      timestampMs = Math.floor(numeric / 1000);
+    }
+    if (!isReasonableTimestampMs(timestampMs)) return '';
+    const date = new Date(timestampMs);
+    if (Number.isNaN(date.getTime())) return '';
+    return formatDailyHotTimestamp(date);
+  }
+
+  // yyyyMMdd（8位）日期数字兜底。
+  if (/^\d{8}$/.test(raw)) {
+    const year = Number(raw.slice(0, 4));
+    const month = Number(raw.slice(4, 6));
+    const day = Number(raw.slice(6, 8));
+    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+      if (!Number.isNaN(date.getTime())) {
+        return formatDailyHotTimestamp(date);
+      }
+    }
+  }
+
+  // 含明显日期时间特征的字符串尝试解析成本地时间。
+  const hasDateLikeText = /(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}|\d{1,2}:\d{2}|t\d{2}:\d{2}|z$|gmt|utc)/i.test(raw);
+  if (hasDateLikeText) {
+    const normalizedRaw = raw
+      .replace(/[年/.]/g, '-')
+      .replace(/月/g, '-')
+      .replace(/日/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const parsedMs = Date.parse(normalizedRaw);
+    if (Number.isFinite(parsedMs) && isReasonableTimestampMs(parsedMs)) {
+      return formatDailyHotTimestamp(new Date(parsedMs));
+    }
+  }
+
+  // 含中文时间单位（如“03月05日 10:20”）直接展示，避免误解析。
+  if (/[年月日时分秒周]/.test(raw)) {
     return raw;
   }
 
-  const numeric = Number(raw);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return raw;
-  }
+  return '';
+};
 
-  const timestampMs = raw.length === 10 ? numeric * 1000 : numeric;
-  const date = new Date(timestampMs);
-  if (Number.isNaN(date.getTime())) {
-    return raw;
+/**
+ * 解析热榜条目的时间字段，兼容不同数据源的命名差异。
+ * @param item 原始条目
+ * @returns 可展示时间文本
+ */
+const resolveDailyHotItemTimestamp = (item: DailyHotBackendItemRow): string => {
+  const candidateValues: unknown[] = [
+    item?.timestamp,
+    item?.time,
+    item?.pubTime,
+    item?.publishTime,
+    item?.createdAt,
+    item?.createTime,
+    item?.updateTime,
+    item?.date,
+  ];
+  for (const candidate of candidateValues) {
+    const normalized = normalizeDailyHotTimestamp(candidate);
+    if (normalized) return normalized;
   }
-
-  try {
-    return new Intl.DateTimeFormat('zh-CN', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(date);
-  } catch (error) {
-    return raw;
-  }
+  return '';
 };
 
 /**
@@ -172,7 +259,7 @@ const mapDailyHotItem = (item: DailyHotBackendItemRow): DailyHotItem => {
     hotValue: item?.hot ?? '',
     desc: String(item?.desc || ''),
     cover: String(item?.cover || ''),
-    timestamp: normalizeDailyHotTimestamp(item?.timestamp),
+    timestamp: resolveDailyHotItemTimestamp(item),
   };
 };
 

@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SEO from '../../components/SEO';
 import ContentHubSwitch from '../../components/ContentHubSwitch';
+import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import {
   getDailyHot,
@@ -133,12 +134,31 @@ function buildFallbackPlatformsFromConfig(
 }
 
 /**
- * 生成平台简称（用于图标缺省占位）
- * @param platform 平台
- * @returns 平台简称
+ * 解析平台网站地址：优先使用后台配置，其次按常见平台名称映射默认域名。
+ * @param platform 平台信息
+ * @returns 可用于 Favicon API 的网站地址
  */
-function getPlatformInitial(platform: DailyHotPlatform): string {
-  return String(platform.displayName || platform.platformTitle || '?').slice(0, 1);
+function resolvePlatformWebsiteUrl(platform: DailyHotPlatform): string {
+  const directUrl = String(platform?.url || '').trim();
+  if (directUrl) return directUrl;
+  const aliasText = `${String(platform?.displayName || '')} ${String(platform?.platformTitle || '')}`.toLowerCase();
+  const aliasMap: Array<{ keywords: string[]; url: string }> = [
+    { keywords: [ '知乎', 'zhihu' ], url: 'https://www.zhihu.com' },
+    { keywords: [ '微博', 'weibo' ], url: 'https://weibo.com' },
+    { keywords: [ '哔哩哔哩', 'b站', 'bilibili' ], url: 'https://www.bilibili.com' },
+    { keywords: [ '抖音', 'douyin', 'tiktok' ], url: 'https://www.douyin.com' },
+    { keywords: [ '百度', 'baidu' ], url: 'https://www.baidu.com' },
+    { keywords: [ '今日头条', 'toutiao' ], url: 'https://www.toutiao.com' },
+    { keywords: [ '腾讯新闻', 'qq新闻', 'qqnews' ], url: 'https://news.qq.com' },
+    { keywords: [ '36氪', '36kr' ], url: 'https://www.36kr.com' },
+    { keywords: [ '少数派', 'sspai' ], url: 'https://sspai.com' },
+    { keywords: [ '虎扑', 'hupu' ], url: 'https://www.hupu.com' },
+    { keywords: [ '雪球', 'xueqiu' ], url: 'https://xueqiu.com' },
+    { keywords: [ '掘金', 'juejin' ], url: 'https://juejin.cn' },
+    { keywords: [ 'github' ], url: 'https://github.com' },
+  ];
+  const matched = aliasMap.find((row) => row.keywords.some((keyword) => aliasText.includes(keyword)));
+  return matched?.url || '';
 }
 
 /**
@@ -149,7 +169,6 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
   const [displayConfig, setDisplayConfig] = useState<DailyHotDisplayConfig | null>(null);
   const [platforms, setPlatforms] = useState<DailyHotPlatform[]>([]);
   const [sections, setSections] = useState<DailyHotSection[]>([]);
-  const [activePlatformTab, setActivePlatformTab] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,10 +209,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
     );
   }, [defaultPlatformTitleSet]);
 
-  const visibleSections = useMemo(() => {
-    if (activePlatformTab === 'all') return sections;
-    return sections.filter((section) => section.platform.platformTitle === activePlatformTab);
-  }, [sections, activePlatformTab]);
+  const visibleSections = useMemo(() => sections, [sections]);
 
   const totalVisibleItems = useMemo(
     () => visibleSections.reduce((sum, section) => sum + section.items.length, 0),
@@ -333,37 +349,14 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
   }, [fetchPageData]);
 
   /**
-   * 平台标签切换（支持“全部”与单平台）
-   * @param platformTitle 平台标题
-   */
-  const handlePlatformTabChange = useCallback((platformTitle: string) => {
-    setActivePlatformTab(platformTitle);
-  }, []);
-
-  /**
-   * 当平台列表更新时，保持当前激活标签有效
-   */
-  useEffect(() => {
-    if (!sections.length) {
-      setActivePlatformTab('all');
-      return;
-    }
-    setActivePlatformTab((prev) => {
-      if (prev === 'all') return 'all';
-      return sections.some((section) => section.platform.platformTitle === prev) ? prev : 'all';
-    });
-  }, [sections]);
-
-  /**
    * 获取平台卡片更新时间文案（优先使用源数据时间字段）
    * @param section 平台区块
    * @returns 时间文案
    */
   const getSectionUpdatedLabel = useCallback((section: DailyHotSection): string => {
     const sourceTime = section.items.find((item) => String(item.timestamp || '').trim())?.timestamp;
-    if (sourceTime) return String(sourceTime);
-    return lastUpdated ? `页面刷新于 ${lastUpdated}` : '';
-  }, [lastUpdated]);
+    return sourceTime ? String(sourceTime) : '';
+  }, []);
 
   return (
     <div className={`daily-hot-page daily-hot-page--layout-${detailLayoutWidthMode} ${embedded ? 'daily-hot-page--embedded' : ''}`.trim()}>
@@ -408,45 +401,6 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
           </section>
         )}
 
-        <section className="daily-hot-page__platform-filter" aria-label="平台筛选">
-          <div className="daily-hot-page__platform-filter-head">
-            <h2>平台筛选</h2>
-            <p>点击平台标签切换内容；默认平台优先展示。</p>
-          </div>
-          <div className="daily-hot-page__platform-chip-list">
-            <button
-              type="button"
-              className={`daily-hot-page__platform-chip daily-hot-page__platform-chip--all ${activePlatformTab === 'all' ? 'is-active' : ''}`}
-              onClick={() => handlePlatformTabChange('all')}
-            >
-              <span className="daily-hot-page__platform-chip-fallback">全</span>
-              <span className="daily-hot-page__platform-chip-text">全部平台</span>
-            </button>
-            {sectionPlatforms.map((platform) => (
-              <button
-                key={platform.platformTitle}
-                type="button"
-                className={`daily-hot-page__platform-chip ${isDefaultPlatform(platform) ? 'is-default' : ''} ${activePlatformTab === platform.platformTitle ? 'is-active' : ''}`}
-                onClick={() => handlePlatformTabChange(platform.platformTitle)}
-              >
-                {platform.icon ? (
-                  <img
-                    src={platform.icon}
-                    alt={platform.displayName || platform.platformTitle}
-                    loading="lazy"
-                  />
-                ) : (
-                  <span className="daily-hot-page__platform-chip-fallback">{getPlatformInitial(platform)}</span>
-                )}
-                <span className="daily-hot-page__platform-chip-text">{platform.displayName || platform.platformTitle}</span>
-                {isDefaultPlatform(platform) && (
-                  <span className="daily-hot-page__platform-chip-badge">默认</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </section>
-
         {loading ? (
           <div className="daily-hot-page__state">热榜加载中...</div>
         ) : error ? (
@@ -465,7 +419,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
           </div>
         ) : (
           <section
-            className={`daily-hot-page__cards ${activePlatformTab === 'all' ? 'daily-hot-page__cards--all' : 'daily-hot-page__cards--single'}`}
+            className="daily-hot-page__cards daily-hot-page__cards--all"
             aria-label="热榜卡片列表"
           >
             {visibleSections.map((section) => (
@@ -473,15 +427,14 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
                 <header className="daily-hot-page__card-head">
                   <div className="daily-hot-page__card-head-main">
                     <div className="daily-hot-page__card-logo">
-                      {section.platform.icon ? (
-                        <img
-                          src={section.platform.icon}
-                          alt={section.platform.displayName || section.platform.platformTitle}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span>{getPlatformInitial(section.platform)}</span>
-                      )}
+                      <WebsiteFavicon
+                        websiteUrl={resolvePlatformWebsiteUrl(section.platform)}
+                        iconUrl={section.platform.icon}
+                        name={section.platform.displayName || section.platform.platformTitle}
+                        size={36}
+                        className="daily-hot-page__card-logo-icon"
+                        alt={`${section.platform.displayName || section.platform.platformTitle} 图标`}
+                      />
                     </div>
                     <div className="daily-hot-page__card-title-wrap">
                       <h3>

@@ -9,7 +9,7 @@
  * @description 热门文章工作台页面（配置驱动版）
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   AiOutlineAppstore,
@@ -33,8 +33,8 @@ import {
   type HotArticlesDisplayConfig,
   type HotWorkbenchMenuItem,
 } from '../../services/hotArticleService';
-import { getDailyHotDisplayConfig } from '../../services/dailyHotService';
-import { getDailyNewDisplayConfig } from '../../services/dailyNewService';
+import { getDailyHot, getDailyHotDisplayConfig, getDailyHotPlatforms } from '../../services/dailyHotService';
+import { getDailyNewDisplayConfig, getDailyNewWebsites } from '../../services/dailyNewService';
 import { getRankingsAggregate } from '../../services/rankingService';
 import ContentHubSwitch from '../../components/ContentHubSwitch';
 import DailyHotPage from '../DailyHot';
@@ -72,6 +72,7 @@ interface RuntimeMenuItem {
 
 const WEEKDAY_TEXT = [ '周日', '周一', '周二', '周三', '周四', '周五', '周六' ];
 const CONTENT_HUB_TAB_KEYS: ContentHubTabKey[] = [ 'hot', 'rankings', 'daily-hot', 'daily-new' ];
+const HOT_HUB_ACTIVE_TAB_STORAGE_KEY = 'uied.hot.hub.active-tab';
 const DEFAULT_CONTENT_HUB_SWITCH_ITEMS = [
   { key: 'hot', label: '热门文章', to: '/p/hot', description: '编辑精选 + 热门阅读' },
   { key: 'rankings', label: '热门榜单', to: '/p/hot', description: '按指标与周期查看' },
@@ -405,6 +406,12 @@ const HotArticlesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [bootCompleted, setBootCompleted] = useState<boolean>(false);
+  const [activatedHubPanels, setActivatedHubPanels] = useState<Record<Exclude<ContentHubTabKey, 'hot'>, boolean>>({
+    rankings: false,
+    'daily-hot': false,
+    'daily-new': false,
+  });
+  const preloadedHubTabRef = useRef<Set<ContentHubTabKey>>(new Set<ContentHubTabKey>([ 'hot' ]));
   const [hubSwitchItems, setHubSwitchItems] = useState<Array<{
     key: ContentHubTabKey;
     label: string;
@@ -417,10 +424,23 @@ const HotArticlesPage: React.FC = () => {
    */
   const enabledPresets = useMemo<HotArticleFilterPreset[]>(() => {
     const rows = Array.isArray(displayConfig?.filterPresets) ? displayConfig?.filterPresets || [] : [];
-    const list = rows.filter((item) => item?.enabled !== false).sort((a, b) => a.sort - b.sort);
+    const forcedVisibleKeySet = new Set(
+      (Array.isArray(displayConfig?.workbenchMenuItems) ? (displayConfig?.workbenchMenuItems ?? []) : [])
+        .filter((menu) => menu?.enabled !== false)
+        .flatMap((menu) => {
+          const keys = Array.isArray(menu?.presetKeys) ? menu.presetKeys : [];
+          const presetKey = String(menu?.presetKey || '').trim();
+          return presetKey ? [ ...keys, presetKey ] : keys;
+        })
+        .map((key) => String(key || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const list = rows
+      .filter((item) => item?.enabled !== false || forcedVisibleKeySet.has(String(item?.key || '').trim().toLowerCase()))
+      .sort((a, b) => a.sort - b.sort);
     if (list.length > 0) return list;
     return [ { key: 'all', name: '全部', type: 'all', id: 0, enabled: true, sort: 10 } ];
-  }, [displayConfig?.filterPresets]);
+  }, [displayConfig?.filterPresets, displayConfig?.workbenchMenuItems]);
 
   /**
    * 左侧菜单数据。
@@ -507,6 +527,87 @@ const HotArticlesPage: React.FC = () => {
     nextParams.set('tab', nextTab);
     setSearchParams(nextParams, { replace: false });
   }, [searchParams, setSearchParams]);
+
+  /**
+   * 读取会话记忆：首次进入 /p/hot 且 URL 未指定 tab 时，恢复上次浏览标签。
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const queryTab = String(searchParams.get('tab') || '').trim();
+    if (queryTab) return;
+    const rememberedTab = resolveContentHubTab(window.sessionStorage.getItem(HOT_HUB_ACTIVE_TAB_STORAGE_KEY));
+    if (!rememberedTab || rememberedTab === 'hot') return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', rememberedTab);
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  /**
+   * 记录当前内容中心标签到 sessionStorage，实现跨页面返回时状态记忆。
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(HOT_HUB_ACTIVE_TAB_STORAGE_KEY, activeHubTab);
+  }, [activeHubTab]);
+
+  /**
+   * 当前访问过的模块保持挂载，避免反复切换导致重复初始化与闪烁。
+   */
+  useEffect(() => {
+    if (activeHubTab === 'hot') return;
+    setActivatedHubPanels((prev) => {
+      if (prev[activeHubTab]) return prev;
+      return {
+        ...prev,
+        [activeHubTab]: true,
+      };
+    });
+  }, [activeHubTab]);
+
+  /**
+   * 预加载下一个模块核心数据，减少切换等待（接口层有缓存，不会重复高频打接口）。
+   */
+  const preloadHubTabData = useCallback(async (tabKey: ContentHubTabKey) => {
+    if (tabKey === 'rankings') {
+      await getRankingsAggregate(12);
+      return;
+    }
+    if (tabKey === 'daily-hot') {
+      await Promise.all([
+        getDailyHotDisplayConfig(),
+        getDailyHotPlatforms(),
+        getDailyHot({ limit: 10 }),
+      ]);
+      return;
+    }
+    if (tabKey === 'daily-new') {
+      await Promise.all([
+        getDailyNewDisplayConfig(),
+        getDailyNewWebsites({ page: 1, pageSize: 24, days: 7, sortBy: 'latest' }),
+      ]);
+    }
+  }, []);
+
+  /**
+   * 邻近标签预加载策略：在当前 tab 稳定后预热下一个 tab，提升切换流畅度。
+   */
+  useEffect(() => {
+    const orderedTabs: ContentHubTabKey[] = [ 'hot', 'rankings', 'daily-hot', 'daily-new' ];
+    const currentIndex = orderedTabs.indexOf(activeHubTab);
+    if (currentIndex < 0) return;
+    const nextTab = orderedTabs[(currentIndex + 1) % orderedTabs.length];
+    if (preloadedHubTabRef.current.has(nextTab)) return;
+    const timer = window.setTimeout(() => {
+      preloadHubTabData(nextTab)
+        .catch((error) => {
+          console.warn('预加载内容中心模块失败:', nextTab, error);
+        })
+        .finally(() => {
+          preloadedHubTabRef.current.add(nextTab);
+        });
+    }, 260);
+    return () => window.clearTimeout(timer);
+  }, [activeHubTab, preloadHubTabData]);
 
   /**
    * 首屏完成判定：配置加载并完成首轮内容请求后关闭 Preloader。
@@ -667,9 +768,12 @@ const HotArticlesPage: React.FC = () => {
   /**
    * 渲染列表骨架屏。
    */
-  const renderSkeletonRows = () => {
+  const renderSkeletonRows = (latestLayout = false) => {
     return Array.from({ length: 6 }).map((_, index) => (
-      <article key={`skeleton-${index}`} className="hot-articles-page__row hot-articles-page__row--skeleton">
+      <article
+        key={`skeleton-${index}`}
+        className={`hot-articles-page__row hot-articles-page__row--skeleton ${latestLayout ? 'hot-articles-page__row--latest' : ''}`.trim()}
+      >
         <div className="hot-articles-page__rank-skeleton" />
         <div className="hot-articles-page__thumb-skeleton" />
         <div className="hot-articles-page__line-group">
@@ -755,7 +859,6 @@ const HotArticlesPage: React.FC = () => {
               <div className="hot-articles-page__preset-switch" role="tablist" aria-label="分类与标签筛选">
                 {visiblePresets.map((item) => {
                   const isActive = activePreset?.key === item.key;
-                  const idBadge = item.type !== 'all' && item.id > 0 ? `${item.type === 'tag' ? 'Tag' : 'Cat'} #${item.id}` : '';
                   return (
                     <button
                       key={item.key}
@@ -764,7 +867,6 @@ const HotArticlesPage: React.FC = () => {
                       onClick={() => setActivePresetKey(item.key)}
                     >
                       <span>{item.name}</span>
-                      {idBadge ? <em>{idBadge}</em> : null}
                     </button>
                   );
                 })}
@@ -782,7 +884,7 @@ const HotArticlesPage: React.FC = () => {
             )}
 
             {!isPageDisabled && !error && loading && (
-              <section className="hot-articles-page__list">{renderSkeletonRows()}</section>
+              <section className="hot-articles-page__list">{renderSkeletonRows(activeMenu?.mode === 'latest')}</section>
             )}
 
             {!isPageDisabled && !error && !loading && articleList.length === 0 && (
@@ -802,10 +904,11 @@ const HotArticlesPage: React.FC = () => {
                   const commentText = formatCompactCount(item?.commentCount);
                   const authorColorToken = resolveAuthorColorToken(authorName);
                   const heatLabel = resolveHeatLabel(item?.viewCount, item?.commentCount);
+                  const isLatestMenu = activeMenu?.mode === 'latest';
                   return (
                     <article
                       key={`${item.id || title}-${index}`}
-                      className="hot-articles-page__row hot-articles-page__row--animated"
+                      className={`hot-articles-page__row hot-articles-page__row--animated ${isLatestMenu ? 'hot-articles-page__row--latest' : ''}`.trim()}
                       style={{ '--row-index': index } as React.CSSProperties}
                     >
                       <div className={`hot-articles-page__rank-badge ${index < 3 ? `is-top-${index + 1}` : ''}`}>
@@ -829,14 +932,12 @@ const HotArticlesPage: React.FC = () => {
                             <a href={link || '#'} target={linkTarget} rel={linkRel}>
                               {title}
                             </a>
+                            {index < 3 ? (
+                              <span className="hot-articles-page__top-update">TOP{index + 1}</span>
+                            ) : null}
                           </h2>
                           <div className="hot-articles-page__title-tags">
                             {heatLabel ? <span className="hot-articles-page__title-heat">{heatLabel}</span> : null}
-                            {index < 3 ? (
-                              <span className={`hot-articles-page__top-update is-top-${index + 1}`}>
-                                TOP{index + 1}
-                              </span>
-                            ) : null}
                           </div>
                         </div>
                         <p>{desc || '暂无摘要'}</p>
@@ -866,9 +967,21 @@ const HotArticlesPage: React.FC = () => {
           </section>
         ) : (
           <section className="hot-articles-page__hub-panel" aria-label="内容中心主内容区">
-            {activeHubTab === 'rankings' && <RankingsPage embedded />}
-            {activeHubTab === 'daily-hot' && <DailyHotPage embedded />}
-            {activeHubTab === 'daily-new' && <DailyNewPage embedded />}
+            {(activatedHubPanels.rankings || activeHubTab === 'rankings') && (
+              <div className={`hot-articles-page__hub-tab-panel ${activeHubTab === 'rankings' ? 'is-active' : ''}`}>
+                <RankingsPage embedded />
+              </div>
+            )}
+            {(activatedHubPanels['daily-hot'] || activeHubTab === 'daily-hot') && (
+              <div className={`hot-articles-page__hub-tab-panel ${activeHubTab === 'daily-hot' ? 'is-active' : ''}`}>
+                <DailyHotPage embedded />
+              </div>
+            )}
+            {(activatedHubPanels['daily-new'] || activeHubTab === 'daily-new') && (
+              <div className={`hot-articles-page__hub-tab-panel ${activeHubTab === 'daily-new' ? 'is-active' : ''}`}>
+                <DailyNewPage embedded />
+              </div>
+            )}
           </section>
         )}
       </div>

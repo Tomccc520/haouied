@@ -63,14 +63,39 @@
         <!-- 编辑弹窗 -->
         <el-dialog v-model="showEdit" :title="editData.id ? '编辑推荐' : '添加推荐'" width="500px">
             <el-form ref="editFormRef" :model="editData" :rules="editRules" label-width="80px">
+                <el-form-item label="选择网站" prop="websiteId">
+                    <el-select
+                        v-model="editData.websiteId"
+                        filterable
+                        remote
+                        clearable
+                        reserve-keyword
+                        style="width: 100%"
+                        placeholder="输入关键词搜索网站（来自网站管理）"
+                        :remote-method="handleWebsiteRemoteSearch"
+                        :loading="websiteSearchLoading"
+                        @change="handleWebsiteSelect"
+                        @focus="handleWebsiteSelectFocus"
+                    >
+                        <el-option
+                            v-for="item in websiteOptions"
+                            :key="item.id"
+                            :label="`${item.name}（${item.url}）`"
+                            :value="item.id"
+                        />
+                    </el-select>
+                    <div class="text-xs text-tx-secondary mt-1">
+                        仅从“网站管理”中选择，避免热门推荐重复手工建站点。
+                    </div>
+                </el-form-item>
                 <el-form-item label="网站名称" prop="name">
-                    <el-input v-model="editData.name" placeholder="请输入网站名称" />
+                    <el-input v-model="editData.name" placeholder="将由上方自动填充" disabled />
                 </el-form-item>
                 <el-form-item label="网站链接" prop="url">
-                    <el-input v-model="editData.url" placeholder="请输入网站URL" />
+                    <el-input v-model="editData.url" placeholder="将由上方自动填充" disabled />
                 </el-form-item>
                 <el-form-item label="图标URL">
-                    <el-input v-model="editData.iconUrl" placeholder="请输入图标URL（可选）" />
+                    <el-input v-model="editData.iconUrl" placeholder="优先使用网站库图标，可按需覆盖" />
                 </el-form-item>
                 <el-form-item label="描述">
                     <el-input
@@ -110,7 +135,9 @@ import {
     uiedHotRecommendationList,
     uiedHotRecommendationAdd,
     uiedHotRecommendationEdit,
-    uiedHotRecommendationDelete
+    uiedHotRecommendationDelete,
+    uiedWebsiteSearch,
+    uiedWebsiteList
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
@@ -118,11 +145,23 @@ import type { FormInstance, FormRules } from 'element-plus'
 
 const { pager, getLists } = usePaging({ fetchFun: uiedHotRecommendationList })
 
+interface WebsiteOption {
+    id: number
+    name: string
+    url: string
+    iconUrl: string
+    description: string
+}
+
 const showEdit = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
+const websiteOptions = ref<WebsiteOption[]>([])
+const websiteSearchLoading = ref(false)
+const websiteSearchSequence = ref(0)
 const editData = reactive({
     id: 0,
+    websiteId: '' as number | string,
     name: '',
     url: '',
     iconUrl: '',
@@ -132,13 +171,193 @@ const editData = reactive({
     isShow: true
 })
 const editRules: FormRules = {
-    name: [{ required: true, message: '请输入网站名称', trigger: 'blur' }],
-    url: [{ required: true, message: '请输入网站URL', trigger: 'blur' }]
+    websiteId: [
+        {
+            validator: (_rule, value, callback) => {
+                if (editData.id) {
+                    callback()
+                    return
+                }
+                if (!value) {
+                    callback(new Error('请选择网站'))
+                    return
+                }
+                callback()
+            },
+            trigger: 'change'
+        }
+    ],
+    name: [{ required: true, message: '请先选择网站', trigger: 'change' }],
+    url: [{ required: true, message: '请先选择网站', trigger: 'change' }]
+}
+
+/**
+ * 合并网站下拉选项，避免重复项覆盖用户当前选择。
+ */
+const mergeWebsiteOptions = (rows: WebsiteOption[]) => {
+    const map = new Map<number, WebsiteOption>()
+    ;[ ...(websiteOptions.value || []), ...(Array.isArray(rows) ? rows : []) ].forEach((item) => {
+        if (!item || !Number(item.id)) return
+        map.set(Number(item.id), item)
+    })
+    websiteOptions.value = Array.from(map.values())
+}
+
+/**
+ * 直接替换下拉候选，避免历史结果持续堆积导致“搜索没效果”。
+ * 为了保证编辑态稳定，会保留当前已选项。
+ */
+const replaceWebsiteOptions = (rows: WebsiteOption[]) => {
+    const selectedId = Number(editData.websiteId || 0)
+    const selectedFromCurrent = websiteOptions.value.find((item) => Number(item.id) === selectedId)
+    const map = new Map<number, WebsiteOption>()
+    ;(Array.isArray(rows) ? rows : []).forEach((item) => {
+        if (!item || !Number(item.id)) return
+        map.set(Number(item.id), item)
+    })
+    if (selectedFromCurrent && !map.has(Number(selectedFromCurrent.id))) {
+        map.set(Number(selectedFromCurrent.id), selectedFromCurrent)
+    }
+    websiteOptions.value = Array.from(map.values())
+}
+
+/**
+ * 加载默认网站选项（无关键词时兜底），避免下拉空白。
+ */
+const loadDefaultWebsiteOptions = async () => {
+    const currentSeq = ++websiteSearchSequence.value
+    websiteSearchLoading.value = true
+    try {
+        const res = await uiedWebsiteList({
+            pageNo: 1,
+            pageSize: 40,
+            sortBy: 'update_desc'
+        })
+        const rows = Array.isArray(res?.lists) ? res.lists : []
+        const options: WebsiteOption[] = rows
+            .map((item: any) => ({
+                id: Number(item?.id || 0),
+                name: String(item?.name || '').trim(),
+                url: String(item?.url || '').trim(),
+                iconUrl: String(item?.iconUrl || '').trim(),
+                description: String(item?.description || '').trim()
+            }))
+            .filter((item: WebsiteOption) => item.id > 0 && item.name && item.url)
+        if (currentSeq !== websiteSearchSequence.value) return
+        replaceWebsiteOptions(options)
+    } catch (error) {
+        console.error('加载默认网站列表失败:', error)
+    } finally {
+        if (currentSeq === websiteSearchSequence.value) {
+            websiteSearchLoading.value = false
+        }
+    }
+}
+
+/**
+ * 通过关键词远程搜索网站列表，供热门推荐选择。
+ */
+const handleWebsiteRemoteSearch = async (keyword: string) => {
+    const normalizedKeyword = String(keyword || '').trim()
+    if (!normalizedKeyword) {
+        await loadDefaultWebsiteOptions()
+        return
+    }
+    const currentSeq = ++websiteSearchSequence.value
+    websiteSearchLoading.value = true
+    try {
+        const res = await uiedWebsiteSearch({
+            keyword: normalizedKeyword,
+            pageSize: 60,
+            pageNo: 1
+        })
+        const rows = Array.isArray(res?.lists) ? res.lists : []
+        const options: WebsiteOption[] = rows.map((item: any) => ({
+            id: Number(item?.id || 0),
+            name: String(item?.name || '').trim(),
+            url: String(item?.url || '').trim(),
+            iconUrl: String(item?.iconUrl || '').trim(),
+            description: String(item?.description || '').trim()
+        })).filter((item: WebsiteOption) => item.id > 0 && item.name && item.url)
+        if (currentSeq !== websiteSearchSequence.value) return
+        replaceWebsiteOptions(options)
+    } catch (error) {
+        console.error('搜索网站失败:', error)
+    } finally {
+        if (currentSeq === websiteSearchSequence.value) {
+            websiteSearchLoading.value = false
+        }
+    }
+}
+
+/**
+ * 选择器聚焦时预载一批网站，提升“直接点击选择”体验。
+ */
+const handleWebsiteSelectFocus = () => {
+    if (websiteSearchLoading.value) return
+    if (Array.isArray(websiteOptions.value) && websiteOptions.value.length > 0) return
+    loadDefaultWebsiteOptions()
+}
+
+/**
+ * 根据选择的网站回填推荐表单字段。
+ */
+const handleWebsiteSelect = (websiteId: number | string) => {
+    const currentId = Number(websiteId || 0)
+    if (!Number.isInteger(currentId) || currentId <= 0) {
+        if (!editData.id) {
+            editData.name = ''
+            editData.url = ''
+            editData.iconUrl = ''
+            editData.description = ''
+        }
+        return
+    }
+    const matched = websiteOptions.value.find((item) => Number(item.id) === currentId)
+    if (!matched) return
+    editData.websiteId = matched.id
+    editData.name = matched.name
+    editData.url = matched.url
+    if (!String(editData.iconUrl || '').trim()) {
+        editData.iconUrl = matched.iconUrl
+    }
+    if (!String(editData.description || '').trim()) {
+        editData.description = matched.description
+    }
+}
+
+/**
+ * 编辑态按现有 URL 反查网站库，尽量自动绑定 websiteId。
+ */
+const tryHydrateWebsiteSelectionForEdit = async (row: any) => {
+    const rawWebsiteId = Number(row?.websiteId || 0)
+    if (rawWebsiteId > 0) {
+        const option: WebsiteOption = {
+            id: rawWebsiteId,
+            name: String(row?.name || row?.websiteName || row?.title || '').trim(),
+            url: String(row?.url || row?.websiteUrl || '').trim(),
+            iconUrl: String(row?.iconUrl || row?.websiteIcon || '').trim(),
+            description: String(row?.description || '').trim()
+        }
+        mergeWebsiteOptions([ option ])
+        editData.websiteId = rawWebsiteId
+        return
+    }
+    const url = String(row?.url || row?.websiteUrl || '').trim()
+    const name = String(row?.name || row?.websiteName || row?.title || '').trim()
+    const keyword = name || url
+    if (!keyword) return
+    await handleWebsiteRemoteSearch(keyword)
+    const matchedByUrl = websiteOptions.value.find((item) => item.url === url)
+    if (matchedByUrl) {
+        handleWebsiteSelect(matchedByUrl.id)
+    }
 }
 
 const resetEditData = () =>
     Object.assign(editData, {
         id: 0,
+        websiteId: '',
         name: '',
         url: '',
         iconUrl: '',
@@ -150,11 +369,14 @@ const resetEditData = () =>
 
 const handleAdd = () => {
     resetEditData()
+    websiteOptions.value = []
+    loadDefaultWebsiteOptions()
     showEdit.value = true
 }
-const handleEdit = (row: any) => {
+const handleEdit = async (row: any) => {
     Object.assign(editData, {
         id: row.id,
+        websiteId: Number(row?.websiteId || 0) || '',
         name: row.name || row.websiteName || row.title || '',
         url: row.url || row.websiteUrl || '',
         iconUrl: row.iconUrl || row.websiteIcon || '',
@@ -163,6 +385,8 @@ const handleEdit = (row: any) => {
         sortOrder: row.sortOrder || 0,
         isShow: row.isActive !== false && row.isShow !== false
     })
+    websiteOptions.value = []
+    await tryHydrateWebsiteSelectionForEdit(row)
     showEdit.value = true
 }
 

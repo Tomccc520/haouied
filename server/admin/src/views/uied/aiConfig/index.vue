@@ -130,7 +130,7 @@
                                     :remote-method="searchWebsites"
                                     :loading="websiteSearchLoading"
                                     placeholder="请搜索并选择网站"
-                                    style="width: 100%"
+                                    class="w-100"
                                     @focus="handleWebsiteSelectFocus"
                                 >
                                     <el-option
@@ -140,10 +140,7 @@
                                         :value="item.id"
                                     >
                                         <span>{{ item.title || item.name }}</span>
-                                        <span
-                                            style="color: #999; font-size: 12px; margin-left: 8px"
-                                            >{{ item.url }}</span
-                                        >
+                                        <span class="option-url-hint">{{ item.url }}</span>
                                     </el-option>
                                 </el-select>
                             </el-form-item>
@@ -271,8 +268,7 @@
                     <!-- AI 未配置时的引导提示 -->
                     <div
                         v-if="configList.length === 0 && !configLoading"
-                        class="flex flex-col items-center justify-center"
-                        style="min-height: 300px"
+                        class="flex flex-col items-center justify-center min-h-300"
                     >
                         <el-empty description="暂未配置 AI 服务">
                             <el-button type="primary" @click="activeTab = 'config'"
@@ -319,7 +315,7 @@
                                 v-model="logFilter.feature_type"
                                 placeholder="功能类型"
                                 clearable
-                                style="width: 160px"
+                                class="input-w-160"
                                 @change="handleLogFilterChange"
                             >
                                 <el-option label="全部类型" value="" />
@@ -335,7 +331,7 @@
                                 start-placeholder="开始日期"
                                 end-placeholder="结束日期"
                                 value-format="YYYY-MM-DD"
-                                style="width: 280px"
+                                class="input-w-280"
                                 @change="handleLogFilterChange"
                             />
                         </div>
@@ -419,7 +415,7 @@
 
                 <!-- Tab 4: 功能开关 -->
                 <el-tab-pane label="功能开关" name="toggle">
-                    <div v-loading="toggleLoading" style="max-width: 600px">
+                    <div v-loading="toggleLoading" class="max-w-600">
                         <el-form label-width="140px" class="toggle-form">
                             <!-- 全局开关 -->
                             <el-card shadow="never" class="mb-4">
@@ -458,7 +454,7 @@
                                     />
                                 </div>
 
-                                <el-divider style="margin: 12px 0" />
+                                <el-divider class="divider-my-12" />
 
                                 <!-- AI 内容生成 -->
                                 <div class="toggle-item">
@@ -474,7 +470,7 @@
                                     />
                                 </div>
 
-                                <el-divider style="margin: 12px 0" />
+                                <el-divider class="divider-my-12" />
 
                                 <!-- AI 对话助手 -->
                                 <div class="toggle-item">
@@ -522,7 +518,7 @@
                     <el-select
                         v-model="editForm.provider"
                         placeholder="请选择 AI 提供商"
-                        style="width: 100%"
+                        class="w-100"
                     >
                         <el-option label="OpenAI" value="openai" />
                         <el-option label="Azure OpenAI" value="azure" />
@@ -600,7 +596,7 @@
                         clearable
                         filterable
                         placeholder="可选：从预设快速填充模型"
-                        style="width: 100%"
+                        class="w-100"
                         @change="handleModelPresetChange"
                     >
                         <el-option
@@ -661,7 +657,7 @@
                         allow-create
                         default-first-option
                         placeholder="可选：覆盖主模型，使用推理模型"
-                        style="width: 100%"
+                        class="w-100"
                     >
                         <el-option
                             v-for="
@@ -708,7 +704,7 @@
                     <el-button
                         text
                         type="primary"
-                        style="margin-left: 8px"
+                        class="ml-8"
                         @click="applyReasoningBudgetPreset(2048)"
                     >
                         设为 2048
@@ -1855,6 +1851,40 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.w-100 {
+    width: 100%;
+}
+
+.option-url-hint {
+    color: #999;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.min-h-300 {
+    min-height: 300px;
+}
+
+.input-w-160 {
+    width: 160px;
+}
+
+.input-w-280 {
+    width: 280px;
+}
+
+.max-w-600 {
+    max-width: 600px;
+}
+
+.divider-my-12 {
+    margin: 12px 0;
+}
+
+.ml-8 {
+    margin-left: 8px;
+}
+
 .stats-card {
     text-align: center;
     margin-bottom: 8px;

@@ -16,7 +16,7 @@
                         v-model="queryParams.keyword"
                         clearable
                         placeholder="页面名称/别名/Hero 标题"
-                        style="width: 260px"
+                        class="input-w-260"
                         @keyup.enter="handleSearch"
                     />
                 </el-form-item>
@@ -25,7 +25,7 @@
                         v-model="queryParams.isActive"
                         clearable
                         placeholder="全部状态"
-                        style="width: 140px"
+                        class="input-w-140"
                     >
                         <el-option label="显示" value="1" />
                         <el-option label="隐藏" value="0" />
@@ -37,10 +37,16 @@
                 </el-form-item>
             </el-form>
             <div class="mb-4 flex justify-between">
-                <el-button type="primary" @click="handleAdd">
-                    <template #icon><icon name="el-icon-Plus" /></template>
-                    添加页面
-                </el-button>
+                <div class="flex items-center gap-2">
+                    <el-button type="primary" @click="handleAdd">
+                        <template #icon><icon name="el-icon-Plus" /></template>
+                        添加页面
+                    </el-button>
+                    <el-button @click="openWpTaxonomyDialog">
+                        <template #icon><icon name="el-icon-SetUp" /></template>
+                        WordPress 分类/标签配置
+                    </el-button>
+                </div>
                 <div class="text-gray-400">共 {{ pager.count }} 个页面</div>
             </div>
             <el-table size="large" v-loading="pager.loading" :data="pager.lists">
@@ -71,7 +77,7 @@
                                 :min="0"
                                 :controls="false"
                                 size="small"
-                                style="width: 80px"
+                                class="input-w-80"
                                 @change="() => handleQuickSortSave(row)"
                             />
                             <el-button
@@ -92,12 +98,15 @@
                         </el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="180" fixed="right">
+                <el-table-column label="操作" width="260" fixed="right">
                     <template #default="{ row }">
                         <el-button type="primary" link @click="handleCategories(row)"
                             >分类配置</el-button
                         >
                         <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
+                        <el-button type="primary" link @click="handleEdit(row, 'config')">
+                            设计文章配置
+                        </el-button>
                         <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
                     </template>
                 </el-table-column>
@@ -172,7 +181,7 @@
                             <div class="text-gray-400 text-xs mt-1">多个标签用逗号分隔</div>
                         </el-form-item>
                         <el-form-item label="背景类型">
-                            <el-select v-model="editData.heroBgType" style="width: 100%">
+                            <el-select v-model="editData.heroBgType" class="w-100">
                                 <el-option label="默认背景图" value="default" />
                                 <el-option label="纯色背景" value="color" />
                                 <el-option label="渐变背景" value="gradient" />
@@ -187,7 +196,7 @@
                             <div class="text-gray-400 text-xs mt-1">{{ getBgHint() }}</div>
                         </el-form-item>
                         <el-form-item label="显示模式">
-                            <el-select v-model="editData.heroDisplayMode" style="width: 100%">
+                            <el-select v-model="editData.heroDisplayMode" class="w-100">
                                 <el-option label="搜索框模式" value="search" />
                                 <el-option label="图标滚动墙" value="iconScroll" />
                             </el-select>
@@ -206,7 +215,7 @@
                                 <el-select
                                     v-model="selectedScrollCategoryIds"
                                     placeholder="选择要显示图标的分类"
-                                    style="width: 100%"
+                                    class="w-100"
                                     multiple
                                     filterable
                                     clearable
@@ -276,23 +285,62 @@
                                 :disabled="!editData.designArticleEnabled"
                             />
                         </el-form-item>
-                        <el-form-item label="分类ID列表">
-                            <el-input
-                                v-model="editData.designArticleCategoryIdsText"
-                                type="textarea"
-                                :rows="2"
+                        <el-form-item label="筛选源数据">
+                            <el-button
+                                :loading="designArticleFilterLoading"
                                 :disabled="!editData.designArticleEnabled"
-                                placeholder="多个分类ID用英文逗号分隔，如 307,338"
-                            />
+                                @click="loadDesignArticleFilterOptions"
+                            >
+                                刷新分类/标签库
+                            </el-button>
+                            <span class="ml-2 text-xs text-gray-400">
+                                分类 {{ wordpressCategoryOptions.length }} 项，标签 {{ wordpressTagOptions.length }} 项
+                            </span>
                         </el-form-item>
-                        <el-form-item label="标签ID列表">
-                            <el-input
-                                v-model="editData.designArticleTagIdsText"
-                                type="textarea"
-                                :rows="2"
+                        <el-form-item label="文章分类（下拉）">
+                            <el-select
+                                v-model="designArticleCategoryIdsModel"
+                                multiple
+                                filterable
+                                clearable
+                                collapse-tags
+                                collapse-tags-tooltip
                                 :disabled="!editData.designArticleEnabled"
-                                placeholder="多个标签ID用英文逗号分隔，如 393,417"
-                            />
+                                :loading="designArticleFilterLoading"
+                                class="w-100"
+                                placeholder="请选择文章分类（可多选）"
+                            >
+                                <el-option
+                                    v-for="item in wordpressCategoryOptions"
+                                    :key="item.id"
+                                    :label="item.label"
+                                    :value="item.id"
+                                />
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="文章标签（下拉）">
+                            <el-select
+                                v-model="designArticleTagIdsModel"
+                                multiple
+                                filterable
+                                clearable
+                                collapse-tags
+                                collapse-tags-tooltip
+                                :disabled="!editData.designArticleEnabled"
+                                :loading="designArticleFilterLoading"
+                                class="w-100"
+                                placeholder="请选择文章标签（可多选）"
+                            >
+                                <el-option
+                                    v-for="item in wordpressTagOptions"
+                                    :key="item.id"
+                                    :label="item.label"
+                                    :value="item.id"
+                                />
+                            </el-select>
+                            <div class="text-gray-400 text-xs mt-1">
+                                选中后会自动写入组件配置，无需手工维护 ID 文本。
+                            </div>
                         </el-form-item>
                         <el-form-item label="更多链接">
                             <el-input
@@ -447,6 +495,163 @@
                 >
             </template>
         </el-dialog>
+
+        <!-- WordPress 分类/标签配置 -->
+        <el-dialog v-model="showWpTaxonomyDialogVisible" title="WordPress 分类/标签配置" width="1180px" top="4vh">
+            <div class="wp-taxonomy-config">
+                <div class="wp-taxonomy-config__toolbar">
+                    <el-input
+                        v-model="wpTaxonomyPageSlug"
+                        clearable
+                        class="input-w-220"
+                        placeholder="页面标识（默认 hot）"
+                    >
+                        <template #prepend>pageSlug</template>
+                    </el-input>
+                    <el-button :loading="wpTaxonomyLoading" @click="loadWpTaxonomyRows">刷新数据</el-button>
+                    <el-button
+                        type="primary"
+                        :loading="wpPresetImporting"
+                        @click="handleImportHotPresetLibrary"
+                    >
+                        从 Hot 预设一键写入
+                    </el-button>
+                    <span class="wp-taxonomy-config__hint">
+                        当前会写入到 <code>{{ normalizedWpTaxonomyPageSlug }}</code>，重复项自动跳过。
+                    </span>
+                </div>
+                <el-tabs v-model="wpTaxonomyActiveTab">
+                    <el-tab-pane label="分类配置" name="category">
+                        <div class="wp-taxonomy-config__action-row">
+                            <el-input
+                                v-model="wpCategoryKeyword"
+                                clearable
+                                placeholder="搜索分类（名称 / slug / ID）"
+                                class="input-w-320"
+                            />
+                            <el-button type="primary" @click="openWpTaxonomyEditDialog('category')">
+                                新增分类
+                            </el-button>
+                        </div>
+                        <el-table
+                            size="large"
+                            :data="filteredWpCategoryRows"
+                            v-loading="wpTaxonomyLoading"
+                            max-height="460"
+                        >
+                            <el-table-column label="ID" prop="id" width="80" />
+                            <el-table-column label="WP分类ID" prop="wpCategoryId" width="110" />
+                            <el-table-column label="WordPress 分类名" prop="wpCategoryName" min-width="180" />
+                            <el-table-column label="显示名称" prop="displayName" min-width="150" />
+                            <el-table-column label="Slug" prop="slug" min-width="130" />
+                            <el-table-column label="排序" prop="order" width="90" />
+                            <el-table-column label="状态" width="90">
+                                <template #default="{ row }">
+                                    <el-tag size="small" :type="row.visible ? 'success' : 'info'">
+                                        {{ row.visible ? '显示' : '隐藏' }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="160" fixed="right">
+                                <template #default="{ row }">
+                                    <el-button type="primary" link @click="openWpTaxonomyEditDialog('category', row)">
+                                        编辑
+                                    </el-button>
+                                    <el-button type="danger" link @click="handleDeleteWpTaxonomy('category', row)">
+                                        删除
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="标签配置" name="tag">
+                        <div class="wp-taxonomy-config__action-row">
+                            <el-input
+                                v-model="wpTagKeyword"
+                                clearable
+                                placeholder="搜索标签（名称 / slug / ID）"
+                                class="input-w-320"
+                            />
+                            <el-button type="primary" @click="openWpTaxonomyEditDialog('tag')">
+                                新增标签
+                            </el-button>
+                        </div>
+                        <el-table
+                            size="large"
+                            :data="filteredWpTagRows"
+                            v-loading="wpTaxonomyLoading"
+                            max-height="460"
+                        >
+                            <el-table-column label="ID" prop="id" width="80" />
+                            <el-table-column label="WP标签ID" prop="wpTagId" width="110" />
+                            <el-table-column label="WordPress 标签名" prop="wpTagName" min-width="180" />
+                            <el-table-column label="显示名称" prop="displayName" min-width="150" />
+                            <el-table-column label="Slug" prop="slug" min-width="130" />
+                            <el-table-column label="排序" prop="order" width="90" />
+                            <el-table-column label="状态" width="90">
+                                <template #default="{ row }">
+                                    <el-tag size="small" :type="row.visible ? 'success' : 'info'">
+                                        {{ row.visible ? '显示' : '隐藏' }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="160" fixed="right">
+                                <template #default="{ row }">
+                                    <el-button type="primary" link @click="openWpTaxonomyEditDialog('tag', row)">
+                                        编辑
+                                    </el-button>
+                                    <el-button type="danger" link @click="handleDeleteWpTaxonomy('tag', row)">
+                                        删除
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-tab-pane>
+                </el-tabs>
+            </div>
+        </el-dialog>
+
+        <!-- WordPress 分类/标签编辑弹窗 -->
+        <el-dialog
+            v-model="showWpTaxonomyEditDialogVisible"
+            :title="wpTaxonomyFormMode === 'add' ? `新增${wpTaxonomyTypeLabel}` : `编辑${wpTaxonomyTypeLabel}`"
+            width="640px"
+        >
+            <el-form
+                ref="wpTaxonomyFormRef"
+                :model="wpTaxonomyForm"
+                :rules="wpTaxonomyFormRules"
+                label-width="118px"
+            >
+                <el-form-item :label="`WordPress${wpTaxonomyTypeLabel}ID`" prop="wpId">
+                    <el-input-number v-model="wpTaxonomyForm.wpId" :min="1" class="input-w-220" />
+                </el-form-item>
+                <el-form-item :label="`WordPress${wpTaxonomyTypeLabel}名`" prop="wpName">
+                    <el-input v-model="wpTaxonomyForm.wpName" placeholder="用于匹配远端文章数据" />
+                </el-form-item>
+                <el-form-item label="显示名称" prop="displayName">
+                    <el-input v-model="wpTaxonomyForm.displayName" placeholder="前台筛选项显示文案" />
+                </el-form-item>
+                <el-form-item label="Slug" prop="slug">
+                    <el-input v-model="wpTaxonomyForm.slug" placeholder="英文标识，建议唯一" />
+                </el-form-item>
+                <el-form-item label="描述">
+                    <el-input v-model="wpTaxonomyForm.description" type="textarea" :rows="2" />
+                </el-form-item>
+                <el-form-item label="排序">
+                    <el-input-number v-model="wpTaxonomyForm.order" :min="0" />
+                </el-form-item>
+                <el-form-item label="状态">
+                    <el-switch v-model="wpTaxonomyForm.visible" />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showWpTaxonomyEditDialogVisible = false">取消</el-button>
+                <el-button type="primary" :loading="wpTaxonomySaving" @click="handleSaveWpTaxonomy">
+                    保存
+                </el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -462,6 +667,14 @@ import {
     uiedSettingGet,
     uiedWebsiteSearch,
     uiedWebsiteList,
+    uiedWordpressCategoryList,
+    uiedWordpressCategoryAdd,
+    uiedWordpressCategoryEdit,
+    uiedWordpressCategoryDel,
+    uiedWordpressTagList,
+    uiedWordpressTagAdd,
+    uiedWordpressTagEdit,
+    uiedWordpressTagDel,
     uiedWordpressWidgetAdd,
     uiedWordpressWidgetEdit,
     uiedWordpressWidgetList
@@ -504,6 +717,94 @@ interface WordPressWidgetRow {
     showMoreLink?: string
 }
 
+interface WordPressFilterOption {
+    id: number
+    label: string
+}
+
+type WpTaxonomyType = 'category' | 'tag'
+
+interface WpTaxonomyRow {
+    id: number
+    wpCategoryId?: number
+    wpCategoryName?: string
+    wpTagId?: number
+    wpTagName?: string
+    displayName: string
+    slug: string
+    description?: string
+    order: number
+    visible: boolean
+    pageSlug?: string
+}
+
+interface WpTaxonomyFormState {
+    id: number
+    wpId: number
+    wpName: string
+    displayName: string
+    slug: string
+    description: string
+    order: number
+    visible: boolean
+}
+
+interface HotPresetTaxonomySeed {
+    key: string
+    name: string
+    type: WpTaxonomyType
+    id: number
+}
+
+/**
+ * Hot 预设映射库（用于一键导入 WordPress 分类/标签配置）。
+ */
+const HOT_PRESET_TAXONOMY_LIBRARY: HotPresetTaxonomySeed[] = [
+    { key: 'aigc', name: 'AIGC', type: 'category', id: 417 },
+    { key: 'ai-tools', name: 'AI工具', type: 'category', id: 3351 },
+    { key: 'productivity', name: '效率工具', type: 'category', id: 338 },
+    { key: 'design', name: '设计干货', type: 'category', id: 307 },
+    { key: 'ui', name: 'UI', type: 'category', id: 334 },
+    { key: 'ux', name: 'UX', type: 'category', id: 337 },
+    { key: 'product', name: '产品', type: 'category', id: 336 },
+    { key: 'graphic', name: '平面', type: 'category', id: 335 },
+    { key: '3d', name: '三维', type: 'category', id: 1031 },
+    { key: 'tips', name: '设计干货专题', type: 'category', id: 307 },
+    { key: 'inspiration', name: '设计灵感', type: 'category', id: 1861 },
+    { key: 'all-resources', name: '全部素材', type: 'category', id: 4 },
+    { key: 'portfolio', name: '作品集', type: 'category', id: 392 },
+    { key: 'card', name: '卡片式', type: 'category', id: 171 },
+    { key: 'big-data', name: '可视化', type: 'category', id: 65 },
+    { key: 'dashboard', name: '后台', type: 'category', id: 67 },
+    { key: 'icon', name: '图标', type: 'category', id: 45 },
+    { key: 'ar', name: '增强现实', type: 'category', id: 791 },
+    { key: 'app', name: '应用', type: 'category', id: 44 },
+    { key: 'watch', name: '手表', type: 'category', id: 66 },
+    { key: 'web', name: '网页', type: 'category', id: 75 },
+    { key: 'design-system', name: '设计系统/组件', type: 'category', id: 261 },
+    { key: '3d-icon', name: '3D/图标', type: 'category', id: 203 },
+    { key: 'font-resource', name: '字体素材', type: 'category', id: 319 },
+    { key: 'font', name: '字体', type: 'category', id: 319 },
+    { key: 'ps-plugin', name: 'PS插件', type: 'category', id: 11013 },
+    { key: 'sketch-plugin', name: 'Sketch插件', type: 'category', id: 344 },
+    { key: 'mockup', name: '样机', type: 'category', id: 210 },
+    { key: 'study-circle', name: '学习圈子', type: 'tag', id: 393 },
+    { key: 'nano-banana', name: 'Nano-Banana', type: 'tag', id: 13220 },
+    { key: 'midjourney', name: 'Midjourney', type: 'tag', id: 419 },
+    { key: 'stable-diffusion', name: 'Stable Diffusion', type: 'tag', id: 428 },
+    { key: 'deepseek', name: 'DeepSeek', type: 'tag', id: 3842 },
+    { key: 'jimeng', name: '即梦AI', type: 'tag', id: 12110 },
+    { key: 'gpt4o', name: 'GPT4o', type: 'tag', id: 4205 },
+    { key: 'gpt', name: 'GPT4o', type: 'tag', id: 4205 },
+    { key: 'aixiezuo', name: 'AI写作', type: 'tag', id: 3253 },
+    { key: 'aihuihua', name: 'AI绘画', type: 'tag', id: 427 },
+    { key: 'aishipin', name: 'AI视频', type: 'tag', id: 3484 },
+    { key: 'aibangong', name: 'AI办公', type: 'tag', id: 3485 },
+    { key: 'aisheji', name: 'AI设计', type: 'tag', id: 3372 },
+    { key: 'aikaifa', name: 'AI开发', type: 'tag', id: 3486 },
+    { key: 'aishuziren', name: 'AI数字人', type: 'tag', id: 3487 }
+]
+
 const queryParams = reactive({
     keyword: '',
     isActive: ''
@@ -522,6 +823,39 @@ const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
 const editTab = ref('basic')
 const slugTouched = ref(false)
+const designArticleFilterLoading = ref(false)
+const wordpressCategoryOptions = ref<WordPressFilterOption[]>([])
+const wordpressTagOptions = ref<WordPressFilterOption[]>([])
+const showWpTaxonomyDialogVisible = ref(false)
+const wpTaxonomyLoading = ref(false)
+const wpTaxonomySaving = ref(false)
+const wpPresetImporting = ref(false)
+const wpTaxonomyActiveTab = ref<WpTaxonomyType>('category')
+const wpTaxonomyPageSlug = ref('hot')
+const wpCategoryKeyword = ref('')
+const wpTagKeyword = ref('')
+const wpCategoryRows = ref<WpTaxonomyRow[]>([])
+const wpTagRows = ref<WpTaxonomyRow[]>([])
+const showWpTaxonomyEditDialogVisible = ref(false)
+const wpTaxonomyFormMode = ref<'add' | 'edit'>('add')
+const wpTaxonomyFormType = ref<WpTaxonomyType>('category')
+const wpTaxonomyFormRef = ref<FormInstance>()
+const wpTaxonomyForm = reactive<WpTaxonomyFormState>({
+    id: 0,
+    wpId: 0,
+    wpName: '',
+    displayName: '',
+    slug: '',
+    description: '',
+    order: 0,
+    visible: true
+})
+const wpTaxonomyFormRules: FormRules = {
+    wpId: [{ required: true, message: '请输入 WordPress ID', trigger: 'blur' }],
+    wpName: [{ required: true, message: '请输入 WordPress 名称', trigger: 'blur' }],
+    displayName: [{ required: true, message: '请输入显示名称', trigger: 'blur' }],
+    slug: [{ required: true, message: '请输入 slug', trigger: 'blur' }]
+}
 
 // 按分类选择相关
 const scrollCategories = ref<any[]>([])
@@ -566,6 +900,416 @@ const editRules: FormRules = {
     name: [{ required: true, message: '请输入页面名称', trigger: 'blur' }],
     slug: [{ required: true, message: '请输入页面别名', trigger: 'blur' }]
 }
+
+/**
+ * 规范化 WordPress pageSlug，避免空值导致配置漂移。
+ */
+const normalizedWpTaxonomyPageSlug = computed(() => {
+    const raw = String(wpTaxonomyPageSlug.value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+    return raw || 'hot'
+})
+
+/**
+ * 当前分类/标签编辑类型对应的中文文案。
+ */
+const wpTaxonomyTypeLabel = computed(() => (wpTaxonomyFormType.value === 'category' ? '分类' : '标签'))
+
+/**
+ * 分类表格搜索结果（名称 / slug / ID）。
+ */
+const filteredWpCategoryRows = computed(() => {
+    const keyword = String(wpCategoryKeyword.value || '').trim().toLowerCase()
+    if (!keyword) return wpCategoryRows.value
+    return wpCategoryRows.value.filter((item) => {
+        const haystack = [
+            item.wpCategoryId,
+            item.wpCategoryName,
+            item.displayName,
+            item.slug
+        ]
+            .map((field) => String(field || '').toLowerCase())
+            .join(' ')
+        return haystack.includes(keyword)
+    })
+})
+
+/**
+ * 标签表格搜索结果（名称 / slug / ID）。
+ */
+const filteredWpTagRows = computed(() => {
+    const keyword = String(wpTagKeyword.value || '').trim().toLowerCase()
+    if (!keyword) return wpTagRows.value
+    return wpTagRows.value.filter((item) => {
+        const haystack = [item.wpTagId, item.wpTagName, item.displayName, item.slug]
+            .map((field) => String(field || '').toLowerCase())
+            .join(' ')
+        return haystack.includes(keyword)
+    })
+})
+
+/**
+ * 统一解析 WordPress 分类/标签列表返回值，兼容不同接口结构。
+ */
+const normalizeWordpressFilterRows = (payload: any): any[] => {
+    if (Array.isArray(payload)) return payload
+    if (Array.isArray(payload?.lists)) return payload.lists
+    if (Array.isArray(payload?.rows)) return payload.rows
+    if (Array.isArray(payload?.data)) return payload.data
+    if (Array.isArray(payload?.data?.lists)) return payload.data.lists
+    if (Array.isArray(payload?.data?.rows)) return payload.data.rows
+    return []
+}
+
+/**
+ * 把分类/标签列表映射为统一下拉结构，文案带 ID 便于运营核对。
+ */
+const mapWordpressFilterOptions = (rows: any[]): WordPressFilterOption[] => {
+    const dedupMap = new Map<number, WordPressFilterOption>()
+    ;(Array.isArray(rows) ? rows : []).forEach((item: any) => {
+        const id = Number.parseInt(
+            String(
+                item?.wpCategoryId ||
+                    item?.wp_category_id ||
+                    item?.wpTagId ||
+                    item?.wp_tag_id ||
+                    item?.termId ||
+                    item?.term_id ||
+                    item?.id ||
+                    0
+            ),
+            10
+        )
+        if (!Number.isInteger(id) || id <= 0) return
+        const name = String(
+            item?.displayName ||
+                item?.wpCategoryName ||
+                item?.wp_category_name ||
+                item?.wpTagName ||
+                item?.wp_tag_name ||
+                item?.name ||
+                item?.title ||
+                item?.label ||
+                ''
+        ).trim()
+        const count = Number.parseInt(String(item?.count || 0), 10)
+        const countSuffix = Number.isInteger(count) && count >= 0 ? `（${count}）` : ''
+        const label = `${name || `ID ${id}`} [${id}]${countSuffix}`
+        dedupMap.set(id, { id, label })
+    })
+    return Array.from(dedupMap.values()).sort((left, right) => left.id - right.id)
+}
+
+/**
+ * 加载设计文章筛选数据源（分类/标签），用于下拉多选配置。
+ */
+const loadDesignArticleFilterOptions = async () => {
+    if (designArticleFilterLoading.value) return
+    designArticleFilterLoading.value = true
+    try {
+        const [categoryRes, tagRes] = await Promise.all([
+            uiedWordpressCategoryList({ pageNo: 1, pageSize: 500 }),
+            uiedWordpressTagList({ pageNo: 1, pageSize: 500 })
+        ])
+        wordpressCategoryOptions.value = mapWordpressFilterOptions(
+            normalizeWordpressFilterRows(categoryRes)
+        )
+        wordpressTagOptions.value = mapWordpressFilterOptions(normalizeWordpressFilterRows(tagRes))
+    } catch (error) {
+        console.error('加载设计文章筛选源失败:', error)
+        feedback.msgWarning('分类/标签加载失败，请稍后重试')
+    } finally {
+        designArticleFilterLoading.value = false
+    }
+}
+
+/**
+ * 把 WordPress 分类/标签接口响应映射为统一表格结构。
+ */
+const mapWpTaxonomyRows = (payload: any, type: WpTaxonomyType): WpTaxonomyRow[] => {
+    const rows = normalizeWordpressFilterRows(payload)
+    return rows
+        .map((item: any) => {
+            const rowId = Number.parseInt(String(item?.id || 0), 10)
+            if (!Number.isInteger(rowId) || rowId <= 0) return null
+            const order = Number.parseInt(String(item?.order || item?.sort || 0), 10)
+            if (type === 'category') {
+                return {
+                    id: rowId,
+                    wpCategoryId: Number.parseInt(String(item?.wpCategoryId || item?.wp_category_id || 0), 10) || 0,
+                    wpCategoryName: String(item?.wpCategoryName || item?.wp_category_name || '').trim(),
+                    displayName: String(item?.displayName || item?.display_name || '').trim(),
+                    slug: String(item?.slug || '').trim(),
+                    description: String(item?.description || '').trim(),
+                    order: Number.isInteger(order) ? order : 0,
+                    visible: item?.visible !== false,
+                    pageSlug: String(item?.pageSlug || item?.page_slug || '').trim()
+                } as WpTaxonomyRow
+            }
+            return {
+                id: rowId,
+                wpTagId: Number.parseInt(String(item?.wpTagId || item?.wp_tag_id || 0), 10) || 0,
+                wpTagName: String(item?.wpTagName || item?.wp_tag_name || '').trim(),
+                displayName: String(item?.displayName || item?.display_name || '').trim(),
+                slug: String(item?.slug || '').trim(),
+                description: String(item?.description || '').trim(),
+                order: Number.isInteger(order) ? order : 0,
+                visible: item?.visible !== false,
+                pageSlug: String(item?.pageSlug || item?.page_slug || '').trim()
+            } as WpTaxonomyRow
+        })
+        .filter((item): item is WpTaxonomyRow => Boolean(item))
+        .sort((left, right) => {
+            if (left.order !== right.order) return left.order - right.order
+            return left.id - right.id
+        })
+}
+
+/**
+ * 拉取指定 pageSlug 的 WordPress 分类/标签配置。
+ */
+const loadWpTaxonomyRows = async () => {
+    if (wpTaxonomyLoading.value) return
+    wpTaxonomyLoading.value = true
+    try {
+        const pageSlug = normalizedWpTaxonomyPageSlug.value
+        const [categoryRes, tagRes] = await Promise.all([
+            uiedWordpressCategoryList({ pageSlug }),
+            uiedWordpressTagList({ pageSlug })
+        ])
+        wpCategoryRows.value = mapWpTaxonomyRows(categoryRes, 'category')
+        wpTagRows.value = mapWpTaxonomyRows(tagRes, 'tag')
+    } catch (error) {
+        console.error('加载 WordPress 分类/标签配置失败:', error)
+        feedback.msgWarning('加载 WordPress 分类/标签配置失败，请稍后重试')
+    } finally {
+        wpTaxonomyLoading.value = false
+    }
+}
+
+/**
+ * 打开 WordPress 分类/标签配置弹窗。
+ */
+const openWpTaxonomyDialog = async () => {
+    showWpTaxonomyDialogVisible.value = true
+    await loadWpTaxonomyRows()
+}
+
+/**
+ * 重置 WordPress 分类/标签编辑表单。
+ */
+const resetWpTaxonomyForm = () => {
+    Object.assign(wpTaxonomyForm, {
+        id: 0,
+        wpId: 0,
+        wpName: '',
+        displayName: '',
+        slug: '',
+        description: '',
+        order: 0,
+        visible: true
+    })
+}
+
+/**
+ * 打开分类/标签编辑弹窗；未传 row 时按新增模式处理。
+ */
+const openWpTaxonomyEditDialog = (type: WpTaxonomyType, row?: WpTaxonomyRow) => {
+    wpTaxonomyFormType.value = type
+    wpTaxonomyFormMode.value = row ? 'edit' : 'add'
+    resetWpTaxonomyForm()
+    if (row) {
+        Object.assign(wpTaxonomyForm, {
+            id: Number(row.id || 0),
+            wpId: Number(type === 'category' ? row.wpCategoryId : row.wpTagId) || 0,
+            wpName: String(type === 'category' ? row.wpCategoryName : row.wpTagName || '').trim(),
+            displayName: String(row.displayName || '').trim(),
+            slug: String(row.slug || '').trim(),
+            description: String(row.description || '').trim(),
+            order: Number(row.order || 0),
+            visible: row.visible !== false
+        })
+    }
+    showWpTaxonomyEditDialogVisible.value = true
+    nextTick(() => {
+        wpTaxonomyFormRef.value?.clearValidate()
+    })
+}
+
+/**
+ * 组装分类/标签提交参数，统一补齐 pageSlug 与字段映射。
+ */
+const buildWpTaxonomyPayload = () => {
+    const basePayload = {
+        id: wpTaxonomyForm.id || undefined,
+        displayName: String(wpTaxonomyForm.displayName || '').trim(),
+        slug: String(wpTaxonomyForm.slug || '').trim().toLowerCase(),
+        description: String(wpTaxonomyForm.description || '').trim(),
+        order: Number.parseInt(String(wpTaxonomyForm.order || 0), 10) || 0,
+        visible: wpTaxonomyForm.visible !== false,
+        pageSlug: normalizedWpTaxonomyPageSlug.value
+    }
+    if (wpTaxonomyFormType.value === 'category') {
+        return {
+            ...basePayload,
+            wpCategoryId: Number.parseInt(String(wpTaxonomyForm.wpId || 0), 10) || 0,
+            wpCategoryName: String(wpTaxonomyForm.wpName || '').trim()
+        }
+    }
+    return {
+        ...basePayload,
+        wpTagId: Number.parseInt(String(wpTaxonomyForm.wpId || 0), 10) || 0,
+        wpTagName: String(wpTaxonomyForm.wpName || '').trim()
+    }
+}
+
+/**
+ * 保存分类/标签配置（新增或编辑）。
+ */
+const handleSaveWpTaxonomy = async () => {
+    await wpTaxonomyFormRef.value?.validate()
+    wpTaxonomySaving.value = true
+    try {
+        const payload = buildWpTaxonomyPayload()
+        if (wpTaxonomyFormType.value === 'category') {
+            if (wpTaxonomyFormMode.value === 'edit') {
+                await uiedWordpressCategoryEdit(payload)
+            } else {
+                await uiedWordpressCategoryAdd(payload)
+            }
+        } else if (wpTaxonomyFormMode.value === 'edit') {
+            await uiedWordpressTagEdit(payload)
+        } else {
+            await uiedWordpressTagAdd(payload)
+        }
+        feedback.msgSuccess(`${wpTaxonomyFormMode.value === 'edit' ? '更新' : '新增'}成功`)
+        showWpTaxonomyEditDialogVisible.value = false
+        await loadWpTaxonomyRows()
+    } catch (error) {
+        console.error('保存 WordPress 分类/标签配置失败:', error)
+    } finally {
+        wpTaxonomySaving.value = false
+    }
+}
+
+/**
+ * 删除分类/标签配置。
+ */
+const handleDeleteWpTaxonomy = async (type: WpTaxonomyType, row: WpTaxonomyRow) => {
+    await feedback.confirm(`确定删除该${type === 'category' ? '分类' : '标签'}配置吗？`)
+    if (type === 'category') {
+        await uiedWordpressCategoryDel({ id: row.id })
+    } else {
+        await uiedWordpressTagDel({ id: row.id })
+    }
+    feedback.msgSuccess('删除成功')
+    await loadWpTaxonomyRows()
+}
+
+/**
+ * 规范化 Hot 预设导入时使用的 slug。
+ */
+const normalizeHotPresetSlug = (value: string): string =>
+    String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 64) || 'preset'
+
+/**
+ * 从 Hot 预设库一键导入到 WordPress 分类/标签表（按 pageSlug 写入，重复 ID 自动跳过）。
+ */
+const handleImportHotPresetLibrary = async () => {
+    if (wpPresetImporting.value) return
+    wpPresetImporting.value = true
+    try {
+        await loadWpTaxonomyRows()
+        const categoryIdSet = new Set(
+            wpCategoryRows.value
+                .map((item) => Number(item.wpCategoryId || 0))
+                .filter((id) => Number.isInteger(id) && id > 0)
+        )
+        const tagIdSet = new Set(
+            wpTagRows.value
+                .map((item) => Number(item.wpTagId || 0))
+                .filter((id) => Number.isInteger(id) && id > 0)
+        )
+        let addCount = 0
+        let skipCount = 0
+        let failCount = 0
+        const pageSlug = normalizedWpTaxonomyPageSlug.value
+        for (let index = 0; index < HOT_PRESET_TAXONOMY_LIBRARY.length; index += 1) {
+            const item = HOT_PRESET_TAXONOMY_LIBRARY[index]
+            const sortOrder = (index + 1) * 10
+            try {
+                if (item.type === 'category') {
+                    if (categoryIdSet.has(item.id)) {
+                        skipCount += 1
+                        continue
+                    }
+                    await uiedWordpressCategoryAdd({
+                        wpCategoryId: item.id,
+                        wpCategoryName: item.name,
+                        displayName: item.name,
+                        slug: normalizeHotPresetSlug(item.key),
+                        description: 'Hot 预设一键导入',
+                        order: sortOrder,
+                        visible: true,
+                        pageSlug
+                    })
+                    categoryIdSet.add(item.id)
+                    addCount += 1
+                    continue
+                }
+                if (tagIdSet.has(item.id)) {
+                    skipCount += 1
+                    continue
+                }
+                await uiedWordpressTagAdd({
+                    wpTagId: item.id,
+                    wpTagName: item.name,
+                    displayName: item.name,
+                    slug: normalizeHotPresetSlug(item.key),
+                    description: 'Hot 预设一键导入',
+                    order: sortOrder,
+                    visible: true,
+                    pageSlug
+                })
+                tagIdSet.add(item.id)
+                addCount += 1
+            } catch (error) {
+                failCount += 1
+                console.error('导入 Hot 预设失败:', item, error)
+            }
+        }
+        await loadWpTaxonomyRows()
+        feedback.msgSuccess(`导入完成：新增 ${addCount} 条，跳过 ${skipCount} 条，失败 ${failCount} 条`)
+    } finally {
+        wpPresetImporting.value = false
+    }
+}
+
+/**
+ * 设计文章分类 ID 与文本字段双向同步（逗号文本 <-> 下拉多选）。
+ */
+const designArticleCategoryIdsModel = computed<number[]>({
+    get: () => parseNumberIdList(editData.designArticleCategoryIdsText),
+    set: (value) => {
+        editData.designArticleCategoryIdsText = toNumberIdText(value)
+    }
+})
+
+/**
+ * 设计文章标签 ID 与文本字段双向同步（逗号文本 <-> 下拉多选）。
+ */
+const designArticleTagIdsModel = computed<number[]>({
+    get: () => parseNumberIdList(editData.designArticleTagIdsText),
+    set: (value) => {
+        editData.designArticleTagIdsText = toNumberIdText(value)
+    }
+})
 
 /**
  * 从页面名称生成默认别名（仅新建时自动生成）。
@@ -830,10 +1574,14 @@ const resetEditData = () => {
 const handleAdd = () => {
     resetEditData()
     loadScrollCategories()
+    loadDesignArticleFilterOptions()
     showEdit.value = true
 }
 
-const handleEdit = async (row: any) => {
+/**
+ * 打开编辑弹窗；支持通过 initialTab 快速定位到指定配置分区。
+ */
+const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'basic') => {
     isEditLoading.value = true
     slugTouched.value = true
     // 转换热门标签数组为字符串
@@ -867,6 +1615,7 @@ const handleEdit = async (row: any) => {
     })
 
     await loadDesignArticleWidgetConfig(String(row.slug || ''))
+    await loadDesignArticleFilterOptions()
 
     // 加载分类列表
     await loadScrollCategories()
@@ -905,7 +1654,7 @@ const handleEdit = async (row: any) => {
         selectedScrollWebsites.value = []
     }
 
-    editTab.value = 'basic'
+    editTab.value = initialTab
     showEdit.value = true
     isEditLoading.value = false
 }
@@ -1309,6 +2058,30 @@ getLists()
 </script>
 
 <style scoped>
+.input-w-80 {
+    width: 80px;
+}
+
+.input-w-140 {
+    width: 140px;
+}
+
+.input-w-220 {
+    width: 220px;
+}
+
+.input-w-260 {
+    width: 260px;
+}
+
+.input-w-320 {
+    width: 320px;
+}
+
+.w-100 {
+    width: 100%;
+}
+
 .scroll-websites-selector {
     width: 100%;
 }
@@ -1390,6 +2163,37 @@ getLists()
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.wp-taxonomy-config {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wp-taxonomy-config__toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.wp-taxonomy-config__hint {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+}
+
+.wp-taxonomy-config__hint code {
+    font-size: 12px;
+    color: var(--el-color-primary);
+}
+
+.wp-taxonomy-config__action-row {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
 }
 
 .page-category-config {

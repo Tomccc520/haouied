@@ -229,6 +229,25 @@ class WebsiteController extends baseController {
   }
 
   /**
+   * 批量处理网站权重标签
+   */
+  async batchWeightTags() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const result = await ctx.service.uied.website.batchUpdateWeightTags(payload);
+      this.result({
+        data: result,
+        message: `处理完成：更新 ${result.updated} 条，跳过 ${result.skipped} 条`,
+      });
+    } catch (error) {
+      ctx.logger.error('批量处理网站权重标签失败:', error);
+      const message = String(error?.message || '').trim();
+      this.result({ code: 500, message: message || '批量处理网站权重标签失败' });
+    }
+  }
+
+  /**
    * 删除网站
    */
   async del() {
@@ -288,7 +307,9 @@ class WebsiteController extends baseController {
   async search() {
     const { ctx } = this;
     try {
-      const { keyword, pageSlug, page = 1, pageSize = 20, ids } = ctx.query;
+      const { keyword, pageSlug, page = 1, pageNo, pageSize = 20, ids } = ctx.query;
+      const currentPage = Number.parseInt(String(page || pageNo || 1), 10) || 1;
+      const currentPageSize = Number.parseInt(String(pageSize || 20), 10) || 20;
 
       // 如果传入了 ids，通过ID列表查询
       if (ids) {
@@ -304,8 +325,8 @@ class WebsiteController extends baseController {
       const result = await ctx.service.uied.website.search({
         keyword,
         pageSlug,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: currentPage,
+        pageSize: currentPageSize,
       });
       this.result({ data: result });
     } catch (error) {
