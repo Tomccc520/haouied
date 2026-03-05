@@ -14,6 +14,77 @@ const Service = require('egg').Service;
 
 class CategoryService extends Service {
   /**
+   * 规范化父级分类 ID（顶级统一为 null）。
+   * @param {number|string|null|undefined} parentId - 父级分类ID
+   * @return {number|null}
+   */
+  normalizeParentId(parentId) {
+    const parsed = Number(parentId);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.trunc(parsed);
+  }
+
+  /**
+   * 读取指定分类的父级 ID。
+   * @param {number} categoryId - 分类ID
+   * @return {number|null}
+   */
+  async getParentId(categoryId) {
+    const { app } = this;
+    const [ row ] = await app.model.query(
+      'SELECT id, parent_id as parentId FROM uied_category WHERE id = ? AND is_delete = 0',
+      { replacements: [ categoryId ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    if (!row) return null;
+    return this.normalizeParentId(row.parentId);
+  }
+
+  /**
+   * 校验父级分类关系合法性（存在性、自引用、循环引用）。
+   * @param {number|null} parentId - 目标父级分类 ID
+   * @param {number|null} selfId - 当前分类 ID（新增时传 null）
+   */
+  async validateParentRelation(parentId, selfId = null) {
+    const { app } = this;
+    const normalizedParentId = this.normalizeParentId(parentId);
+    const normalizedSelfId = Number.isFinite(Number(selfId)) && Number(selfId) > 0
+      ? Math.trunc(Number(selfId))
+      : null;
+    if (!normalizedParentId) return;
+
+    if (normalizedSelfId && normalizedParentId === normalizedSelfId) {
+      throw new Error('父级分类不能选择当前分类');
+    }
+
+    const [ parentCategory ] = await app.model.query(
+      'SELECT id FROM uied_category WHERE id = ? AND is_delete = 0',
+      { replacements: [ normalizedParentId ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    if (!parentCategory) {
+      throw new Error('父级分类不存在');
+    }
+
+    if (!normalizedSelfId) return;
+
+    // 沿父级链向上校验，防止形成 A -> B -> A 的循环层级。
+    let cursorParentId = normalizedParentId;
+    let depth = 0;
+    while (cursorParentId && depth <= 100) {
+      const nextParentId = await this.getParentId(cursorParentId);
+      if (!nextParentId) break;
+      if (nextParentId === normalizedSelfId) {
+        throw new Error('父级分类不能选择当前分类的子级');
+      }
+      cursorParentId = nextParentId;
+      depth += 1;
+    }
+
+    if (depth > 100) {
+      throw new Error('分类层级校验失败，请检查父级配置');
+    }
+  }
+
+  /**
    * 获取分类列表（分页）
    * @param {Object} params - 查询参数
    */
@@ -150,6 +221,7 @@ class CategoryService extends Service {
   async add(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const normalizedParentId = this.normalizeParentId(data.parentId);
 
     // 检查 slug 是否已存在
     const [ existing ] = await app.model.query(
@@ -159,6 +231,7 @@ class CategoryService extends Service {
     if (existing) {
       throw new Error('分类别名已存在');
     }
+    await this.validateParentRelation(normalizedParentId, null);
 
     const [ result ] = await app.model.query(
       `INSERT INTO uied_category (name, slug, icon, color, description, seo_title, seo_description, seo_keywords, parent_id, sort, is_show, create_time, update_time)
@@ -173,7 +246,7 @@ class CategoryService extends Service {
           data.seoTitle || null,
           data.seoDescription || null,
           data.seoKeywords || null,
-          data.parentId || null,
+          normalizedParentId,
           data.sortOrder ?? data.order ?? 0,
           (data.isActive !== undefined ? data.isActive : (data.visible !== false ? 1 : 0)),
           now,
@@ -192,10 +265,12 @@ class CategoryService extends Service {
   async edit(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const normalizedSelfId = Math.trunc(Number(data.id || 0));
+    const hasParentIdField = Object.prototype.hasOwnProperty.call(data, 'parentId');
 
     // 检查分类是否存在
     const [ existing ] = await app.model.query(
-      'SELECT id FROM uied_category WHERE id = ? AND is_delete = 0',
+      'SELECT id, parent_id as parentId FROM uied_category WHERE id = ? AND is_delete = 0',
       { replacements: [ data.id ], type: app.Sequelize.QueryTypes.SELECT }
     );
     if (!existing) {
@@ -217,6 +292,12 @@ class CategoryService extends Service {
     const sortValue = data.sortOrder ?? data.order;
     const showValue = data.isActive !== undefined ? data.isActive : (data.visible !== undefined ? (data.visible ? 1 : 0) : null);
     const colorValue = data.themeColor || data.color;
+    const normalizedParentId = hasParentIdField
+      ? this.normalizeParentId(data.parentId)
+      : this.normalizeParentId(existing.parentId);
+    if (hasParentIdField) {
+      await this.validateParentRelation(normalizedParentId, normalizedSelfId);
+    }
 
     await app.model.query(
       `UPDATE uied_category SET 
@@ -243,7 +324,7 @@ class CategoryService extends Service {
           data.seoTitle !== undefined ? data.seoTitle : null,
           data.seoDescription !== undefined ? data.seoDescription : null,
           data.seoKeywords !== undefined ? data.seoKeywords : null,
-          data.parentId,
+          normalizedParentId,
           sortValue,
           showValue,
           now,
@@ -307,8 +388,9 @@ class CategoryService extends Service {
    * 构建树形结构
    */
   buildTree(categories, parentId = null) {
+    const normalizedParentId = this.normalizeParentId(parentId);
     return categories
-      .filter(cat => cat.parentId === parentId)
+      .filter(cat => this.normalizeParentId(cat.parentId) === normalizedParentId)
       .map(cat => ({
         ...cat,
         visible: cat.visible === 1,

@@ -31,6 +31,8 @@ class FrontendController extends Controller {
   async pages() {
     const { ctx } = this;
     try {
+      // 页面配置属于高频运营项，禁止缓存确保后台改动即时生效。
+      this.setNoCacheHeaders();
       const pages = await ctx.service.uied.frontend.getAllPages();
       ctx.body = pages;
     } catch (error) {
@@ -49,6 +51,8 @@ class FrontendController extends Controller {
     const { slug } = ctx.params;
 
     try {
+      // 页面详情需实时反映运营配置变化，关闭缓存。
+      this.setNoCacheHeaders();
       const page = await ctx.service.uied.page.detail(null, slug);
       if (!page) {
         ctx.status = 404;
@@ -72,6 +76,8 @@ class FrontendController extends Controller {
     const { slug } = ctx.params;
 
     try {
+      // 页面完整数据包含分类图标等可运营字段，关闭缓存避免前端读取旧值。
+      this.setNoCacheHeaders();
       const data = await ctx.service.uied.frontend.getPageFullData(slug);
       if (!data) {
         ctx.status = 404;
@@ -95,6 +101,8 @@ class FrontendController extends Controller {
     const { slug } = ctx.params;
 
     try {
+      // 统计依赖页面完整数据，同步关闭缓存。
+      this.setNoCacheHeaders();
       const data = await ctx.service.uied.frontend.getPageFullData(slug);
       if (!data) {
         ctx.status = 404;
@@ -121,6 +129,8 @@ class FrontendController extends Controller {
     const { limit = 12 } = ctx.query;
 
     try {
+      // 热门推荐受后台运营调整影响，返回最新结果。
+      this.setNoCacheHeaders();
       const websites = await ctx.service.uied.frontend.getPageHotWebsites(slug, limit);
       ctx.body = websites;
     } catch (error) {
@@ -140,6 +150,8 @@ class FrontendController extends Controller {
     const { limit = 10 } = ctx.query;
 
     try {
+      // 热门标签需实时展示最新统计，禁止缓存。
+      this.setNoCacheHeaders();
       const data = await ctx.service.uied.frontend.getPageHotTags(slug, limit);
       ctx.body = data;
     } catch (error) {
@@ -159,6 +171,8 @@ class FrontendController extends Controller {
     const { q, limit = 50 } = ctx.query;
 
     try {
+      // 搜索结果不做缓存，避免运营新增/编辑后检索不一致。
+      this.setNoCacheHeaders();
       const data = await ctx.service.uied.frontend.searchPageWebsites(slug, q, limit);
       ctx.body = data;
     } catch (error) {
@@ -1159,15 +1173,22 @@ class FrontendController extends Controller {
         children: (menu.children || []).map(transformMenu),
       });
 
-      const [ dailyHotConfig, rankBoardConfig, dailyNewConfig ] = await Promise.all([
+      const [ dailyHotConfig, rankBoardConfig, dailyNewConfig, hotArticlesConfig ] = await Promise.all([
         this.getDailyHotDisplayConfig().catch(() => null),
         this.getRankBoardDisplayConfig().catch(() => null),
         this.getDailyNewDisplayConfig().catch(() => null),
+        this.getHotArticlesDisplayConfig().catch(() => null),
       ]);
-      const result = this.applyBuiltinNavMenuRefs(menus.map(transformMenu), { dailyHotConfig, rankBoardConfig, dailyNewConfig });
+      const result = this.applyBuiltinNavMenuRefs(menus.map(transformMenu), {
+        dailyHotConfig,
+        rankBoardConfig,
+        dailyNewConfig,
+        hotArticlesConfig,
+      });
       const withDailyHot = this.appendDailyHotNavMenuItem(result, dailyHotConfig);
       const withDailyNew = this.appendDailyNewNavMenuItem(withDailyHot, dailyNewConfig);
-      ctx.body = this.appendRankBoardNavMenuItem(withDailyNew, rankBoardConfig);
+      const withHotArticles = this.appendHotArticlesNavMenuItem(withDailyNew, hotArticlesConfig);
+      ctx.body = this.appendRankBoardNavMenuItem(withHotArticles, rankBoardConfig);
     } catch (error) {
       ctx.logger.error('获取导航菜单失败:', error);
       ctx.status = 500;
@@ -1234,15 +1255,22 @@ class FrontendController extends Controller {
         })),
       }));
 
-      const [ dailyHotConfig, rankBoardConfig, dailyNewConfig ] = await Promise.all([
+      const [ dailyHotConfig, rankBoardConfig, dailyNewConfig, hotArticlesConfig ] = await Promise.all([
         this.getDailyHotDisplayConfig().catch(() => null),
         this.getRankBoardDisplayConfig().catch(() => null),
         this.getDailyNewDisplayConfig().catch(() => null),
+        this.getHotArticlesDisplayConfig().catch(() => null),
       ]);
-      const resolved = this.applyBuiltinFooterLinks(result, { dailyHotConfig, rankBoardConfig, dailyNewConfig });
+      const resolved = this.applyBuiltinFooterLinks(result, {
+        dailyHotConfig,
+        rankBoardConfig,
+        dailyNewConfig,
+        hotArticlesConfig,
+      });
       const withDailyHot = this.appendDailyHotFooterLink(resolved, dailyHotConfig);
       const withDailyNew = this.appendDailyNewFooterLink(withDailyHot, dailyNewConfig);
-      ctx.body = this.appendRankBoardFooterLink(withDailyNew, rankBoardConfig);
+      const withHotArticles = this.appendHotArticlesFooterLink(withDailyNew, hotArticlesConfig);
+      ctx.body = this.appendRankBoardFooterLink(withHotArticles, rankBoardConfig);
     } catch (error) {
       ctx.logger.error('获取页脚设置失败:', error);
       ctx.status = 500;
@@ -1424,6 +1452,81 @@ class FrontendController extends Controller {
       ctx.logger.error('获取每日上新公开配置失败:', error);
       ctx.status = 500;
       ctx.body = { error: error.message || '获取每日上新公开配置失败' };
+    }
+  }
+
+  /**
+   * 获取热门文章公开显示配置
+   * GET /api/hot-articles/config
+   */
+  async hotArticlesConfig() {
+    const { ctx } = this;
+    try {
+      const config = await this.getHotArticlesDisplayConfig();
+      ctx.body = {
+        enabled: config.enabled !== false,
+        displayPlacements: Array.isArray(config.displayPlacements) ? config.displayPlacements : [],
+        displayLabel: String(config.displayLabel || '热门文章'),
+        displayPath: String(config.displayPath || '/p/hot'),
+        displaySort: Number(config.displaySort || 84),
+        displayOpenInNewTab: config.displayOpenInNewTab === true,
+        pageKicker: String(config.pageKicker || 'HOT ARTICLES'),
+        pageTitle: String(config.pageTitle || '热门文章'),
+        pageDescription: String(
+          config.pageDescription || '同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。'
+        ),
+        pageSize: Number(config.pageSize || 24),
+        defaultOrderBy: String(config.defaultOrderBy || 'date'),
+        defaultOrder: String(config.defaultOrder || 'desc'),
+        defaultCategoryId: this.parsePositiveInt(config.defaultCategoryId, 0),
+        defaultTagId: this.parsePositiveInt(config.defaultTagId, 0),
+        apiSourceMode: String(config.apiSourceMode || 'auto').trim().toLowerCase() || 'auto',
+        motionEnabled: config.motionEnabled !== false,
+        heroTagline: String(config.heroTagline || '聚合国内外AI精选内容，探索AI技术前沿与应用').trim() || '聚合国内外AI精选内容，探索AI技术前沿与应用',
+        linksNewWindow: config.linksNewWindow !== false,
+        filterPresets: Array.isArray(config.filterPresets) ? config.filterPresets : [],
+        workbenchMenuItems: Array.isArray(config.workbenchMenuItems) ? config.workbenchMenuItems : [],
+      };
+    } catch (error) {
+      ctx.logger.error('获取热门文章公开配置失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取热门文章公开配置失败' };
+    }
+  }
+
+  /**
+   * 获取 WordPress 文章列表（前台公开代理）
+   * GET /api/wordpress/posts
+   */
+  async wordpressPosts() {
+    const { ctx } = this;
+    const source = String(ctx.query?.source || 'auto').trim().toLowerCase();
+    const period = String(ctx.query?.period || 'all').trim().toLowerCase();
+    const categoryId = this.parsePositiveInt(ctx.query?.categoryId, 0);
+    const tagId = this.parsePositiveInt(ctx.query?.tagId, 0);
+    const page = this.parsePositiveInt(ctx.query?.page, 1);
+    const perPage = this.parsePositiveInt(ctx.query?.perPage, 24);
+    const orderBy = String(ctx.query?.orderBy || 'date').trim();
+    const order = String(ctx.query?.order || 'desc').trim();
+    const search = String(ctx.query?.search || '').trim();
+
+    try {
+      const list = await ctx.service.uied.wordpressConfig.getPosts({
+        source,
+        period,
+        categoryId: categoryId > 0 ? categoryId : undefined,
+        tagId: tagId > 0 ? tagId : undefined,
+        page: Math.max(1, page),
+        perPage: Math.min(Math.max(1, perPage), 100),
+        orderBy,
+        order,
+        search: search || undefined,
+      });
+      ctx.body = Array.isArray(list) ? list : [];
+    } catch (error) {
+      ctx.logger.error('获取 WordPress 文章失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 WordPress 文章失败' };
     }
   }
 
@@ -2810,6 +2913,46 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取热门文章显示配置（供首页快捷入口/导航菜单/页脚自动注入）
+   */
+  async getHotArticlesDisplayConfig() {
+    const { ctx } = this;
+    const hotArticlesConfigRaw = await ctx.service.uied.setting.get('hotArticlesConfig');
+    const hotArticlesConfig = ctx.service.uied.setting.normalizeHotArticlesConfig(hotArticlesConfigRaw || {});
+    const placements = Array.isArray(hotArticlesConfig?.displayPlacements)
+      ? hotArticlesConfig.displayPlacements.map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    return {
+      enabled: hotArticlesConfig?.enabled !== false,
+      displayPlacements: Array.from(new Set(placements)),
+      displayLabel: String(hotArticlesConfig?.displayLabel || '热门文章').trim() || '热门文章',
+      displayPath: this.normalizePath(hotArticlesConfig?.displayPath || '/p/hot'),
+      displaySort: this.parsePositiveInt(hotArticlesConfig?.displaySort, 84),
+      displayOpenInNewTab: hotArticlesConfig?.displayOpenInNewTab === true,
+      pageKicker: String(hotArticlesConfig?.pageKicker || 'HOT ARTICLES').trim() || 'HOT ARTICLES',
+      pageTitle: String(hotArticlesConfig?.pageTitle || '热门文章').trim() || '热门文章',
+      pageDescription: String(
+        hotArticlesConfig?.pageDescription
+          || '同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。'
+      ).trim() || '同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。',
+      pageSize: this.parsePositiveInt(hotArticlesConfig?.pageSize, 24),
+      defaultOrderBy: String(hotArticlesConfig?.defaultOrderBy || 'date').trim().toLowerCase(),
+      defaultOrder: String(hotArticlesConfig?.defaultOrder || 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc',
+      defaultCategoryId: this.parsePositiveInt(hotArticlesConfig?.defaultCategoryId, 0),
+      defaultTagId: this.parsePositiveInt(hotArticlesConfig?.defaultTagId, 0),
+      apiSourceMode: String(hotArticlesConfig?.apiSourceMode || 'auto').trim().toLowerCase() || 'auto',
+      motionEnabled: hotArticlesConfig?.motionEnabled !== false,
+      heroTagline: String(
+        hotArticlesConfig?.heroTagline || '聚合国内外AI精选内容，探索AI技术前沿与应用'
+      ).trim() || '聚合国内外AI精选内容，探索AI技术前沿与应用',
+      linksNewWindow: hotArticlesConfig?.linksNewWindow !== false,
+      filterPresets: Array.isArray(hotArticlesConfig?.filterPresets) ? hotArticlesConfig.filterPresets : [],
+      workbenchMenuItems: Array.isArray(hotArticlesConfig?.workbenchMenuItems) ? hotArticlesConfig.workbenchMenuItems : [],
+      updatedAt: 0,
+    };
+  }
+
+  /**
    * 获取榜单系统显示配置（供导航菜单/页脚自动注入使用）
    */
   async getRankBoardDisplayConfig() {
@@ -2843,12 +2986,13 @@ class FrontendController extends Controller {
   }
 
   /**
-   * 按内置入口配置解析导航菜单项（当前支持 daily_hot / daily_new / rankings）
+   * 按内置入口配置解析导航菜单项（当前支持 daily_hot / daily_new / hot_articles / rankings）
    */
   applyBuiltinNavMenuRefs(rows = [], context = {}) {
     const list = Array.isArray(rows) ? rows : [];
     const dailyHotConfig = context?.dailyHotConfig || null;
     const dailyNewConfig = context?.dailyNewConfig || null;
+    const hotArticlesConfig = context?.hotArticlesConfig || null;
     const rankBoardConfig = context?.rankBoardConfig || null;
 
     return list.map(item => {
@@ -2867,6 +3011,11 @@ class FrontendController extends Controller {
         if (!String(next.text || '').trim()) {
           next.text = dailyNewConfig.displayLabel || '每日上新';
         }
+      } else if (builtinKey === 'hot_articles' && hotArticlesConfig) {
+        next.link = hotArticlesConfig.displayPath || next.link || '/p/hot';
+        if (!String(next.text || '').trim()) {
+          next.text = hotArticlesConfig.displayLabel || '热门文章';
+        }
       } else if (builtinKey === 'rankings' && rankBoardConfig) {
         next.link = rankBoardConfig.displayPath || next.link || '/p/rankings';
         if (!String(next.text || '').trim()) {
@@ -2878,12 +3027,13 @@ class FrontendController extends Controller {
   }
 
   /**
-   * 按内置入口配置解析页脚链接（当前支持 daily_hot / daily_new / rankings）
+   * 按内置入口配置解析页脚链接（当前支持 daily_hot / daily_new / hot_articles / rankings）
    */
   applyBuiltinFooterLinks(groups = [], context = {}) {
     const list = Array.isArray(groups) ? groups : [];
     const dailyHotConfig = context?.dailyHotConfig || null;
     const dailyNewConfig = context?.dailyNewConfig || null;
+    const hotArticlesConfig = context?.hotArticlesConfig || null;
     const rankBoardConfig = context?.rankBoardConfig || null;
 
     return list.map(group => ({
@@ -2900,6 +3050,11 @@ class FrontendController extends Controller {
           next.url = dailyNewConfig.displayPath || next.url || '/p/daily-new';
           if (!String(next.text || '').trim()) {
             next.text = dailyNewConfig.displayLabel || '每日上新';
+          }
+        } else if (builtinKey === 'hot_articles' && hotArticlesConfig) {
+          next.url = hotArticlesConfig.displayPath || next.url || '/p/hot';
+          if (!String(next.text || '').trim()) {
+            next.text = hotArticlesConfig.displayLabel || '热门文章';
           }
         } else if (builtinKey === 'rankings' && rankBoardConfig) {
           next.url = rankBoardConfig.displayPath || next.url || '/p/rankings';
@@ -2982,6 +3137,33 @@ class FrontendController extends Controller {
       children: [],
       builtin: true,
       builtinKey: 'daily_new',
+    });
+    return list.sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+  }
+
+  /**
+   * 按热门文章配置自动注入导航菜单入口（首页菜单）
+   */
+  appendHotArticlesNavMenuItem(rows = [], config = null) {
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    if (!config || config.enabled === false) return list;
+    if (!Array.isArray(config.displayPlacements) || !config.displayPlacements.includes('home_menu')) return list;
+    if (!config.displayPath || this.hasNavMenuLink(list, config.displayPath, [ 'hot_articles' ])) return list;
+
+    list.push({
+      id: 'builtin:hot-articles',
+      text: config.displayLabel || '热门文章',
+      link: config.displayPath || '/p/hot',
+      external: config.displayOpenInNewTab === true,
+      label: '内置',
+      labelType: 'info',
+      icon: 'Reading',
+      parentId: null,
+      order: Number(config.displaySort || 84),
+      visible: true,
+      children: [],
+      builtin: true,
+      builtinKey: 'hot_articles',
     });
     return list.sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
   }
@@ -3092,6 +3274,51 @@ class FrontendController extends Controller {
         links: [ builtinLink ],
         builtin: true,
         builtinKey: 'daily_new',
+      },
+    ];
+  }
+
+  /**
+   * 按热门文章配置自动注入页脚链接（页脚显示）
+   */
+  appendHotArticlesFooterLink(groups = [], config = null) {
+    const list = Array.isArray(groups) ? groups.map(group => ({
+      ...group,
+      links: Array.isArray(group?.links) ? group.links.slice() : [],
+    })) : [];
+
+    if (!config || config.enabled === false) return list;
+    if (!Array.isArray(config.displayPlacements) || !config.displayPlacements.includes('footer_link')) return list;
+    if (!config.displayPath || this.hasFooterLink(list, config.displayPath, [ 'hot_articles' ])) return list;
+
+    const builtinLink = {
+      id: 'builtin:hot-articles-footer',
+      text: config.displayLabel || '热门文章',
+      url: config.displayPath || '/p/hot',
+      external: config.displayOpenInNewTab === true,
+      order: Number(config.displaySort || 84),
+      visible: true,
+      builtin: true,
+      builtinKey: 'hot_articles',
+    };
+
+    const targetGroup = list.find(group => group?.visible !== false) || null;
+    if (targetGroup) {
+      targetGroup.links.push(builtinLink);
+      targetGroup.links.sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+      return list;
+    }
+
+    return [
+      ...list,
+      {
+        id: 'builtin:hot-articles-group',
+        title: '热门文章',
+        order: 996,
+        visible: true,
+        links: [ builtinLink ],
+        builtin: true,
+        builtinKey: 'hot_articles',
       },
     ];
   }

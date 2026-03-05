@@ -291,6 +291,108 @@ const defaultIconMap: Record<string, IconComponent> = {
   Learning: IconLearning
 };
 
+/**
+ * 可作为兜底映射池的前台图标 key。
+ * 当后台传入 el-icon/local-icon 且无法精确映射时，使用稳定哈希落到该列表，避免所有未知图标都显示成同一个默认图标。
+ */
+const fallbackIconKeys: string[] = [
+  'tool',
+  'inspiration',
+  'ui',
+  'graphic',
+  'template',
+  'material',
+  'icons',
+  'color',
+  'font',
+  'brand',
+  'image',
+  'video',
+  'audio',
+  'ai',
+  'code',
+  'web',
+  'mobile',
+  'plugin',
+  'data',
+  'analytics',
+  'education',
+  'resource',
+  'ecommerce',
+  'marketing',
+  'platform',
+  'layout',
+  'cad',
+  'furniture',
+  'project',
+  'vr',
+];
+
+/**
+ * 对字符串做稳定哈希，确保同一个未知图标值总是映射到同一个前台图标。
+ */
+const stableHash = (value: string): number => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash) + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+};
+
+/**
+ * 将后台 icon-picker 的值（el-icon/local-icon）尽量映射为前台可识别图标 key。
+ * 规则：先关键字别名，再哈希兜底，保证“改了图标”在前台有可见变化。
+ */
+const normalizeLegacyIconName = (iconName: string): string => {
+  const raw = String(iconName || '').trim();
+  if (!raw) return '';
+  const lowerRaw = raw.toLowerCase();
+  if (defaultIconMap[raw]) return raw;
+  if (defaultIconMap[lowerRaw]) return lowerRaw;
+  const compact = lowerRaw
+    .replace(/^el-icon-/, '')
+    .replace(/^local-icon-/, '')
+    .replace(/[_\s]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .trim();
+  if (!compact) return '';
+  if (defaultIconMap[compact]) return compact;
+
+  const aliasEntries: Array<[RegExp, string]> = [
+    [/(cpu|monitor|data|histogram|trend|pie|rank|chart|analysis)/, 'analytics'],
+    [/(camera|photo|picture|image)/, 'image'],
+    [/(video|film|movie|clapperboard)/, 'video'],
+    [/(music|audio|mic|headset)/, 'audio'],
+    [/(cart|shop|store|goods|bag)/, 'ecommerce'],
+    [/(brush|pen|palette|color)/, 'palette'],
+    [/(font|text|typography|word)/, 'font'],
+    [/(code|bug|terminal|command|api)/, 'code'],
+    [/(globe|world|earth|browser|link|internet)/, 'web'],
+    [/(mobile|phone|device|tablet)/, 'mobile'],
+    [/(book|read|school|education|learn|graduation)/, 'education'],
+    [/(bulb|idea|light|spark|star)/, 'inspiration'],
+    [/(layout|grid|module|component|template)/, 'layout'],
+    [/(ai|robot|chip|bot)/, 'ai'],
+    [/(cube|three|3d)/, '3d'],
+    [/(game|joystick)/, 'gameui'],
+    [/(project|plan|task|calendar)/, 'project'],
+    [/(vr|virtual|ar)/, 'vr'],
+    [/(home|house|building|office)/, 'platform'],
+    [/(tool|wrench|setting|gear)/, 'tools'],
+    [/(basketball|football|soccer|tennis|sport)/, 'tool'],
+  ];
+
+  for (const [pattern, mapped] of aliasEntries) {
+    if (pattern.test(compact) && defaultIconMap[mapped]) {
+      return mapped;
+    }
+  }
+
+  const fallbackKey = fallbackIconKeys[stableHash(compact) % fallbackIconKeys.length];
+  return defaultIconMap[fallbackKey] ? fallbackKey : 'default';
+};
+
 // 根据导航类型获取默认配置
 const getDefaultConfig = (type: NavMenuType): Partial<SidebarConfig> => {
   switch (type) {
@@ -367,6 +469,7 @@ const getDefaultConfig = (type: NavMenuType): Partial<SidebarConfig> => {
 const getIconComponent = (icon?: IconComponent | string): IconComponent => {
   if (!icon) return defaultIconMap.default;
   if (typeof icon === 'string') {
+    const normalizedIcon = normalizeLegacyIconName(icon);
     // 尝试直接匹配
     const directMatch = defaultIconMap[icon];
     if (directMatch) return directMatch;
@@ -374,6 +477,10 @@ const getIconComponent = (icon?: IconComponent | string): IconComponent => {
     // 尝试小写匹配
     const lowerMatch = defaultIconMap[icon.toLowerCase()];
     if (lowerMatch) return lowerMatch;
+
+    // 兼容后台 el-icon/local-icon 的历史值
+    const normalizedMatch = defaultIconMap[normalizedIcon];
+    if (normalizedMatch) return normalizedMatch;
     
     // 尝试大写匹配
     const upperMatch = defaultIconMap[icon.toUpperCase()];

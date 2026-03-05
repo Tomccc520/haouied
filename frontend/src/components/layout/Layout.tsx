@@ -28,6 +28,7 @@ const resolvePageSlugByPathname = (pathname: string): string => {
   if (normalized.startsWith('/website/')) return 'website-detail';
   if (normalized === '/daily-hot' || normalized === '/p/daily-hot') return 'daily-hot';
   if (normalized === '/daily-new' || normalized === '/p/daily-new') return 'daily-new';
+  if (normalized === '/hot' || normalized === '/p/hot') return 'hot-articles';
   if (normalized === '/rankings' || normalized === '/p/rankings') return 'rankings';
   if (
     normalized === '/category'

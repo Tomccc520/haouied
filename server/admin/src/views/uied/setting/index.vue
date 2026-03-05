@@ -829,6 +829,15 @@
                                 :disabled="!homepageData.dailyNewEnabled"
                             />
                         </el-form-item>
+                        <el-divider content-position="left">热门文章（Hot）</el-divider>
+                        <p class="section-desc">
+                            热门文章页面已独立到专属配置页，便于单独运营。
+                        </p>
+                        <el-form-item>
+                            <el-button type="primary" plain @click="router.push('/system-setting/base-config/hot-articles')">
+                                打开热门文章配置页
+                            </el-button>
+                        </el-form-item>
                         <el-divider content-position="left">广告位</el-divider>
                         <el-alert type="info" :closable="false" show-icon>
                             <template #title>
@@ -999,53 +1008,16 @@
                                 show-word-limit
                             />
                         </el-form-item>
-                        <el-divider content-position="left">SVG 图标库（svg:key）</el-divider>
-                        <p class="section-desc">
-                            统一维护分类 SVG 图标库。页面分类配置可直接填写 <code>svg:key</code> 引用图标，
-                            例如 <code>svg:ai_video</code>。请填写 JSON 数组格式。
-                        </p>
-                        <el-form-item>
-                            <template #label
-                                ><span>图标库 JSON</span
-                                ><el-tooltip placement="top"
-                                    ><template #content>
-                                        示例：<br />
-                                        [<br />
-                                        {"key":"ai_video","label":"AI视频","svg":"&lt;svg ...&gt;&lt;/svg&gt;"}<br />
-                                        ]
-                                    </template
-                                    ><el-icon class="label-tip-icon"
-                                        ><QuestionFilled /></el-icon></el-tooltip
-                            ></template>
-                            <el-input
-                                v-model="categorySvgLibraryText"
-                                type="textarea"
-                                :rows="10"
-                                placeholder='[{"key":"ai_video","label":"AI视频","svg":"<svg ...></svg>"}]'
-                                @blur="syncCategorySvgLibraryFromText"
-                            />
-                            <div v-if="categorySvgLibraryError" class="form-error-text">
-                                {{ categorySvgLibraryError }}
-                            </div>
-                        </el-form-item>
-                        <el-form-item label="图标库预览">
-                            <div class="svg-library-preview">
-                                <el-tag
-                                    v-for="item in categorySvgLibraryPreview"
-                                    :key="item.key"
-                                    class="svg-library-preview__tag"
-                                    effect="plain"
-                                >
-                                    {{ item.label }}（svg:{{ item.key }}）
-                                </el-tag>
-                                <span
-                                    v-if="categorySvgLibraryPreview.length === 0"
-                                    class="svg-library-preview__empty"
-                                >
-                                    暂无图标项
-                                </span>
-                            </div>
-                        </el-form-item>
+                        <el-alert
+                            type="info"
+                            :closable="false"
+                            show-icon
+                            style="margin-bottom: 16px"
+                        >
+                            <template #title>
+                                SVG 图标库已迁移到「素材中心 -> SVG图标库」统一维护，避免重复配置入口。
+                            </template>
+                        </el-alert>
                         <el-alert
                             type="success"
                             :closable="false"
@@ -1459,6 +1431,94 @@
                     </el-form>
                 </el-tab-pane>
 
+                <!-- ==================== 用户认证 ==================== -->
+                <el-tab-pane label="用户认证" name="authConfig">
+                    <div class="setting-header">
+                        <h2 class="setting-title">用户认证与个人中心</h2>
+                        <p class="setting-desc">
+                            统一管理前端登录、注册、个人中心开关。关闭个人中心后，前端将隐藏登录/注册与个人中心入口。
+                        </p>
+                    </div>
+                    <el-form :model="authConfigData" label-width="140px" style="max-width: 650px">
+                        <el-divider content-position="left">注册与登录</el-divider>
+                        <el-form-item label="允许用户注册">
+                            <el-switch
+                                v-model="authConfigData.enable_register"
+                                :active-value="1"
+                                :inactive-value="0"
+                                active-text="开启"
+                                inactive-text="关闭"
+                            />
+                        </el-form-item>
+                        <el-form-item
+                            label="注册关闭提示"
+                            v-if="authConfigData.enable_register === 0"
+                        >
+                            <el-input
+                                v-model="authConfigData.register_close_message"
+                                type="textarea"
+                                :rows="2"
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="注册功能暂时关闭"
+                            />
+                        </el-form-item>
+                        <el-form-item label="允许用户登录">
+                            <el-switch
+                                v-model="authConfigData.enable_login"
+                                :active-value="1"
+                                :inactive-value="0"
+                                active-text="开启"
+                                inactive-text="关闭"
+                            />
+                        </el-form-item>
+                        <el-form-item
+                            label="登录关闭提示"
+                            v-if="authConfigData.enable_login === 0"
+                        >
+                            <el-input
+                                v-model="authConfigData.login_close_message"
+                                type="textarea"
+                                :rows="2"
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="系统维护中，暂时无法登录"
+                            />
+                        </el-form-item>
+                        <el-divider content-position="left">个人中心</el-divider>
+                        <el-form-item label="开启个人中心">
+                            <el-switch
+                                v-model="authConfigData.enable_user_center"
+                                :active-value="1"
+                                :inactive-value="0"
+                                active-text="开启"
+                                inactive-text="关闭"
+                            />
+                        </el-form-item>
+                        <el-form-item
+                            label="个人中心关闭提示"
+                            v-if="authConfigData.enable_user_center === 0"
+                        >
+                            <el-input
+                                v-model="authConfigData.user_center_close_message"
+                                type="textarea"
+                                :rows="2"
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="个人中心功能暂时关闭"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button
+                                type="primary"
+                                :loading="authConfigLoading"
+                                @click="handleSaveAuthConfig"
+                                >保存</el-button
+                            >
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
+
                 <!-- ==================== 跳转提醒 ==================== -->
                 <el-tab-pane label="跳转提醒" name="exitModal">
                     <div class="setting-header">
@@ -1685,16 +1745,69 @@ import {
     uiedSaveSiteInfo,
     uiedPageAll,
     uiedSettingGet,
-    uiedSettingSave
+    uiedSettingSave,
+    uiedSettingAuthConfigGet,
+    uiedSettingAuthConfigUpdate
 } from '@/api/uied'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import Draggable from 'vuedraggable'
+import { useRoute, useRouter } from 'vue-router'
 import feedback from '@/utils/feedback'
 
+const route = useRoute()
+const router = useRouter()
 const activeTab = ref('siteInfo')
 const reloadLoading = ref(false)
 const saveAllLoading = ref(false)
 const lastSavedAt = ref<number | null>(null)
+const settingTabNameSet = new Set([
+    'siteInfo',
+    'appearance',
+    'homepage',
+    'pageConfig',
+    'cardStyle',
+    'sidebar',
+    'search',
+    'authConfig',
+    'exitModal'
+])
+
+/**
+ * 从路由 query 里解析目标标签，兼容旧入口跳转参数。
+ */
+const resolveSettingTabFromRoute = (): string => {
+    const tab = String(route.query.tab || '').trim()
+    if (!tab) return ''
+    return settingTabNameSet.has(tab) ? tab : ''
+}
+
+/**
+ * 将路由中的 tab 同步到当前激活标签，保证“旧入口 -> 新站点设置页”定位准确。
+ */
+const applyRouteTabToActiveTab = () => {
+    const targetTab = resolveSettingTabFromRoute()
+    if (!targetTab) return
+    if (targetTab === activeTab.value) return
+    activeTab.value = targetTab
+}
+
+/**
+ * 将当前激活标签回写到路由 query，便于刷新后维持当前标签页。
+ */
+const syncActiveTabToRoute = () => {
+    const currentTab = String(activeTab.value || '').trim()
+    if (!currentTab || !settingTabNameSet.has(currentTab)) return
+    if (String(route.query.tab || '') === currentTab) return
+    router
+        .replace({
+            path: route.path,
+            query: {
+                ...route.query,
+                tab: currentTab
+            }
+        })
+        .catch(() => undefined)
+}
 
 // ==================== 站点信息 ====================
 const siteInfoLoading = ref(false)
@@ -1983,15 +2096,6 @@ const normalizeCategorySvgLibrary = (value: unknown): CategorySvgLibraryItem[] =
         .map(({ key, label, svg }) => ({ key, label, svg }))
 }
 
-/**
- * 将图标库格式化为便于运营编辑的 JSON 文本。
- */
-const formatCategorySvgLibraryText = (value: unknown): string =>
-    JSON.stringify(normalizeCategorySvgLibrary(value), null, 2)
-
-const categorySvgLibraryText = ref('[]')
-const categorySvgLibraryError = ref('')
-
 const pageConfigData = reactive({
     websiteClickMode: 'detail',
     showDirectArrow: false,
@@ -2038,37 +2142,6 @@ const normalizePageConfigData = (config: any) => ({
     categorySvgLibrary: normalizeCategorySvgLibrary(config?.categorySvgLibrary)
 })
 
-/**
- * 将 JSON 文本同步到页面配置对象，保存前执行一次可保证数据有效。
- */
-const syncCategorySvgLibraryFromText = (): boolean => {
-    const text = String(categorySvgLibraryText.value || '').trim()
-    if (!text) {
-        pageConfigData.categorySvgLibrary = []
-        categorySvgLibraryError.value = ''
-        categorySvgLibraryText.value = '[]'
-        return true
-    }
-    try {
-        const parsed = JSON.parse(text)
-        const normalized = normalizeCategorySvgLibrary(parsed)
-        pageConfigData.categorySvgLibrary = normalized
-        categorySvgLibraryText.value = formatCategorySvgLibraryText(normalized)
-        categorySvgLibraryError.value = ''
-        return true
-    } catch (_error) {
-        categorySvgLibraryError.value = '图标库 JSON 格式错误，请检查括号与引号后重试'
-        return false
-    }
-}
-
-/**
- * 图标库预览数据（最多展示前 12 项）。
- */
-const categorySvgLibraryPreview = computed(() =>
-    normalizeCategorySvgLibrary(pageConfigData.categorySvgLibrary).slice(0, 12)
-)
-
 // ==================== 卡片样式 ====================
 const cardStyleLoading = ref(false)
 const cardStyleData = reactive({
@@ -2104,6 +2177,37 @@ const searchData = reactive({
     aiSearchBtnText: 'AI 搜索',
     highlightKeyword: true,
     resultsPerPage: 20
+})
+
+// ==================== 用户认证 ====================
+const authConfigLoading = ref(false)
+const defaultAuthConfig = {
+    enable_register: 1,
+    enable_login: 1,
+    enable_user_center: 1,
+    register_close_message: '注册功能暂时关闭',
+    login_close_message: '系统维护中，暂时无法登录',
+    user_center_close_message: '个人中心功能暂时关闭'
+}
+const authConfigData = reactive({ ...defaultAuthConfig })
+
+/**
+ * 规范化认证配置，统一登录/注册/个人中心开关语义。
+ */
+const normalizeAuthConfigData = (config: any) => ({
+    ...defaultAuthConfig,
+    ...config,
+    enable_register: config?.enable_register === 0 ? 0 : 1,
+    enable_login: config?.enable_login === 0 ? 0 : 1,
+    enable_user_center: config?.enable_user_center === 0 ? 0 : 1,
+    register_close_message:
+        String(config?.register_close_message || '').trim() ||
+        defaultAuthConfig.register_close_message,
+    login_close_message:
+        String(config?.login_close_message || '').trim() || defaultAuthConfig.login_close_message,
+    user_center_close_message:
+        String(config?.user_center_close_message || '').trim() ||
+        defaultAuthConfig.user_center_close_message
 })
 
 // ==================== 跳转提醒 ====================
@@ -2151,6 +2255,7 @@ const snapshotData = reactive({
     cardStyle: '',
     sidebar: '',
     search: '',
+    authConfig: '',
     exitModal: ''
 })
 
@@ -2183,6 +2288,7 @@ const refreshSnapshot = () => {
     snapshotData.cardStyle = serializeConfig(cloneConfig(cardStyleData))
     snapshotData.sidebar = serializeConfig(cloneConfig(sidebarData))
     snapshotData.search = serializeConfig(cloneConfig(searchData))
+    snapshotData.authConfig = serializeConfig(normalizeAuthConfigData(cloneConfig(authConfigData)))
     snapshotData.exitModal = serializeConfig(cloneConfig(exitModalData))
 }
 
@@ -2213,6 +2319,11 @@ const hasTabChanges = (tab: string): boolean => {
         return serializeConfig(cloneConfig(cardStyleData)) !== snapshotData.cardStyle
     if (tab === 'sidebar') return serializeConfig(cloneConfig(sidebarData)) !== snapshotData.sidebar
     if (tab === 'search') return serializeConfig(cloneConfig(searchData)) !== snapshotData.search
+    if (tab === 'authConfig')
+        return (
+            serializeConfig(normalizeAuthConfigData(cloneConfig(authConfigData))) !==
+            snapshotData.authConfig
+        )
     if (tab === 'exitModal')
         return serializeConfig(cloneConfig(exitModalData)) !== snapshotData.exitModal
     return false
@@ -2227,6 +2338,7 @@ const hasPendingChanges = computed(
         hasTabChanges('cardStyle') ||
         hasTabChanges('sidebar') ||
         hasTabChanges('search') ||
+        hasTabChanges('authConfig') ||
         hasTabChanges('exitModal')
 )
 
@@ -2256,11 +2368,11 @@ const applyPublicSettings = (settings: Record<string, any>) => {
         Object.assign(homepageData, normalizeHomepageConfigData(settings.homepage))
     if (settings.pageGlobal)
         Object.assign(pageConfigData, normalizePageConfigData(settings.pageGlobal))
-    categorySvgLibraryText.value = formatCategorySvgLibraryText(pageConfigData.categorySvgLibrary)
-    categorySvgLibraryError.value = ''
     if (settings.cardStyle) Object.assign(cardStyleData, settings.cardStyle)
     if (settings.sidebar) Object.assign(sidebarData, settings.sidebar)
     if (settings.search) Object.assign(searchData, settings.search)
+    if (settings.authConfig)
+        Object.assign(authConfigData, normalizeAuthConfigData(settings.authConfig))
     if (settings.exitModal || settings.popup)
         Object.assign(exitModalData, normalizeExitModalConfigData(settings.exitModal || settings.popup))
 }
@@ -2285,6 +2397,7 @@ const loadAllSettings = async (silent = false) => {
             loadCardStyle(),
             loadSidebar(),
             loadSearch(),
+            loadAuthConfig(),
             loadExitModal(),
             loadHomepagePageOptions(true)
         ])
@@ -2322,11 +2435,7 @@ const loadHomepage = async () => {
 const loadPageConfig = async () => {
     try {
         const res = await uiedSettingGet({ key: 'pageGlobalConfig' })
-        if (res) {
-            Object.assign(pageConfigData, normalizePageConfigData(res))
-            categorySvgLibraryText.value = formatCategorySvgLibraryText(pageConfigData.categorySvgLibrary)
-            categorySvgLibraryError.value = ''
-        }
+        if (res) Object.assign(pageConfigData, normalizePageConfigData(res))
     } catch (e) {
         console.error('加载页面配置失败', e)
     }
@@ -2353,6 +2462,17 @@ const loadSearch = async () => {
         if (res) Object.assign(searchData, res)
     } catch (e) {
         console.error('加载搜索配置失败', e)
+    }
+}
+/**
+ * 加载认证配置（登录/注册/个人中心）
+ */
+const loadAuthConfig = async () => {
+    try {
+        const res = await uiedSettingAuthConfigGet()
+        if (res) Object.assign(authConfigData, normalizeAuthConfigData(res))
+    } catch (e) {
+        console.error('加载认证配置失败', e)
     }
 }
 const loadExitModal = async () => {
@@ -2407,10 +2527,6 @@ const handleSaveHomepage = async () => {
     }
 }
 const handleSavePageConfig = async () => {
-    if (!syncCategorySvgLibraryFromText()) {
-        feedback.msgError(categorySvgLibraryError.value || '图标库配置格式错误')
-        return
-    }
     pageConfigLoading.value = true
     try {
         await uiedSettingSave({ pageGlobalConfig: normalizePageConfigData(pageConfigData) })
@@ -2462,6 +2578,22 @@ const handleSaveSearch = async () => {
         searchLoading.value = false
     }
 }
+/**
+ * 保存认证配置（登录/注册/个人中心）
+ */
+const handleSaveAuthConfig = async () => {
+    authConfigLoading.value = true
+    try {
+        await uiedSettingAuthConfigUpdate(normalizeAuthConfigData(authConfigData))
+        markSaved()
+        feedback.msgSuccess('保存成功')
+    } catch (error) {
+        console.error('保存认证配置失败:', error)
+        feedback.msgError('保存失败')
+    } finally {
+        authConfigLoading.value = false
+    }
+}
 const handleSaveExitModal = async () => {
     exitModalLoading.value = true
     try {
@@ -2480,10 +2612,6 @@ const handleSaveExitModal = async () => {
  * 保存全部配置（售卖版推荐工作流）
  */
 const handleSaveAll = async () => {
-    if (!syncCategorySvgLibraryFromText()) {
-        feedback.msgError(categorySvgLibraryError.value || '图标库配置格式错误')
-        return
-    }
     saveAllLoading.value = true
     try {
         await Promise.all([
@@ -2496,7 +2624,8 @@ const handleSaveAll = async () => {
                 sidebarConfig: sidebarData,
                 searchConfig: searchData,
                 exitModalConfig: exitModalData
-            })
+            }),
+            uiedSettingAuthConfigUpdate(normalizeAuthConfigData(authConfigData))
         ])
         markSaved()
         feedback.msgSuccess('全部配置保存成功')
@@ -2528,14 +2657,15 @@ const handleResetCurrentTab = () => {
             pageConfigData,
             normalizePageConfigData(readSnapshotObject(snapshotData.pageConfig))
         )
-    if (tab === 'pageConfig') {
-        categorySvgLibraryText.value = formatCategorySvgLibraryText(pageConfigData.categorySvgLibrary)
-        categorySvgLibraryError.value = ''
-    }
     if (tab === 'cardStyle')
         Object.assign(cardStyleData, readSnapshotObject(snapshotData.cardStyle))
     if (tab === 'sidebar') Object.assign(sidebarData, readSnapshotObject(snapshotData.sidebar))
     if (tab === 'search') Object.assign(searchData, readSnapshotObject(snapshotData.search))
+    if (tab === 'authConfig')
+        Object.assign(
+            authConfigData,
+            normalizeAuthConfigData(readSnapshotObject(snapshotData.authConfig))
+        )
     if (tab === 'exitModal')
         Object.assign(exitModalData, readSnapshotObject(snapshotData.exitModal))
 
@@ -2549,8 +2679,30 @@ const handleReloadAll = async () => {
     await loadAllSettings(false)
 }
 
+/**
+ * 监听地址栏 tab 参数变化（例如旧入口重定向），实时切换标签。
+ */
+watch(
+    () => route.query.tab,
+    () => {
+        applyRouteTabToActiveTab()
+    }
+)
+
+/**
+ * 监听标签切换，同步写入地址栏 query，保持可分享/可刷新状态。
+ */
+watch(
+    () => activeTab.value,
+    () => {
+        syncActiveTabToRoute()
+    }
+)
+
 // ==================== 初始化 ====================
 onMounted(() => {
+    applyRouteTabToActiveTab()
+    syncActiveTabToRoute()
     loadAllSettings(true)
 })
 </script>
@@ -2776,26 +2928,4 @@ onMounted(() => {
     color: #303133;
 }
 
-.form-error-text {
-    margin-top: 6px;
-    color: var(--el-color-danger);
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.svg-library-preview {
-    width: 100%;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.svg-library-preview__tag {
-    margin-right: 0;
-}
-
-.svg-library-preview__empty {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-}
 </style>

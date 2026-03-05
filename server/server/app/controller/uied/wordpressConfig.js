@@ -321,8 +321,10 @@ class WordpressConfigController extends baseController {
   async posts() {
     const { ctx } = this;
     try {
-      const { categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search } = ctx.query;
+      const { source = 'auto', period = 'all', categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search } = ctx.query;
       const result = await ctx.service.uied.wordpressConfig.getPosts({
+        source,
+        period,
         categoryId,
         tagId,
         page: Number.parseInt(page, 10),

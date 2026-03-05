@@ -65,6 +65,22 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         ]
     },
     {
+        path: '/system-setting/base-config',
+        component: LAYOUT,
+        children: [
+            {
+                path: 'hot-articles',
+                name: Symbol(),
+                component: () => import('@/views/uied/setting/hotArticles.vue'),
+                meta: {
+                    title: '热门文章配置',
+                    hidden: true,
+                    activeMenu: '/system-setting/base-config/setting'
+                }
+            }
+        ]
+    },
+    {
         path: '/uied/aiConfig',
         component: LAYOUT,
         children: [
@@ -112,39 +128,25 @@ export const constantRoutes: Array<RouteRecordRaw> = [
             }
         ]
     },
-    // 注册/登录配置
+    // 注册/登录配置（兼容旧入口，统一跳转到站点设置）
     {
         path: '/settings/auth-config',
-        component: LAYOUT,
-        children: [
-            {
-                path: '',
-                name: Symbol(),
-                component: () => import('@/views/settings/AuthConfig.vue'),
-                meta: {
-                    title: '注册/登录配置',
-                    hidden: true,
-                    activeMenu: '/system-setting'
-                }
+        redirect: {
+            path: '/system-setting/base-config/setting',
+            query: {
+                tab: 'authConfig'
             }
-        ]
+        }
     },
     // 详情页配置
     {
         path: '/settings/detail-page-config',
-        component: LAYOUT,
-        children: [
-            {
-                path: '',
-                name: Symbol(),
-                component: () => import('@/views/uied/setting/detailPage.vue'),
-                meta: {
-                    title: '网站详情页配置',
-                    hidden: true,
-                    activeMenu: '/system-setting'
-                }
-            }
-        ]
+        redirect: '/system-setting/base-config/detail-page-config'
+    },
+    // 热门文章配置（独立入口）
+    {
+        path: '/settings/hot-articles-config',
+        redirect: '/system-setting/base-config/hot-articles'
     }
 ]
 

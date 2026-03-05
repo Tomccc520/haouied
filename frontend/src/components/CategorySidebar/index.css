@@ -421,16 +421,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.category-nav-icon-svg :is(svg, path, rect, circle, g) {
-  fill: currentColor;
-  stroke: currentColor;
+  overflow: hidden;
 }
 
 .category-nav-icon-svg svg {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  flex-shrink: 0;
   display: block;
 }
 

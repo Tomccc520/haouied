@@ -326,6 +326,378 @@ class SettingService extends Service {
   }
 
   /**
+   * 规范化“热门文章 Hot”配置
+   * 统一入口展示、页面文案、WordPress 拉取参数与筛选预设结构。
+   * @param {Record<string, any>} config 原始配置
+   * @return {Record<string, any>} 规范化后的配置
+   */
+  normalizeHotArticlesConfig(config = {}) {
+    /**
+     * 预设来源于 hot 项目默认分类配置，便于直接迁移现有运营策略。
+     */
+    const defaultFilterPresets = [
+      { key: 'all', name: '全部', type: 'all', id: 0, description: '全部热门文章', enabled: true, sort: 10 },
+      { key: 'aigc', name: 'AIGC', type: 'category', id: 417, description: 'AIGC 分类内容', enabled: true, sort: 20 },
+      { key: 'ai-tools', name: 'AI工具', type: 'category', id: 3351, description: 'AI 工具分类内容', enabled: true, sort: 30 },
+      { key: 'productivity', name: '效率工具', type: 'category', id: 338, description: '效率工具分类内容', enabled: true, sort: 40 },
+      { key: 'design', name: '设计干货', type: 'category', id: 307, description: '设计干货分类内容', enabled: true, sort: 50 },
+    ];
+    const defaultWorkbenchMenuItems = [
+      {
+        key: 'latest-articles',
+        label: '最新文章',
+        mode: 'latest',
+        iconKey: 'latest',
+        source: 'uied_latest',
+        orderBy: 'date',
+        order: 'desc',
+        period: 'all',
+        categoryId: 0,
+        tagId: 0,
+        enabled: true,
+        sort: 10,
+      },
+      {
+        key: 'hot-articles',
+        label: '热门文章',
+        mode: 'hot',
+        iconKey: 'hot',
+        source: 'uied_hot',
+        orderBy: 'views',
+        order: 'desc',
+        period: 'all',
+        categoryId: 417,
+        tagId: 0,
+        enabled: true,
+        sort: 20,
+      },
+      {
+        key: 'ai-realtime',
+        label: 'AI实时文章',
+        mode: 'preset',
+        iconKey: 'ai',
+        source: 'uied_latest',
+        presetKey: 'aigc',
+        fallbackType: 'category',
+        fallbackId: 417,
+        enabled: true,
+        sort: 30,
+      },
+      {
+        key: 'ai-products',
+        label: 'AI产品榜单',
+        mode: 'preset',
+        iconKey: 'product',
+        source: 'uied_latest',
+        presetKey: 'ai-tools',
+        fallbackType: 'category',
+        fallbackId: 3351,
+        enabled: true,
+        sort: 40,
+      },
+      {
+        key: 'design-articles',
+        label: '设计文章',
+        mode: 'preset',
+        iconKey: 'design',
+        source: 'uied_latest',
+        presetKey: 'design',
+        fallbackType: 'category',
+        fallbackId: 307,
+        enabled: true,
+        sort: 50,
+      },
+      {
+        key: 'design-resources',
+        label: '设计素材',
+        mode: 'preset',
+        iconKey: 'resource',
+        source: 'uied_latest',
+        presetKey: 'productivity',
+        fallbackType: 'category',
+        fallbackId: 338,
+        enabled: true,
+        sort: 60,
+      },
+      {
+        key: 'top-authors',
+        label: '优秀作者',
+        mode: 'authorHot',
+        iconKey: 'author',
+        source: 'uied_hot',
+        orderBy: 'comment_count',
+        order: 'desc',
+        period: 'weekly',
+        categoryId: 0,
+        tagId: 0,
+        enabled: true,
+        sort: 70,
+      },
+      {
+        key: 'study-circles',
+        label: '学习圈子',
+        mode: 'circle',
+        iconKey: 'circle',
+        source: 'uied_latest',
+        orderBy: 'date',
+        order: 'desc',
+        period: 'all',
+        categoryId: 0,
+        tagId: 393,
+        enabled: true,
+        sort: 80,
+      },
+      {
+        key: 'back-main-site',
+        label: '返回主站',
+        mode: 'external',
+        iconKey: 'home',
+        source: 'auto',
+        externalUrl: 'https://www.uied.cn',
+        enabled: true,
+        sort: 999,
+      },
+    ];
+
+    const defaults = {
+      enabled: true,
+      displayPlacements: [ 'nav_quick_entry', 'home_menu' ],
+      displayLabel: '热门文章',
+      displayPath: '/p/hot',
+      displaySort: 84,
+      displayOpenInNewTab: false,
+      pageKicker: 'HOT ARTICLES',
+      pageTitle: '热门文章',
+      pageDescription: '同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。',
+      pageSize: 24,
+      defaultOrderBy: 'date',
+      defaultOrder: 'desc',
+      defaultCategoryId: 417,
+      defaultTagId: 0,
+      apiSourceMode: 'auto',
+      motionEnabled: true,
+      heroTagline: '聚合国内外AI精选内容，探索AI技术前沿与应用',
+      linksNewWindow: true,
+      filterPresets: defaultFilterPresets,
+      workbenchMenuItems: defaultWorkbenchMenuItems,
+    };
+    const merged = { ...defaults, ...(config || {}) };
+
+    /**
+     * 规范化入口路径，支持相对路径和外链。
+     */
+    const normalizePath = value => {
+      const text = String(value || '').trim();
+      if (!text) return defaults.displayPath;
+      if (/^(https?:)?\/\//i.test(text)) return text;
+      return text.startsWith('/') ? text : `/${text}`;
+    };
+
+    /**
+     * 规范化入口展示位置并去重。
+     */
+    const normalizePlacements = value => {
+      const allowSet = new Set([ 'nav_quick_entry', 'home_menu', 'footer_link' ]);
+      const rows = Array.isArray(value) ? value : [];
+      const list = rows
+        .map(item => String(item || '').trim())
+        .filter(item => allowSet.has(item));
+      return list.length > 0 ? Array.from(new Set(list)) : defaults.displayPlacements;
+    };
+
+    /**
+     * 规范化筛选项配置，确保 key/type/id/sort 稳定可排序。
+     */
+    const normalizeFilterPresets = value => {
+      const sourceRows = Array.isArray(value) ? value : defaultFilterPresets;
+      const usedKeySet = new Set();
+      const rows = sourceRows
+        .map((item, index) => {
+          const rawKey = String(item?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          const key = rawKey || `preset_${index + 1}`;
+          if (usedKeySet.has(key)) return null;
+          usedKeySet.add(key);
+          const type = String(item?.type || 'category').trim().toLowerCase();
+          const normalizedType = [ 'all', 'category', 'tag' ].includes(type) ? type : 'category';
+          const id = Number.parseInt(String(item?.id || 0), 10);
+          return {
+            key,
+            name: String(item?.name || key).trim() || key,
+            type: normalizedType,
+            id: Number.isInteger(id) && id > 0 ? id : 0,
+            description: String(item?.description || '').trim(),
+            enabled: item?.enabled !== false,
+            sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+          };
+        })
+        .filter(Boolean);
+
+      if (!rows.length) {
+        return defaultFilterPresets.map(item => ({ ...item }));
+      }
+      return rows
+        .sort((a, b) => a.sort - b.sort)
+        .map((item, index) => ({
+          ...item,
+          sort: (index + 1) * 10,
+        }));
+    };
+
+    /**
+     * 限定排序字段，避免写入非法 orderBy 值导致接口报错。
+     */
+    const normalizeOrderBy = value => {
+      const allowSet = new Set([ 'date', 'modified', 'id', 'title', 'slug', 'relevance', 'views', 'comment_count' ]);
+      const text = String(value || '').trim().toLowerCase();
+      return allowSet.has(text) ? text : defaults.defaultOrderBy;
+    };
+
+    /**
+     * 统一排序方向，只允许 asc/desc。
+     */
+    const normalizeOrder = value => {
+      const text = String(value || '').trim().toLowerCase();
+      return text === 'asc' ? 'asc' : 'desc';
+    };
+    /**
+     * 统一 API 来源模式，支持自动/自定义接口/wp-v2。
+     */
+    const normalizeSource = value => {
+      const text = String(value || '').trim().toLowerCase();
+      const allowSet = new Set([ 'auto', 'uied', 'uied_hot', 'uied_latest', 'wp_v2' ]);
+      return allowSet.has(text) ? text : 'auto';
+    };
+    /**
+     * 统一热榜周期字段。
+     */
+    const normalizePeriod = value => {
+      const text = String(value || '').trim().toLowerCase();
+      const allowSet = new Set([ 'all', 'daily', 'weekly', 'monthly' ]);
+      return allowSet.has(text) ? text : 'all';
+    };
+    /**
+     * 统一菜单图标键，兼容 hot 旧项目的图标命名。
+     */
+    const normalizeMenuIconKey = value => {
+      const text = String(value || '').trim();
+      const lower = text.toLowerCase();
+      const allowSet = new Set([ 'latest', 'hot', 'ai', 'product', 'design', 'resource', 'author', 'circle', 'extra', 'home' ]);
+      if (allowSet.has(text)) return text;
+      if (allowSet.has(lower)) return lower;
+      const aliasMap = {
+        file: 'latest',
+        'file-text': 'latest',
+        filetext: 'latest',
+        filetextoutlined: 'latest',
+        star: 'hot',
+        staroutlined: 'hot',
+        robot: 'ai',
+        robotoutlined: 'ai',
+        trophy: 'product',
+        trophyoutlined: 'product',
+        desktop: 'design',
+        desktopoutlined: 'design',
+        appstore: 'resource',
+        appstoreoutlined: 'resource',
+        crown: 'author',
+        crownoutlined: 'author',
+        read: 'circle',
+        readoutlined: 'circle',
+        book: 'circle',
+        home: 'home',
+        homeoutlined: 'home',
+      };
+      return aliasMap[lower] || 'extra';
+    };
+    /**
+     * 规范化工作台菜单，保证 key 唯一、模式和查询字段可控。
+     */
+    const normalizeWorkbenchMenuItems = value => {
+      const rows = Array.isArray(value) ? value : defaultWorkbenchMenuItems;
+      const allowModeSet = new Set([ 'latest', 'hot', 'preset', 'authorHot', 'circle', 'external' ]);
+      const allowFallbackTypeSet = new Set([ 'category', 'tag' ]);
+      const usedKeySet = new Set();
+      const normalizedRows = rows
+        .map((item, index) => {
+          const key = String(item?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || `menu_${index + 1}`;
+          if (usedKeySet.has(key)) return null;
+          usedKeySet.add(key);
+          const mode = allowModeSet.has(String(item?.mode || '').trim()) ? String(item?.mode).trim() : 'latest';
+          const iconKey = normalizeMenuIconKey(item?.iconKey);
+          const categoryId = Number.parseInt(String(item?.categoryId || 0), 10);
+          const tagId = Number.parseInt(String(item?.tagId || 0), 10);
+          const fallbackId = Number.parseInt(String(item?.fallbackId || 0), 10);
+          const fallbackType = allowFallbackTypeSet.has(String(item?.fallbackType || '').trim())
+            ? String(item?.fallbackType).trim()
+            : 'category';
+          const externalUrlRaw = String(item?.externalUrl || '').trim();
+          return {
+            key,
+            label: String(item?.label || key).trim() || key,
+            mode,
+            iconKey,
+            source: normalizeSource(item?.source),
+            presetKey: String(item?.presetKey || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''),
+            fallbackType,
+            fallbackId: Number.isInteger(fallbackId) && fallbackId > 0 ? fallbackId : 0,
+            categoryId: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 0,
+            tagId: Number.isInteger(tagId) && tagId > 0 ? tagId : 0,
+            orderBy: normalizeOrderBy(item?.orderBy),
+            order: normalizeOrder(item?.order),
+            period: normalizePeriod(item?.period),
+            externalUrl: mode === 'external'
+              ? (externalUrlRaw || 'https://www.uied.cn')
+              : '',
+            subtitle: String(item?.subtitle || '').trim(),
+            enabled: item?.enabled !== false,
+            sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+          };
+        })
+        .filter(Boolean);
+      if (!normalizedRows.length) {
+        return defaultWorkbenchMenuItems.map(item => ({ ...item }));
+      }
+      return normalizedRows
+        .sort((a, b) => a.sort - b.sort)
+        .map((item, index) => ({
+          ...item,
+          sort: (index + 1) * 10,
+        }));
+    };
+
+    const defaultCategoryId = Number.parseInt(String(merged.defaultCategoryId || 0), 10);
+    const defaultTagId = Number.parseInt(String(merged.defaultTagId || 0), 10);
+
+    return {
+      ...merged,
+      enabled: merged.enabled !== false,
+      displayPlacements: normalizePlacements(merged.displayPlacements),
+      displayLabel: String(merged.displayLabel || defaults.displayLabel).trim() || defaults.displayLabel,
+      displayPath: normalizePath(merged.displayPath),
+      displaySort: Number.isFinite(Number(merged.displaySort))
+        ? Math.max(1, Math.min(9999, Number(merged.displaySort)))
+        : defaults.displaySort,
+      displayOpenInNewTab: merged.displayOpenInNewTab === true,
+      pageKicker: String(merged.pageKicker || defaults.pageKicker).trim() || defaults.pageKicker,
+      pageTitle: String(merged.pageTitle || defaults.pageTitle).trim() || defaults.pageTitle,
+      pageDescription: String(merged.pageDescription || defaults.pageDescription).trim() || defaults.pageDescription,
+      pageSize: Number.isFinite(Number(merged.pageSize))
+        ? Math.max(1, Math.min(100, Number(merged.pageSize)))
+        : defaults.pageSize,
+      defaultOrderBy: normalizeOrderBy(merged.defaultOrderBy),
+      defaultOrder: normalizeOrder(merged.defaultOrder),
+      defaultCategoryId: Number.isInteger(defaultCategoryId) && defaultCategoryId > 0 ? defaultCategoryId : 0,
+      defaultTagId: Number.isInteger(defaultTagId) && defaultTagId > 0 ? defaultTagId : 0,
+      apiSourceMode: normalizeSource(merged.apiSourceMode),
+      motionEnabled: merged.motionEnabled !== false,
+      heroTagline: String(merged.heroTagline || defaults.heroTagline).trim() || defaults.heroTagline,
+      linksNewWindow: merged.linksNewWindow !== false,
+      filterPresets: normalizeFilterPresets(merged.filterPresets),
+      workbenchMenuItems: normalizeWorkbenchMenuItems(merged.workbenchMenuItems),
+    };
+  }
+
+  /**
    * 规范化分类区域点击模式
    * 兼容历史值：directExternal -> direct
    */
@@ -786,6 +1158,8 @@ class SettingService extends Service {
         value = this.normalizeSearchConfig(rawValue);
       } else if (key === 'detailPageConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeDetailPageConfig(rawValue);
+      } else if (key === 'hotArticlesConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeHotArticlesConfig(rawValue);
       }
       const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
@@ -949,6 +1323,7 @@ class SettingService extends Service {
     const searchConfig = await this.get('searchConfig');
     const exitModalConfig = await this.get('exitModalConfig');
     const detailPageConfig = await this.get('detailPageConfig');
+    const hotArticlesConfig = await this.get('hotArticlesConfig');
     const articleConfig = await this.get('articleConfig');
     const articleTopicsConfig = await this.get('articleTopicsConfig');
     const authConfig = await this.getAuthConfig();
@@ -1166,6 +1541,45 @@ class SettingService extends Service {
       topicsEnabled: true,
     };
 
+    const defaultHotArticlesConfig = {
+      enabled: true,
+      displayPlacements: [ 'nav_quick_entry', 'home_menu' ],
+      displayLabel: '热门文章',
+      displayPath: '/p/hot',
+      displaySort: 84,
+      displayOpenInNewTab: false,
+      pageKicker: 'HOT ARTICLES',
+      pageTitle: '热门文章',
+      pageDescription: '同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。',
+      pageSize: 24,
+      defaultOrderBy: 'date',
+      defaultOrder: 'desc',
+      defaultCategoryId: 417,
+      defaultTagId: 0,
+      apiSourceMode: 'auto',
+      motionEnabled: true,
+      heroTagline: '聚合国内外AI精选内容，探索AI技术前沿与应用',
+      linksNewWindow: true,
+      filterPresets: [
+        { key: 'all', name: '全部', type: 'all', id: 0, description: '全部热门文章', enabled: true, sort: 10 },
+        { key: 'aigc', name: 'AIGC', type: 'category', id: 417, description: 'AIGC 分类内容', enabled: true, sort: 20 },
+        { key: 'ai-tools', name: 'AI工具', type: 'category', id: 3351, description: 'AI 工具分类内容', enabled: true, sort: 30 },
+        { key: 'productivity', name: '效率工具', type: 'category', id: 338, description: '效率工具分类内容', enabled: true, sort: 40 },
+        { key: 'design', name: '设计干货', type: 'category', id: 307, description: '设计干货分类内容', enabled: true, sort: 50 },
+      ],
+      workbenchMenuItems: [
+        { key: 'latest-articles', label: '最新文章', mode: 'latest', iconKey: 'latest', source: 'uied_latest', orderBy: 'date', order: 'desc', period: 'all', categoryId: 0, tagId: 0, enabled: true, sort: 10 },
+        { key: 'hot-articles', label: '热门文章', mode: 'hot', iconKey: 'hot', source: 'uied_hot', orderBy: 'views', order: 'desc', period: 'all', categoryId: 417, tagId: 0, enabled: true, sort: 20 },
+        { key: 'ai-realtime', label: 'AI实时文章', mode: 'preset', iconKey: 'ai', source: 'uied_latest', presetKey: 'aigc', fallbackType: 'category', fallbackId: 417, enabled: true, sort: 30 },
+        { key: 'ai-products', label: 'AI产品榜单', mode: 'preset', iconKey: 'product', source: 'uied_latest', presetKey: 'ai-tools', fallbackType: 'category', fallbackId: 3351, enabled: true, sort: 40 },
+        { key: 'design-articles', label: '设计文章', mode: 'preset', iconKey: 'design', source: 'uied_latest', presetKey: 'design', fallbackType: 'category', fallbackId: 307, enabled: true, sort: 50 },
+        { key: 'design-resources', label: '设计素材', mode: 'preset', iconKey: 'resource', source: 'uied_latest', presetKey: 'productivity', fallbackType: 'category', fallbackId: 338, enabled: true, sort: 60 },
+        { key: 'top-authors', label: '优秀作者', mode: 'authorHot', iconKey: 'author', source: 'uied_hot', orderBy: 'comment_count', order: 'desc', period: 'weekly', categoryId: 0, tagId: 0, enabled: true, sort: 70 },
+        { key: 'study-circles', label: '学习圈子', mode: 'circle', iconKey: 'circle', source: 'uied_latest', orderBy: 'date', order: 'desc', period: 'all', categoryId: 0, tagId: 393, enabled: true, sort: 80 },
+        { key: 'back-main-site', label: '返回主站', mode: 'external', iconKey: 'home', source: 'auto', externalUrl: 'https://www.uied.cn', enabled: true, sort: 999 },
+      ],
+    };
+
     const normalizedPageGlobalConfig = this.normalizePageGlobalConfig(pageGlobalConfig || {});
     const normalizedExitModalConfig = this.normalizeExitModalConfig(exitModalConfig || defaultExitModal);
 
@@ -1182,6 +1596,7 @@ class SettingService extends Service {
       exitModal: normalizedExitModalConfig,
       popup: normalizedExitModalConfig,
       detailPage: this.normalizeDetailPageConfig({ ...defaultDetailPage, ...(detailPageConfig || {}) }),
+      hotArticles: this.normalizeHotArticlesConfig(hotArticlesConfig || defaultHotArticlesConfig),
       article: this.normalizeArticleConfig(articleConfig || defaultArticleConfig),
       articleTopics: this.normalizeArticleTopicsConfig(articleTopicsConfig || {}),
     };

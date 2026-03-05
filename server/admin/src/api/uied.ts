@@ -241,6 +241,26 @@ export function uiedPublicSettings() {
     return request.get({ url: '/uied/setting/public' })
 }
 
+// 获取热门文章（Hot）配置
+export function uiedHotArticlesConfigGet() {
+    return request.get({ url: '/uied/setting/get', params: { key: 'hotArticlesConfig' } })
+}
+
+// 保存热门文章（Hot）配置
+export function uiedHotArticlesConfigSave(params: any) {
+    return request.post({ url: '/uied/setting/save', params: { hotArticlesConfig: params } })
+}
+
+// 获取注册/登录/个人中心配置
+export function uiedSettingAuthConfigGet() {
+    return request.get({ url: '/uied/setting/auth-config' })
+}
+
+// 保存注册/登录/个人中心配置
+export function uiedSettingAuthConfigUpdate(params: any) {
+    return request.post({ url: '/uied/setting/auth-config/update', params })
+}
+
 // 交付初始化预览（不落库）
 export function uiedDeliveryInitPreview(params?: any) {
     return request.get({ url: '/uied/delivery/init/preview', params })

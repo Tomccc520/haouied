@@ -27,6 +27,7 @@ import ChangelogPage from './pages/Changelog';
 import DailyHotPage from './pages/DailyHot';
 import DailyNewPage from './pages/DailyNew';
 import RankingsPage from './pages/Rankings';
+import HotArticlesPage from './pages/HotArticles';
 import WebsiteComparePage from './pages/WebsiteCompare';
 import NotFoundPage from './pages/NotFound';
 import WebsiteDetail from './pages/WebsiteDetail';
@@ -131,6 +132,8 @@ function App() {
             <Route path="/daily-new" element={<DailyNewPage />} />
             <Route path="/p/rankings" element={<RankingsPage />} />
             <Route path="/rankings" element={<RankingsPage />} />
+            <Route path="/p/hot" element={<HotArticlesPage />} />
+            <Route path="/hot" element={<HotArticlesPage />} />
             
             {/* 动态页面路由 - 后台新建的页面通过 /p/xxx 访问 */}
             <Route path="/p/:slug" element={<DynamicPageRoute />} />

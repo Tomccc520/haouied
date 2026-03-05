@@ -50,6 +50,12 @@
   color: #15803d;
 }
 
+.home-quick-entry-link--hot-articles {
+  border-color: rgba(2, 132, 199, 0.22);
+  background: rgba(240, 249, 255, 0.8);
+  color: #0369a1;
+}
+
 /* 顶部区域布局 */
 .home-top-section {
   display: grid;

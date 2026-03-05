@@ -1,0 +1,71 @@
+/**
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-03-05
+ */
+/**
+ * @file HotMotionHero.css
+ * @description 热门文章页头部动效样式
+ */
+
+.hot-motion-hero {
+  position: relative;
+  width: 100%;
+  border: 1px solid #e7ebf3;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+  padding: 18px 16px 14px;
+}
+
+.hot-motion-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(#d7deea 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+  opacity: 0.8;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.95), transparent 88%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.95), transparent 88%);
+}
+
+.hot-motion-hero__canvas {
+  position: relative;
+  z-index: 1;
+  min-height: 250px;
+}
+
+.hot-motion-hero__desc {
+  position: relative;
+  z-index: 1;
+  margin: 10px 0 0;
+  text-align: center;
+  color: #6b7280;
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+@media (max-width: 992px) {
+  .hot-motion-hero__canvas {
+    min-height: 210px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hot-motion-hero {
+    border-radius: 14px;
+    padding: 12px 10px 12px;
+  }
+
+  .hot-motion-hero__canvas {
+    min-height: 180px;
+  }
+
+  .hot-motion-hero__desc {
+    margin-top: 8px;
+    font-size: 14px;
+  }
+}

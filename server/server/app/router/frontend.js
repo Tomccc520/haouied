@@ -191,6 +191,14 @@ module.exports = app => {
   getFeature('/api/wordpress/tags', 'wordpress_channel', controller.uied.frontend.wordpressTags);
   // GET /api/wordpress/widgets/active - WordPress 组件（兼容旧前端）
   getFeature('/api/wordpress/widgets/active', 'wordpress_channel', controller.uied.frontend.wordpressWidgetsActive);
+  // GET /api/wordpress/posts - WordPress 文章代理（前台热门文章页）
+  getFeature('/api/wordpress/posts', 'wordpress_channel', controller.uied.frontend.wordpressPosts);
+  // GET /api/hot-articles/config - 热门文章公开配置
+  getFeature('/api/hot-articles/config', 'wordpress_channel', controller.uied.frontend.hotArticlesConfig);
+  // GET /wordpress/posts - 兼容旧前端无 /api 前缀
+  getLegacyFeature('/wordpress/posts', 'wordpress_channel', controller.uied.frontend.wordpressPosts);
+  // GET /hot-articles/config - 兼容旧前端无 /api 前缀
+  getLegacyFeature('/hot-articles/config', 'wordpress_channel', controller.uied.frontend.hotArticlesConfig);
 
   // GET /api/nav-menus - 获取导航菜单
   get('/api/nav-menus', controller.uied.frontend.navMenus);

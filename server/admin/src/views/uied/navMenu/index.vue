@@ -627,6 +627,7 @@ const iconNameSet = new Set<string>([...getElementPlusIconNames(), ...getLocalIc
 const builtinNavEntryOptions: BuiltinNavEntryOption[] = [
     { key: 'daily_hot', label: '每日热榜', defaultPath: '/p/daily-hot' },
     { key: 'daily_new', label: '每日上新', defaultPath: '/p/daily-new' },
+    { key: 'hot_articles', label: '热门文章', defaultPath: '/p/hot' },
     { key: 'rankings', label: '热门榜单', defaultPath: '/p/rankings' },
     { key: 'submit', label: '投稿入口', defaultPath: '/submit' },
     { key: 'articles', label: '文章频道', defaultPath: '/articles' }

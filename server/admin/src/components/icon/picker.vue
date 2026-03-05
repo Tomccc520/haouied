@@ -1,7 +1,7 @@
 <template>
     <div class="icon-select">
         <el-popover
-            trigger="contextmenu"
+            trigger="click"
             v-model:visible="state.popoverVisible"
             :width="state.popoverWidth"
         >
@@ -44,7 +44,7 @@
                 <el-input
                     ref="inputRef"
                     v-model.trim="state.inputValue"
-                    placeholder="搜索图标"
+                    placeholder="搜索图标（Element Plus / local-icon）"
                     :autofocus="false"
                     :disabled="disabled"
                     @focus="handleFocus"
@@ -98,11 +98,11 @@ const emits = defineEmits<{
 const tabIndex = ref(0)
 const iconTabsMap = [
     {
-        name: 'element图标',
+        name: 'Element Plus',
         icons: getElementPlusIconNames()
     },
     {
-        name: '本地图标',
+        name: 'local-icon',
         icons: getLocalIconNames()
     }
 ]

@@ -347,32 +347,24 @@
                                     "
                                 >
                                     <el-radio-button label="svg">SVG图标库</el-radio-button>
-                                    <el-radio-button label="icon">系统图标</el-radio-button>
+                                    <el-radio-button label="icon">系统图标（Element Plus / local-icon）</el-radio-button>
                                 </el-radio-group>
-                                <el-select
+                                <svg-library-picker
                                     v-if="getCategoryIconMode(item) === 'svg'"
                                     v-model="item.icon"
-                                    clearable
-                                    filterable
-                                    placeholder="选择图标库图标（svg:key）"
-                                    class="page-category-config__selected-svg-select"
-                                >
-                                    <el-option
-                                        v-for="option in categorySvgLibraryOptions"
-                                        :key="option.key"
-                                        :label="`${option.label}（svg:${option.key}）`"
-                                        :value="`svg:${option.key}`"
-                                    />
-                                </el-select>
+                                    :options="categorySvgLibraryOptions"
+                                    class="page-category-config__selected-svg-picker"
+                                />
                                 <icon-picker
                                     v-else
                                     v-model="item.icon"
+                                    class="page-category-config__selected-icon-picker"
                                 />
                                 <div class="page-category-config__selected-icon-tip">
                                     {{
                                         getCategoryIconMode(item) === 'svg'
                                             ? '推荐：使用图标库统一视觉（svg:key）'
-                                            : '系统图标用于快速配置'
+                                            : '可在弹层顶部切换 Element Plus / local-icon 图标源'
                                     }}
                                 </div>
                             </div>
@@ -1269,13 +1261,17 @@ getLists()
     border: 1px solid var(--el-border-color-lighter);
     border-radius: 8px;
     padding: 8px 10px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        'main actions'
+        'editor editor';
+    align-items: start;
     gap: 8px;
 }
 
 .page-category-config__selected-main {
+    grid-area: main;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1329,11 +1325,6 @@ getLists()
     justify-content: center;
 }
 
-.page-category-config__selected-icon--svg :is(svg, path, rect, circle, g) {
-    fill: currentColor;
-    stroke: currentColor;
-}
-
 .page-category-config__selected-icon--svg svg {
     width: 16px;
     height: 16px;
@@ -1345,8 +1336,10 @@ getLists()
 }
 
 .page-category-config__selected-icon-editor {
-    min-width: 260px;
-    max-width: 320px;
+    grid-area: editor;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
     display: grid;
     gap: 6px;
 }
@@ -1359,7 +1352,19 @@ getLists()
     width: 100%;
 }
 
-.page-category-config__selected-svg-select {
+.page-category-config__selected-icon-picker {
+    width: 100%;
+}
+
+.page-category-config__selected-icon-picker :deep(.icon-select) {
+    width: 100%;
+}
+
+.page-category-config__selected-icon-picker :deep(.el-input-group) {
+    width: 100%;
+}
+
+.page-category-config__selected-svg-picker {
     width: 100%;
 }
 
@@ -1370,11 +1375,13 @@ getLists()
 }
 
 .page-category-config__selected-actions {
+    grid-area: actions;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-self: center;
 }
 
 @media (max-width: 960px) {
@@ -1382,7 +1389,11 @@ getLists()
         grid-template-columns: 1fr;
     }
     .page-category-config__selected-item {
-        flex-direction: column;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            'main'
+            'editor'
+            'actions';
     }
     .page-category-config__selected-icon-editor {
         min-width: 100%;

@@ -166,6 +166,8 @@ const rsa = {
     'wordpress:categories:active', // GET /api/wordpress/categories/active
     'wordpress:tags', // GET /api/wordpress/tags
     'wordpress:widgets:active', // GET /api/wordpress/widgets/active
+    'wordpress:posts', // GET /api/wordpress/posts
+    'hot-articles:config', // GET /api/hot-articles/config
     'settings:hot-recommendation-click', // GET /api/settings/hot-recommendation-click
     'nav-menus', // GET /api/nav-menus
     'friend-links', // GET /api/friend-links

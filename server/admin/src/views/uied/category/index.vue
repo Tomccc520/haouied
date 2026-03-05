@@ -31,7 +31,7 @@
                         <el-option
                             v-for="item in topCategories"
                             :key="item.id"
-                            :label="item.name"
+                            :label="item.pathLabel || item.name"
                             :value="item.id"
                         />
                     </el-select>
@@ -72,7 +72,9 @@
                 <el-table-column label="别名" prop="slug" min-width="150" />
                 <el-table-column label="父级" width="120">
                     <template #default="{ row }">
-                        <span v-if="row.parentId === 0" class="text-gray-400">顶级分类</span>
+                        <span v-if="isTopLevelCategory(row.parentId)" class="text-gray-400"
+                            >顶级分类</span
+                        >
                         <span v-else>{{ getParentName(row.parentId) }}</span>
                     </template>
                 </el-table-column>
@@ -119,12 +121,14 @@
                         v-model="editData.parentId"
                         placeholder="请选择父级分类"
                         style="width: 100%"
+                        filterable
+                        clearable
                     >
                         <el-option label="顶级分类" :value="0" />
                         <el-option
-                            v-for="item in topCategories"
+                            v-for="item in availableParentOptions"
                             :key="item.id"
-                            :label="item.name"
+                            :label="item.pathLabel || item.name"
                             :value="item.id"
                         />
                     </el-select>
@@ -138,6 +142,19 @@
                     />
                 </el-form-item>
                 <el-divider content-position="left">SEO 设置（提升搜索引擎排名）</el-divider>
+                <el-form-item label="AI生成SEO">
+                    <el-button
+                        type="primary"
+                        plain
+                        :loading="seoGenerating"
+                        @click="handleGenerateSeoByAi"
+                    >
+                        根据分类名称生成SEO信息
+                    </el-button>
+                    <span class="ml-2 text-gray-400 text-xs">
+                        将自动生成 SEO 标题、描述、关键词
+                    </span>
+                </el-form-item>
                 <el-form-item label="SEO标题">
                     <template #label>
                         <span>SEO标题</span>
@@ -218,12 +235,20 @@ import {
     uiedCategoryAll,
     uiedCategoryAdd,
     uiedCategoryEdit,
-    uiedCategoryDelete
+    uiedCategoryDelete,
+    uiedAiChat
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
+
+interface CategoryOption {
+    id: number
+    name: string
+    parentId: number
+    pathLabel?: string
+}
 
 const queryParams = reactive({
     keyword: '',
@@ -235,29 +260,122 @@ const { pager, getLists, resetPage, resetParams } = usePaging({
     params: queryParams
 })
 
-// 顶级分类列表
-const topCategories = ref<any[]>([])
-const allCategories = ref<any[]>([])
+// 分类选项缓存
+const topCategories = ref<CategoryOption[]>([])
+const allCategories = ref<CategoryOption[]>([])
+
+/**
+ * 规范化父级分类 ID：
+ * 统一将 null/undefined/空值/0 视为顶级分类（0）。
+ */
+const normalizeParentIdValue = (value: unknown): number => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.trunc(parsed)
+}
+
+/**
+ * 判断给定 parentId 是否属于顶级分类。
+ */
+const isTopLevelCategory = (parentId: unknown): boolean => normalizeParentIdValue(parentId) === 0
+
+/**
+ * 构建分类路径标签（例如：设计 / 图标），用于父级下拉更清晰地展示层级。
+ */
+const buildCategoryPathMap = (rows: CategoryOption[]): Record<number, string> => {
+    const byId = new Map<number, CategoryOption>()
+    rows.forEach((item) => byId.set(item.id, item))
+    const cache = new Map<number, string>()
+
+    const resolvePath = (id: number, depth = 0): string => {
+        if (cache.has(id)) return cache.get(id) || ''
+        const current = byId.get(id)
+        if (!current) return ''
+        if (depth > rows.length + 2) return current.name
+        const parentId = normalizeParentIdValue(current.parentId)
+        const label =
+            parentId > 0
+                ? `${resolvePath(parentId, depth + 1)} / ${current.name}`
+                : current.name
+        cache.set(id, label)
+        return label
+    }
+
+    const pathMap: Record<number, string> = {}
+    rows.forEach((item) => {
+        pathMap[item.id] = resolvePath(item.id)
+    })
+    return pathMap
+}
+
+/**
+ * 递归收集某个分类下的全部子孙分类，用于防止将父级设置到自己的子级导致循环。
+ */
+const collectDescendantIds = (rootId: number): Set<number> => {
+    const descendants = new Set<number>()
+    const queue = [ rootId ]
+    while (queue.length > 0) {
+        const current = Number(queue.shift() || 0)
+        if (current <= 0) continue
+        allCategories.value.forEach((item) => {
+            if (normalizeParentIdValue(item.parentId) !== current) return
+            if (descendants.has(item.id)) return
+            descendants.add(item.id)
+            queue.push(item.id)
+        })
+    }
+    return descendants
+}
 
 const getTopCategories = async () => {
     try {
         const res = await uiedCategoryAll()
-        allCategories.value = res || []
-        topCategories.value = (res || []).filter((item: any) => item.parentId === 0)
+        const normalizedRows: CategoryOption[] = (Array.isArray(res) ? res : [])
+            .map((item: any) => ({
+                id: Number(item?.id || 0),
+                name: String(item?.name || '').trim(),
+                parentId: normalizeParentIdValue(item?.parentId)
+            }))
+            .filter((item) => item.id > 0 && item.name.length > 0)
+        const pathMap = buildCategoryPathMap(normalizedRows)
+        allCategories.value = normalizedRows.map((item) => ({
+            ...item,
+            pathLabel: pathMap[item.id] || item.name
+        }))
+        topCategories.value = allCategories.value.filter((item) => item.parentId === 0)
     } catch (error) {
         console.error('获取分类列表失败:', error)
     }
 }
 
-const getParentName = (parentId: number) => {
-    const parent = allCategories.value.find((item) => item.id === parentId)
+/**
+ * 通过父级 ID 获取父级分类名称。
+ */
+const getParentName = (parentId: number | null | undefined) => {
+    const normalizedParentId = normalizeParentIdValue(parentId)
+    if (normalizedParentId === 0) return '顶级分类'
+    const parent = allCategories.value.find((item) => item.id === normalizedParentId)
     return parent?.name || '-'
 }
+
+/**
+ * 父级分类可选项：
+ * 1. 编辑时排除当前分类自身；
+ * 2. 编辑时排除当前分类的全部子孙，避免形成循环层级。
+ */
+const availableParentOptions = computed(() => {
+    const currentId = Number(editData.id || 0)
+    if (currentId <= 0) return allCategories.value
+    const blocked = collectDescendantIds(currentId)
+    blocked.add(currentId)
+    return allCategories.value.filter((item) => !blocked.has(item.id))
+})
 
 // 编辑相关
 const showEdit = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
+const seoGenerating = ref(false)
 const editData = reactive({
     id: 0,
     name: '',
@@ -278,6 +396,116 @@ const editRules: FormRules = {
     slug: [{ required: true, message: '请输入分类别名', trigger: 'blur' }]
 }
 
+/**
+ * 提取 AI 文本中的 JSON 片段并解析。
+ */
+const extractJsonPayload = (content: string): Record<string, any> | null => {
+    const text = String(content || '').trim()
+    if (!text) return null
+    const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+    const candidates = [ codeMatch?.[1] || '', text ]
+    for (const raw of candidates) {
+        const trimmed = String(raw || '').trim()
+        if (!trimmed) continue
+        try {
+            return JSON.parse(trimmed)
+        } catch (_error) {
+            const start = trimmed.indexOf('{')
+            const end = trimmed.lastIndexOf('}')
+            if (start >= 0 && end > start) {
+                try {
+                    return JSON.parse(trimmed.slice(start, end + 1))
+                } catch (__error) {
+                    // ignore
+                }
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * 规范化 SEO 文本字段长度和空白字符。
+ */
+const normalizeSeoText = (value: unknown, maxLength: number): string =>
+    String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, maxLength)
+
+/**
+ * 规范化关键词：支持数组/字符串输入，统一为逗号分隔文本。
+ */
+const normalizeSeoKeywordsText = (value: unknown): string => {
+    const source = Array.isArray(value)
+        ? value.map((item) => String(item || ''))
+        : String(value || '')
+              .split(/[，,]/)
+              .map((item) => String(item || ''))
+    const keywords = source
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 12)
+    return Array.from(new Set(keywords)).join(',')
+}
+
+/**
+ * 生成“分类 SEO”专用提示词。
+ */
+const buildCategorySeoPrompt = (name: string, description: string, slug: string): string => `请根据以下分类信息生成适用于网站目录页的 SEO 内容。
+请直接返回 JSON，不要输出额外解释文字。
+
+分类名称：${name}
+分类描述：${description || '（无）'}
+分类别名：${slug || '（无）'}
+
+输出 JSON 格式：
+{
+  "seoTitle": "30字以内，突出核心关键词",
+  "seoDescription": "80-140字，简明描述该分类收录内容与价值",
+  "seoKeywords": ["关键词1","关键词2","关键词3","关键词4","关键词5"]
+}`
+
+/**
+ * 基于分类名称与描述调用 AI 自动生成 SEO 三字段。
+ */
+const handleGenerateSeoByAi = async () => {
+    const name = String(editData.name || '').trim()
+    if (!name) {
+        feedback.msgWarning('请先填写分类名称，再生成 SEO')
+        return
+    }
+    seoGenerating.value = true
+    try {
+        const prompt = buildCategorySeoPrompt(
+            name,
+            String(editData.description || '').trim(),
+            String(editData.slug || '').trim()
+        )
+        const res = await uiedAiChat({
+            message: prompt,
+            context: []
+        })
+        const reply = String(
+            res?.reply || res?.content || res?.data?.reply || res?.data?.content || ''
+        ).trim()
+        const json = extractJsonPayload(reply)
+        if (!json) {
+            feedback.msgError('AI 返回格式无法解析，请重试')
+            return
+        }
+        editData.seoTitle = normalizeSeoText(json.seoTitle, 200)
+        editData.seoDescription = normalizeSeoText(json.seoDescription, 500)
+        editData.seoKeywords = normalizeSeoKeywordsText(json.seoKeywords)
+        feedback.msgSuccess('已根据分类信息生成 SEO')
+    } catch (error: any) {
+        console.error('AI 生成分类 SEO 失败:', error)
+        feedback.msgError(error?.message || 'AI 生成失败，请检查 AI 配置')
+    } finally {
+        seoGenerating.value = false
+    }
+}
+
 const resetEditData = () => {
     editData.id = 0
     editData.name = ''
@@ -296,7 +524,7 @@ const resetEditData = () => {
 const handleAdd = (parentId?: number) => {
     resetEditData()
     if (parentId) {
-        editData.parentId = parentId
+        editData.parentId = normalizeParentIdValue(parentId)
     }
     showEdit.value = true
 }
@@ -305,7 +533,7 @@ const handleEdit = (row: any) => {
     editData.id = row.id
     editData.name = row.name
     editData.slug = row.slug || ''
-    editData.parentId = row.parentId || 0
+    editData.parentId = normalizeParentIdValue(row.parentId)
     editData.description = row.description || ''
     editData.seoTitle = row.seoTitle || ''
     editData.seoDescription = row.seoDescription || ''
@@ -319,13 +547,29 @@ const handleEdit = (row: any) => {
 
 const handleSubmit = async () => {
     await editFormRef.value?.validate()
+    const normalizedParentId = normalizeParentIdValue(editData.parentId)
+    if (editData.id > 0 && normalizedParentId === Number(editData.id)) {
+        feedback.msgWarning('父级分类不能选择当前分类')
+        return
+    }
+    if (editData.id > 0) {
+        const descendants = collectDescendantIds(Number(editData.id))
+        if (normalizedParentId > 0 && descendants.has(normalizedParentId)) {
+            feedback.msgWarning('父级分类不能选择当前分类的子级')
+            return
+        }
+    }
     editLoading.value = true
     try {
+        const submitData = {
+            ...editData,
+            parentId: normalizedParentId
+        }
         if (editData.id) {
-            await uiedCategoryEdit(editData)
+            await uiedCategoryEdit(submitData)
             feedback.msgSuccess('编辑成功')
         } else {
-            await uiedCategoryAdd(editData)
+            await uiedCategoryAdd(submitData)
             feedback.msgSuccess('添加成功')
         }
         showEdit.value = false

@@ -15,6 +15,47 @@ export interface SvgIconLibraryItem {
 }
 
 /**
+ * 解析 SVG 宽高数值（兼容 px 等单位），用于补齐缺失 viewBox。
+ */
+const parseSvgLength = (value: string | null): number => {
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+  const matched = raw.match(/-?\d+(\.\d+)?/);
+  if (!matched) return 0;
+  const parsed = Number(matched[0]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+/**
+ * 在浏览器端标准化 SVG 尺寸属性，减少侧边栏图标视觉大小不一致。
+ */
+const normalizeSvgViewport = (svgMarkup: string): string => {
+  if (typeof DOMParser === 'undefined') return svgMarkup;
+  try {
+    const doc = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml');
+    const svgElement = doc.querySelector('svg');
+    if (!svgElement) return svgMarkup;
+
+    const width = parseSvgLength(svgElement.getAttribute('width'));
+    const height = parseSvgLength(svgElement.getAttribute('height'));
+    if (!svgElement.getAttribute('viewBox')) {
+      if (width > 0 && height > 0) {
+        svgElement.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      } else {
+        svgElement.setAttribute('viewBox', '0 0 24 24');
+      }
+    }
+    svgElement.removeAttribute('width');
+    svgElement.removeAttribute('height');
+    svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    return svgElement.outerHTML || svgMarkup;
+  } catch (_error) {
+    return svgMarkup;
+  }
+};
+
+/**
  * 清洗 SVG 字符串，避免注入脚本与内联事件。
  */
 export const sanitizeSvgMarkup = (value: unknown): string => {
@@ -27,7 +68,7 @@ export const sanitizeSvgMarkup = (value: unknown): string => {
     .replace(/javascript:/gi, '')
     .trim();
   if (!sanitized.toLowerCase().startsWith('<svg')) return '';
-  return sanitized;
+  return normalizeSvgViewport(sanitized);
 };
 
 /**

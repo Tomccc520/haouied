@@ -30,6 +30,7 @@ class NavMenuService extends Service {
     return {
       daily_hot: '/p/daily-hot',
       daily_new: '/p/daily-new',
+      hot_articles: '/p/hot',
       rankings: '/p/rankings',
       submit: '/submit',
       articles: '/articles',

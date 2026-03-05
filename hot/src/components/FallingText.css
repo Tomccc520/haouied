@@ -1,0 +1,181 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+
+.falling-text-container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  text-align: center;
+  padding-top: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Lexend', sans-serif;
+  background: transparent;
+}
+
+.falling-text-target {
+  display: inline-block;
+  font-family: 'Lexend', sans-serif;
+  font-weight: 500;
+  max-width: 90%;
+  background: transparent;
+  text-align: center;
+}
+
+.word {
+  display: inline-block;
+  margin: 5px; /* 调整间距 */
+  padding: 0 18px; /* 调整水平内边距 */
+  height: 42px; /* 调整为 42px */
+  line-height: 40px; /* (42px - 2px border) 确保垂直居中 */
+  box-sizing: border-box;
+  
+  user-select: none;
+  font-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); /* 优化过渡效果 */
+  cursor: pointer; /* 增加手型光标 */
+  
+  border-radius: 21px; /* 高度的一半 (42/2) */
+  background-color: #ffffff;
+  color: #374151; /* Gray-700 */
+  border: 1px solid #e5e7eb; /* Gray-200 */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03); /* 极淡的阴影 */
+  font-size: 15px; /* 调整字号 */
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.word:hover {
+  transform: translateY(-2px) scale(1.02); /* 悬浮上浮放大 */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08); /* 悬浮加深阴影 */
+  border-color: #d1d5db;
+  z-index: 10;
+}
+
+.icon-item {
+  width: 42px !important; /* 调整为 42px */
+  height: 42px !important;
+  padding: 7px; /* 内部 padding */
+  box-sizing: border-box;
+  
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+  border: 1px solid #e5e7eb;
+  margin: 5px;
+  vertical-align: middle;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  cursor: pointer;
+}
+
+.icon-item:hover {
+  transform: translateY(-2px) scale(1.1); /* 图标放大更多 */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  border-color: #d1d5db;
+  z-index: 10;
+}
+
+/* 颜色配色方案 - 极简科技风格 (Minimalist Tech) */
+/* 核心设计理念：纯白背景 + 柔和彩色阴影/边框，保持画面通透感 */
+
+/* 默认高亮 - 科技蓝 (Tech Blue) - 用于 AI, Agent 等核心词 */
+.highlighted {
+  color: #2563eb; /* Blue-600 */
+  background-color: #ffffff;
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04); /* 统一使用极淡的灰色阴影 */
+}
+
+.highlighted:hover {
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 创意紫 (Creative Purple) - 用于 Midjourney, Sora, 绘画类 */
+.highlight-purple {
+  color: #7c3aed; /* Violet-600 */
+  background-color: #ffffff;
+  border-color: rgba(124, 58, 237, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.highlight-purple:hover {
+  border-color: rgba(124, 58, 237, 0.6);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.1);
+}
+
+/* 灵动绿 (Fresh Green) - 用于 ChatGPT, Gemini, 对话类 */
+.highlight-green {
+  color: #059669; /* Emerald-600 */
+  background-color: #ffffff;
+  border-color: rgba(5, 150, 105, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.highlight-green:hover {
+  border-color: rgba(5, 150, 105, 0.6);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.1);
+}
+
+/* 活力橙 (Warm Orange) - 用于 Claude, Llama, 推理类 */
+.highlight-orange {
+  color: #ea580c; /* Orange-600 */
+  background-color: #ffffff;
+  border-color: rgba(234, 88, 12, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.highlight-orange:hover {
+  border-color: rgba(234, 88, 12, 0.6);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.1);
+}
+
+/* 极客灰 (Geek Gray) - 用于通用技术术语 */
+.highlight-gray {
+  color: #4b5563; /* Gray-600 */
+  background-color: #ffffff;
+  border-color: rgba(107, 114, 128, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.highlight-gray:hover {
+  border-color: rgba(107, 114, 128, 0.6);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.1);
+  color: #1f2937; /* Gray-800 */
+}
+
+/* 为了兼容性保留旧类名，映射到新风格 */
+.highlight-indigo {
+  composes: highlight-purple;
+}
+.highlight-blue {
+  composes: highlighted;
+}
+.highlight-red {
+  composes: highlight-orange;
+}
+.highlight-cyan {
+  composes: highlighted;
+}
+.highlight-teal {
+  composes: highlight-green;
+}
+.highlight-emerald {
+  composes: highlight-green;
+}
+.highlight-rose {
+  composes: highlight-purple;
+}
+.highlight-amber {
+  composes: highlight-orange;
+}
+.highlight-slate {
+  composes: highlight-gray;
+}
+.highlight-black {
+  composes: highlight-gray;
+}

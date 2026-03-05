@@ -14,6 +14,18 @@ const Service = require('egg').Service;
 
 class WordpressConfigService extends Service {
   /**
+   * 构建内置默认 WordPress 源配置（数据库未配置时兜底使用）
+   */
+  buildBuiltinDefaultConfig() {
+    return {
+      id: 0,
+      name: 'UIED 默认源',
+      apiUrl: 'https://www.uied.cn/wp-json/wp/v2',
+      cacheTime: 7200,
+    };
+  }
+
+  /**
    * 判断是否为可降级的库结构兼容错误
    */
   isSchemaCompatibilityError(error) {
@@ -120,7 +132,10 @@ class WordpressConfigService extends Service {
       );
     }
 
-    if (!config) return null;
+    if (!config) {
+      this.ctx.logger.warn('[wordpressConfig] 未配置可用 WordPress 源，自动回退 UIED 默认源');
+      return this.buildBuiltinDefaultConfig();
+    }
 
     return {
       id: config.id,
@@ -584,69 +599,313 @@ class WordpressConfigService extends Service {
   // ==================== WordPress 文章代理 ====================
 
   /**
-   * 代理获取 WordPress 文章
+   * 从 WordPress API 地址推导站点根域名。
+   * @param {string} apiUrl WordPress API 地址
+   * @return {string} 站点根域名
    */
-  async getPosts({ categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search }) {
-    const { ctx } = this;
-
-    const config = await this.getDefaultConfig();
-    if (!config) {
-      throw new Error('没有可用的 WordPress 配置');
+  resolveWordPressSiteOrigin(apiUrl) {
+    const raw = String(apiUrl || '').trim();
+    if (!raw) return 'https://www.uied.cn';
+    try {
+      const url = new URL(raw);
+      return `${url.protocol}//${url.host}`;
+    } catch (_error) {
+      const text = raw.replace(/\/wp-json\/.*$/i, '').replace(/\/+$/, '');
+      return text || 'https://www.uied.cn';
     }
+  }
 
-    // 构建 WordPress API URL
-    let url = `${config.apiUrl}/posts?page=${page}&per_page=${perPage}&orderby=${orderBy}&order=${order}&_embed=true`;
-    if (categoryId) url += `&categories=${categoryId}`;
-    if (tagId) url += `&tags=${tagId}`;
-    if (search) url += `&search=${encodeURIComponent(search)}`;
+  /**
+   * 清理 HTML 并压缩多余空白。
+   * @param {unknown} value 原始 HTML 或文本
+   * @return {string} 纯文本摘要
+   */
+  toPlainText(value) {
+    return String(value || '')
+      .replace(/<\/?[^>]+(>|$)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
 
-    const response = await ctx.curl(url, {
+  /**
+   * 统一请求 WordPress 接口并返回 JSON。
+   * @param {string} url 请求 URL
+   * @param {Record<string, any>} params 查询参数
+   * @return {Promise<any>} 请求响应
+   */
+  async requestWordPressJson(url, params = {}) {
+    const { ctx, app } = this;
+
+    /**
+     * 统一构建 curl 参数，减少重复逻辑。
+     * @param {boolean} insecureTls 是否关闭 TLS 证书校验
+     * @return {Record<string, any>} curl 参数
+     */
+    const buildCurlOptions = insecureTls => ({
       timeout: 15000,
+      data: params,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; UIED-Nav/1.0)',
         Accept: 'application/json',
       },
       dataType: 'json',
+      followRedirect: true,
+      ...(insecureTls ? { rejectUnauthorized: false } : {}),
     });
 
-    if (response.status !== 200) {
-      throw new Error(`WordPress API 错误: ${response.status}`);
+    /**
+     * 判断是否是 TLS 证书链类错误（本地环境常见）。
+     * @param {any} error curl 抛出的异常
+     * @return {boolean} 是否证书错误
+     */
+    const isTlsCertificateError = error => {
+      const code = String(error?.code || error?.name || '').toUpperCase();
+      const message = String(error?.message || '').toLowerCase();
+      return code.includes('CERT')
+        || code.includes('UNABLE_TO_GET_ISSUER_CERT')
+        || message.includes('unable to get local issuer certificate')
+        || message.includes('self signed certificate')
+        || message.includes('certificate');
+    };
+
+    /**
+     * 严格模式请求，优先保证安全。
+     */
+    try {
+      const response = await ctx.curl(url, buildCurlOptions(false));
+      if (response.status !== 200) {
+        throw new Error(`WordPress API 错误: ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      /**
+       * 仅在本地开发环境遇到证书链问题时，降级关闭证书校验重试一次，避免前台直接 500。
+       */
+      const isLocalEnv = String(app.config.env || '').toLowerCase() === 'local';
+      if (!isLocalEnv || !isTlsCertificateError(error)) {
+        throw error;
+      }
+
+      ctx.logger.warn(
+        '[wordpressConfig] TLS 证书校验失败，降级为 rejectUnauthorized=false 重试:',
+        error?.message || error
+      );
+
+      const response = await ctx.curl(url, buildCurlOptions(true));
+      if (response.status !== 200) {
+        throw new Error(`WordPress API 错误: ${response.status}`);
+      }
+      return response;
     }
+  }
 
-    const posts = response.data;
-
-    // 处理文章数据
+  /**
+   * 规范化 WordPress v2 文章列表结构。
+   * @param {Array<any>} posts WordPress v2 原始文章数组
+   * @return {Array<any>} 标准化后的文章列表
+   */
+  normalizeWpV2Posts(posts = []) {
     return posts.map(post => {
       let thumbnail = '';
-      if (post._embedded?.['wp:featuredmedia']?.[0]) {
+      if (post?._embedded?.['wp:featuredmedia']?.[0]) {
         const media = post._embedded['wp:featuredmedia'][0];
         thumbnail = media.source_url || '';
-        if (media.media_details?.sizes?.medium_large) {
+        if (media.media_details?.sizes?.medium_large?.source_url) {
           thumbnail = media.media_details.sizes.medium_large.source_url;
-        } else if (media.media_details?.sizes?.medium) {
+        } else if (media.media_details?.sizes?.medium?.source_url) {
           thumbnail = media.media_details.sizes.medium.source_url;
         }
       }
 
-      let authorName = '';
-      if (post._embedded?.author?.[0]) {
-        authorName = post._embedded.author[0].name || '';
-      }
-
-      let description = post.excerpt?.rendered || '';
-      description = description.replace(/<\/?[^>]+(>|$)/g, '').trim();
+      const authorName = post?._embedded?.author?.[0]?.name || '';
+      const description = this.toPlainText(post?.excerpt?.rendered || post?.content?.rendered || '');
+      const title = String(post?.title?.rendered || '').trim() || '未命名文章';
+      const dateRaw = String(post?.date || '').trim();
 
       return {
-        id: post.id.toString(),
-        name: post.title.rendered,
+        id: String(post?.id || ''),
+        name: title,
         description,
-        link: post.link,
+        link: String(post?.link || '#'),
         thumbnail,
-        date: new Date(post.date).toLocaleDateString(),
+        date: dateRaw ? new Date(dateRaw).toLocaleDateString() : '',
         authorName,
-        isNew: this.isNewPost(post.date),
+        isNew: this.isNewPost(dateRaw),
       };
     });
+  }
+
+  /**
+   * 规范化 UIED 自定义接口文章结构。
+   * @param {Array<any>} rows UIED 自定义接口返回的文章数组
+   * @return {Array<any>} 标准化后的文章列表
+   */
+  normalizeUiedPosts(rows = []) {
+    return rows.map(item => {
+      const title = String(
+        item?.name
+          || item?.title?.rendered
+          || item?.title
+          || item?.post_title
+          || ''
+      ).trim() || '未命名文章';
+      const description = this.toPlainText(
+        item?.description
+          || item?.excerpt?.rendered
+          || item?.excerpt
+          || item?.content?.rendered
+          || item?.content
+          || ''
+      );
+      const link = String(item?.link || item?.url || item?.permalink || '#').trim() || '#';
+      const thumbnail = String(
+        item?.thumbnail
+          || item?.featured_image
+          || item?.featuredImage
+          || item?.cover
+          || item?.image
+          || item?.attachment?.image?.[0]?.thumb
+          || ''
+      ).trim();
+      const authorName = String(
+        item?.authorName
+          || item?.author_name
+          || item?.author?.name
+          || item?.user?.name
+          || ''
+      ).trim();
+      const rawDate = String(item?.date || item?.post_date || item?.create_time || '').trim();
+      const id = String(item?.id || item?.post_id || item?.topic_id || '').trim();
+
+      return {
+        id,
+        name: title,
+        description,
+        link,
+        thumbnail,
+        date: rawDate ? new Date(rawDate).toLocaleDateString() : '',
+        authorName,
+        isNew: this.isNewPost(rawDate),
+      };
+    });
+  }
+
+  /**
+   * 通过 WordPress v2 接口获取文章（稳定兜底）。
+   * @param {Record<string, any>} options 拉取参数
+   * @return {Promise<Array<any>>} 标准化文章数组
+   */
+  async fetchPostsFromWpV2(options = {}) {
+    const { config, categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search } = options;
+    let url = `${config.apiUrl}/posts?page=${page}&per_page=${perPage}&orderby=${orderBy}&order=${order}&_embed=true`;
+    if (categoryId) url += `&categories=${categoryId}`;
+    if (tagId) url += `&tags=${tagId}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+
+    const response = await this.requestWordPressJson(url);
+    const posts = Array.isArray(response.data) ? response.data : [];
+    return this.normalizeWpV2Posts(posts);
+  }
+
+  /**
+   * 通过 UIED 自定义接口获取文章。
+   * @param {Record<string, any>} options 拉取参数
+   * @return {Promise<Array<any>>} 标准化文章数组
+   */
+  async fetchPostsFromUiedApi(options = {}) {
+    const {
+      config,
+      sourceMode = 'uied_latest',
+      categoryId,
+      tagId,
+      page = 1,
+      perPage = 10,
+      orderBy = 'date',
+      order = 'desc',
+      search,
+      period = 'all',
+    } = options;
+    const siteOrigin = this.resolveWordPressSiteOrigin(config.apiUrl);
+    const basePath = `${siteOrigin}/wp-json/uied/v1`;
+    const params = {
+      page,
+      per_page: perPage,
+    };
+
+    let endpoint = '/latest-posts';
+    if (sourceMode === 'uied_hot') {
+      endpoint = '/hot-posts';
+      if (period) params.period = period;
+      if (categoryId) params.category_id = categoryId;
+      if (tagId) params.tag_id = tagId;
+      if (search) params.search = search;
+      if (orderBy) params.orderby = orderBy;
+      if (order) params.order = order;
+    } else if (categoryId) {
+      endpoint = `/category-posts/${categoryId}`;
+      if (orderBy) params.orderby = orderBy;
+      if (order) params.order = order;
+    } else if (tagId) {
+      endpoint = `/tag-posts/${tagId}`;
+      if (orderBy) params.orderby = orderBy;
+      if (order) params.order = order;
+    } else {
+      endpoint = '/latest-posts';
+      if (search) params.search = search;
+      if (orderBy) params.orderby = orderBy;
+      if (order) params.order = order;
+    }
+
+    const response = await this.requestWordPressJson(`${basePath}${endpoint}`, params);
+    const payload = response.data;
+    const rows = Array.isArray(payload)
+      ? payload
+      : (Array.isArray(payload?.items)
+        ? payload.items
+        : (Array.isArray(payload?.data) ? payload.data : []));
+    return this.normalizeUiedPosts(rows);
+  }
+
+  /**
+   * 代理获取 WordPress 文章
+   */
+  async getPosts({ source = 'auto', period = 'all', categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search }) {
+    const config = await this.getDefaultConfig();
+    if (!config) {
+      throw new Error('没有可用的 WordPress 配置');
+    }
+    const normalizedSource = String(source || 'auto').trim().toLowerCase();
+    const normalizedOrderBy = String(orderBy || 'date').trim().toLowerCase();
+    const preferUiedHot = [ 'views', 'view', 'hot', 'comment_count' ].includes(normalizedOrderBy);
+    const sourceMode = normalizedSource === 'auto'
+      ? (preferUiedHot ? 'uied_hot' : 'uied_latest')
+      : (normalizedSource === 'uied' ? 'uied_latest' : normalizedSource);
+
+    const fetchOptions = {
+      config,
+      sourceMode,
+      period: String(period || 'all').trim().toLowerCase(),
+      categoryId,
+      tagId,
+      page: Math.max(1, Number.parseInt(page, 10) || 1),
+      perPage: Math.max(1, Math.min(Number.parseInt(perPage, 10) || 10, 100)),
+      orderBy: normalizedOrderBy,
+      order: String(order || 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc',
+      search: String(search || '').trim(),
+    };
+
+    if ([ 'uied_hot', 'uied_latest' ].includes(sourceMode)) {
+      try {
+        return await this.fetchPostsFromUiedApi(fetchOptions);
+      } catch (error) {
+        this.ctx.logger.warn(
+          '[wordpressConfig] uied 接口拉取失败，自动回退 wp/v2:',
+          error?.message || error
+        );
+      }
+    }
+
+    return await this.fetchPostsFromWpV2(fetchOptions);
   }
 
   /**

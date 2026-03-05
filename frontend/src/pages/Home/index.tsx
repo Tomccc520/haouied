@@ -20,6 +20,7 @@ import DesignArticleGrid from '../../components/DesignArticleGrid';
 import { RankingListSkeleton } from '../../components/Skeleton';
 import { getRankings, getRankingsAggregate } from '../../services/rankingService';
 import { getDailyHotDisplayConfig } from '../../services/dailyHotService';
+import { getHotArticlesDisplayConfig, type HotArticlesDisplayConfig } from '../../services/hotArticleService';
 import { RankingBoardData, RankingPublicConfig } from '../../types/ranking';
 import { DailyHotDisplayConfig } from '../../types/dailyHot';
 import { useBanners } from '../../hooks/useBanners';
@@ -111,6 +112,7 @@ const Home: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [dailyHotDisplayConfig, setDailyHotDisplayConfig] = useState<DailyHotDisplayConfig | null>(null);
+  const [hotArticlesDisplayConfig, setHotArticlesDisplayConfig] = useState<HotArticlesDisplayConfig | null>(null);
   const [rankingsDisplayConfig, setRankingsDisplayConfig] = useState<RankingPublicConfig | null>(null);
   const { config: frontendConfig } = useFrontendConfig();
   const { banners: homeBanners, recordClick: recordBannerClick } = useBanners({
@@ -154,6 +156,14 @@ const Home: React.FC = () => {
   const fetchDailyHotDisplayConfig = useCallback(async () => {
     const config = await getDailyHotDisplayConfig();
     setDailyHotDisplayConfig(config);
+  }, []);
+
+  /**
+   * 读取热门文章公开展示配置（首页快捷入口）
+   */
+  const fetchHotArticlesDisplayConfig = useCallback(async () => {
+    const config = await getHotArticlesDisplayConfig();
+    setHotArticlesDisplayConfig(config);
   }, []);
 
   /**
@@ -308,6 +318,11 @@ const Home: React.FC = () => {
     fetchRankingsDisplayConfig();
   }, [fetchRankingsDisplayConfig]);
 
+  // 读取热门文章前台展示配置（失败时服务层会回退默认值）
+  useEffect(() => {
+    fetchHotArticlesDisplayConfig();
+  }, [fetchHotArticlesDisplayConfig]);
+
   // 当轮播数据源变化时，保证当前索引不越界
   useEffect(() => {
     if (currentSlide >= carouselData.length) {
@@ -389,6 +404,15 @@ const Home: React.FC = () => {
   }, [homepageConfig.dailyNewDisplayPlacements, homepageConfig.dailyNewEnabled]);
 
   /**
+   * 首页“热门文章”快捷入口是否显示
+   */
+  const showHotArticlesQuickEntry = useMemo(() => {
+    if (!hotArticlesDisplayConfig || hotArticlesDisplayConfig.enabled === false) return false;
+    return Array.isArray(hotArticlesDisplayConfig.displayPlacements)
+      && hotArticlesDisplayConfig.displayPlacements.includes('nav_quick_entry');
+  }, [hotArticlesDisplayConfig]);
+
+  /**
    * 获取首页内使用的每日上新入口文案与链接配置
    */
   const dailyNewEntryView = useMemo(() => {
@@ -415,6 +439,28 @@ const Home: React.FC = () => {
     homepageConfig.dailyNewDisplayPath,
     homepageConfig.dailyNewEnabled,
   ]);
+
+  /**
+   * 获取首页内使用的热门文章入口文案与链接配置
+   */
+  const hotArticlesEntryView = useMemo(() => {
+    const fallback = {
+      label: '热门文章',
+      href: '/p/hot',
+      target: '_self' as '_self' | '_blank',
+      rel: undefined as string | undefined,
+    };
+    if (!hotArticlesDisplayConfig || hotArticlesDisplayConfig.enabled === false) return fallback;
+    const href = String(hotArticlesDisplayConfig.displayPath || fallback.href).trim() || fallback.href;
+    const label = String(hotArticlesDisplayConfig.displayLabel || fallback.label).trim() || fallback.label;
+    const newTab = hotArticlesDisplayConfig.displayOpenInNewTab === true;
+    return {
+      label,
+      href,
+      target: newTab ? '_blank' as const : '_self' as const,
+      rel: newTab ? 'noopener noreferrer' : undefined,
+    };
+  }, [hotArticlesDisplayConfig]);
 
   /**
    * 获取首页内使用的榜单系统入口文案与链接配置
@@ -483,6 +529,17 @@ const Home: React.FC = () => {
         className: 'home-quick-entry-link--daily-new',
       });
     }
+    if (showHotArticlesQuickEntry) {
+      entries.push({
+        key: 'hot-articles',
+        sort: Number(hotArticlesDisplayConfig?.displaySort || 84),
+        label: hotArticlesEntryView.label,
+        href: hotArticlesEntryView.href,
+        target: hotArticlesEntryView.target,
+        rel: hotArticlesEntryView.rel,
+        className: 'home-quick-entry-link--hot-articles',
+      });
+    }
     return entries.sort((a, b) => a.sort - b.sort);
   }, [
     dailyHotDisplayConfig?.displaySort,
@@ -494,6 +551,11 @@ const Home: React.FC = () => {
     dailyNewEntryView.label,
     dailyNewEntryView.rel,
     dailyNewEntryView.target,
+    hotArticlesDisplayConfig?.displaySort,
+    hotArticlesEntryView.href,
+    hotArticlesEntryView.label,
+    hotArticlesEntryView.rel,
+    hotArticlesEntryView.target,
     homepageConfig.dailyNewDisplaySort,
     rankingsDisplayConfig?.displaySort,
     rankingsEntryView.href,
@@ -502,6 +564,7 @@ const Home: React.FC = () => {
     rankingsEntryView.target,
     showDailyHotQuickEntry,
     showDailyNewQuickEntry,
+    showHotArticlesQuickEntry,
     showRankingsQuickEntry,
   ]);
 

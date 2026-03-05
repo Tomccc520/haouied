@@ -1,0 +1,110 @@
+/**
+ * @file NotFoundPage.css
+ * @description 404页面组件的样式
+ * @copyright 版权所有 (c) 2024 UIED技术团队
+ * @website https://fsuied.com
+ * @license MIT
+ * @version 1.0.0
+ */
+
+/* 404页面容器样式 */
+.not-found-container {
+  padding: 2rem;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* 错误代码样式 */
+.error-code {
+  font-size: 8rem !important;
+  font-weight: 700 !important;
+  color: #0066ff;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem !important;
+  background: linear-gradient(45deg, #0066ff, #5e9eff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: pulseEffect 3s infinite;
+}
+
+/* 错误标题样式 */
+.error-title {
+  font-weight: 600 !important;
+  margin-bottom: 1.5rem !important;
+  color: #333;
+}
+
+/* 错误信息样式 */
+.error-message {
+  font-size: 1.1rem !important;
+  max-width: 600px;
+  margin: 0 auto 2rem !important;
+  line-height: 1.6 !important;
+}
+
+/* 返回首页按钮样式 */
+.back-home-button {
+  padding: 0.8rem 2rem !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 10px rgba(0, 102, 255, 0.2) !important;
+  transition: all 0.3s ease !important;
+}
+
+.back-home-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 102, 255, 0.3) !important;
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 脉冲效果动画 */
+@keyframes pulseEffect {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 响应式样式 */
+@media (max-width: 768px) {
+  .error-code {
+    font-size: 6rem !important;
+  }
+  
+  .error-title {
+    font-size: 1.5rem !important;
+  }
+  
+  .error-message {
+    font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .error-code {
+    font-size: 4rem !important;
+  }
+  
+  .error-title {
+    font-size: 1.2rem !important;
+  }
+  
+  .not-found-container {
+    padding: 1rem;
+  }
+} 

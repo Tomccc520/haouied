@@ -14,12 +14,12 @@ const Service = require('egg').Service;
 
 class FooterService extends Service {
   /**
-   * 规范化内置入口键（当前先支持 daily_hot，后续可扩展）
+   * 规范化内置入口键（受控白名单，避免保存未知内置键）
    */
   normalizeBuiltinKey(value) {
     const key = String(value || '').trim().toLowerCase();
     if (!key) return '';
-    const allowSet = new Set([ 'daily_hot' ]);
+    const allowSet = new Set([ 'daily_hot', 'daily_new', 'hot_articles', 'rankings' ]);
     return allowSet.has(key) ? key : '';
   }
 
@@ -46,6 +46,9 @@ class FooterService extends Service {
   getBuiltinDefaultUrl(builtinKey) {
     const normalized = this.normalizeBuiltinKey(builtinKey);
     if (normalized === 'daily_hot') return '/p/daily-hot';
+    if (normalized === 'daily_new') return '/p/daily-new';
+    if (normalized === 'hot_articles') return '/p/hot';
+    if (normalized === 'rankings') return '/p/rankings';
     return '';
   }
 
