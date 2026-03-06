@@ -5,20 +5,24 @@
  * @createDate 2026.03.06
  *
  * @file Submit/index.tsx
- * @description 网站提交页面 - 用户提交网站到导航站
+ * @description 网站提交页面 - 基础付费提交与运营加购
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { unwrapApiList, unwrapApiResponse } from '../../utils/apiResponse';
 import { debugLog } from '../../utils/debugHelper';
+import useDetailLayoutWidthMode from '../../hooks/useDetailLayoutWidthMode';
 import SEO from '../../components/SEO';
 import './index.css';
 
 const STORAGE_KEY = 'submit_form_draft';
-type ServiceType = 'ai_growth' | 'paid_boost';
+
+type ServiceType = 'submission';
+type AddonKey = 'top_recommendation' | 'banner_slot';
+type PayChannel = 'alipay' | 'wechat';
 
 interface Category {
   id: string;
@@ -40,6 +44,8 @@ interface SubmitFormData {
   promotionBudget: string;
   promotionTarget: string;
   promotionContact: string;
+  selectedAddons: AddonKey[];
+  bannerPositions: string[];
 }
 
 interface DraftData extends SubmitFormData {
@@ -65,7 +71,7 @@ interface SubmissionPayOrderPayload {
   orderNo?: string;
   submissionId?: string | number;
   serviceType?: ServiceType;
-  payChannel?: 'alipay' | 'wechat';
+  payChannel?: PayChannel;
   amount?: number;
   status?: 'created' | 'paid' | 'free';
   payUrl?: string;
@@ -87,7 +93,7 @@ interface PublicSettingsPayload {
 
 interface SubmissionServiceItemConfig {
   enabled?: boolean;
-  key?: ServiceType;
+  key?: ServiceType | AddonKey;
   label?: string;
   badge?: string;
   description?: string;
@@ -111,8 +117,9 @@ interface SubmissionPublicConfig {
   containerMaxWidth: number;
   pricingTitle: string;
   faqTitle: string;
-  aiGrowthService: SubmissionServiceItemConfig;
-  paidBoostService: SubmissionServiceItemConfig;
+  submitService: SubmissionServiceItemConfig;
+  topRecommendAddon: SubmissionServiceItemConfig;
+  bannerAddon: SubmissionServiceItemConfig;
   faqItems: SubmissionFaqItem[];
   payment: {
     enabled: boolean;
@@ -121,39 +128,102 @@ interface SubmissionPublicConfig {
   };
 }
 
+interface SubmitServiceOption {
+  key: ServiceType | AddonKey;
+  enabled: boolean;
+  title: string;
+  badge: string;
+  description: string;
+  highlights: string[];
+  price: number;
+  originalPrice: number;
+  ctaText: string;
+}
+
+interface BannerPositionOption {
+  value: string;
+  label: string;
+}
+
+interface BannerPositionGroup {
+  key: string;
+  title: string;
+  items: BannerPositionOption[];
+}
+
+const DEFAULT_FORM_DATA: SubmitFormData = {
+  serviceType: 'submission',
+  name: '',
+  description: '',
+  url: '',
+  categoryId: '',
+  tags: '',
+  submitterName: '',
+  submitterEmail: '',
+  promotionPlan: 'standard',
+  promotionBudget: '',
+  promotionTarget: '',
+  promotionContact: '',
+  selectedAddons: [],
+  bannerPositions: [],
+};
+
+const DEFAULT_BANNER_POSITION_OPTIONS: BannerPositionOption[] = [
+  { value: 'home', label: '首页（home）' },
+  { value: 'sidebar', label: '侧边栏（sidebar）' },
+  { value: 'footer', label: '底部（footer）' },
+  { value: 'detail', label: '详情页（detail）' },
+  { value: 'global_strip', label: '全局横条（global_strip）' },
+  { value: 'detail_top', label: '详情顶部（detail_top）' },
+  { value: 'detail_inline', label: '详情正文中（detail_inline）' },
+  { value: 'detail_bottom', label: '详情底部（detail_bottom）' },
+  { value: 'detail_sidebar', label: '详情侧栏（detail_sidebar）' },
+];
+
 const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   enabled: true,
   pageTitle: '提交网站',
-  pageSubtitle: 'AI产品提交及增长服务 / 付费加热推广产品',
-  pageDescription: '提交优质站点并选择合适的增长方案，审核与投放流程统一收口。',
-  containerMaxWidth: 1200,
-  pricingTitle: '服务方案',
+  pageSubtitle: '提交后进入审核与收录流程，可按需加购置顶推荐与 Banner 运营位。',
+  pageDescription: '基础提交为正式收录服务，运营加购项用于新品发布、首页曝光与短期活动冲刺。',
+  containerMaxWidth: 1480,
+  pricingTitle: '服务与加购',
   faqTitle: '常见问题',
-  aiGrowthService: {
+  submitService: {
     enabled: true,
-    key: 'ai_growth',
-    label: 'AI产品提交及增长服务',
-    badge: '推荐',
-    description: '适合首次收录与长期增长，提交后进入审核与推荐流程。',
-    price: 0,
-    originalPrice: 0,
-    ctaText: '免费提交',
-    features: [ 'AI 智能补全站点信息', '审核通过后收录到分类与搜索', '支持后续运营人工优化' ],
+    key: 'submission',
+    label: '付费提交收录',
+    badge: '基础服务',
+    description: '站点提交后进入审核、补充、收录与站内搜索曝光流程。',
+    price: 39,
+    originalPrice: 59,
+    ctaText: '提交并支付',
+    features: [ '站点基础信息审核', '收录到分类页与搜索', '支持后续人工优化建议' ],
   },
-  paidBoostService: {
+  topRecommendAddon: {
     enabled: true,
-    key: 'paid_boost',
-    label: '付费加热推广产品',
-    badge: '商业',
-    description: '适合新品发布和活动期快速曝光，支持指定推广目标与预算。',
+    key: 'top_recommendation',
+    label: '置顶推荐加购',
+    badge: '曝光增强',
+    description: '适合新品上线或短期活动，提升在列表与推荐位的优先级。',
+    price: 99,
+    originalPrice: 129,
+    ctaText: '加购置顶',
+    features: [ '优先排序与推荐位', '适合新品冷启动', '可与 Banner 叠加购买' ],
+  },
+  bannerAddon: {
+    enabled: true,
+    key: 'banner_slot',
+    label: 'Banner 位加购',
+    badge: '高曝光',
+    description: '适合重点活动和商业推广，由运营确认排期后上线对应广告位。',
     price: 199,
     originalPrice: 299,
-    ctaText: '提交并支付',
-    features: [ '首页/频道曝光位优先分发', '支持预算与排期沟通', '运营团队跟进投放' ],
+    ctaText: '加购 Banner',
+    features: [ '首页或频道运营位', '适合发布会/活动期', '支付后人工排期执行' ],
   },
   faqItems: [
     { question: '提交后多久审核？', answer: '通常 1-3 个工作日完成审核。', enabled: true },
-    { question: '付费加热是否保证收录？', answer: '付费加热不改变审核标准，审核通过后进入推广排期。', enabled: true },
+    { question: '置顶推荐和 Banner 位何时生效？', answer: '支付成功后由运营排期，审核通过后执行。', enabled: true },
     { question: '支持哪些支付方式？', answer: '支持支付宝和微信支付。', enabled: true },
   ],
   payment: {
@@ -164,21 +234,30 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
 };
 
 /**
- * 规范化投稿公开配置，避免后端未配置时前端渲染异常。
+ * 规范化投稿公开配置，兼容旧字段并保证前端渲染稳定。
  */
 const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig => {
-  const source = (value && typeof value === 'object') ? (value as Record<string, any>) : {};
-  const aiGrowthService = {
-    ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.aiGrowthService,
-    ...(source.aiGrowthService && typeof source.aiGrowthService === 'object' ? source.aiGrowthService : {}),
+  const source = value && typeof value === 'object' ? (value as Record<string, any>) : {};
+  const submitService = {
+    ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService,
+    ...(source.submitService && typeof source.submitService === 'object'
+      ? source.submitService
+      : (source.aiGrowthService && typeof source.aiGrowthService === 'object' ? source.aiGrowthService : {})),
   };
-  const paidBoostService = {
-    ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.paidBoostService,
-    ...(source.paidBoostService && typeof source.paidBoostService === 'object' ? source.paidBoostService : {}),
+  const topRecommendAddon = {
+    ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon,
+    ...(source.topRecommendAddon && typeof source.topRecommendAddon === 'object'
+      ? source.topRecommendAddon
+      : (source.paidBoostService && typeof source.paidBoostService === 'object' ? source.paidBoostService : {})),
+  };
+  const bannerAddon = {
+    ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon,
+    ...(source.bannerAddon && typeof source.bannerAddon === 'object' ? source.bannerAddon : {}),
   };
   const faqItems = Array.isArray(source.faqItems)
     ? source.faqItems.filter((item: any) => item && item.enabled !== false)
     : DEFAULT_SUBMISSION_PUBLIC_CONFIG.faqItems;
+
   return {
     ...DEFAULT_SUBMISSION_PUBLIC_CONFIG,
     ...source,
@@ -191,8 +270,9 @@ const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig
       : DEFAULT_SUBMISSION_PUBLIC_CONFIG.containerMaxWidth,
     pricingTitle: String(source.pricingTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pricingTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pricingTitle,
     faqTitle: String(source.faqTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.faqTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.faqTitle,
-    aiGrowthService,
-    paidBoostService,
+    submitService,
+    topRecommendAddon,
+    bannerAddon,
     faqItems,
     payment: {
       enabled: source?.payment?.enabled === true,
@@ -202,42 +282,72 @@ const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig
   };
 };
 
-interface SubmitServiceOption {
-  key: ServiceType;
-  enabled: boolean;
-  title: string;
-  subtitle: string;
-  description: string;
-  highlights: string[];
-  price: number;
-  originalPrice: number;
-  ctaText: string;
-}
+/**
+ * 价格格式化，整数显示更干净。
+ */
+const formatPrice = (price: number): string => {
+  if (price <= 0) return '免费';
+  return Number.isInteger(price) ? `¥${price}` : `¥${price.toFixed(2)}`;
+};
 
-const SUBMIT_SERVICE_OPTIONS: SubmitServiceOption[] = [
-  {
-    key: 'ai_growth',
-    enabled: true,
-    title: 'AI产品提交及增长服务',
-    subtitle: '自然收录 + 运营推荐',
-    description: '适合首次收录和长期曝光，提交后进入审核队列并匹配增长位。',
-    highlights: [ 'AI 智能补全站点信息', '通过后进入分类页推荐', '支持后续运营跟进' ],
-    price: 0,
-    originalPrice: 0,
-    ctaText: '免费提交',
-  },
-  {
-    key: 'paid_boost',
-    enabled: true,
-    title: '付费加热推广产品',
-    subtitle: '快速曝光 + 流量加热',
-    description: '适合活动期和新品发布，可直接提交推广目标与预算区间。',
-    highlights: [ '支持已有站点加热', '可选推广排期与预算', '运营专人跟进投放' ],
-    price: 199,
-    originalPrice: 299,
-    ctaText: '提交并支付',
-  },
-];
+/**
+ * 生成订单摘要文案。
+ */
+const getAddonPlanLabel = (selectedAddons: AddonKey[], options: SubmitServiceOption[]): string => {
+  const labels = options
+    .filter((item) => selectedAddons.includes(item.key as AddonKey))
+    .map((item) => item.title);
+  return labels.join(' + ') || '基础收录';
+};
+
+/**
+ * 规范化 Banner 位置值，兼容历史别名与错误拼写。
+ */
+const normalizeBannerPosition = (position: unknown): string => {
+  const raw = String(position || '').trim().toLowerCase();
+  if (!raw) return '';
+  const fixed = raw
+    .replace(/^detall(?=$|[_-])/, 'detail')
+    .replace(/^website-detall/, 'website-detail')
+    .replace(/^website_detall/, 'website_detail');
+  const map: Record<string, string> = {
+    top: 'home',
+    bottom: 'footer',
+    popup: 'detail',
+    website_detail: 'detail',
+    website_detail_sidebar: 'detail_sidebar',
+    'website-detail-sidebar': 'detail_sidebar',
+    'detail-sidebar': 'detail_sidebar',
+    detall: 'detail',
+    detall_top: 'detail_top',
+    detall_inline: 'detail_inline',
+    detall_bottom: 'detail_bottom',
+    detall_sidebar: 'detail_sidebar',
+    'detall-sidebar': 'detail_sidebar',
+  };
+  return map[fixed] || fixed;
+};
+
+/**
+ * 根据位置值输出中文标签，未知值直接回显原值。
+ */
+const getBannerPositionLabel = (position: string): string => {
+  const normalized = normalizeBannerPosition(position);
+  const matched = DEFAULT_BANNER_POSITION_OPTIONS.find((item) => item.value === normalized);
+  if (matched) return matched.label;
+  return normalized ? `其他位置（${normalized}）` : '未知位置';
+};
+
+/**
+ * 获取 Banner 位置分组键，便于运营快速筛选。
+ */
+const getBannerPositionGroupKey = (position: string): 'home' | 'sidebar' | 'detail' | 'other' => {
+  const normalized = normalizeBannerPosition(position);
+  if ([ 'home', 'global_strip', 'footer' ].includes(normalized)) return 'home';
+  if ([ 'sidebar' ].includes(normalized)) return 'sidebar';
+  if ([ 'detail', 'detail_top', 'detail_inline', 'detail_bottom', 'detail_sidebar' ].includes(normalized)) return 'detail';
+  return 'other';
+};
 
 // SVG 图标组件
 const Icons = {
@@ -350,56 +460,57 @@ const Icons = {
   ),
 };
 
-// 可搜索的分类选择器组件
 interface CategorySelectProps {
   categories: Category[];
   value: string;
   onChange: (value: string) => void;
 }
 
+/**
+ * 可搜索分类选择器，保留父子分组结构，减少大量分类下的操作成本。
+ */
 const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 构建分类树结构（只包含有子分类的父分类）
   const categoryTree = useMemo(() => {
-    const parentCategories = categories.filter(c => !c.parentId);
-    return parentCategories
-      .map(parent => ({
-        ...parent,
-        children: categories.filter(c => c.parentId === parent.id)
-      }))
-      .filter(parent => parent.children.length > 0); // 只显示有子分类的父分类
+    const idSet = new Set(categories.map((item) => String(item.id)));
+    const parentCategories = categories.filter((item) => !item.parentId || !idSet.has(String(item.parentId)));
+    return parentCategories.map((parent) => ({
+      ...parent,
+      children: categories.filter((child) => String(child.parentId || '') === String(parent.id)),
+    }));
   }, [categories]);
 
-  // 过滤分类（只搜索子分类）
   const filteredTree = useMemo(() => {
     if (!searchTerm) return categoryTree;
     const term = searchTerm.toLowerCase();
     return categoryTree
-      .map(parent => ({
+      .map((parent) => ({
         ...parent,
-        children: parent.children.filter(child => 
-          child.name.toLowerCase().includes(term)
-        )
+        parentMatched: parent.name.toLowerCase().includes(term),
+        children: parent.children.filter((child) => child.name.toLowerCase().includes(term)),
       }))
-      .filter(parent => parent.children.length > 0);
+      .filter((parent) => parent.parentMatched || parent.children.length > 0);
   }, [categoryTree, searchTerm]);
 
-  // 获取选中的分类名称（只会是子分类）
   const selectedCategory = useMemo(() => {
-    const cat = categories.find(c => c.id === value);
-    if (!cat || !cat.parentId) return null;
-    const parent = categories.find(c => c.id === cat.parentId);
-    return { name: cat.name, parentName: parent?.name };
+    const category = categories.find((item) => item.id === value);
+    if (!category) return null;
+    const parent = category.parentId
+      ? categories.find((item) => String(item.id) === String(category.parentId))
+      : null;
+    return { name: category.name, parentName: parent?.name || '' };
   }, [categories, value]);
 
-  // 点击外部关闭
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    /**
+     * 点击外部关闭下拉。
+     */
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setSearchTerm('');
       }
@@ -408,13 +519,15 @@ const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onCh
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 打开时聚焦搜索框
   useEffect(() => {
     if (isOpen && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
+  /**
+   * 处理分类选中，并在选中后收起面板。
+   */
   const handleSelect = (categoryId: string) => {
     onChange(categoryId);
     setIsOpen(false);
@@ -426,11 +539,11 @@ const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onCh
       <button
         type="button"
         className={`category-select-trigger ${isOpen ? 'open' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen((prev) => !prev)}
       >
         {selectedCategory ? (
           <span className="selected-value">
-            <span className="parent-name">{selectedCategory.parentName} / </span>
+            {selectedCategory.parentName ? <span className="parent-name">{selectedCategory.parentName} / </span> : null}
             {selectedCategory.name}
           </span>
         ) : (
@@ -439,7 +552,7 @@ const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onCh
         <Icons.ChevronDown />
       </button>
 
-      {isOpen && (
+      {isOpen ? (
         <div className="category-select-dropdown">
           <div className="category-search">
             <Icons.Search />
@@ -448,52 +561,54 @@ const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onCh
               type="text"
               placeholder="搜索分类..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              onClick={(event) => event.stopPropagation()}
             />
-            {searchTerm && (
-              <button 
-                type="button" 
+            {searchTerm ? (
+              <button
+                type="button"
                 className="clear-search"
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={(event) => {
+                  event.stopPropagation();
                   setSearchTerm('');
                   inputRef.current?.focus();
                 }}
               >
                 <Icons.X />
               </button>
-            )}
+            ) : null}
           </div>
-          
+
           <div className="category-list">
-            {/* 不选择分类选项 */}
             <div
               className={`category-item clear-option ${!value ? 'selected' : ''}`}
               onClick={() => handleSelect('')}
             >
               <span className="category-name">不选择分类</span>
-              {!value && <Icons.Check />}
+              {!value ? <Icons.Check /> : null}
             </div>
 
             {filteredTree.length === 0 ? (
               <div className="no-results">没有找到匹配的分类</div>
             ) : (
-              filteredTree.map(parent => (
+              filteredTree.map((parent) => (
                 <div key={parent.id} className="category-group">
-                  {/* 父分类作为分组标题，不可点击 */}
-                  <div className="category-group-header">
-                    {parent.name}
+                  <div className="category-group-header">{parent.name}</div>
+                  <div
+                    className={`category-item category-item-parent ${value === parent.id ? 'selected' : ''}`}
+                    onClick={() => handleSelect(parent.id)}
+                  >
+                    <span className="category-name">{parent.name}</span>
+                    {value === parent.id ? <Icons.Check /> : null}
                   </div>
-                  {/* 子分类可选择 */}
-                  {parent.children.map(child => (
+                  {parent.children.map((child) => (
                     <div
                       key={child.id}
                       className={`category-item ${value === child.id ? 'selected' : ''}`}
                       onClick={() => handleSelect(child.id)}
                     >
                       <span className="category-name">{child.name}</span>
-                      {value === child.id && <Icons.Check />}
+                      {value === child.id ? <Icons.Check /> : null}
                     </div>
                   ))}
                 </div>
@@ -501,36 +616,27 @@ const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onCh
             )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
 
 const SubmitPage: React.FC = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<SubmitFormData>({
-    serviceType: 'ai_growth',
-    name: '',
-    description: '',
-    url: '',
-    categoryId: '',
-    tags: '',
-    submitterName: '',
-    submitterEmail: '',
-    promotionPlan: 'basic',
-    promotionBudget: '',
-    promotionTarget: '',
-    promotionContact: '',
-  });
+  const layoutWidthMode = useDetailLayoutWidthMode();
+  const [formData, setFormData] = useState<SubmitFormData>({ ...DEFAULT_FORM_DATA });
   const [categories, setCategories] = useState<Category[]>([]);
+  const [bannerPositionOptions, setBannerPositionOptions] = useState<BannerPositionOption[]>(DEFAULT_BANNER_POSITION_OPTIONS);
+  const [bannerPositionKeyword, setBannerPositionKeyword] = useState('');
+  const [bannerPositionLoading, setBannerPositionLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [configLoading, setConfigLoading] = useState(true);
   const [fetchingIcon, setFetchingIcon] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [iconUrl, setIconUrl] = useState<string>('');
+  const [iconUrl, setIconUrl] = useState('');
   const [submitResult, setSubmitResult] = useState<SubmitResultState | null>(null);
   const [submissionConfig, setSubmissionConfig] = useState<SubmissionPublicConfig>(DEFAULT_SUBMISSION_PUBLIC_CONFIG);
-  const [payChannel, setPayChannel] = useState<'alipay' | 'wechat'>('alipay');
+  const [payChannel, setPayChannel] = useState<PayChannel>('alipay');
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [urlCheckResult, setUrlCheckResult] = useState<{
     checking: boolean;
@@ -539,77 +645,134 @@ const SubmitPage: React.FC = () => {
     message?: string;
     website?: { name: string; url: string };
   }>({ checking: false, exists: false });
+  const layoutStyle = useMemo(
+    () => ({ '--submit-layout-config-max-width': `${submissionConfig.containerMaxWidth || 1480}px` } as CSSProperties),
+    [submissionConfig.containerMaxWidth],
+  );
 
-  const isPaidBoost = formData.serviceType === 'paid_boost';
-  const serviceOptions = useMemo<SubmitServiceOption[]>(() => {
-    const aiService = submissionConfig.aiGrowthService || {};
-    const paidService = submissionConfig.paidBoostService || {};
+  const submitService = useMemo<SubmitServiceOption>(() => {
+    const source = submissionConfig.submitService || {};
+    return {
+      key: 'submission',
+      enabled: source.enabled !== false,
+      title: String(source.label || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.label),
+      badge: String(source.badge || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.badge),
+      description: String(source.description || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.description),
+      highlights: Array.isArray(source.features) && source.features.length > 0
+        ? source.features.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+        : DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.features || [],
+      price: Math.max(0, Number(source.price || 0)),
+      originalPrice: Math.max(0, Number(source.originalPrice || 0)),
+      ctaText: String(source.ctaText || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.ctaText),
+    };
+  }, [submissionConfig.submitService]);
+
+  const addonOptions = useMemo<SubmitServiceOption[]>(() => {
+    const topAddon = submissionConfig.topRecommendAddon || {};
+    const bannerAddon = submissionConfig.bannerAddon || {};
     return [
       {
-        key: 'ai_growth',
-        enabled: aiService.enabled !== false,
-        title: String(aiService.label || SUBMIT_SERVICE_OPTIONS[0].title),
-        subtitle: String(aiService.badge || SUBMIT_SERVICE_OPTIONS[0].subtitle),
-        description: String(aiService.description || SUBMIT_SERVICE_OPTIONS[0].description),
-        highlights: Array.isArray(aiService.features) && aiService.features.length > 0
-          ? aiService.features.map(item => String(item || '').trim()).filter(Boolean).slice(0, 6)
-          : SUBMIT_SERVICE_OPTIONS[0].highlights,
-        price: Math.max(0, Number(aiService.price || 0)),
-        originalPrice: Math.max(0, Number(aiService.originalPrice || 0)),
-        ctaText: String(aiService.ctaText || '免费提交'),
+        key: 'top_recommendation' as AddonKey,
+        enabled: topAddon.enabled !== false,
+        title: String(topAddon.label || DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.label),
+        badge: String(topAddon.badge || DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.badge),
+        description: String(topAddon.description || DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.description),
+        highlights: Array.isArray(topAddon.features) && topAddon.features.length > 0
+          ? topAddon.features.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+          : DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.features || [],
+        price: Math.max(0, Number(topAddon.price || 0)),
+        originalPrice: Math.max(0, Number(topAddon.originalPrice || 0)),
+        ctaText: String(topAddon.ctaText || DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.ctaText),
       },
       {
-        key: 'paid_boost',
-        enabled: paidService.enabled !== false,
-        title: String(paidService.label || SUBMIT_SERVICE_OPTIONS[1].title),
-        subtitle: String(paidService.badge || SUBMIT_SERVICE_OPTIONS[1].subtitle),
-        description: String(paidService.description || SUBMIT_SERVICE_OPTIONS[1].description),
-        highlights: Array.isArray(paidService.features) && paidService.features.length > 0
-          ? paidService.features.map(item => String(item || '').trim()).filter(Boolean).slice(0, 6)
-          : SUBMIT_SERVICE_OPTIONS[1].highlights,
-        price: Math.max(0, Number(paidService.price || 0)),
-        originalPrice: Math.max(0, Number(paidService.originalPrice || 0)),
-        ctaText: String(paidService.ctaText || '提交并支付'),
+        key: 'banner_slot' as AddonKey,
+        enabled: bannerAddon.enabled !== false,
+        title: String(bannerAddon.label || DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.label),
+        badge: String(bannerAddon.badge || DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.badge),
+        description: String(bannerAddon.description || DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.description),
+        highlights: Array.isArray(bannerAddon.features) && bannerAddon.features.length > 0
+          ? bannerAddon.features.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
+          : DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.features || [],
+        price: Math.max(0, Number(bannerAddon.price || 0)),
+        originalPrice: Math.max(0, Number(bannerAddon.originalPrice || 0)),
+        ctaText: String(bannerAddon.ctaText || DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.ctaText),
       },
-    ];
-  }, [submissionConfig]);
-  const enabledServiceOptions = useMemo(
-    () => serviceOptions.filter(item => item.enabled),
-    [serviceOptions]
-  );
-  const currentServiceOption = useMemo(
-    () => enabledServiceOptions.find(item => item.key === formData.serviceType) || enabledServiceOptions[0] || serviceOptions[0],
-    [enabledServiceOptions, formData.serviceType, serviceOptions]
-  );
+    ].filter((item) => item.enabled);
+  }, [submissionConfig.bannerAddon, submissionConfig.topRecommendAddon]);
+
   const faqItems = useMemo(
-    () => (submissionConfig.faqItems || []).filter(item => item && item.enabled !== false && item.question && item.answer),
-    [submissionConfig.faqItems]
+    () => (submissionConfig.faqItems || []).filter((item) => item && item.enabled !== false && item.question && item.answer),
+    [submissionConfig.faqItems],
   );
+
+  const selectedAddonOptions = useMemo(
+    () => addonOptions.filter((item) => formData.selectedAddons.includes(item.key as AddonKey)),
+    [addonOptions, formData.selectedAddons],
+  );
+
+  const bannerPositionGroups = useMemo<BannerPositionGroup[]>(() => {
+    const keyword = bannerPositionKeyword.trim().toLowerCase();
+    const groupTitleMap: Record<string, string> = {
+      home: '首页与全局',
+      sidebar: '通用侧栏',
+      detail: '详情页',
+      other: '其他',
+    };
+    const groupOrder = [ 'home', 'sidebar', 'detail', 'other' ];
+    const groupMap = new Map<string, BannerPositionOption[]>();
+
+    bannerPositionOptions.forEach((item) => {
+      const hit = !keyword
+        || item.label.toLowerCase().includes(keyword)
+        || item.value.toLowerCase().includes(keyword);
+      if (!hit) return;
+      const key = getBannerPositionGroupKey(item.value);
+      const current = groupMap.get(key) || [];
+      current.push(item);
+      groupMap.set(key, current);
+    });
+
+    return groupOrder
+      .map((key) => ({
+        key,
+        title: groupTitleMap[key] || '其他',
+        items: groupMap.get(key) || [],
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [bannerPositionKeyword, bannerPositionOptions]);
+
+  const totalPrice = useMemo(
+    () => submitService.price + selectedAddonOptions.reduce((sum, item) => sum + item.price, 0),
+    [selectedAddonOptions, submitService.price],
+  );
+
+  const shouldRequirePayment = totalPrice > 0;
+
   const paymentChannelOptions = useMemo(
     () => [
       {
         value: 'alipay' as const,
         label: '支付宝官方',
-        desc: '支付宝当面付 / 网页支付',
+        desc: '网页支付 / 当面付',
         enabled: submissionConfig.payment.enabled && submissionConfig.payment.allowAlipay,
       },
       {
         value: 'wechat' as const,
         label: '微信支付官方',
-        desc: '微信 H5 MWEB 支付',
+        desc: 'H5 MWEB 支付',
         enabled: submissionConfig.payment.enabled && submissionConfig.payment.allowWechat,
       },
     ],
-    [submissionConfig.payment]
+    [submissionConfig.payment],
   );
+
   const availablePayChannels = useMemo(
-    () => paymentChannelOptions.filter(item => item.enabled),
-    [paymentChannelOptions]
+    () => paymentChannelOptions.filter((item) => item.enabled),
+    [paymentChannelOptions],
   );
-  const shouldRequirePayment = isPaidBoost && Number(currentServiceOption?.price || 0) > 0;
 
   /**
-   * 统一提取 API 错误文案，兼容 message/msg/error 三种返回键。
+   * 统一提取 API 错误文案，兼容 message/msg/error 三种结构。
    */
   const getApiErrorMessage = useCallback((error: unknown, fallback: string): string => {
     const axiosError = error as AxiosError<Record<string, any>>;
@@ -618,15 +781,14 @@ const SubmitPage: React.FC = () => {
   }, []);
 
   /**
-   * 加载投稿公开配置，驱动前端投稿页文案、定价和支付渠道。
+   * 加载投稿公开配置，驱动前端价格、文案与支付方式。
    */
   const fetchSubmissionConfig = useCallback(async () => {
     setConfigLoading(true);
     try {
       const res = await api.get('/settings/public');
       const settings = unwrapApiResponse<PublicSettingsPayload>(res.data, {});
-      const normalized = normalizeSubmissionPublicConfig(settings?.submission);
-      setSubmissionConfig(normalized);
+      setSubmissionConfig(normalizeSubmissionPublicConfig(settings?.submission));
     } catch (error) {
       debugLog.error('获取投稿公开配置失败，使用默认值:', error);
       setSubmissionConfig(DEFAULT_SUBMISSION_PUBLIC_CONFIG);
@@ -641,14 +803,69 @@ const SubmitPage: React.FC = () => {
   const fetchCategories = useCallback(async () => {
     try {
       const res = await api.get('/categories?flat=true');
-      setCategories(unwrapApiList<Category>(res.data));
+      const rawList = unwrapApiList<Record<string, any>>(res.data);
+      const normalized = rawList
+        .map((item) => ({
+          id: String(item.id || ''),
+          name: String(item.name || '').trim(),
+          slug: String(item.slug || '').trim(),
+          parentId: item.parentId || item.parent_id ? String(item.parentId || item.parent_id) : undefined,
+        }))
+        .filter((item) => item.id && item.name);
+      setCategories(normalized);
     } catch (error) {
       debugLog.error('获取分类失败:', error);
     }
   }, []);
 
   /**
-   * 打开支付链接，浏览器拦截时给出可读提示。
+   * 拉取后台广告管理中的投放位置，并与默认位置合并供 Banner 加购选择。
+   */
+  const fetchBannerPositionOptions = useCallback(async () => {
+    setBannerPositionLoading(true);
+    try {
+      const res = await api.get('/banners');
+      const list = unwrapApiList<Record<string, any>>(res.data);
+      const positionSet = new Set(DEFAULT_BANNER_POSITION_OPTIONS.map((item) => item.value));
+      list.forEach((item) => {
+        const rawPositionList = Array.isArray(item.positionList)
+          ? item.positionList
+          : String(item.position || '')
+            .split(',')
+            .map((position) => String(position || '').trim())
+            .filter(Boolean);
+        rawPositionList.forEach((position) => {
+          const normalized = normalizeBannerPosition(position);
+          if (normalized) positionSet.add(normalized);
+        });
+      });
+
+      const defaultOrderMap = DEFAULT_BANNER_POSITION_OPTIONS.reduce<Record<string, number>>((acc, item, index) => {
+        acc[item.value] = index;
+        return acc;
+      }, {});
+
+      const options = Array.from(positionSet)
+        .map((value) => ({ value, label: getBannerPositionLabel(value) }))
+        .sort((a, b) => {
+          const orderA = defaultOrderMap[a.value];
+          const orderB = defaultOrderMap[b.value];
+          if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+          if (orderA !== undefined) return -1;
+          if (orderB !== undefined) return 1;
+          return a.value.localeCompare(b.value, 'zh-CN');
+        });
+      setBannerPositionOptions(options);
+    } catch (error) {
+      debugLog.error('获取 Banner 位置失败，使用默认位置:', error);
+      setBannerPositionOptions(DEFAULT_BANNER_POSITION_OPTIONS);
+    } finally {
+      setBannerPositionLoading(false);
+    }
+  }, []);
+
+  /**
+   * 尝试在新窗口打开支付链接，若被浏览器拦截则允许用户手动继续支付。
    */
   const openPayWindow = useCallback((payUrl: string): boolean => {
     if (!payUrl) return false;
@@ -656,13 +873,12 @@ const SubmitPage: React.FC = () => {
     return Boolean(opened);
   }, []);
 
-  // 初始化加载配置与分类
   useEffect(() => {
     fetchSubmissionConfig();
     fetchCategories();
-  }, [fetchSubmissionConfig, fetchCategories]);
+    fetchBannerPositionOptions();
+  }, [fetchBannerPositionOptions, fetchCategories, fetchSubmissionConfig]);
 
-  // 从 localStorage 加载草稿
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -670,49 +886,45 @@ const SubmitPage: React.FC = () => {
         const draft: DraftData = JSON.parse(saved);
         const sevenDays = 7 * 24 * 60 * 60 * 1000;
         if (Date.now() - draft.savedAt < sevenDays) {
+          const selectedAddons = Array.isArray(draft.selectedAddons)
+            ? draft.selectedAddons.filter((item): item is AddonKey => item === 'top_recommendation' || item === 'banner_slot')
+            : [];
+          const bannerPositions = Array.isArray(draft.bannerPositions)
+            ? Array.from(new Set(
+              draft.bannerPositions
+                .map((item) => normalizeBannerPosition(item))
+                .filter(Boolean)
+            ))
+            : [];
           setFormData({
-            serviceType: draft.serviceType === 'paid_boost' ? 'paid_boost' : 'ai_growth',
-            name: draft.name || '',
-            description: draft.description || '',
-            url: draft.url || '',
-            categoryId: draft.categoryId || '',
-            tags: draft.tags || '',
-            submitterName: draft.submitterName || '',
-            submitterEmail: draft.submitterEmail || '',
-            promotionPlan: draft.promotionPlan || 'basic',
-            promotionBudget: draft.promotionBudget || '',
-            promotionTarget: draft.promotionTarget || '',
-            promotionContact: draft.promotionContact || '',
+            ...DEFAULT_FORM_DATA,
+            ...draft,
+            serviceType: 'submission',
+            selectedAddons,
+            bannerPositions: selectedAddons.includes('banner_slot') ? bannerPositions : [],
           });
           setIconUrl(draft.iconUrl || '');
         } else {
           localStorage.removeItem(STORAGE_KEY);
         }
       }
-    } catch (e) {
-      debugLog.error('加载草稿失败:', e);
+    } catch (error) {
+      debugLog.error('加载草稿失败:', error);
     }
     setDraftLoaded(true);
   }, []);
 
-  // 自动修正无效服务类型
-  useEffect(() => {
-    const currentEnabled = enabledServiceOptions.some(item => item.key === formData.serviceType);
-    if (!currentEnabled && enabledServiceOptions.length > 0) {
-      setFormData(prev => ({ ...prev, serviceType: enabledServiceOptions[0].key }));
-    }
-  }, [enabledServiceOptions, formData.serviceType]);
-
-  // 自动修正无效支付渠道
   useEffect(() => {
     if (!shouldRequirePayment) return;
-    const exists = availablePayChannels.some(item => item.value === payChannel);
+    const exists = availablePayChannels.some((item) => item.value === payChannel);
     if (!exists && availablePayChannels.length > 0) {
       setPayChannel(availablePayChannels[0].value);
     }
   }, [availablePayChannels, payChannel, shouldRequirePayment]);
 
-  // 保存草稿到 localStorage（防抖）
+  /**
+   * 保存草稿，避免用户关闭页面后内容丢失。
+   */
   const saveDraft = useCallback(() => {
     const draft: DraftData = {
       ...formData,
@@ -721,17 +933,16 @@ const SubmitPage: React.FC = () => {
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    } catch (e) {
-      debugLog.error('保存草稿失败:', e);
+    } catch (error) {
+      debugLog.error('保存草稿失败:', error);
     }
   }, [formData, iconUrl]);
 
-  // 表单数据变化时保存草稿
   useEffect(() => {
     if (!draftLoaded) return;
     const timer = setTimeout(saveDraft, 500);
     return () => clearTimeout(timer);
-  }, [formData, iconUrl, draftLoaded, saveDraft]);
+  }, [draftLoaded, formData, iconUrl, saveDraft]);
 
   /**
    * 清除本地草稿，提交成功后调用。
@@ -739,20 +950,20 @@ const SubmitPage: React.FC = () => {
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {
-      debugLog.error('清除草稿失败:', e);
+    } catch (error) {
+      debugLog.error('清除草稿失败:', error);
     }
   }, []);
 
   /**
-   * 检查 URL 是否已存在（防抖），付费加热允许继续提交。
+   * 检查网址是否已存在，提交站点场景默认禁止重复收录。
    */
   const checkUrlExists = useCallback(async (url: string) => {
     if (!url || !url.startsWith('http')) {
       setUrlCheckResult({ checking: false, exists: false });
       return;
     }
-    setUrlCheckResult(prev => ({ ...prev, checking: true }));
+    setUrlCheckResult((prev) => ({ ...prev, checking: true }));
     try {
       const res = await api.get('/submissions/check-url', { params: { url } });
       const data = unwrapApiResponse<{
@@ -779,43 +990,93 @@ const SubmitPage: React.FC = () => {
     }
   }, []);
 
-  // URL 变化时检查是否存在
   useEffect(() => {
     if (!draftLoaded) return;
     const timer = setTimeout(() => {
       checkUrlExists(formData.url);
     }, 800);
     return () => clearTimeout(timer);
-  }, [formData.url, draftLoaded, checkUrlExists]);
+  }, [checkUrlExists, draftLoaded, formData.url]);
 
   /**
-   * 处理表单输入变化。
+   * 统一处理表单字段变更。
    */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (name === 'url') {
       setUrlCheckResult({ checking: false, exists: false });
     }
   };
 
   /**
-   * 切换所属分类。
+   * 处理分类切换。
    */
   const handleCategoryChange = (categoryId: string) => {
-    setFormData(prev => ({ ...prev, categoryId }));
+    setFormData((prev) => ({ ...prev, categoryId }));
   };
 
   /**
-   * 切换提交服务类型。
+   * 切换加购项，支持同时勾选多个运营位。
    */
-  const handleServiceTypeChange = (serviceType: ServiceType) => {
-    setFormData(prev => ({ ...prev, serviceType }));
+  const handleAddonToggle = (addonKey: AddonKey) => {
+    setFormData((prev) => {
+      const exists = prev.selectedAddons.includes(addonKey);
+      const nextAddons = exists
+        ? prev.selectedAddons.filter((item) => item !== addonKey)
+        : [ ...prev.selectedAddons, addonKey ];
+      return {
+        ...prev,
+        selectedAddons: nextAddons,
+        bannerPositions: nextAddons.includes('banner_slot') ? prev.bannerPositions : [],
+      };
+    });
     setSubmitResult(null);
   };
 
   /**
-   * 获取站点图标（走后台 Favicon API）。
+   * 切换 Banner 投放位置，支持多位置同时投放。
+   */
+  const handleBannerPositionToggle = (position: string) => {
+    const normalized = normalizeBannerPosition(position);
+    if (!normalized) return;
+    setFormData((prev) => {
+      const exists = prev.bannerPositions.includes(normalized);
+      return {
+        ...prev,
+        bannerPositions: exists
+          ? prev.bannerPositions.filter((item) => item !== normalized)
+          : [ ...prev.bannerPositions, normalized ],
+      };
+    });
+  };
+
+  /**
+   * 一键选中全部详情页广告位。
+   */
+  const handleSelectAllDetailBannerPositions = () => {
+    const detailPositions = bannerPositionOptions
+      .map((item) => normalizeBannerPosition(item.value))
+      .filter((value) => getBannerPositionGroupKey(value) === 'detail');
+    const uniqueDetailPositions = Array.from(new Set(detailPositions));
+    setFormData((prev) => ({
+      ...prev,
+      bannerPositions: uniqueDetailPositions,
+    }));
+  };
+
+  /**
+   * 清空已选择的 Banner 投放位置。
+   */
+  const handleClearBannerPositions = () => {
+    setFormData((prev) => ({
+      ...prev,
+      bannerPositions: [],
+    }));
+  };
+
+  /**
+   * 获取站点图标，走后台 Favicon API。
    */
   const handleFetchIcon = async () => {
     if (!formData.url) return;
@@ -832,7 +1093,7 @@ const SubmitPage: React.FC = () => {
   };
 
   /**
-   * 调用 AI 自动补全网站信息。
+   * 使用 AI 自动填写站点标题、描述与标签。
    */
   const handleAiGenerate = async () => {
     if (!formData.url) return;
@@ -840,17 +1101,16 @@ const SubmitPage: React.FC = () => {
     try {
       const res = await api.post('/ai-config/generate-website-info', { url: formData.url });
       const data = unwrapApiResponse<AiGeneratePayload>(res.data, {});
-      const { name, description, tags } = data;
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        name: name || prev.name,
-        description: description || prev.description,
-        tags: tags || prev.tags,
+        name: data.name || prev.name,
+        description: data.description || prev.description,
+        tags: data.tags || prev.tags,
       }));
       if (!iconUrl) {
-        handleFetchIcon();
+        await handleFetchIcon();
       }
-    } catch (error: unknown) {
+    } catch (error) {
       debugLog.error('AI 生成失败:', error as AxiosError<{ error?: string }>);
     } finally {
       setGeneratingAi(false);
@@ -858,43 +1118,59 @@ const SubmitPage: React.FC = () => {
   };
 
   /**
-   * 构建投稿 payload，统一普通提交与支付下单入参。
+   * 构建提交/下单所需 payload，统一普通提交和支付订单入参。
    */
   const buildSubmitPayload = useCallback(() => {
-    const serviceMeta = isPaidBoost
-      ? {
-          plan: formData.promotionPlan,
-          budget: formData.promotionBudget,
-          target: formData.promotionTarget,
-          contact: formData.promotionContact,
-        }
-      : undefined;
+    const addonPlan = getAddonPlanLabel(formData.selectedAddons, addonOptions);
     return {
-      ...formData,
+      serviceType: 'submission' as const,
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      url: formData.url.trim(),
+      categoryId: formData.categoryId || undefined,
+      tags: formData.tags.trim(),
+      submitterName: formData.submitterName.trim(),
+      submitterEmail: formData.submitterEmail.trim(),
       iconUrl: iconUrl || undefined,
-      serviceMeta,
+      serviceMeta: {
+        plan: addonPlan || formData.promotionPlan || '基础收录',
+        budget: formData.promotionBudget.trim(),
+        target: formData.promotionTarget.trim(),
+        contact: formData.promotionContact.trim(),
+        addons: formData.selectedAddons,
+        bannerPositions: formData.bannerPositions,
+      },
     };
-  }, [formData, iconUrl, isPaidBoost]);
+  }, [addonOptions, formData, iconUrl]);
 
   /**
-   * 处理提交动作：免费服务走普通提交，付费服务走支付下单接口。
+   * 提交动作：有价格走支付订单，无价格则直接提交。
    */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!submissionConfig.enabled) {
       setSubmitResult({ success: false, message: '投稿服务暂未开放' });
       return;
     }
-    if (!formData.name || !formData.url) {
+    if (!submitService.enabled) {
+      setSubmitResult({ success: false, message: '基础提交服务暂未开放' });
+      return;
+    }
+    if (!formData.name.trim() || !formData.url.trim()) {
       setSubmitResult({ success: false, message: '请填写网站名称和URL' });
       return;
     }
-    if (!isPaidBoost && urlCheckResult.exists) {
+    if (urlCheckResult.exists) {
       setSubmitResult({ success: false, message: '该网址已存在，不能重复提交收录' });
       return;
     }
-    if (isPaidBoost && (!formData.promotionTarget.trim() || !formData.promotionContact.trim())) {
-      setSubmitResult({ success: false, message: '请选择推广需求并填写联系方式' });
+    if (formData.selectedAddons.length > 0 && !formData.promotionContact.trim()) {
+      setSubmitResult({ success: false, message: '勾选运营加购后，请填写联系方式' });
+      return;
+    }
+    if (formData.selectedAddons.includes('banner_slot') && formData.bannerPositions.length === 0) {
+      setSubmitResult({ success: false, message: '购买 Banner 位时，请至少选择一个投放位置' });
       return;
     }
     if (shouldRequirePayment && !submissionConfig.payment.enabled) {
@@ -924,10 +1200,10 @@ const SubmitPage: React.FC = () => {
           payUrl: payUrl || undefined,
           isPayment: data.status !== 'free',
           message: data.status === 'free'
-            ? '提交成功！该方案当前无需支付。'
+            ? '提交成功！当前配置无需支付。'
             : (opened
-              ? '支付订单已创建，已在新窗口打开支付页面，请完成支付。'
-              : '支付订单已创建，请点击“继续支付”完成支付（浏览器可能拦截了新窗口）。'),
+              ? '支付订单已创建，已为您打开支付页面，请完成付款。'
+              : '支付订单已创建，请点击“继续支付”完成付款。'),
         });
         return;
       }
@@ -937,12 +1213,10 @@ const SubmitPage: React.FC = () => {
       clearDraft();
       setSubmitResult({
         success: true,
-        message: isPaidBoost
-          ? '提交成功！运营同学会尽快联系您确认推广排期。'
-          : '提交成功！我们会尽快审核您的网站。',
         id: data.id ? String(data.id) : undefined,
+        message: '提交成功！我们会尽快审核并完成收录。',
       });
-    } catch (error: unknown) {
+    } catch (error) {
       setSubmitResult({
         success: false,
         message: getApiErrorMessage(error, '提交失败，请稍后重试'),
@@ -953,57 +1227,75 @@ const SubmitPage: React.FC = () => {
   };
 
   /**
-   * 重置表单并清空结果状态。
+   * 重置表单并清空结果态。
    */
   const handleReset = () => {
-    setFormData({
-      serviceType: enabledServiceOptions[0]?.key || 'ai_growth',
-      name: '',
-      description: '',
-      url: '',
-      categoryId: '',
-      tags: '',
-      submitterName: '',
-      submitterEmail: '',
-      promotionPlan: 'basic',
-      promotionBudget: '',
-      promotionTarget: '',
-      promotionContact: '',
-    });
+    setFormData({ ...DEFAULT_FORM_DATA });
     setIconUrl('');
     setSubmitResult(null);
+    setUrlCheckResult({ checking: false, exists: false });
     clearDraft();
   };
 
   /**
-   * 继续支付按钮事件。
+   * 继续支付。
    */
   const handleContinuePay = () => {
     if (!submitResult?.payUrl) return;
     openPayWindow(submitResult.payUrl);
   };
 
+  const stats = useMemo(
+    () => [
+      { label: '基础服务', value: formatPrice(submitService.price) },
+      { label: '可选加购', value: addonOptions.length ? `${addonOptions.length} 项` : '未开启' },
+      { label: '当前合计', value: formatPrice(totalPrice) },
+    ],
+    [addonOptions.length, submitService.price, totalPrice],
+  );
+
   return (
-    <div className="submit-page">
+    <div className={`submit-page submit-page--layout-${layoutWidthMode}`}>
       <SEO
         title={`${submissionConfig.pageTitle || '提交网站'} - UIED设计导航`}
         description={submissionConfig.pageDescription || '向UIED设计导航提交优质设计工具和资源网站。'}
-        keywords="提交网站,产品投稿,加热推广,设计导航"
+        keywords="提交网站,产品投稿,置顶推荐,Banner推广"
       />
 
-      <div className="submit-container" style={{ maxWidth: `${submissionConfig.containerMaxWidth || 1200}px` }}>
-        <div className="submit-header">
-          <div className="header-icon">
-            <Icons.Submit />
-          </div>
+      <div className="submit-page__hero" style={layoutStyle}>
+        <div className="submit-page__hero-main">
+          <p className="submit-page__kicker">Content Submission</p>
           <h1>{submissionConfig.pageTitle || '提交网站'}</h1>
-          <p>{submissionConfig.pageSubtitle || submissionConfig.pageDescription}</p>
+          <p className="submit-page__hero-desc">
+            {submissionConfig.pageSubtitle || submissionConfig.pageDescription}
+          </p>
+          <div className="submit-page__hero-actions">
+            <div className="submit-page__hero-tags">
+              <span>基础提交收录</span>
+              <span>置顶推荐加购</span>
+              <span>Banner 位加购</span>
+            </div>
+            <Link className="submit-page__back-link" to="/">
+              返回首页
+            </Link>
+          </div>
         </div>
 
+        <div className="submit-page__hero-stats">
+          {stats.map((item) => (
+            <div key={item.label} className="submit-page__stat">
+              <span className="submit-page__stat-label">{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="submit-page__shell" style={layoutStyle}>
         {configLoading ? (
-          <div className="submit-loading">正在加载投稿配置...</div>
+          <div className="submit-page__state">正在加载投稿配置...</div>
         ) : !submissionConfig.enabled ? (
-          <div className="submit-closed-card">
+          <div className="submit-page__closed">
             <h2>投稿服务暂未开放</h2>
             <p>请稍后再试，或联系站点运营团队获取开放时间。</p>
             <button className="btn-secondary" onClick={() => navigate('/')}>
@@ -1013,331 +1305,409 @@ const SubmitPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <section className="submit-pricing">
-              <div className="submit-block-header">
-                <h2>{submissionConfig.pricingTitle || '服务方案'}</h2>
-                <p>运营可在后台实时配置方案文案、价格与权益，这里自动同步。</p>
-              </div>
-              <div className="submit-pricing-grid">
-                {enabledServiceOptions.map(service => {
-                  const active = formData.serviceType === service.key;
-                  const iconNode = service.key === 'paid_boost' ? <Icons.Megaphone /> : <Icons.Growth />;
-                  return (
-                    <article
-                      key={service.key}
-                      className={`submit-pricing-card ${active ? 'is-active' : ''}`}
-                    >
-                      <div className="submit-pricing-card__header">
-                        <span className="submit-pricing-card__icon">{iconNode}</span>
-                        <div>
-                          <h3>{service.title}</h3>
-                          {service.subtitle ? <span className="submit-pricing-card__badge">{service.subtitle}</span> : null}
-                        </div>
-                      </div>
-                      <p className="submit-pricing-card__desc">{service.description}</p>
-                      <div className="submit-pricing-card__price">
-                        <strong>{service.price <= 0 ? '免费' : `¥${service.price.toFixed(0)}`}</strong>
-                        {service.originalPrice > service.price ? (
-                          <span>¥{service.originalPrice.toFixed(0)}</span>
-                        ) : null}
-                      </div>
-                      <ul>
-                        {service.highlights.map(text => (
-                          <li key={text}>{text}</li>
-                        ))}
-                      </ul>
-                      <button
-                        type="button"
-                        className={`submit-pricing-card__cta ${active ? 'is-active' : ''}`}
-                        onClick={() => handleServiceTypeChange(service.key)}
-                      >
-                        {service.ctaText || '选择方案'}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            {faqItems.length > 0 ? (
-              <section className="submit-faq">
+            <div className="submit-page__main">
+              <section className="submit-service-card">
                 <div className="submit-block-header">
-                  <h2>{submissionConfig.faqTitle || '常见问题'}</h2>
+                  <h2>{submissionConfig.pricingTitle || '服务与加购'}</h2>
+                  <p>基础服务为正式收录入口，置顶推荐和 Banner 位作为附加曝光能力单独加购。</p>
                 </div>
-                <div className="submit-faq-list">
-                  {faqItems.map((item, index) => (
-                    <details key={`${item.question}-${index}`} className="submit-faq-item">
-                      <summary>{item.question}</summary>
-                      <p>{item.answer}</p>
-                    </details>
-                  ))}
-                </div>
-              </section>
-            ) : null}
 
-            <div className="submit-service-switch">
-              {enabledServiceOptions.map((service) => {
-                const active = formData.serviceType === service.key;
-                const iconNode = service.key === 'paid_boost' ? <Icons.Megaphone /> : <Icons.Growth />;
-                return (
-                  <button
-                    key={service.key}
-                    type="button"
-                    className={`service-card ${active ? 'is-active' : ''}`}
-                    onClick={() => handleServiceTypeChange(service.key)}
-                  >
-                    <div className="service-card__head">
-                      <span className="service-card__icon">{iconNode}</span>
-                      <div className="service-card__title-wrap">
-                        <strong>{service.title}</strong>
-                        <span>{service.subtitle}</span>
-                      </div>
+                <article className="submit-service-card__base">
+                  <div className="submit-service-card__head">
+                    <span className="submit-service-card__icon">
+                      <Icons.Submit />
+                    </span>
+                    <div>
+                      <div className="submit-service-card__eyebrow">{submitService.badge || '基础服务'}</div>
+                      <h3>{submitService.title}</h3>
                     </div>
-                    <p>{service.description}</p>
-                    <div className="service-card__tags">
-                      {service.highlights.slice(0, 3).map(text => (
-                        <span key={text}>{text}</span>
-                      ))}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {submitResult ? (
-              <div className={`submit-result-card ${submitResult.success ? 'success' : 'error'}`}>
-                <div className="result-icon">
-                  {submitResult.success ? <Icons.Success /> : <Icons.Error />}
-                </div>
-                <h2>{submitResult.success ? '提交成功' : '提交失败'}</h2>
-                <p>{submitResult.message}</p>
-                {submitResult.id ? (
-                  <p className="result-id">提交编号: {submitResult.id}</p>
-                ) : null}
-                {submitResult.orderNo ? (
-                  <p className="result-id">支付订单: {submitResult.orderNo}</p>
-                ) : null}
-                <div className="result-actions">
-                  {submitResult.success ? (
-                    <>
-                      <button className="btn-secondary" onClick={handleReset}>
-                        <Icons.Plus />
-                        <span>继续提交</span>
-                      </button>
-                      {submitResult.payUrl ? (
-                        <button className="btn-primary" onClick={handleContinuePay}>
-                          <Icons.Rocket />
-                          <span>继续支付</span>
-                        </button>
-                      ) : (
-                        <button className="btn-primary" onClick={() => navigate('/')}>
-                          <Icons.Home />
-                          <span>返回首页</span>
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <button className="btn-primary" onClick={() => setSubmitResult(null)}>
-                      <Icons.Refresh />
-                      <span>重新填写</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <form className="submit-form" onSubmit={handleSubmit}>
-                <div className="form-section">
-                  <div className="section-title">
-                    <span className="step-number">1</span>
-                    <h3>网站地址（{currentServiceOption?.title || '投稿服务'}）</h3>
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="url">网站URL <span className="required">*</span></label>
-                    <div className="input-with-button">
-                      <input
-                        type="url"
-                        id="url"
-                        name="url"
-                        value={formData.url}
-                        onChange={handleChange}
-                        placeholder="https://example.com"
-                        className={urlCheckResult.exists && !isPaidBoost ? 'has-error' : ''}
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="btn-ai"
-                        onClick={handleAiGenerate}
-                        disabled={generatingAi || !formData.url || (urlCheckResult.exists && !isPaidBoost)}
-                      >
-                        {generatingAi ? (
-                          <span className="loading-text">分析中</span>
+                  <p className="submit-service-card__desc">{submitService.description}</p>
+                  <div className="submit-service-card__price">
+                    <strong>{formatPrice(submitService.price)}</strong>
+                    {submitService.originalPrice > submitService.price ? (
+                      <span>{formatPrice(submitService.originalPrice)}</span>
+                    ) : null}
+                  </div>
+                  <ul className="submit-feature-list">
+                    {submitService.highlights.map((text) => (
+                      <li key={text}>{text}</li>
+                    ))}
+                  </ul>
+                </article>
+
+                {addonOptions.length > 0 ? (
+                  <div className="submit-addon-grid">
+                    {addonOptions.map((addon) => {
+                      const active = formData.selectedAddons.includes(addon.key as AddonKey);
+                      return (
+                        <button
+                          key={addon.key}
+                          type="button"
+                          className={`submit-addon-card ${active ? 'is-active' : ''}`}
+                          onClick={() => handleAddonToggle(addon.key as AddonKey)}
+                        >
+                          <div className="submit-addon-card__head">
+                            <span className="submit-addon-card__icon">
+                              {addon.key === 'banner_slot' ? <Icons.Megaphone /> : <Icons.Growth />}
+                            </span>
+                            <div className="submit-addon-card__title">
+                              <strong>{addon.title}</strong>
+                              <span>{addon.badge}</span>
+                            </div>
+                            <span className="submit-addon-card__toggle">
+                              {active ? '已加购' : '点击加购'}
+                            </span>
+                          </div>
+                          <p>{addon.description}</p>
+                          <div className="submit-addon-card__price">
+                            <strong>{formatPrice(addon.price)}</strong>
+                            {addon.originalPrice > addon.price ? (
+                              <span>{formatPrice(addon.originalPrice)}</span>
+                            ) : null}
+                          </div>
+                          <div className="submit-addon-card__tags">
+                            {addon.highlights.slice(0, 3).map((text) => (
+                              <span key={text}>{text}</span>
+                            ))}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </section>
+
+              {submitResult ? (
+                <div className={`submit-result-card ${submitResult.success ? 'success' : 'error'}`}>
+                  <div className="result-icon">
+                    {submitResult.success ? <Icons.Success /> : <Icons.Error />}
+                  </div>
+                  <h2>{submitResult.success ? '提交成功' : '提交失败'}</h2>
+                  <p>{submitResult.message}</p>
+                  {submitResult.id ? <p className="result-id">提交编号：{submitResult.id}</p> : null}
+                  {submitResult.orderNo ? <p className="result-id">支付订单：{submitResult.orderNo}</p> : null}
+                  <div className="result-actions">
+                    {submitResult.success ? (
+                      <>
+                        <button className="btn-secondary" onClick={handleReset}>
+                          <Icons.Plus />
+                          <span>继续提交</span>
+                        </button>
+                        {submitResult.payUrl ? (
+                          <button className="btn-primary" onClick={handleContinuePay}>
+                            <Icons.Rocket />
+                            <span>继续支付</span>
+                          </button>
                         ) : (
-                          <>
-                            <Icons.AI />
-                            <span>AI智能填写</span>
-                          </>
+                          <button className="btn-primary" onClick={() => navigate('/')}>
+                            <Icons.Home />
+                            <span>返回首页</span>
+                          </button>
                         )}
-                      </button>
-                    </div>
-                    {urlCheckResult.checking ? (
-                      <p className="form-hint checking">
-                        <span className="checking-dot"></span>
-                        正在检查网址...
-                      </p>
-                    ) : urlCheckResult.exists ? (
-                      <div className={`url-exists-warning ${isPaidBoost ? 'is-info' : ''}`}>
-                        <Icons.Info />
-                        <span>
-                          {isPaidBoost ? '该网址已收录，可继续提交加热推广需求' : urlCheckResult.message}
-                          {urlCheckResult.website ? (
-                            <>：<strong>{urlCheckResult.website.name}</strong></>
-                          ) : null}
-                        </span>
-                      </div>
-                    ) : formData.url && formData.url.startsWith('http') ? (
-                      <p className="form-hint success">
-                        <Icons.Check />
-                        该网址可以提交
-                      </p>
+                      </>
                     ) : (
-                      <p className="form-hint">输入网站地址后，可使用AI智能填写网站信息</p>
+                      <button className="btn-primary" onClick={() => setSubmitResult(null)}>
+                        <Icons.Refresh />
+                        <span>重新填写</span>
+                      </button>
                     )}
                   </div>
                 </div>
-
-                <div className="form-section">
-                  <div className="section-title">
-                    <span className="step-number">2</span>
-                    <h3>网站信息</h3>
-                  </div>
-
-                  <div className="form-group icon-group">
-                    <label>网站图标</label>
-                    <div className="icon-preview">
-                      {iconUrl ? (
-                        <img src={iconUrl} alt="网站图标" className="icon-img" />
-                      ) : (
-                        <div className="icon-placeholder">
-                          <Icons.Globe />
-                        </div>
-                      )}
-                      <div className="icon-actions">
+              ) : (
+                <form className="submit-form" onSubmit={handleSubmit}>
+                  <div className="form-section">
+                    <div className="section-title">
+                      <span className="step-number">1</span>
+                      <h3>网站地址</h3>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="url">
+                        网站URL <span className="required">*</span>
+                      </label>
+                      <div className="input-with-button">
+                        <input
+                          type="url"
+                          id="url"
+                          name="url"
+                          value={formData.url}
+                          onChange={handleChange}
+                          placeholder="https://example.com"
+                          className={urlCheckResult.exists ? 'has-error' : ''}
+                          required
+                        />
                         <button
                           type="button"
-                          className="btn-text"
-                          onClick={handleFetchIcon}
-                          disabled={fetchingIcon || !formData.url}
+                          className="btn-ai"
+                          onClick={handleAiGenerate}
+                          disabled={generatingAi || !formData.url || urlCheckResult.exists}
                         >
-                          <Icons.Refresh />
-                          <span>{fetchingIcon ? '获取中...' : '获取图标'}</span>
+                          {generatingAi ? (
+                            <span className="loading-text">分析中</span>
+                          ) : (
+                            <>
+                              <Icons.AI />
+                              <span>AI智能填写</span>
+                            </>
+                          )}
                         </button>
+                      </div>
+                      {urlCheckResult.checking ? (
+                        <p className="form-hint checking">
+                          <span className="checking-dot" />
+                          正在检查网址...
+                        </p>
+                      ) : urlCheckResult.exists ? (
+                        <div className="url-exists-warning">
+                          <Icons.Info />
+                          <span>
+                            {urlCheckResult.message || '该网址已存在，不能重复提交收录'}
+                            {urlCheckResult.website ? <>：<strong>{urlCheckResult.website.name}</strong></> : null}
+                          </span>
+                        </div>
+                      ) : formData.url && formData.url.startsWith('http') ? (
+                        <p className="form-hint success">
+                          <Icons.Check />
+                          该网址可以提交
+                        </p>
+                      ) : (
+                        <p className="form-hint">输入网站地址后，可直接使用 AI 自动补全站点信息</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-section">
+                    <div className="section-title">
+                      <span className="step-number">2</span>
+                      <h3>站点信息</h3>
+                    </div>
+
+                    <div className="form-group icon-group">
+                      <label>网站图标</label>
+                      <div className="icon-preview">
                         {iconUrl ? (
-                          <button type="button" className="btn-text danger" onClick={() => setIconUrl('')}>
-                            <Icons.X />
-                            <span>清除</span>
+                          <img src={iconUrl} alt="网站图标" className="icon-img" />
+                        ) : (
+                          <div className="icon-placeholder">
+                            <Icons.Globe />
+                          </div>
+                        )}
+                        <div className="icon-actions">
+                          <button
+                            type="button"
+                            className="btn-text"
+                            onClick={handleFetchIcon}
+                            disabled={fetchingIcon || !formData.url}
+                          >
+                            <Icons.Refresh />
+                            <span>{fetchingIcon ? '获取中...' : '获取图标'}</span>
                           </button>
-                        ) : null}
+                          {iconUrl ? (
+                            <button type="button" className="btn-text danger" onClick={() => setIconUrl('')}>
+                              <Icons.X />
+                              <span>清除</span>
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="form-row">
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="name">
+                          网站名称 <span className="required">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="name"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleChange}
+                          placeholder="如：Dribbble"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>所属分类</label>
+                        <CategorySelect
+                          categories={categories}
+                          value={formData.categoryId}
+                          onChange={handleCategoryChange}
+                        />
+                      </div>
+                    </div>
+
                     <div className="form-group">
-                      <label htmlFor="name">网站名称 <span className="required">*</span></label>
+                      <label htmlFor="description">网站描述</label>
+                      <textarea
+                        id="description"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        placeholder="简要描述这个网站的功能和特点（50-200字为佳）"
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="tags">标签</label>
                       <input
                         type="text"
-                        id="name"
-                        name="name"
-                        value={formData.name}
+                        id="tags"
+                        name="tags"
+                        value={formData.tags}
                         onChange={handleChange}
-                        placeholder="如：Dribbble"
-                        required
+                        placeholder="多个标签用逗号分隔，如：设计, 灵感, UI"
                       />
-                    </div>
-                    <div className="form-group">
-                      <label>所属分类</label>
-                      <CategorySelect
-                        categories={categories}
-                        value={formData.categoryId}
-                        onChange={handleCategoryChange}
-                      />
+                      <p className="form-hint">添加标签有助于用户更快找到这个网站</p>
                     </div>
                   </div>
 
-                  <div className="form-group">
-                    <label htmlFor="description">网站描述</label>
-                    <textarea
-                      id="description"
-                      name="description"
-                      value={formData.description}
-                      onChange={handleChange}
-                      placeholder="简要描述这个网站的功能和特点（50-200字为佳）"
-                      rows={4}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="tags">标签</label>
-                    <input
-                      type="text"
-                      id="tags"
-                      name="tags"
-                      value={formData.tags}
-                      onChange={handleChange}
-                      placeholder="多个标签用逗号分隔，如：设计, 灵感, UI"
-                    />
-                    <p className="form-hint">添加标签有助于用户更快找到这个网站</p>
-                  </div>
-                </div>
-
-                {isPaidBoost ? (
                   <div className="form-section">
                     <div className="section-title">
                       <span className="step-number">3</span>
-                      <h3>加热推广需求</h3>
+                      <h3>运营需求（选填）</h3>
                     </div>
+
                     <div className="form-row">
                       <div className="form-group">
-                        <label htmlFor="promotionPlan">推广套餐</label>
+                        <label htmlFor="promotionPlan">投放方向</label>
                         <select
                           id="promotionPlan"
                           name="promotionPlan"
                           value={formData.promotionPlan}
                           onChange={handleChange}
                         >
-                          <option value="basic">基础加热（首页曝光）</option>
-                          <option value="plus">进阶加热（分类 + 首页）</option>
-                          <option value="pro">深度加热（多运营位联动）</option>
-                          <option value="custom">定制方案（人工沟通）</option>
+                          <option value="standard">标准收录</option>
+                          <option value="launch">新品上线</option>
+                          <option value="campaign">活动推广</option>
+                          <option value="custom">定制沟通</option>
                         </select>
                       </div>
                       <div className="form-group">
-                        <label htmlFor="promotionBudget">预算区间</label>
+                        <label htmlFor="promotionBudget">预算说明</label>
                         <input
                           type="text"
                           id="promotionBudget"
                           name="promotionBudget"
                           value={formData.promotionBudget}
                           onChange={handleChange}
-                          placeholder="例如：2k-5k / 月"
+                          placeholder="例如：2k-5k / 本期"
                         />
                       </div>
                     </div>
+
+                    {formData.selectedAddons.includes('banner_slot') ? (
+                      <div className="form-group">
+                        <label>
+                          Banner 投放位置 <span className="required">*</span>
+                        </label>
+                        <div className="banner-position-toolbar">
+                          <div className="banner-position-search">
+                            <Icons.Search />
+                            <input
+                              type="text"
+                              value={bannerPositionKeyword}
+                              onChange={(event) => setBannerPositionKeyword(event.target.value)}
+                              placeholder="搜索投放位置..."
+                            />
+                            {bannerPositionKeyword ? (
+                              <button
+                                type="button"
+                                className="banner-position-search__clear"
+                                onClick={() => setBannerPositionKeyword('')}
+                              >
+                                <Icons.X />
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="banner-position-actions">
+                            <button type="button" className="btn-text" onClick={handleSelectAllDetailBannerPositions}>
+                              选中全部详情位
+                            </button>
+                            <button type="button" className="btn-text danger" onClick={handleClearBannerPositions}>
+                              清空已选
+                            </button>
+                          </div>
+                        </div>
+                        <div className="banner-position-picker">
+                          {bannerPositionGroups.length > 0 ? (
+                            bannerPositionGroups.map((group) => (
+                              <section key={group.key} className="banner-position-group">
+                                <div className="banner-position-group__title">{group.title}</div>
+                                <div className="banner-position-group__chips">
+                                  {group.items.map((item) => {
+                                    const active = formData.bannerPositions.includes(item.value);
+                                    return (
+                                      <button
+                                        key={item.value}
+                                        type="button"
+                                        className={`banner-position-chip ${active ? 'is-active' : ''}`}
+                                        onClick={() => handleBannerPositionToggle(item.value)}
+                                      >
+                                        {item.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </section>
+                            ))
+                          ) : (
+                            <div className="banner-position-empty">没有匹配的位置，请修改关键词。</div>
+                          )}
+                        </div>
+                        {bannerPositionLoading ? (
+                          <p className="form-hint checking">
+                            <span className="checking-dot" />
+                            正在同步广告位配置...
+                          </p>
+                        ) : (
+                          <p className="form-hint">位置来源于后台广告管理，可多选。</p>
+                        )}
+                      </div>
+                    ) : null}
+
                     <div className="form-group">
-                      <label htmlFor="promotionTarget">推广目标 <span className="required">*</span></label>
+                      <label htmlFor="promotionTarget">运营备注</label>
                       <textarea
                         id="promotionTarget"
                         name="promotionTarget"
                         value={formData.promotionTarget}
                         onChange={handleChange}
-                        placeholder="请描述目标用户、上线时间和预期效果"
+                        placeholder="如：希望投放首页 Banner、分类频道、活动时间等"
                         rows={3}
-                        required={isPaidBoost}
                       />
                     </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="submitterName">您的称呼</label>
+                        <input
+                          type="text"
+                          id="submitterName"
+                          name="submitterName"
+                          value={formData.submitterName}
+                          onChange={handleChange}
+                          placeholder="可选"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="submitterEmail">您的邮箱</label>
+                        <input
+                          type="email"
+                          id="submitterEmail"
+                          name="submitterEmail"
+                          value={formData.submitterEmail}
+                          onChange={handleChange}
+                          placeholder="可选，方便同步审核结果"
+                        />
+                      </div>
+                    </div>
+
                     <div className="form-group">
-                      <label htmlFor="promotionContact">联系方式 <span className="required">*</span></label>
+                      <label htmlFor="promotionContact">
+                        联系方式{formData.selectedAddons.length > 0 ? <span className="required">*</span> : null}
+                      </label>
                       <input
                         type="text"
                         id="promotionContact"
@@ -1345,105 +1715,133 @@ const SubmitPage: React.FC = () => {
                         value={formData.promotionContact}
                         onChange={handleChange}
                         placeholder="微信 / 手机 / 邮箱"
-                        required={isPaidBoost}
                       />
                     </div>
-                    {shouldRequirePayment ? (
-                      <div className="form-group">
-                        <label>支付方式 <span className="required">*</span></label>
-                        <div className="pay-channel-group">
-                          {paymentChannelOptions.map(channel => (
-                            <label
-                              key={channel.value}
-                              className={`pay-channel-item ${payChannel === channel.value ? 'is-active' : ''} ${channel.enabled ? '' : 'is-disabled'}`}
-                            >
-                              <input
-                                type="radio"
-                                name="payChannel"
-                                value={channel.value}
-                                checked={payChannel === channel.value}
-                                disabled={!channel.enabled}
-                                onChange={() => setPayChannel(channel.value)}
-                              />
-                              <span className="pay-channel-item__name">{channel.label}</span>
-                              <span className="pay-channel-item__desc">{channel.desc}</span>
-                            </label>
-                          ))}
-                        </div>
-                        {!submissionConfig.payment.enabled ? (
-                          <p className="form-hint">支付功能尚未开放，请联系管理员。</p>
-                        ) : null}
-                      </div>
-                    ) : null}
+                  </div>
+
+                  <div className="form-actions">
+                    <button type="button" className="btn-secondary" onClick={() => navigate(-1)}>
+                      <Icons.ArrowLeft />
+                      <span>取消</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={loading || urlCheckResult.exists}
+                    >
+                      {loading ? (
+                        <span className="loading-text">提交中</span>
+                      ) : (
+                        <>
+                          <Icons.Rocket />
+                          <span>{submitService.ctaText || '提交并支付'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {faqItems.length > 0 ? (
+                <section className="submit-faq">
+                  <div className="submit-block-header">
+                    <h2>{submissionConfig.faqTitle || '常见问题'}</h2>
+                  </div>
+                  <div className="submit-faq-list">
+                    {faqItems.map((item, index) => (
+                      <details key={`${item.question}-${index}`} className="submit-faq-item">
+                        <summary>{item.question}</summary>
+                        <p>{item.answer}</p>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+
+            <aside className="submit-page__aside">
+              <section className="submit-summary">
+                <div className="submit-summary__head">
+                  <span className="submit-summary__eyebrow">订单摘要</span>
+                  <h3>本次提交</h3>
+                </div>
+
+                <div className="submit-summary__line">
+                  <span>{submitService.title}</span>
+                  <strong>{formatPrice(submitService.price)}</strong>
+                </div>
+
+                {selectedAddonOptions.map((item) => (
+                  <div key={item.key} className="submit-summary__line is-addon">
+                    <span>{item.title}</span>
+                    <strong>{formatPrice(item.price)}</strong>
+                  </div>
+                ))}
+
+                {formData.bannerPositions.length > 0 ? (
+                  <div className="submit-summary__line submit-summary__line--stack">
+                    <span>Banner 投放位</span>
+                    <div className="submit-summary__chips">
+                      {formData.bannerPositions.map((position) => (
+                        <span key={position}>{getBannerPositionLabel(position)}</span>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
 
-                <div className="form-section">
-                  <div className="section-title">
-                    <span className="step-number">{isPaidBoost ? '4' : '3'}</span>
-                    <h3>您的信息（可选）</h3>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="submitterName">您的称呼</label>
-                      <input
-                        type="text"
-                        id="submitterName"
-                        name="submitterName"
-                        value={formData.submitterName}
-                        onChange={handleChange}
-                        placeholder="可选"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="submitterEmail">您的邮箱</label>
-                      <input
-                        type="email"
-                        id="submitterEmail"
-                        name="submitterEmail"
-                        value={formData.submitterEmail}
-                        onChange={handleChange}
-                        placeholder="可选，方便我们联系您"
-                      />
-                    </div>
-                  </div>
+                {selectedAddonOptions.length === 0 ? (
+                  <div className="submit-summary__empty">未选择运营加购，当前仅提交基础收录。</div>
+                ) : null}
+
+                <div className="submit-summary__total">
+                  <span>合计</span>
+                  <strong>{formatPrice(totalPrice)}</strong>
                 </div>
 
-                <div className="form-actions">
-                  <button type="button" className="btn-secondary" onClick={() => navigate(-1)}>
-                    <Icons.ArrowLeft />
-                    <span>取消</span>
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={loading || enabledServiceOptions.length === 0 || (urlCheckResult.exists && !isPaidBoost)}
-                  >
-                    {loading ? (
-                      <span className="loading-text">提交中</span>
-                    ) : (
-                      <>
-                        <Icons.Rocket />
-                        <span>{currentServiceOption?.ctaText || (isPaidBoost ? '提交加热需求' : '提交网站')}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
+                {shouldRequirePayment ? (
+                  <div className="submit-summary__payment">
+                    <div className="submit-summary__payment-title">支付方式</div>
+                    <div className="pay-channel-group">
+                      {paymentChannelOptions.map((channel) => (
+                        <label
+                          key={channel.value}
+                          className={`pay-channel-item ${payChannel === channel.value ? 'is-active' : ''} ${channel.enabled ? '' : 'is-disabled'}`}
+                        >
+                          <input
+                            type="radio"
+                            name="payChannel"
+                            value={channel.value}
+                            checked={payChannel === channel.value}
+                            disabled={!channel.enabled}
+                            onChange={() => setPayChannel(channel.value)}
+                          />
+                          <span className="pay-channel-item__name">{channel.label}</span>
+                          <span className="pay-channel-item__desc">{channel.desc}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {!submissionConfig.payment.enabled ? (
+                      <p className="form-hint">支付功能尚未开放，请联系管理员。</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="submit-summary__free">当前配置无需支付，可直接提交。</div>
+                )}
+              </section>
 
-            <div className="submit-tips">
-              <div className="tips-header">
-                <Icons.Info />
-                <h4>提交须知</h4>
-              </div>
-              <ul>
-                <li>请确保提交的网站内容合法、健康。</li>
-                <li>网站应与设计、开发、创意相关，便于站内用户检索。</li>
-                <li>{serviceOptions[0]?.title || 'AI产品提交及增长服务'}：通常 1-3 个工作日内完成审核。</li>
-                <li>{serviceOptions[1]?.title || '付费加热推广产品'}：创建订单后请在支付窗口完成支付。</li>
-              </ul>
-            </div>
+              <section className="submit-tips">
+                <div className="tips-header">
+                  <Icons.Info />
+                  <h4>提交须知</h4>
+                </div>
+                <ul>
+                  <li>请确保提交的网站内容合法、健康，且可正常访问。</li>
+                  <li>基础提交收录与运营加购统一在本页完成，下单后由后台订单跟踪。</li>
+                  <li>Banner 位和置顶推荐属于附加曝光，不替代审核标准。</li>
+                  <li>提交后如需补充排期，请在联系方式里留下可联络方式。</li>
+                </ul>
+              </section>
+            </aside>
           </>
         )}
       </div>

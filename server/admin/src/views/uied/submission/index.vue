@@ -37,8 +37,9 @@
                         clearable
                         style="width: 180px"
                     >
-                        <el-option label="AI产品提交及增长服务" value="ai_growth" />
-                        <el-option label="付费加热推广产品" value="paid_boost" />
+                        <el-option label="付费提交收录" value="submission" />
+                        <el-option label="置顶推荐加购" value="top_recommendation" />
+                        <el-option label="Banner 位加购" value="banner_slot" />
                     </el-select>
                 </el-form-item>
                 <el-form-item>
@@ -57,7 +58,7 @@
                 <el-table-column label="名称" prop="name" width="150" />
                 <el-table-column label="服务类型" prop="serviceType" width="170">
                     <template #default="{ row }">
-                        <el-tag :type="row.serviceType === 'paid_boost' ? 'danger' : 'success'">
+                        <el-tag :type="getServiceTypeTagType(row.serviceType)">
                             {{ getServiceTypeLabel(row.serviceType) }}
                         </el-tag>
                     </template>
@@ -130,6 +131,14 @@
                 <el-descriptions-item v-if="detailData.serviceMeta?.budget" label="预算区间">{{
                     detailData.serviceMeta.budget
                 }}</el-descriptions-item>
+                <el-descriptions-item v-if="detailData.serviceMeta?.addons?.length" label="加购项">{{
+                    detailData.serviceMeta.addons.join(' / ')
+                }}</el-descriptions-item>
+                <el-descriptions-item
+                    v-if="detailData.serviceMeta?.bannerPositions?.length"
+                    label="Banner位置"
+                    >{{ detailData.serviceMeta.bannerPositions.join(' / ') }}</el-descriptions-item
+                >
                 <el-descriptions-item v-if="detailData.serviceMeta?.contact" label="联系方式">{{
                     detailData.serviceMeta.contact
                 }}</el-descriptions-item>
@@ -214,7 +223,23 @@ const getStatusLabel = (status: string) =>
  * 获取服务类型文案
  */
 const getServiceTypeLabel = (serviceType: string) =>
-    serviceType === 'paid_boost' ? '付费加热推广产品' : 'AI产品提交及增长服务'
+    serviceType === 'top_recommendation'
+        ? '置顶推荐加购'
+        : serviceType === 'banner_slot'
+            ? 'Banner 位加购'
+            : serviceType === 'paid_boost'
+                ? '置顶推荐加购'
+            : '付费提交收录'
+
+/**
+ * 获取服务类型标签样式
+ */
+const getServiceTypeTagType = (serviceType: string): TagType =>
+    serviceType === 'banner_slot'
+        ? 'danger'
+        : serviceType === 'top_recommendation' || serviceType === 'paid_boost'
+            ? 'warning'
+            : 'success'
 
 const formatTime = (ts: number) => (ts ? new Date(ts * 1000).toLocaleString('zh-CN') : '-')
 

@@ -1414,12 +1414,12 @@
                     </el-form>
                 </el-tab-pane>
 
-                <!-- ==================== 投稿与支付 ==================== -->
-                <el-tab-pane label="投稿与支付" name="submissionService">
+                <!-- ==================== 投稿服务 ==================== -->
+                <el-tab-pane label="投稿服务" name="submissionService">
                     <div class="setting-header">
-                        <h2 class="setting-title">投稿与支付</h2>
+                        <h2 class="setting-title">投稿服务</h2>
                         <p class="setting-desc">
-                            配置投稿页服务方案、定价、FAQ 与官方支付参数（支付宝/微信）。
+                            配置投稿页的基础收录服务、置顶/Banner 增值加购项与 FAQ 文案。
                         </p>
                     </div>
                     <el-form :model="submissionServiceData" label-width="140px" class="form-max-700">
@@ -1450,62 +1450,93 @@
                             <span class="form-tip">px</span>
                         </el-form-item>
 
-                        <el-divider content-position="left">AI产品提交及增长服务</el-divider>
+                        <el-divider content-position="left">基础提交收录</el-divider>
                         <el-form-item label="开启服务">
-                            <el-switch v-model="submissionServiceData.aiEnabled" />
+                            <el-switch v-model="submissionServiceData.submitEnabled" />
                         </el-form-item>
                         <el-form-item label="服务名称">
-                            <el-input v-model="submissionServiceData.aiLabel" />
+                            <el-input v-model="submissionServiceData.submitLabel" />
                         </el-form-item>
                         <el-form-item label="服务标签">
-                            <el-input v-model="submissionServiceData.aiBadge" placeholder="如：推荐" />
+                            <el-input v-model="submissionServiceData.submitBadge" placeholder="如：基础服务" />
                         </el-form-item>
                         <el-form-item label="服务描述">
-                            <el-input v-model="submissionServiceData.aiDescription" type="textarea" :rows="2" />
+                            <el-input v-model="submissionServiceData.submitDescription" type="textarea" :rows="2" />
                         </el-form-item>
                         <el-form-item label="价格">
-                            <el-input-number v-model="submissionServiceData.aiPrice" :min="0" :max="999999" :step="1" />
+                            <el-input-number v-model="submissionServiceData.submitPrice" :min="0" :max="999999" :step="1" />
                         </el-form-item>
                         <el-form-item label="原价">
-                            <el-input-number v-model="submissionServiceData.aiOriginalPrice" :min="0" :max="999999" :step="1" />
+                            <el-input-number v-model="submissionServiceData.submitOriginalPrice" :min="0" :max="999999" :step="1" />
                         </el-form-item>
                         <el-form-item label="按钮文案">
-                            <el-input v-model="submissionServiceData.aiCtaText" />
+                            <el-input v-model="submissionServiceData.submitCtaText" />
                         </el-form-item>
                         <el-form-item label="权益列表">
                             <el-input
-                                v-model="submissionServiceData.aiFeaturesText"
+                                v-model="submissionServiceData.submitFeaturesText"
                                 type="textarea"
                                 :rows="4"
                                 placeholder="每行一个权益"
                             />
                         </el-form-item>
 
-                        <el-divider content-position="left">付费加热推广产品</el-divider>
+                        <el-divider content-position="left">置顶推荐加购</el-divider>
                         <el-form-item label="开启服务">
-                            <el-switch v-model="submissionServiceData.paidEnabled" />
+                            <el-switch v-model="submissionServiceData.topEnabled" />
                         </el-form-item>
                         <el-form-item label="服务名称">
-                            <el-input v-model="submissionServiceData.paidLabel" />
+                            <el-input v-model="submissionServiceData.topLabel" />
                         </el-form-item>
                         <el-form-item label="服务标签">
-                            <el-input v-model="submissionServiceData.paidBadge" placeholder="如：商业" />
+                            <el-input v-model="submissionServiceData.topBadge" placeholder="如：曝光增强" />
                         </el-form-item>
                         <el-form-item label="服务描述">
-                            <el-input v-model="submissionServiceData.paidDescription" type="textarea" :rows="2" />
+                            <el-input v-model="submissionServiceData.topDescription" type="textarea" :rows="2" />
                         </el-form-item>
                         <el-form-item label="价格">
-                            <el-input-number v-model="submissionServiceData.paidPrice" :min="0" :max="999999" :step="1" />
+                            <el-input-number v-model="submissionServiceData.topPrice" :min="0" :max="999999" :step="1" />
                         </el-form-item>
                         <el-form-item label="原价">
-                            <el-input-number v-model="submissionServiceData.paidOriginalPrice" :min="0" :max="999999" :step="1" />
+                            <el-input-number v-model="submissionServiceData.topOriginalPrice" :min="0" :max="999999" :step="1" />
                         </el-form-item>
                         <el-form-item label="按钮文案">
-                            <el-input v-model="submissionServiceData.paidCtaText" />
+                            <el-input v-model="submissionServiceData.topCtaText" />
                         </el-form-item>
                         <el-form-item label="权益列表">
                             <el-input
-                                v-model="submissionServiceData.paidFeaturesText"
+                                v-model="submissionServiceData.topFeaturesText"
+                                type="textarea"
+                                :rows="4"
+                                placeholder="每行一个权益"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">Banner 位加购</el-divider>
+                        <el-form-item label="开启服务">
+                            <el-switch v-model="submissionServiceData.bannerEnabled" />
+                        </el-form-item>
+                        <el-form-item label="服务名称">
+                            <el-input v-model="submissionServiceData.bannerLabel" />
+                        </el-form-item>
+                        <el-form-item label="服务标签">
+                            <el-input v-model="submissionServiceData.bannerBadge" placeholder="如：高曝光" />
+                        </el-form-item>
+                        <el-form-item label="服务描述">
+                            <el-input v-model="submissionServiceData.bannerDescription" type="textarea" :rows="2" />
+                        </el-form-item>
+                        <el-form-item label="价格">
+                            <el-input-number v-model="submissionServiceData.bannerPrice" :min="0" :max="999999" :step="1" />
+                        </el-form-item>
+                        <el-form-item label="原价">
+                            <el-input-number v-model="submissionServiceData.bannerOriginalPrice" :min="0" :max="999999" :step="1" />
+                        </el-form-item>
+                        <el-form-item label="按钮文案">
+                            <el-input v-model="submissionServiceData.bannerCtaText" />
+                        </el-form-item>
+                        <el-form-item label="权益列表">
+                            <el-input
+                                v-model="submissionServiceData.bannerFeaturesText"
                                 type="textarea"
                                 :rows="4"
                                 placeholder="每行一个权益"
@@ -1525,19 +1556,39 @@
                             />
                         </el-form-item>
 
+                        <el-form-item>
+                            <el-button
+                                type="primary"
+                                :loading="submissionServiceLoading"
+                                @click="handleSaveSubmissionService"
+                                >保存</el-button
+                            >
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
+
+                <!-- ==================== 支付中心 ==================== -->
+                <el-tab-pane label="支付中心" name="paymentConfig">
+                    <div class="setting-header">
+                        <h2 class="setting-title">支付中心</h2>
+                        <p class="setting-desc">
+                            全站统一支付接口配置。投稿收录、广告位购买、后续订单都复用这里的支付参数。
+                        </p>
+                    </div>
+                    <el-form :model="paymentConfigData" label-width="140px" class="form-max-700">
                         <el-divider content-position="left">支付总开关</el-divider>
-                        <el-form-item label="开启支付">
-                            <el-switch v-model="submissionServiceData.paymentEnabled" />
+                        <el-form-item label="开启支付中心">
+                            <el-switch v-model="paymentConfigData.enabled" />
                         </el-form-item>
                         <el-form-item label="允许支付宝">
-                            <el-switch v-model="submissionServiceData.allowAlipay" />
+                            <el-switch v-model="paymentConfigData.allowAlipay" />
                         </el-form-item>
                         <el-form-item label="允许微信">
-                            <el-switch v-model="submissionServiceData.allowWechat" />
+                            <el-switch v-model="paymentConfigData.allowWechat" />
                         </el-form-item>
                         <el-form-item label="订单过期时间">
                             <el-input-number
-                                v-model="submissionServiceData.orderExpireMinutes"
+                                v-model="paymentConfigData.orderExpireMinutes"
                                 :min="5"
                                 :max="180"
                             />
@@ -1545,27 +1596,27 @@
                         </el-form-item>
                         <el-form-item label="回调域名基址">
                             <el-input
-                                v-model="submissionServiceData.notifyBaseUrl"
+                                v-model="paymentConfigData.notifyBaseUrl"
                                 placeholder="如：https://hao.uied.cn"
                             />
                         </el-form-item>
 
                         <el-divider content-position="left">支付宝官方（Page Pay）</el-divider>
                         <el-form-item label="开启支付宝">
-                            <el-switch v-model="submissionServiceData.alipayEnabled" />
+                            <el-switch v-model="paymentConfigData.alipayEnabled" />
                         </el-form-item>
                         <el-form-item label="网关地址">
-                            <el-input v-model="submissionServiceData.alipayGateway" />
+                            <el-input v-model="paymentConfigData.alipayGateway" />
                         </el-form-item>
                         <el-form-item label="APPID">
-                            <el-input v-model="submissionServiceData.alipayAppId" />
+                            <el-input v-model="paymentConfigData.alipayAppId" />
                         </el-form-item>
                         <el-form-item label="商户ID">
-                            <el-input v-model="submissionServiceData.alipaySellerId" />
+                            <el-input v-model="paymentConfigData.alipaySellerId" />
                         </el-form-item>
                         <el-form-item label="应用私钥">
                             <el-input
-                                v-model="submissionServiceData.alipayPrivateKey"
+                                v-model="paymentConfigData.alipayPrivateKey"
                                 type="textarea"
                                 :rows="4"
                                 placeholder="支持 PEM 或单行密钥"
@@ -1573,44 +1624,44 @@
                         </el-form-item>
                         <el-form-item label="支付宝公钥">
                             <el-input
-                                v-model="submissionServiceData.alipayPublicKey"
+                                v-model="paymentConfigData.alipayPublicKey"
                                 type="textarea"
                                 :rows="4"
                                 placeholder="支持 PEM 或单行公钥"
                             />
                         </el-form-item>
                         <el-form-item label="前台回跳地址">
-                            <el-input v-model="submissionServiceData.alipayReturnUrl" />
+                            <el-input v-model="paymentConfigData.alipayReturnUrl" />
                         </el-form-item>
                         <el-form-item label="异步回调地址">
-                            <el-input v-model="submissionServiceData.alipayNotifyUrl" />
+                            <el-input v-model="paymentConfigData.alipayNotifyUrl" />
                         </el-form-item>
 
                         <el-divider content-position="left">微信官方（V2 H5）</el-divider>
                         <el-form-item label="开启微信支付">
-                            <el-switch v-model="submissionServiceData.wechatEnabled" />
+                            <el-switch v-model="paymentConfigData.wechatEnabled" />
                         </el-form-item>
                         <el-form-item label="APPID">
-                            <el-input v-model="submissionServiceData.wechatAppId" />
+                            <el-input v-model="paymentConfigData.wechatAppId" />
                         </el-form-item>
                         <el-form-item label="商户号">
-                            <el-input v-model="submissionServiceData.wechatMchId" />
+                            <el-input v-model="paymentConfigData.wechatMchId" />
                         </el-form-item>
                         <el-form-item label="API Key">
-                            <el-input v-model="submissionServiceData.wechatApiKey" />
+                            <el-input v-model="paymentConfigData.wechatApiKey" />
                         </el-form-item>
                         <el-form-item label="异步回调地址">
-                            <el-input v-model="submissionServiceData.wechatNotifyUrl" />
+                            <el-input v-model="paymentConfigData.wechatNotifyUrl" />
                         </el-form-item>
                         <el-form-item label="场景名称">
-                            <el-input v-model="submissionServiceData.wechatSceneName" />
+                            <el-input v-model="paymentConfigData.wechatSceneName" />
                         </el-form-item>
 
                         <el-form-item>
                             <el-button
                                 type="primary"
-                                :loading="submissionServiceLoading"
-                                @click="handleSaveSubmissionService"
+                                :loading="paymentConfigLoading"
+                                @click="handleSavePaymentConfig"
                                 >保存</el-button
                             >
                         </el-form-item>
@@ -1862,6 +1913,7 @@ const settingTabNameSet = new Set([
     'search',
     'authConfig',
     'submissionService',
+    'paymentConfig',
     'exitModal'
 ])
 
@@ -2309,29 +2361,42 @@ const submissionServiceLoading = ref(false)
 const defaultSubmissionServiceData = {
     enabled: true,
     pageTitle: '提交网站',
-    pageSubtitle: 'AI产品提交及增长服务 / 付费加热推广产品',
-    pageDescription: '提交优质站点并选择合适的增长方案，审核与投放流程统一收口。',
-    containerMaxWidth: 1200,
-    pricingTitle: '服务方案',
+    pageSubtitle: '提交收录统一付费，支持置顶推荐和 Banner 运营位增值加购',
+    pageDescription: '提交后进入审核与收录流程，可按需叠加购买置顶推荐或 Banner 运营位。',
+    containerMaxWidth: 1280,
+    pricingTitle: '收录与增值服务',
     faqTitle: '常见问题',
-    aiEnabled: true,
-    aiLabel: 'AI产品提交及增长服务',
-    aiBadge: '推荐',
-    aiDescription: '适合首次收录与长期增长，提交后进入审核与推荐流程。',
-    aiPrice: 0,
-    aiOriginalPrice: 0,
-    aiCtaText: '免费提交',
-    aiFeaturesText: 'AI 智能补全站点信息\n审核通过后收录到分类与搜索\n支持后续运营人工优化',
-    paidEnabled: true,
-    paidLabel: '付费加热推广产品',
-    paidBadge: '商业',
-    paidDescription: '适合新品发布和活动期快速曝光，支持指定推广目标与预算。',
-    paidPrice: 199,
-    paidOriginalPrice: 299,
-    paidCtaText: '提交并支付',
-    paidFeaturesText: '首页/频道曝光位优先分发\n支持预算与排期沟通\n运营团队跟进投放',
-    faqText: '提交后多久审核？|通常 1-3 个工作日完成审核。\n付费加热是否保证收录？|付费加热不改变审核标准，审核通过后进入推广排期。\n支持哪些支付方式？|支持支付宝和微信支付。',
-    paymentEnabled: false,
+    submitEnabled: true,
+    submitLabel: '付费提交收录',
+    submitBadge: '基础服务',
+    submitDescription: '提交后进入人工审核、信息完善与正式收录流程，是所有投稿的基础服务。',
+    submitPrice: 39,
+    submitOriginalPrice: 59,
+    submitCtaText: '提交并支付',
+    submitFeaturesText: '站点进入人工审核与分类收录流程\n支持 AI 补全站点信息与基础内容优化\n审核通过后进入站内搜索与列表展示',
+    topEnabled: true,
+    topLabel: '置顶推荐加购',
+    topBadge: '曝光增强',
+    topDescription: '适合希望在分类页或推荐区获得更高排序与额外曝光的产品。',
+    topPrice: 99,
+    topOriginalPrice: 129,
+    topCtaText: '勾选加购',
+    topFeaturesText: '优先进入推荐位与更高排序\n适合新品冷启动与短期活动推广\n可与 Banner 位叠加购买',
+    bannerEnabled: true,
+    bannerLabel: 'Banner 运营位加购',
+    bannerBadge: '高曝光',
+    bannerDescription: '适合重点推广活动，可额外购买 Banner 位置用于首页或频道页运营展示。',
+    bannerPrice: 199,
+    bannerOriginalPrice: 299,
+    bannerCtaText: '勾选加购',
+    bannerFeaturesText: '支持首页或频道 Banner 位展示\n适合重点活动、新品发布与商业推广\n由运营同学排期后投放',
+    faqText: '提交后多久审核？|通常 1-3 个工作日完成审核。\n置顶推荐和 Banner 位何时生效？|支付成功后由运营排期，审核通过后按配置执行。\n支持哪些支付方式？|支持支付宝和微信支付。',
+}
+const submissionServiceData = reactive({ ...defaultSubmissionServiceData })
+
+const paymentConfigLoading = ref(false)
+const defaultPaymentConfigData = {
+    enabled: false,
     allowAlipay: true,
     allowWechat: true,
     orderExpireMinutes: 30,
@@ -2349,9 +2414,9 @@ const defaultSubmissionServiceData = {
     wechatMchId: '',
     wechatApiKey: '',
     wechatNotifyUrl: '',
-    wechatSceneName: 'UIED投稿支付',
+    wechatSceneName: 'UIED支付中心',
 }
-const submissionServiceData = reactive({ ...defaultSubmissionServiceData })
+const paymentConfigData = reactive({ ...defaultPaymentConfigData })
 
 /**
  * 多行文本拆分为字符串数组
@@ -2403,17 +2468,18 @@ const formatFaqText = (items: any[]): string => {
  */
 const normalizeSubmissionServiceData = (config: any) => {
     const source = config && typeof config === 'object' ? config : {}
-    const aiService = source?.aiGrowthService || {}
-    const paidService = source?.paidBoostService || {}
-    const payment = source?.payment || {}
-    const alipay = payment?.alipay || {}
-    const wechat = payment?.wechat || {}
-    const aiFeaturesText = Array.isArray(aiService.features)
-        ? aiService.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
-        : defaultSubmissionServiceData.aiFeaturesText
-    const paidFeaturesText = Array.isArray(paidService.features)
-        ? paidService.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
-        : defaultSubmissionServiceData.paidFeaturesText
+    const submitService = source?.submitService || source?.aiGrowthService || {}
+    const topAddon = source?.topRecommendAddon || source?.paidBoostService || {}
+    const bannerAddon = source?.bannerAddon || {}
+    const submitFeaturesText = Array.isArray(submitService.features)
+        ? submitService.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+        : defaultSubmissionServiceData.submitFeaturesText
+    const topFeaturesText = Array.isArray(topAddon.features)
+        ? topAddon.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+        : defaultSubmissionServiceData.topFeaturesText
+    const bannerFeaturesText = Array.isArray(bannerAddon.features)
+        ? bannerAddon.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+        : defaultSubmissionServiceData.bannerFeaturesText
     return {
         ...defaultSubmissionServiceData,
         ...source,
@@ -2425,50 +2491,41 @@ const normalizeSubmissionServiceData = (config: any) => {
             : defaultSubmissionServiceData.containerMaxWidth,
         pricingTitle: String(source?.pricingTitle || defaultSubmissionServiceData.pricingTitle),
         faqTitle: String(source?.faqTitle || defaultSubmissionServiceData.faqTitle),
-        aiEnabled: aiService?.enabled !== false,
-        aiLabel: String(aiService?.label || defaultSubmissionServiceData.aiLabel),
-        aiBadge: String(aiService?.badge || defaultSubmissionServiceData.aiBadge),
-        aiDescription: String(aiService?.description || defaultSubmissionServiceData.aiDescription),
-        aiPrice: Number.isFinite(Number(aiService?.price)) ? Number(aiService.price) : defaultSubmissionServiceData.aiPrice,
-        aiOriginalPrice: Number.isFinite(Number(aiService?.originalPrice))
-            ? Number(aiService.originalPrice)
-            : defaultSubmissionServiceData.aiOriginalPrice,
-        aiCtaText: String(aiService?.ctaText || defaultSubmissionServiceData.aiCtaText),
-        aiFeaturesText: aiFeaturesText || defaultSubmissionServiceData.aiFeaturesText,
-        paidEnabled: paidService?.enabled !== false,
-        paidLabel: String(paidService?.label || defaultSubmissionServiceData.paidLabel),
-        paidBadge: String(paidService?.badge || defaultSubmissionServiceData.paidBadge),
-        paidDescription: String(paidService?.description || defaultSubmissionServiceData.paidDescription),
-        paidPrice: Number.isFinite(Number(paidService?.price))
-            ? Number(paidService.price)
-            : defaultSubmissionServiceData.paidPrice,
-        paidOriginalPrice: Number.isFinite(Number(paidService?.originalPrice))
-            ? Number(paidService.originalPrice)
-            : defaultSubmissionServiceData.paidOriginalPrice,
-        paidCtaText: String(paidService?.ctaText || defaultSubmissionServiceData.paidCtaText),
-        paidFeaturesText: paidFeaturesText || defaultSubmissionServiceData.paidFeaturesText,
+        submitEnabled: submitService?.enabled !== false,
+        submitLabel: String(submitService?.label || defaultSubmissionServiceData.submitLabel),
+        submitBadge: String(submitService?.badge || defaultSubmissionServiceData.submitBadge),
+        submitDescription: String(submitService?.description || defaultSubmissionServiceData.submitDescription),
+        submitPrice: Number.isFinite(Number(submitService?.price)) ? Number(submitService.price) : defaultSubmissionServiceData.submitPrice,
+        submitOriginalPrice: Number.isFinite(Number(submitService?.originalPrice))
+            ? Number(submitService.originalPrice)
+            : defaultSubmissionServiceData.submitOriginalPrice,
+        submitCtaText: String(submitService?.ctaText || defaultSubmissionServiceData.submitCtaText),
+        submitFeaturesText: submitFeaturesText || defaultSubmissionServiceData.submitFeaturesText,
+        topEnabled: topAddon?.enabled !== false,
+        topLabel: String(topAddon?.label || defaultSubmissionServiceData.topLabel),
+        topBadge: String(topAddon?.badge || defaultSubmissionServiceData.topBadge),
+        topDescription: String(topAddon?.description || defaultSubmissionServiceData.topDescription),
+        topPrice: Number.isFinite(Number(topAddon?.price))
+            ? Number(topAddon.price)
+            : defaultSubmissionServiceData.topPrice,
+        topOriginalPrice: Number.isFinite(Number(topAddon?.originalPrice))
+            ? Number(topAddon.originalPrice)
+            : defaultSubmissionServiceData.topOriginalPrice,
+        topCtaText: String(topAddon?.ctaText || defaultSubmissionServiceData.topCtaText),
+        topFeaturesText: topFeaturesText || defaultSubmissionServiceData.topFeaturesText,
+        bannerEnabled: bannerAddon?.enabled !== false,
+        bannerLabel: String(bannerAddon?.label || defaultSubmissionServiceData.bannerLabel),
+        bannerBadge: String(bannerAddon?.badge || defaultSubmissionServiceData.bannerBadge),
+        bannerDescription: String(bannerAddon?.description || defaultSubmissionServiceData.bannerDescription),
+        bannerPrice: Number.isFinite(Number(bannerAddon?.price))
+            ? Number(bannerAddon.price)
+            : defaultSubmissionServiceData.bannerPrice,
+        bannerOriginalPrice: Number.isFinite(Number(bannerAddon?.originalPrice))
+            ? Number(bannerAddon.originalPrice)
+            : defaultSubmissionServiceData.bannerOriginalPrice,
+        bannerCtaText: String(bannerAddon?.ctaText || defaultSubmissionServiceData.bannerCtaText),
+        bannerFeaturesText: bannerFeaturesText || defaultSubmissionServiceData.bannerFeaturesText,
         faqText: formatFaqText(source?.faqItems || defaultSubmissionServiceData.faqText),
-        paymentEnabled: payment?.enabled === true,
-        allowAlipay: payment?.allowAlipay !== false,
-        allowWechat: payment?.allowWechat !== false,
-        orderExpireMinutes: Number.isFinite(Number(payment?.orderExpireMinutes))
-            ? Number(payment.orderExpireMinutes)
-            : defaultSubmissionServiceData.orderExpireMinutes,
-        notifyBaseUrl: String(payment?.notifyBaseUrl || ''),
-        alipayEnabled: alipay?.enabled === true,
-        alipayGateway: String(alipay?.gateway || defaultSubmissionServiceData.alipayGateway),
-        alipayAppId: String(alipay?.appId || ''),
-        alipaySellerId: String(alipay?.sellerId || ''),
-        alipayPrivateKey: String(alipay?.privateKey || ''),
-        alipayPublicKey: String(alipay?.alipayPublicKey || ''),
-        alipayReturnUrl: String(alipay?.returnUrl || ''),
-        alipayNotifyUrl: String(alipay?.notifyUrl || ''),
-        wechatEnabled: wechat?.enabled === true,
-        wechatAppId: String(wechat?.appId || ''),
-        wechatMchId: String(wechat?.mchId || ''),
-        wechatApiKey: String(wechat?.apiKey || ''),
-        wechatNotifyUrl: String(wechat?.notifyUrl || ''),
-        wechatSceneName: String(wechat?.sceneName || defaultSubmissionServiceData.wechatSceneName),
     }
 }
 
@@ -2483,54 +2540,103 @@ const buildSubmissionServicePayload = () => ({
     containerMaxWidth: Number(submissionServiceData.containerMaxWidth || 1200),
     pricingTitle: String(submissionServiceData.pricingTitle || '').trim(),
     faqTitle: String(submissionServiceData.faqTitle || '').trim(),
-    aiGrowthService: {
-        enabled: submissionServiceData.aiEnabled !== false,
-        key: 'ai_growth',
-        label: String(submissionServiceData.aiLabel || '').trim(),
-        badge: String(submissionServiceData.aiBadge || '').trim(),
-        description: String(submissionServiceData.aiDescription || '').trim(),
-        price: Number(submissionServiceData.aiPrice || 0),
-        originalPrice: Number(submissionServiceData.aiOriginalPrice || 0),
-        ctaText: String(submissionServiceData.aiCtaText || '').trim(),
-        features: parseLines(submissionServiceData.aiFeaturesText),
+    submitService: {
+        enabled: submissionServiceData.submitEnabled !== false,
+        key: 'submission',
+        label: String(submissionServiceData.submitLabel || '').trim(),
+        badge: String(submissionServiceData.submitBadge || '').trim(),
+        description: String(submissionServiceData.submitDescription || '').trim(),
+        price: Number(submissionServiceData.submitPrice || 0),
+        originalPrice: Number(submissionServiceData.submitOriginalPrice || 0),
+        ctaText: String(submissionServiceData.submitCtaText || '').trim(),
+        features: parseLines(submissionServiceData.submitFeaturesText),
     },
-    paidBoostService: {
-        enabled: submissionServiceData.paidEnabled !== false,
-        key: 'paid_boost',
-        label: String(submissionServiceData.paidLabel || '').trim(),
-        badge: String(submissionServiceData.paidBadge || '').trim(),
-        description: String(submissionServiceData.paidDescription || '').trim(),
-        price: Number(submissionServiceData.paidPrice || 0),
-        originalPrice: Number(submissionServiceData.paidOriginalPrice || 0),
-        ctaText: String(submissionServiceData.paidCtaText || '').trim(),
-        features: parseLines(submissionServiceData.paidFeaturesText),
+    topRecommendAddon: {
+        enabled: submissionServiceData.topEnabled !== false,
+        key: 'top_recommendation',
+        label: String(submissionServiceData.topLabel || '').trim(),
+        badge: String(submissionServiceData.topBadge || '').trim(),
+        description: String(submissionServiceData.topDescription || '').trim(),
+        price: Number(submissionServiceData.topPrice || 0),
+        originalPrice: Number(submissionServiceData.topOriginalPrice || 0),
+        ctaText: String(submissionServiceData.topCtaText || '').trim(),
+        features: parseLines(submissionServiceData.topFeaturesText),
+    },
+    bannerAddon: {
+        enabled: submissionServiceData.bannerEnabled !== false,
+        key: 'banner_slot',
+        label: String(submissionServiceData.bannerLabel || '').trim(),
+        badge: String(submissionServiceData.bannerBadge || '').trim(),
+        description: String(submissionServiceData.bannerDescription || '').trim(),
+        price: Number(submissionServiceData.bannerPrice || 0),
+        originalPrice: Number(submissionServiceData.bannerOriginalPrice || 0),
+        ctaText: String(submissionServiceData.bannerCtaText || '').trim(),
+        features: parseLines(submissionServiceData.bannerFeaturesText),
     },
     faqItems: parseFaqText(submissionServiceData.faqText),
-    payment: {
-        enabled: submissionServiceData.paymentEnabled === true,
-        allowAlipay: submissionServiceData.allowAlipay !== false,
-        allowWechat: submissionServiceData.allowWechat !== false,
-        orderExpireMinutes: Number(submissionServiceData.orderExpireMinutes || 30),
-        notifyBaseUrl: String(submissionServiceData.notifyBaseUrl || '').trim(),
-        alipay: {
-            enabled: submissionServiceData.alipayEnabled === true,
-            gateway: String(submissionServiceData.alipayGateway || '').trim(),
-            appId: String(submissionServiceData.alipayAppId || '').trim(),
-            sellerId: String(submissionServiceData.alipaySellerId || '').trim(),
-            privateKey: String(submissionServiceData.alipayPrivateKey || '').trim(),
-            alipayPublicKey: String(submissionServiceData.alipayPublicKey || '').trim(),
-            returnUrl: String(submissionServiceData.alipayReturnUrl || '').trim(),
-            notifyUrl: String(submissionServiceData.alipayNotifyUrl || '').trim(),
-        },
-        wechat: {
-            enabled: submissionServiceData.wechatEnabled === true,
-            appId: String(submissionServiceData.wechatAppId || '').trim(),
-            mchId: String(submissionServiceData.wechatMchId || '').trim(),
-            apiKey: String(submissionServiceData.wechatApiKey || '').trim(),
-            notifyUrl: String(submissionServiceData.wechatNotifyUrl || '').trim(),
-            tradeType: 'MWEB',
-            sceneName: String(submissionServiceData.wechatSceneName || '').trim(),
-        },
+})
+
+/**
+ * 规范化全站支付配置（后台表单视图）
+ */
+const normalizePaymentConfigData = (config: any) => {
+    const source = config && typeof config === 'object' ? config : {}
+    const alipay = source?.alipay || {}
+    const wechat = source?.wechat || {}
+    return {
+        ...defaultPaymentConfigData,
+        ...source,
+        enabled: source?.enabled === true,
+        allowAlipay: source?.allowAlipay !== false,
+        allowWechat: source?.allowWechat !== false,
+        orderExpireMinutes: Number.isFinite(Number(source?.orderExpireMinutes))
+            ? Number(source.orderExpireMinutes)
+            : defaultPaymentConfigData.orderExpireMinutes,
+        notifyBaseUrl: String(source?.notifyBaseUrl || ''),
+        alipayEnabled: alipay?.enabled === true,
+        alipayGateway: String(alipay?.gateway || defaultPaymentConfigData.alipayGateway),
+        alipayAppId: String(alipay?.appId || ''),
+        alipaySellerId: String(alipay?.sellerId || ''),
+        alipayPrivateKey: String(alipay?.privateKey || ''),
+        alipayPublicKey: String(alipay?.alipayPublicKey || ''),
+        alipayReturnUrl: String(alipay?.returnUrl || ''),
+        alipayNotifyUrl: String(alipay?.notifyUrl || ''),
+        wechatEnabled: wechat?.enabled === true,
+        wechatAppId: String(wechat?.appId || ''),
+        wechatMchId: String(wechat?.mchId || ''),
+        wechatApiKey: String(wechat?.apiKey || ''),
+        wechatNotifyUrl: String(wechat?.notifyUrl || ''),
+        wechatSceneName: String(wechat?.sceneName || defaultPaymentConfigData.wechatSceneName),
+    }
+}
+
+/**
+ * 将支付中心表单数据转换为后端持久化结构
+ */
+const buildPaymentConfigPayload = () => ({
+    enabled: paymentConfigData.enabled === true,
+    allowAlipay: paymentConfigData.allowAlipay !== false,
+    allowWechat: paymentConfigData.allowWechat !== false,
+    orderExpireMinutes: Number(paymentConfigData.orderExpireMinutes || 30),
+    notifyBaseUrl: String(paymentConfigData.notifyBaseUrl || '').trim(),
+    alipay: {
+        enabled: paymentConfigData.alipayEnabled === true,
+        gateway: String(paymentConfigData.alipayGateway || '').trim(),
+        appId: String(paymentConfigData.alipayAppId || '').trim(),
+        sellerId: String(paymentConfigData.alipaySellerId || '').trim(),
+        privateKey: String(paymentConfigData.alipayPrivateKey || '').trim(),
+        alipayPublicKey: String(paymentConfigData.alipayPublicKey || '').trim(),
+        returnUrl: String(paymentConfigData.alipayReturnUrl || '').trim(),
+        notifyUrl: String(paymentConfigData.alipayNotifyUrl || '').trim(),
+    },
+    wechat: {
+        enabled: paymentConfigData.wechatEnabled === true,
+        appId: String(paymentConfigData.wechatAppId || '').trim(),
+        mchId: String(paymentConfigData.wechatMchId || '').trim(),
+        apiKey: String(paymentConfigData.wechatApiKey || '').trim(),
+        notifyUrl: String(paymentConfigData.wechatNotifyUrl || '').trim(),
+        tradeType: 'MWEB',
+        sceneName: String(paymentConfigData.wechatSceneName || '').trim(),
     },
 })
 
@@ -2581,6 +2687,7 @@ const snapshotData = reactive({
     search: '',
     authConfig: '',
     submissionService: '',
+    paymentConfig: '',
     exitModal: ''
 })
 
@@ -2615,6 +2722,7 @@ const refreshSnapshot = () => {
     snapshotData.search = serializeConfig(cloneConfig(searchData))
     snapshotData.authConfig = serializeConfig(normalizeAuthConfigData(cloneConfig(authConfigData)))
     snapshotData.submissionService = serializeConfig(buildSubmissionServicePayload())
+    snapshotData.paymentConfig = serializeConfig(buildPaymentConfigPayload())
     snapshotData.exitModal = serializeConfig(cloneConfig(exitModalData))
 }
 
@@ -2652,6 +2760,8 @@ const hasTabChanges = (tab: string): boolean => {
         )
     if (tab === 'submissionService')
         return serializeConfig(buildSubmissionServicePayload()) !== snapshotData.submissionService
+    if (tab === 'paymentConfig')
+        return serializeConfig(buildPaymentConfigPayload()) !== snapshotData.paymentConfig
     if (tab === 'exitModal')
         return serializeConfig(cloneConfig(exitModalData)) !== snapshotData.exitModal
     return false
@@ -2668,6 +2778,7 @@ const hasPendingChanges = computed(
         hasTabChanges('search') ||
         hasTabChanges('authConfig') ||
         hasTabChanges('submissionService') ||
+        hasTabChanges('paymentConfig') ||
         hasTabChanges('exitModal')
 )
 
@@ -2707,6 +2818,8 @@ const applyPublicSettings = (settings: Record<string, any>) => {
             submissionServiceData,
             normalizeSubmissionServiceData(settings.submissionService)
         )
+    if (settings.payment)
+        Object.assign(paymentConfigData, normalizePaymentConfigData(settings.payment))
     if (settings.exitModal || settings.popup)
         Object.assign(exitModalData, normalizeExitModalConfigData(settings.exitModal || settings.popup))
 }
@@ -2733,6 +2846,7 @@ const loadAllSettings = async (silent = false) => {
             loadSearch(),
             loadAuthConfig(),
             loadSubmissionService(),
+            loadPaymentConfig(),
             loadExitModal(),
             loadHomepagePageOptions(true)
         ])
@@ -2828,6 +2942,18 @@ const loadSubmissionService = async () => {
         if (res) Object.assign(submissionServiceData, normalizeSubmissionServiceData(res))
     } catch (e) {
         console.error('加载投稿与支付配置失败', e)
+    }
+}
+
+/**
+ * 加载支付中心配置
+ */
+const loadPaymentConfig = async () => {
+    try {
+        const res = await uiedSettingGet({ key: 'paymentConfig' })
+        if (res) Object.assign(paymentConfigData, normalizePaymentConfigData(res))
+    } catch (e) {
+        console.error('加载支付中心配置失败', e)
     }
 }
 
@@ -2975,6 +3101,25 @@ const handleSaveSubmissionService = async () => {
 }
 
 /**
+ * 保存支付中心配置
+ */
+const handleSavePaymentConfig = async () => {
+    paymentConfigLoading.value = true
+    try {
+        await uiedSettingSave({
+            paymentConfig: buildPaymentConfigPayload()
+        })
+        markSaved()
+        feedback.msgSuccess('保存成功')
+    } catch (error) {
+        console.error('保存支付中心配置失败:', error)
+        feedback.msgError('保存失败')
+    } finally {
+        paymentConfigLoading.value = false
+    }
+}
+
+/**
  * 保存全部配置（售卖版推荐工作流）
  */
 const handleSaveAll = async () => {
@@ -2990,6 +3135,7 @@ const handleSaveAll = async () => {
                 sidebarConfig: sidebarData,
                 searchConfig: searchData,
                 submissionServiceConfig: buildSubmissionServicePayload(),
+                paymentConfig: buildPaymentConfigPayload(),
                 exitModalConfig: exitModalData
             }),
             uiedSettingAuthConfigUpdate(normalizeAuthConfigData(authConfigData))
@@ -3037,6 +3183,11 @@ const handleResetCurrentTab = () => {
         Object.assign(
             submissionServiceData,
             normalizeSubmissionServiceData(readSnapshotObject(snapshotData.submissionService))
+        )
+    if (tab === 'paymentConfig')
+        Object.assign(
+            paymentConfigData,
+            normalizePaymentConfigData(readSnapshotObject(snapshotData.paymentConfig))
         )
     if (tab === 'exitModal')
         Object.assign(exitModalData, readSnapshotObject(snapshotData.exitModal))

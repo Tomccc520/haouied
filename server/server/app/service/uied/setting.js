@@ -890,84 +890,166 @@ class SettingService extends Service {
   }
 
   /**
-   * 获取投稿与支付配置默认值
-   * 该配置用于前端投稿页服务分流、定价展示、FAQ 展示与支付渠道开关。
+   * 获取全站支付配置默认值
+   * 统一供投稿、订单、广告位加购等前后端支付链路复用。
    */
-  getDefaultSubmissionServiceConfig() {
+  getDefaultPaymentConfig() {
     return {
-      enabled: true,
-      pageTitle: '提交网站',
-      pageSubtitle: 'AI产品提交及增长服务 / 付费加热推广产品',
-      pageDescription: '提交优质站点并选择合适的增长方案，审核与投放流程统一收口。',
-      containerMaxWidth: 1200,
-      pricingTitle: '服务方案',
-      faqTitle: '常见问题',
-      aiGrowthService: {
-        enabled: true,
-        key: 'ai_growth',
-        label: 'AI产品提交及增长服务',
-        badge: '推荐',
-        description: '适合首次收录与长期增长，提交后进入审核与推荐流程。',
-        price: 0,
-        originalPrice: 0,
-        ctaText: '免费提交',
-        features: [
-          'AI 智能补全站点信息',
-          '审核通过后收录到分类与搜索',
-          '支持后续运营人工优化'
-        ],
-      },
-      paidBoostService: {
-        enabled: true,
-        key: 'paid_boost',
-        label: '付费加热推广产品',
-        badge: '商业',
-        description: '适合新品发布和活动期快速曝光，支持指定推广目标与预算。',
-        price: 199,
-        originalPrice: 299,
-        ctaText: '提交并支付',
-        features: [
-          '首页/频道曝光位优先分发',
-          '支持预算与排期沟通',
-          '运营团队跟进投放'
-        ],
-      },
-      faqItems: [
-        { question: '提交后多久审核？', answer: '通常 1-3 个工作日完成审核。', sort: 10, enabled: true },
-        { question: '付费加热是否保证收录？', answer: '付费加热不改变审核标准，审核通过后进入推广排期。', sort: 20, enabled: true },
-        { question: '支持哪些支付方式？', answer: '支持支付宝和微信支付。', sort: 30, enabled: true },
-      ],
-      payment: {
+      enabled: false,
+      allowAlipay: true,
+      allowWechat: true,
+      orderExpireMinutes: 30,
+      notifyBaseUrl: '',
+      alipay: {
         enabled: false,
-        allowAlipay: true,
-        allowWechat: true,
-        orderExpireMinutes: 30,
-        notifyBaseUrl: '',
-        alipay: {
-          enabled: false,
-          gateway: 'https://openapi.alipay.com/gateway.do',
-          appId: '',
-          sellerId: '',
-          privateKey: '',
-          alipayPublicKey: '',
-          returnUrl: '',
-          notifyUrl: '',
-        },
-        wechat: {
-          enabled: false,
-          appId: '',
-          mchId: '',
-          apiKey: '',
-          notifyUrl: '',
-          tradeType: 'MWEB',
-          sceneName: 'UIED投稿支付',
-        },
+        gateway: 'https://openapi.alipay.com/gateway.do',
+        appId: '',
+        sellerId: '',
+        privateKey: '',
+        alipayPublicKey: '',
+        returnUrl: '',
+        notifyUrl: '',
+      },
+      wechat: {
+        enabled: false,
+        appId: '',
+        mchId: '',
+        apiKey: '',
+        notifyUrl: '',
+        tradeType: 'MWEB',
+        sceneName: 'UIED支付中心',
       },
     };
   }
 
   /**
-   * 规范化投稿与支付配置
+   * 规范化全站支付配置
+   */
+  normalizePaymentConfig(config = {}) {
+    const defaults = this.getDefaultPaymentConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const merged = {
+      ...defaults,
+      ...source,
+      alipay: {
+        ...defaults.alipay,
+        ...(this.isPlainObject(source?.alipay) ? source.alipay : {}),
+      },
+      wechat: {
+        ...defaults.wechat,
+        ...(this.isPlainObject(source?.wechat) ? source.wechat : {}),
+      },
+    };
+    return {
+      enabled: merged.enabled === true,
+      allowAlipay: merged.allowAlipay !== false,
+      allowWechat: merged.allowWechat !== false,
+      orderExpireMinutes: Number.isFinite(Number(merged.orderExpireMinutes))
+        ? Math.max(5, Math.min(180, Number(merged.orderExpireMinutes)))
+        : defaults.orderExpireMinutes,
+      notifyBaseUrl: String(merged.notifyBaseUrl || '').trim(),
+      alipay: {
+        enabled: merged.alipay.enabled === true,
+        gateway: String(merged.alipay.gateway || defaults.alipay.gateway).trim() || defaults.alipay.gateway,
+        appId: String(merged.alipay.appId || '').trim(),
+        sellerId: String(merged.alipay.sellerId || '').trim(),
+        privateKey: String(merged.alipay.privateKey || '').trim(),
+        alipayPublicKey: String(merged.alipay.alipayPublicKey || '').trim(),
+        returnUrl: String(merged.alipay.returnUrl || '').trim(),
+        notifyUrl: String(merged.alipay.notifyUrl || '').trim(),
+      },
+      wechat: {
+        enabled: merged.wechat.enabled === true,
+        appId: String(merged.wechat.appId || '').trim(),
+        mchId: String(merged.wechat.mchId || '').trim(),
+        apiKey: String(merged.wechat.apiKey || '').trim(),
+        notifyUrl: String(merged.wechat.notifyUrl || '').trim(),
+        tradeType: 'MWEB',
+        sceneName: String(merged.wechat.sceneName || defaults.wechat.sceneName).trim() || defaults.wechat.sceneName,
+      },
+    };
+  }
+
+  /**
+   * 构建前台可公开的支付配置（去敏）
+   */
+  buildPublicPaymentConfig(config = {}) {
+    const normalized = this.normalizePaymentConfig(config);
+    return {
+      enabled: normalized.enabled,
+      allowAlipay: normalized.allowAlipay && normalized.alipay.enabled,
+      allowWechat: normalized.allowWechat && normalized.wechat.enabled,
+    };
+  }
+
+  /**
+   * 获取投稿与运营加购配置默认值
+   * 该配置用于前端投稿页的基础收录服务、置顶/Banner 加购与 FAQ 展示。
+   */
+  getDefaultSubmissionServiceConfig() {
+    return {
+      enabled: true,
+      pageTitle: '提交网站',
+      pageSubtitle: '提交收录统一付费，支持置顶推荐和 Banner 运营位增值加购',
+      pageDescription: '提交后进入审核与收录流程，可按需叠加购买置顶推荐或 Banner 运营位，适合新品上线与运营推广。',
+      containerMaxWidth: 1280,
+      pricingTitle: '收录与增值服务',
+      faqTitle: '常见问题',
+      submitService: {
+        enabled: true,
+        key: 'submission',
+        label: '付费提交收录',
+        badge: '基础服务',
+        description: '提交后进入人工审核、信息完善与正式收录流程，是所有投稿的基础服务。',
+        price: 39,
+        originalPrice: 59,
+        ctaText: '提交并支付',
+        features: [
+          '站点进入人工审核与分类收录流程',
+          '支持 AI 补全站点信息与基础内容优化',
+          '审核通过后进入站内搜索与列表展示'
+        ],
+      },
+      topRecommendAddon: {
+        enabled: true,
+        key: 'top_recommendation',
+        label: '置顶推荐加购',
+        badge: '曝光增强',
+        description: '适合希望在分类页或推荐区获得更高排序与额外曝光的产品。',
+        price: 99,
+        originalPrice: 129,
+        ctaText: '勾选加购',
+        features: [
+          '优先进入推荐位与更高排序',
+          '适合新品冷启动与短期活动推广',
+          '可与 Banner 位叠加购买'
+        ],
+      },
+      bannerAddon: {
+        enabled: true,
+        key: 'banner_slot',
+        label: 'Banner 运营位加购',
+        badge: '高曝光',
+        description: '适合重点推广活动，可额外购买 Banner 位置用于首页或频道页运营展示。',
+        price: 199,
+        originalPrice: 299,
+        ctaText: '勾选加购',
+        features: [
+          '支持首页或频道 Banner 位展示',
+          '适合重点活动、新品发布与商业推广',
+          '由运营同学排期后投放'
+        ],
+      },
+      faqItems: [
+        { question: '提交后多久审核？', answer: '通常 1-3 个工作日完成审核。', sort: 10, enabled: true },
+        { question: '置顶推荐和 Banner 位何时生效？', answer: '支付成功后由运营排期，审核通过后按配置执行。', sort: 20, enabled: true },
+        { question: '支持哪些支付方式？', answer: '支持支付宝和微信支付。', sort: 30, enabled: true },
+      ],
+    };
+  }
+
+  /**
+   * 规范化投稿与运营加购配置
    * @param {Record<string, any>} config 原始配置
    * @return {Record<string, any>} 规范化结果
    */
@@ -1003,25 +1085,21 @@ class SettingService extends Service {
     const merged = {
       ...defaults,
       ...source,
-      aiGrowthService: {
-        ...defaults.aiGrowthService,
-        ...(this.isPlainObject(source.aiGrowthService) ? source.aiGrowthService : {}),
+      submitService: {
+        ...defaults.submitService,
+        ...(this.isPlainObject(source.submitService)
+          ? source.submitService
+          : (this.isPlainObject(source.aiGrowthService) ? source.aiGrowthService : {})),
       },
-      paidBoostService: {
-        ...defaults.paidBoostService,
-        ...(this.isPlainObject(source.paidBoostService) ? source.paidBoostService : {}),
+      topRecommendAddon: {
+        ...defaults.topRecommendAddon,
+        ...(this.isPlainObject(source.topRecommendAddon)
+          ? source.topRecommendAddon
+          : (this.isPlainObject(source.paidBoostService) ? source.paidBoostService : {})),
       },
-      payment: {
-        ...defaults.payment,
-        ...(this.isPlainObject(source.payment) ? source.payment : {}),
-        alipay: {
-          ...defaults.payment.alipay,
-          ...(this.isPlainObject(source?.payment?.alipay) ? source.payment.alipay : {}),
-        },
-        wechat: {
-          ...defaults.payment.wechat,
-          ...(this.isPlainObject(source?.payment?.wechat) ? source.payment.wechat : {}),
-        },
+      bannerAddon: {
+        ...defaults.bannerAddon,
+        ...(this.isPlainObject(source.bannerAddon) ? source.bannerAddon : {}),
       },
     };
     return {
@@ -1034,59 +1112,43 @@ class SettingService extends Service {
         : defaults.containerMaxWidth,
       pricingTitle: String(merged.pricingTitle || defaults.pricingTitle).trim() || defaults.pricingTitle,
       faqTitle: String(merged.faqTitle || defaults.faqTitle).trim() || defaults.faqTitle,
-      aiGrowthService: {
-        ...merged.aiGrowthService,
-        enabled: merged.aiGrowthService.enabled !== false,
-        key: 'ai_growth',
-        label: String(merged.aiGrowthService.label || defaults.aiGrowthService.label).trim() || defaults.aiGrowthService.label,
-        badge: String(merged.aiGrowthService.badge || defaults.aiGrowthService.badge).trim(),
-        description: String(merged.aiGrowthService.description || defaults.aiGrowthService.description).trim() || defaults.aiGrowthService.description,
-        price: normalizePrice(merged.aiGrowthService.price, defaults.aiGrowthService.price),
-        originalPrice: normalizePrice(merged.aiGrowthService.originalPrice, defaults.aiGrowthService.originalPrice),
-        ctaText: String(merged.aiGrowthService.ctaText || defaults.aiGrowthService.ctaText).trim() || defaults.aiGrowthService.ctaText,
-        features: normalizeFeatureList(merged.aiGrowthService.features, defaults.aiGrowthService.features),
+      submitService: {
+        ...merged.submitService,
+        enabled: merged.submitService.enabled !== false,
+        key: 'submission',
+        label: String(merged.submitService.label || defaults.submitService.label).trim() || defaults.submitService.label,
+        badge: String(merged.submitService.badge || defaults.submitService.badge).trim(),
+        description: String(merged.submitService.description || defaults.submitService.description).trim() || defaults.submitService.description,
+        price: normalizePrice(merged.submitService.price, defaults.submitService.price),
+        originalPrice: normalizePrice(merged.submitService.originalPrice, defaults.submitService.originalPrice),
+        ctaText: String(merged.submitService.ctaText || defaults.submitService.ctaText).trim() || defaults.submitService.ctaText,
+        features: normalizeFeatureList(merged.submitService.features, defaults.submitService.features),
       },
-      paidBoostService: {
-        ...merged.paidBoostService,
-        enabled: merged.paidBoostService.enabled !== false,
-        key: 'paid_boost',
-        label: String(merged.paidBoostService.label || defaults.paidBoostService.label).trim() || defaults.paidBoostService.label,
-        badge: String(merged.paidBoostService.badge || defaults.paidBoostService.badge).trim(),
-        description: String(merged.paidBoostService.description || defaults.paidBoostService.description).trim() || defaults.paidBoostService.description,
-        price: normalizePrice(merged.paidBoostService.price, defaults.paidBoostService.price),
-        originalPrice: normalizePrice(merged.paidBoostService.originalPrice, defaults.paidBoostService.originalPrice),
-        ctaText: String(merged.paidBoostService.ctaText || defaults.paidBoostService.ctaText).trim() || defaults.paidBoostService.ctaText,
-        features: normalizeFeatureList(merged.paidBoostService.features, defaults.paidBoostService.features),
+      topRecommendAddon: {
+        ...merged.topRecommendAddon,
+        enabled: merged.topRecommendAddon.enabled !== false,
+        key: 'top_recommendation',
+        label: String(merged.topRecommendAddon.label || defaults.topRecommendAddon.label).trim() || defaults.topRecommendAddon.label,
+        badge: String(merged.topRecommendAddon.badge || defaults.topRecommendAddon.badge).trim(),
+        description: String(merged.topRecommendAddon.description || defaults.topRecommendAddon.description).trim() || defaults.topRecommendAddon.description,
+        price: normalizePrice(merged.topRecommendAddon.price, defaults.topRecommendAddon.price),
+        originalPrice: normalizePrice(merged.topRecommendAddon.originalPrice, defaults.topRecommendAddon.originalPrice),
+        ctaText: String(merged.topRecommendAddon.ctaText || defaults.topRecommendAddon.ctaText).trim() || defaults.topRecommendAddon.ctaText,
+        features: normalizeFeatureList(merged.topRecommendAddon.features, defaults.topRecommendAddon.features),
+      },
+      bannerAddon: {
+        ...merged.bannerAddon,
+        enabled: merged.bannerAddon.enabled !== false,
+        key: 'banner_slot',
+        label: String(merged.bannerAddon.label || defaults.bannerAddon.label).trim() || defaults.bannerAddon.label,
+        badge: String(merged.bannerAddon.badge || defaults.bannerAddon.badge).trim(),
+        description: String(merged.bannerAddon.description || defaults.bannerAddon.description).trim() || defaults.bannerAddon.description,
+        price: normalizePrice(merged.bannerAddon.price, defaults.bannerAddon.price),
+        originalPrice: normalizePrice(merged.bannerAddon.originalPrice, defaults.bannerAddon.originalPrice),
+        ctaText: String(merged.bannerAddon.ctaText || defaults.bannerAddon.ctaText).trim() || defaults.bannerAddon.ctaText,
+        features: normalizeFeatureList(merged.bannerAddon.features, defaults.bannerAddon.features),
       },
       faqItems: normalizeFaqItems(merged.faqItems, defaults.faqItems),
-      payment: {
-        enabled: merged.payment.enabled === true,
-        allowAlipay: merged.payment.allowAlipay !== false,
-        allowWechat: merged.payment.allowWechat !== false,
-        orderExpireMinutes: Number.isFinite(Number(merged.payment.orderExpireMinutes))
-          ? Math.max(5, Math.min(180, Number(merged.payment.orderExpireMinutes)))
-          : defaults.payment.orderExpireMinutes,
-        notifyBaseUrl: String(merged.payment.notifyBaseUrl || '').trim(),
-        alipay: {
-          enabled: merged.payment.alipay.enabled === true,
-          gateway: String(merged.payment.alipay.gateway || defaults.payment.alipay.gateway).trim() || defaults.payment.alipay.gateway,
-          appId: String(merged.payment.alipay.appId || '').trim(),
-          sellerId: String(merged.payment.alipay.sellerId || '').trim(),
-          privateKey: String(merged.payment.alipay.privateKey || '').trim(),
-          alipayPublicKey: String(merged.payment.alipay.alipayPublicKey || '').trim(),
-          returnUrl: String(merged.payment.alipay.returnUrl || '').trim(),
-          notifyUrl: String(merged.payment.alipay.notifyUrl || '').trim(),
-        },
-        wechat: {
-          enabled: merged.payment.wechat.enabled === true,
-          appId: String(merged.payment.wechat.appId || '').trim(),
-          mchId: String(merged.payment.wechat.mchId || '').trim(),
-          apiKey: String(merged.payment.wechat.apiKey || '').trim(),
-          notifyUrl: String(merged.payment.wechat.notifyUrl || '').trim(),
-          tradeType: 'MWEB',
-          sceneName: String(merged.payment.wechat.sceneName || defaults.payment.wechat.sceneName).trim() || defaults.payment.wechat.sceneName,
-        },
-      },
     };
   }
 
@@ -1095,8 +1157,9 @@ class SettingService extends Service {
    * @param {Record<string, any>} config 全量配置
    * @return {Record<string, any>} 前台可读配置
    */
-  buildPublicSubmissionServiceConfig(config = {}) {
+  buildPublicSubmissionServiceConfig(config = {}, paymentConfig = {}) {
     const normalized = this.normalizeSubmissionServiceConfig(config);
+    const payment = this.buildPublicPaymentConfig(paymentConfig);
     return {
       enabled: normalized.enabled,
       pageTitle: normalized.pageTitle,
@@ -1105,14 +1168,14 @@ class SettingService extends Service {
       containerMaxWidth: normalized.containerMaxWidth,
       pricingTitle: normalized.pricingTitle,
       faqTitle: normalized.faqTitle,
-      aiGrowthService: normalized.aiGrowthService,
-      paidBoostService: normalized.paidBoostService,
+      submitService: normalized.submitService,
+      topRecommendAddon: normalized.topRecommendAddon,
+      bannerAddon: normalized.bannerAddon,
+      // 兼容旧前端字段
+      aiGrowthService: normalized.submitService,
+      paidBoostService: normalized.topRecommendAddon,
       faqItems: normalized.faqItems,
-      payment: {
-        enabled: normalized.payment.enabled,
-        allowAlipay: normalized.payment.allowAlipay && normalized.payment.alipay.enabled,
-        allowWechat: normalized.payment.allowWechat && normalized.payment.wechat.enabled,
-      },
+      payment,
     };
   }
 
@@ -1418,6 +1481,8 @@ class SettingService extends Service {
         value = this.normalizeExitModalConfig(rawValue);
       } else if (key === 'searchConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSearchConfig(rawValue);
+      } else if (key === 'paymentConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizePaymentConfig(rawValue);
       } else if (key === 'submissionServiceConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSubmissionServiceConfig(rawValue);
       } else if (key === 'detailPageConfig' && rawValue && typeof rawValue === 'object') {
@@ -1586,6 +1651,7 @@ class SettingService extends Service {
     const sidebarConfig = await this.get('sidebarConfig');
     const searchConfig = await this.get('searchConfig');
     const exitModalConfig = await this.get('exitModalConfig');
+    const paymentConfig = await this.get('paymentConfig');
     const submissionServiceConfig = await this.get('submissionServiceConfig');
     const detailPageConfig = await this.get('detailPageConfig');
     const hotArticlesConfig = await this.get('hotArticlesConfig');
@@ -1693,6 +1759,7 @@ class SettingService extends Service {
       copyrightAgreementText: '版权协议',
       copyrightAgreementUrl: '',
     };
+    const defaultPayment = this.getDefaultPaymentConfig();
     const defaultSubmissionService = this.getDefaultSubmissionServiceConfig();
 
     const defaultDetailPage = {
@@ -1863,7 +1930,11 @@ class SettingService extends Service {
       sidebar: sidebarConfig || defaultSidebar,
       search: this.normalizeSearchConfig(searchConfig || defaultSearch),
       submission: this.buildPublicSubmissionServiceConfig(
-        this.normalizeSubmissionServiceConfig(submissionServiceConfig || defaultSubmissionService)
+        this.normalizeSubmissionServiceConfig(submissionServiceConfig || defaultSubmissionService),
+        this.normalizePaymentConfig(paymentConfig || defaultPayment)
+      ),
+      payment: this.buildPublicPaymentConfig(
+        this.normalizePaymentConfig(paymentConfig || defaultPayment)
       ),
       exitModal: normalizedExitModalConfig,
       popup: normalizedExitModalConfig,

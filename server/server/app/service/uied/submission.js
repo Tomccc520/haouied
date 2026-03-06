@@ -45,11 +45,18 @@ class SubmissionService extends Service {
    * 标准化服务类型
    */
   normalizeServiceType(serviceType) {
-    return String(serviceType || '').trim().toLowerCase() === 'paid_boost' ? 'paid_boost' : 'ai_growth';
+    const text = String(serviceType || '').trim().toLowerCase();
+    if (text === 'top_recommendation') return 'top_recommendation';
+    if (text === 'banner_slot') return 'banner_slot';
+    if (text === 'submission') return 'submission';
+    // 兼容旧值
+    if (text === 'ai_growth') return 'submission';
+    if (text === 'paid_boost') return 'top_recommendation';
+    return 'submission';
   }
 
   /**
-   * 标准化推广元信息
+   * 标准化增值服务附加信息
    */
   normalizeServiceMeta(serviceMeta) {
     if (!serviceMeta || typeof serviceMeta !== 'object') return null;
@@ -57,8 +64,15 @@ class SubmissionService extends Service {
     const budget = String(serviceMeta.budget || '').trim();
     const target = String(serviceMeta.target || '').trim();
     const contact = String(serviceMeta.contact || '').trim();
-    const normalized = { plan, budget, target, contact };
-    return Object.values(normalized).some(Boolean) ? normalized : null;
+    const addons = Array.isArray(serviceMeta.addons)
+      ? Array.from(new Set(serviceMeta.addons.map(item => String(item || '').trim()).filter(Boolean)))
+      : [];
+    const bannerPositions = Array.isArray(serviceMeta.bannerPositions)
+      ? Array.from(new Set(serviceMeta.bannerPositions.map(item => String(item || '').trim()).filter(Boolean)))
+      : [];
+    const hasAnyContent = Boolean(plan || budget || target || contact || addons.length > 0 || bannerPositions.length > 0);
+    if (!hasAnyContent) return null;
+    return { plan, budget, target, contact, addons, bannerPositions };
   }
 
   /**
@@ -66,15 +80,17 @@ class SubmissionService extends Service {
    */
   buildFallbackDescription(description, serviceType, serviceMeta) {
     const baseDescription = String(description || '').trim();
-    if (serviceType !== 'paid_boost' || !serviceMeta) {
+    if (!serviceMeta) {
       return baseDescription;
     }
     const lines = [
-      '[推广需求]',
+      '[运营需求]',
       `套餐: ${serviceMeta.plan || '-'}`,
       `预算: ${serviceMeta.budget || '-'}`,
       `目标: ${serviceMeta.target || '-'}`,
       `联系方式: ${serviceMeta.contact || '-'}`,
+      `加购项: ${(Array.isArray(serviceMeta.addons) && serviceMeta.addons.length > 0) ? serviceMeta.addons.join(', ') : '-'}`,
+      `Banner位: ${(Array.isArray(serviceMeta.bannerPositions) && serviceMeta.bannerPositions.length > 0) ? serviceMeta.bannerPositions.join(', ') : '-'}`,
     ];
     return `${baseDescription}\n\n${lines.join('\n')}`.trim();
   }
@@ -93,6 +109,39 @@ class SubmissionService extends Service {
       return settingService.normalizeSubmissionServiceConfig(source);
     }
     return source || {};
+  }
+
+  /**
+   * 获取全站支付配置（投稿支付复用全站统一支付中心）
+   */
+  async getPaymentConfig() {
+    const settingService = this.ctx.service.uied.setting;
+    const defaults = typeof settingService?.getDefaultPaymentConfig === 'function'
+      ? settingService.getDefaultPaymentConfig()
+      : {};
+    const stored = await settingService.get('paymentConfig');
+    const legacySubmissionConfig = await settingService.get('submissionServiceConfig');
+    const source = stored && typeof stored === 'object'
+      ? stored
+      : (legacySubmissionConfig?.payment && typeof legacySubmissionConfig.payment === 'object'
+        ? legacySubmissionConfig.payment
+        : defaults);
+    if (typeof settingService?.normalizePaymentConfig === 'function') {
+      return settingService.normalizePaymentConfig(source);
+    }
+    return source || {};
+  }
+
+  /**
+   * 规范化可选加购项
+   */
+  normalizeAddonKeys(addons = []) {
+    const allowSet = new Set([ 'top_recommendation', 'banner_slot' ]);
+    return Array.from(new Set(
+      (Array.isArray(addons) ? addons : [])
+        .map(item => String(item || '').trim())
+        .filter(item => allowSet.has(item))
+    ));
   }
 
   /**
@@ -320,7 +369,7 @@ class SubmissionService extends Service {
         id int unsigned NOT NULL AUTO_INCREMENT,
         order_no varchar(64) NOT NULL,
         submission_id int unsigned NOT NULL DEFAULT 0,
-        service_type varchar(32) NOT NULL DEFAULT 'paid_boost',
+        service_type varchar(32) NOT NULL DEFAULT 'submission',
         pay_channel varchar(20) NOT NULL DEFAULT 'alipay',
         amount decimal(10,2) NOT NULL DEFAULT 0.00,
         status varchar(20) NOT NULL DEFAULT 'created',
@@ -346,23 +395,33 @@ class SubmissionService extends Service {
    */
   async createPayOrder(data = {}) {
     const { app, ctx } = this;
-    const serviceType = this.normalizeServiceType(data.serviceType || 'paid_boost');
+    const serviceType = this.normalizeServiceType(data.serviceType || 'submission');
     const payChannel = this.normalizePayChannel(data.payChannel);
     if (!payChannel) {
       throw new Error('请选择支付渠道');
     }
     const config = await this.getSubmissionServiceConfig();
+    const paymentConfig = await this.getPaymentConfig();
     if (config?.enabled === false) {
       throw new Error('投稿服务暂未开放');
     }
-    const serviceConfig = serviceType === 'paid_boost'
-      ? (config?.paidBoostService || {})
-      : (config?.aiGrowthService || {});
+    const serviceConfig = config?.submitService || {};
     if (serviceConfig?.enabled === false) {
       throw new Error('当前服务暂未开启');
     }
-    const amount = Math.max(0, Number(serviceConfig?.price || 0));
-    const paymentConfig = config?.payment || {};
+    const addonKeys = this.normalizeAddonKeys(
+      data?.serviceMeta?.addons || data?.addons || []
+    );
+    const enabledAddons = [
+      { key: 'top_recommendation', config: config?.topRecommendAddon || {} },
+      { key: 'banner_slot', config: config?.bannerAddon || {} },
+    ]
+      .filter(item => item.config?.enabled !== false)
+      .filter(item => addonKeys.includes(item.key));
+    const amount = Math.max(
+      0,
+      Number(serviceConfig?.price || 0) + enabledAddons.reduce((sum, item) => sum + Number(item.config?.price || 0), 0)
+    );
     if (amount > 0 && paymentConfig?.enabled !== true) {
       throw new Error('支付功能未开启，请联系管理员');
     }
@@ -382,6 +441,8 @@ class SubmissionService extends Service {
         budget: data?.serviceMeta?.budget || data?.promotionBudget || data?.budget || '',
         target: data?.serviceMeta?.target || data?.promotionTarget || data?.target || '',
         contact: data?.serviceMeta?.contact || data?.promotionContact || data?.contact || '',
+        addons: addonKeys,
+        bannerPositions: data?.serviceMeta?.bannerPositions || data?.bannerPositions || [],
       }),
     };
     const submissionResult = await this.submit(submitPayload);
@@ -394,7 +455,10 @@ class SubmissionService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const orderNo = `SUBP${Date.now()}${this.randomString(6).toUpperCase()}`;
     const expireMinutes = Number(paymentConfig?.orderExpireMinutes || 30);
-    const subject = String(serviceConfig?.label || '投稿推广服务').trim() || '投稿推广服务';
+    const addonTitle = enabledAddons.map(item => String(item.config?.label || '')).filter(Boolean).join(' + ');
+    const subject = addonTitle
+      ? `${String(serviceConfig?.label || '付费提交收录').trim()} + ${addonTitle}`
+      : (String(serviceConfig?.label || '付费提交收录').trim() || '付费提交收录');
     const body = String(data?.name || data?.url || '').trim().slice(0, 120);
 
     let payUrl = '';
@@ -715,8 +779,8 @@ class SubmissionService extends Service {
     const serviceMeta = this.normalizeServiceMeta(data.serviceMeta);
     const columns = await this.getSubmissionColumnSet();
 
-    // 收录服务才做重复拦截；付费加热允许对已收录站点继续提交推广诉求
-    if (serviceType !== 'paid_boost') {
+    // 基础收录服务需要拦截重复网址，避免重复收录。
+    if (serviceType === 'submission') {
       const checkResult = await this.checkUrl(data.url);
       if (checkResult.exists) {
         throw new Error(checkResult.message);
@@ -866,7 +930,7 @@ class SubmissionService extends Service {
         rejectReason: s.reject_reason,
         serviceType: columns.has('service_type')
           ? this.normalizeServiceType(s.service_type)
-          : (String(s.description || '').includes('[推广需求]') ? 'paid_boost' : 'ai_growth'),
+          : (String(s.description || '').includes('[运营需求]') ? 'submission' : 'submission'),
         serviceMeta: (() => {
           if (!columns.has('service_meta')) return null;
           const raw = s.service_meta;
