@@ -7,8 +7,8 @@
  * @version 1.0.0
  */
 
-/* 移动端导航栏样式 - 750px以下设备，遵循苹果设计规范 */
-@media (max-width: 750px) {
+/* 移动端导航栏样式 - 768px以下设备，遵循苹果设计规范 */
+@media (max-width: 767px) {
   /* ===== 导航栏容器 ===== */
   .navbar-container {
     height: 56px; /* 苹果推荐导航栏高度 */
@@ -120,6 +120,8 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease; /* 苹果动画时长 */
+    color: #475569; /* 显式指定图标颜色，避免被通用按钮样式覆盖 */
+    -webkit-text-fill-color: currentColor;
     /* 移除阴影 */
   }
 
@@ -127,12 +129,15 @@
   .navbar-mobile-search:active {
     background: rgba(0, 122, 255, 0.1); /* 苹果蓝色背景 */
     border-color: var(--primary-color); /* 苹果蓝色边框 */
+    color: var(--primary-color);
   }
 
   .navbar-mobile-search svg {
     width: 1.125rem; /* 18px */
     height: 1.125rem;
-    color: var(--text-secondary); /* 苹果次要颜色 */
+    color: inherit;
+    stroke: currentColor;
+    opacity: 1;
   }
 
   .navbar-mobile-search:hover svg,
@@ -169,10 +174,10 @@
 
   /* ===== 导航切换下拉菜单 ===== */
   .nav-switch-dropdown {
-    left: var(--spacing-4); /* 16px */
-    right: -150px;
-    min-width: auto;
-    max-width: none;
+    left: 0;
+    right: 0;
+    min-width: 0;
+    max-width: 100%;
     margin-top: var(--spacing-1); /* 4px */
     border-radius: var(--radius-lg); /* 苹果推荐圆角 */
     background: var(--glass-bg);
@@ -240,14 +245,14 @@
     position: fixed;
     top: 0;
     right: 0;
-    width: 280px;
+    width: min(86vw, 320px);
     height: 100vh;
     background: var(--bg-card);
-    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+    box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
     transform: translateX(0);
     z-index: 2002;
     overflow-y: auto;
-    padding: var(--spacing-4) 0;
+    padding: var(--spacing-3) 0;
     animation: slideInRight 0.3s ease-out;
   }
 
@@ -262,12 +267,14 @@
   }
 
   .navbar-mobile-menu-item {
-    padding: var(--spacing-4) var(--spacing-5); /* 16px 20px */
+    padding: 12px 14px;
     border-bottom: 0.5px solid var(--border-light); /* 苹果分割线 */
     transition: background-color 0.2s ease;
-    min-height: 56px; /* 苹果推荐触摸目标 */
+    min-height: 48px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
   .navbar-mobile-menu-item:last-child {
@@ -282,10 +289,177 @@
     background: transparent;
   }
 
+  .navbar-mobile-menu-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
   .navbar-mobile-menu-text {
     font-size: var(--text-base); /* 17px -> 16px (Base) */
     font-weight: 400; /* 苹果Regular */
     color: var(--text-primary); /* 苹果主文本 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .navbar-mobile-chip {
+    flex-shrink: 0;
+  }
+
+  .navbar-mobile-arrow {
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .navbar-mobile-arrow.open {
+    transform: rotate(180deg);
+  }
+
+  .navbar-mobile-submenu {
+    padding: 6px 10px 10px;
+    border-bottom: 0.5px solid var(--border-light);
+    background: rgba(248, 250, 252, 0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .navbar-mobile-submenu-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 10px;
+  }
+
+  .navbar-mobile-submenu-content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .navbar-mobile-submenu-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.4;
+  }
+
+  .navbar-mobile-submenu-desc {
+    font-size: 11px;
+    line-height: 1.45;
+    color: #64748b;
+  }
+
+  .navbar-mobile-user-info {
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .navbar-mobile-user-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .navbar-mobile-user-avatar-lg {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    flex-shrink: 0;
+  }
+
+  .navbar-mobile-user-avatar-lg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .navbar-mobile-user-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .navbar-mobile-user-meta {
+    min-width: 0;
+  }
+
+  .navbar-mobile-user-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+
+  .navbar-mobile-user-role {
+    margin-top: 3px;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .navbar-mobile-user-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .navbar-mobile-user-btn {
+    flex: 1;
+    min-height: 34px;
+    border-radius: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: #fff;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .navbar-mobile-user-btn--danger {
+    color: #dc2626;
+  }
+
+  .navbar-mobile-auth-wrap {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .navbar-mobile-notice {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+
+  .navbar-mobile-auth-btn {
+    width: 100%;
+    min-height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: #2563eb;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
   }
 }
 

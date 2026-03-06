@@ -1,10 +1,12 @@
 'use strict';
 
 module.exports = app => {
-  // 模型添加字段同步数据库
-  app.beforeStart(async () => {
-    await app.model.sync({});// force  false 为不覆盖 true会删除再创建; alter true可以 添加或删除字段;
-  });
+  // 仅在非生产环境执行模型同步，避免生产环境因历史表结构差异导致服务启动失败
+  if (app.config.env !== 'prod') {
+    app.beforeStart(async () => {
+      await app.model.sync({});// force  false 为不覆盖 true会删除再创建; alter true可以 添加或删除字段;
+    });
+  }
   // 加载路由文件
   require('./router/system')(app);
   require('./router/uied')(app); // UIED 业务路由

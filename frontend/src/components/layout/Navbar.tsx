@@ -802,65 +802,65 @@ const Navbar = () => {
             </button>
             {Boolean(anchorEl) && createPortal(
               <>
-                <div className="navbar-mobile-overlay" onClick={handleClose} style={{ zIndex: 2001 }} />
-                <div className="navbar-mobile-menu" style={{ zIndex: 2002 }}>
+                <div className="navbar-mobile-overlay" onClick={handleClose} />
+                <div className="navbar-mobile-menu">
                   {/* 移动端菜单头部用户信息 */}
                   {userCenterEnabled && isLoggedIn && user ? (
-                    <div className="navbar-mobile-user-info" style={{ padding: '1rem 1.5rem', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', background: '#fff' }}>
+                    <div className="navbar-mobile-user-info">
+                      <div className="navbar-mobile-user-row">
+                        <div className="navbar-mobile-user-avatar-lg">
                           {user.avatar ? (
-                            <img src={user.avatar} alt={user.nickname} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={user.avatar} alt={user.nickname} />
                           ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#eee' }}>
+                            <div className="navbar-mobile-user-avatar-fallback">
                               {(user.nickname || user.username || 'U').charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '16px' }}>{user.nickname || user.username}</div>
-                          <div style={{ fontSize: '12px', color: '#666' }}>{user.userTypeName || '普通用户'}</div>
+                        <div className="navbar-mobile-user-meta">
+                          <div className="navbar-mobile-user-name">{user.nickname || user.username}</div>
+                          <div className="navbar-mobile-user-role">{user.userTypeName || '普通用户'}</div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '10px' }}>
+                      <div className="navbar-mobile-user-actions">
                         <button 
                           onClick={() => { navigate('/profile'); handleClose(); }}
-                          style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #ddd', background: '#fff', fontSize: '14px' }}
+                          className="navbar-mobile-user-btn"
                         >
                           个人中心
                         </button>
                         <button 
                           onClick={() => { logout(); handleClose(); }}
-                          style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #ddd', background: '#fff', fontSize: '14px', color: '#ff4d4f' }}
+                          className="navbar-mobile-user-btn navbar-mobile-user-btn--danger"
                         >
                           退出
                         </button>
                       </div>
                     </div>
                   ) : !userCenterEnabled && isLoggedIn ? (
-                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
-                      <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+                    <div className="navbar-mobile-auth-wrap">
+                      <div className="navbar-mobile-notice">
                         {userCenterCloseMessage}
                       </div>
                       <button 
                         onClick={() => { logout(); handleClose(); }}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, color: '#ff4d4f' }}
+                        className="navbar-mobile-user-btn navbar-mobile-user-btn--danger"
                       >
                         退出登录
                       </button>
                     </div>
                   ) : userCenterEnabled ? (
-                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
+                    <div className="navbar-mobile-auth-wrap">
                       <button 
                         onClick={() => { openAuthModal(); handleClose(); }}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', background: '#1976d2', color: '#fff', border: 'none', fontWeight: 600 }}
+                        className="navbar-mobile-auth-btn"
                       >
                         登录 / 注册
                       </button>
                     </div>
                   ) : (
-                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
-                      <div style={{ fontSize: '12px', color: '#999' }}>{userCenterCloseMessage}</div>
+                    <div className="navbar-mobile-auth-wrap">
+                      <div className="navbar-mobile-notice">{userCenterCloseMessage}</div>
                     </div>
                   )}
 

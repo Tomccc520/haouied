@@ -305,6 +305,56 @@ const countEffectiveTextLength = (text?: string): number =>
     .length;
 
 /**
+ * 将详情正文做最小化安全清洗，避免历史数据中的 script/style 标签影响整页渲染
+ */
+const sanitizeDetailContentHtml = (content?: string): string => {
+  const text = String(content || '');
+  if (!text) return '';
+  return text
+    .replace(/<!doctype[^>]*>/gi, '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/?(html|head|body)[^>]*>/gi, '')
+    .trim();
+};
+
+/**
+ * 统一规范化截图字段，兼容 string/array/object 混合结构，避免前端渲染期类型异常
+ */
+const normalizeScreenshotUrls = (value: unknown): string[] => {
+  const resolveString = (input: unknown): string => String(input || '').trim();
+  const resolveItem = (item: unknown): string => {
+    if (!item) return '';
+    if (typeof item === 'string') return resolveString(item);
+    if (typeof item === 'object') {
+      const record = item as Record<string, unknown>;
+      return resolveString(record.url || record.src || record.path || record.image || '');
+    }
+    return '';
+  };
+
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map(resolveItem).filter(Boolean)));
+  }
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return Array.from(new Set(parsed.map(resolveItem).filter(Boolean)));
+      }
+      return [];
+    } catch (error) {
+      return text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/')
+        ? [ text ]
+        : [];
+    }
+  }
+  return [];
+};
+
+/**
  * 格式化 SEO 字段长度显示
  */
 const formatSeoTextLengthLabel = (text?: string): string => {
@@ -633,9 +683,7 @@ const WebsiteDetailPage: React.FC = () => {
   // 图片灯箱状态
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const localScreenshots = Array.isArray(website?.screenshots)
-    ? (website?.screenshots || []).filter(Boolean)
-    : (website?.screenshots ? [ website.screenshots ] : []);
+  const localScreenshots = normalizeScreenshotUrls(website?.screenshots);
   const shouldUsePreviewSnapshotCache = detailPageConfigLoaded
     && Boolean(website?.id)
     && !website?.thumbnail
@@ -699,7 +747,7 @@ const WebsiteDetailPage: React.FC = () => {
       
       // 处理内容中的图片URL
       if (data.detailContent) {
-        data.detailContent = processContentImageUrls(data.detailContent);
+        data.detailContent = processContentImageUrls(sanitizeDetailContentHtml(data.detailContent));
       }
       
       setWebsite(data);
@@ -991,9 +1039,7 @@ const WebsiteDetailPage: React.FC = () => {
   };
 
   // 截图列表
-  const screenshots = website?.screenshots 
-    ? (Array.isArray(website.screenshots) ? website.screenshots : [website.screenshots]) 
-    : [];
+  const screenshots = normalizeScreenshotUrls(website?.screenshots);
 
   // 渲染Markdown内容 (简单处理)
   const renderContent = (content: string) => {

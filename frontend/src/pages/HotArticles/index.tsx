@@ -768,11 +768,11 @@ const HotArticlesPage: React.FC = () => {
   /**
    * 渲染列表骨架屏。
    */
-  const renderSkeletonRows = (latestLayout = false) => {
+  const renderSkeletonRows = () => {
     return Array.from({ length: 6 }).map((_, index) => (
       <article
         key={`skeleton-${index}`}
-        className={`hot-articles-page__row hot-articles-page__row--skeleton ${latestLayout ? 'hot-articles-page__row--latest' : ''}`.trim()}
+        className="hot-articles-page__row hot-articles-page__row--skeleton hot-articles-page__row--latest"
       >
         <div className="hot-articles-page__rank-skeleton" />
         <div className="hot-articles-page__thumb-skeleton" />
@@ -884,7 +884,7 @@ const HotArticlesPage: React.FC = () => {
             )}
 
             {!isPageDisabled && !error && loading && (
-              <section className="hot-articles-page__list">{renderSkeletonRows(activeMenu?.mode === 'latest')}</section>
+              <section className="hot-articles-page__list">{renderSkeletonRows()}</section>
             )}
 
             {!isPageDisabled && !error && !loading && articleList.length === 0 && (
@@ -904,11 +904,10 @@ const HotArticlesPage: React.FC = () => {
                   const commentText = formatCompactCount(item?.commentCount);
                   const authorColorToken = resolveAuthorColorToken(authorName);
                   const heatLabel = resolveHeatLabel(item?.viewCount, item?.commentCount);
-                  const isLatestMenu = activeMenu?.mode === 'latest';
                   return (
                     <article
                       key={`${item.id || title}-${index}`}
-                      className={`hot-articles-page__row hot-articles-page__row--animated ${isLatestMenu ? 'hot-articles-page__row--latest' : ''}`.trim()}
+                      className="hot-articles-page__row hot-articles-page__row--animated hot-articles-page__row--latest"
                       style={{ '--row-index': index } as React.CSSProperties}
                     >
                       <div className={`hot-articles-page__rank-badge ${index < 3 ? `is-top-${index + 1}` : ''}`}>
