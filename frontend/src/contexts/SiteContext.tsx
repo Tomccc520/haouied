@@ -11,6 +11,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import api from '../services/api';
+import { unwrapApiResponse } from '../utils/apiResponse';
 
 /**
  * 站点信息接口
@@ -42,6 +43,58 @@ export const DEFAULT_SITE_INFO: SiteInfo = {
   keywords: '设计导航,UI设计,UX设计',
   logo: '/logo-3.svg',
   favicon: '/favicon.ico',
+};
+
+/**
+ * 读取对象中的首个有效字符串字段。
+ */
+const pickTextField = (
+  source: Record<string, unknown>,
+  keys: string[],
+  fallback = ''
+): string => {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+  return fallback;
+};
+
+/**
+ * 规范化站点信息响应，兼容“包装响应 + 多字段命名”。
+ */
+export const normalizeSiteInfoPayload = (
+  payload: unknown,
+  fallback: SiteInfo = DEFAULT_SITE_INFO
+): SiteInfo => {
+  const unwrapped = unwrapApiResponse<Record<string, unknown> | null>(payload, null);
+  if (!unwrapped || typeof unwrapped !== 'object') {
+    return { ...fallback };
+  }
+  return mergeSiteInfoWithDefaults({
+    id: Number(unwrapped.id ?? fallback.id) || fallback.id,
+    siteName: pickTextField(unwrapped, [ 'siteName', 'site_name' ], fallback.siteName),
+    siteTitle: pickTextField(unwrapped, [ 'siteTitle', 'site_title' ], fallback.siteTitle),
+    description: pickTextField(
+      unwrapped,
+      [ 'description', 'siteDescription', 'site_description' ],
+      fallback.description
+    ),
+    keywords: pickTextField(
+      unwrapped,
+      [ 'keywords', 'siteKeywords', 'site_keywords' ],
+      fallback.keywords
+    ),
+    logo: pickTextField(unwrapped, [ 'logo' ], fallback.logo),
+    favicon: pickTextField(unwrapped, [ 'favicon' ], fallback.favicon),
+    icp: pickTextField(unwrapped, [ 'icp' ], ''),
+    icpLink: pickTextField(unwrapped, [ 'icpLink', 'icp_link' ], ''),
+    copyright: pickTextField(unwrapped, [ 'copyright' ], ''),
+    createdAt: pickTextField(unwrapped, [ 'createdAt', 'create_time' ], ''),
+    updatedAt: pickTextField(unwrapped, [ 'updatedAt', 'update_time' ], ''),
+  });
 };
 
 /**
@@ -97,7 +150,7 @@ export const SiteProvider: React.FC<SiteProviderProps> = ({
       const response = await api.get('/site-info');
       
       if (response.data) {
-        setSiteInfo(response.data);
+        setSiteInfo(normalizeSiteInfoPayload(response.data, defaultSiteInfo));
         setIsUsingDefault(false);
         setError(null);
       } else {

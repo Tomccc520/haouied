@@ -12,6 +12,7 @@ import { useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import SiteContext, { 
   DEFAULT_SITE_INFO,
+  normalizeSiteInfoPayload,
 } from '../contexts/SiteContext';
 
 export interface SiteInfo {
@@ -72,7 +73,7 @@ const useSiteInfoStandalone = () => {
     try {
       setLoading(true);
       const response = await api.get('/site-info');
-      setSiteInfo(response.data);
+      setSiteInfo(normalizeSiteInfoPayload(response.data, DEFAULT_SITE_INFO));
       setError(null);
     } catch (err) {
       setError(err as Error);

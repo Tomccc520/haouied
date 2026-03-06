@@ -8,6 +8,7 @@
  */
 
 import React, { useEffect } from 'react';
+import { useSiteInfo } from '../../hooks/useSiteInfo';
 
 interface SEOProps {
   title?: string;
@@ -21,16 +22,38 @@ interface SEOProps {
 }
 
 const SEO: React.FC<SEOProps> = ({
-  title = 'UIED设计导航',
-  description = 'UIED设计导航是专业的设计师导航网站，精选优质UI/UX设计工具、平面设计资源、AI设计工具，为设计师提供一站式设计资源导航服务。',
-  keywords = '设计导航,UI设计工具,UX设计,平面设计,AI设计,设计资源,设计师工具,Figma,Sketch,设计灵感,UIED',
+  title,
+  description,
+  keywords,
   image = 'https://hao.uied.cn/og-image.jpg',
   url = 'https://hao.uied.cn',
   type = 'website',
   noindex = false,
   canonical
 }) => {
-  const fullTitle = title === 'UIED设计导航' ? title : `${title} - UIED设计导航`;
+  const { siteInfo } = useSiteInfo();
+  const siteName = String(siteInfo?.siteName || 'UIED设计导航').trim() || 'UIED设计导航';
+  const defaultTitle = String(siteInfo?.siteTitle || siteName).trim() || siteName;
+  const defaultDescription = String(
+    siteInfo?.description ||
+      'UIED设计导航是专业的设计师导航网站，精选优质UI/UX设计工具、平面设计资源、AI设计工具，为设计师提供一站式设计资源导航服务。'
+  ).trim();
+  const defaultKeywords = String(
+    siteInfo?.keywords || '设计导航,UI设计工具,UX设计,平面设计,AI设计,设计资源,设计师工具,Figma,Sketch,设计灵感,UIED'
+  ).trim();
+
+  /**
+   * 计算页面最终标题，优先使用页面标题并自动补站点名后缀。
+   */
+  const fullTitle = (() => {
+    const resolvedTitle = String(title || defaultTitle).trim() || defaultTitle;
+    if (!resolvedTitle || resolvedTitle === siteName || resolvedTitle.includes(siteName)) {
+      return resolvedTitle || siteName;
+    }
+    return `${resolvedTitle} - ${siteName}`;
+  })();
+  const resolvedDescription = String(description || defaultDescription).trim() || defaultDescription;
+  const resolvedKeywords = String(keywords || defaultKeywords).trim() || defaultKeywords;
 
   useEffect(() => {
     // 更新页面标题
@@ -54,22 +77,22 @@ const SEO: React.FC<SEOProps> = ({
     };
 
     // 更新基本SEO标签
-    updateMetaTag('description', description);
-    updateMetaTag('keywords', keywords);
+    updateMetaTag('description', resolvedDescription);
+    updateMetaTag('keywords', resolvedKeywords);
     updateMetaTag('robots', noindex ? 'noindex,nofollow' : 'index,follow');
 
     // 更新Open Graph标签
     updateMetaTag('og:type', type, true);
     updateMetaTag('og:title', fullTitle, true);
-    updateMetaTag('og:description', description, true);
+    updateMetaTag('og:description', resolvedDescription, true);
     updateMetaTag('og:image', image, true);
     updateMetaTag('og:url', url, true);
-    updateMetaTag('og:site_name', 'UIED设计导航', true);
+    updateMetaTag('og:site_name', siteName, true);
 
     // 更新Twitter标签
     updateMetaTag('twitter:card', 'summary_large_image', true);
     updateMetaTag('twitter:title', fullTitle, true);
-    updateMetaTag('twitter:description', description, true);
+    updateMetaTag('twitter:description', resolvedDescription, true);
     updateMetaTag('twitter:image', image, true);
 
     // 更新 canonical 链接（支持按页面关闭 canonical）
@@ -89,7 +112,7 @@ const SEO: React.FC<SEOProps> = ({
       node.setAttribute('href', String(canonicalHref || url));
     }
 
-  }, [fullTitle, description, keywords, image, url, type, noindex, canonical]);
+  }, [fullTitle, resolvedDescription, resolvedKeywords, image, url, type, noindex, canonical, siteName]);
 
   return null; // 该组件不渲染任何内容
 };
