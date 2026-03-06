@@ -14,6 +14,8 @@ export interface HotRecommendation {
   description: string;
   url: string;
   iconUrl?: string;
+  tags?: string[];
+  weightTags?: string[];
   pageSlug?: string;
   position: 'hot' | 'featured' | 'ad';
   order: number;

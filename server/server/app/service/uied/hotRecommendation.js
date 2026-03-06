@@ -14,6 +14,80 @@ const Service = require('egg').Service;
 
 class HotRecommendationService extends Service {
   /**
+   * 规范化站点权重标签键（支持中英文别名）
+   * @param {unknown} value 原始值
+   * @return {string} 规范化键值
+   */
+  normalizeWebsiteWeightTag(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    const aliasMap = {
+      official: 'official',
+      'weight:official': 'official',
+      recommended: 'recommended',
+      recommend: 'recommended',
+      'weight:recommended': 'recommended',
+      enterprise_verified: 'enterprise_verified',
+      enterpriseverified: 'enterprise_verified',
+      enterprise: 'enterprise_verified',
+      verified_enterprise: 'enterprise_verified',
+      'weight:enterprise_verified': 'enterprise_verified',
+    };
+    aliasMap.官网 = 'official';
+    aliasMap.官方 = 'official';
+    aliasMap.推荐 = 'recommended';
+    aliasMap.企业认证 = 'enterprise_verified';
+    return aliasMap[raw] || '';
+  }
+
+  /**
+   * 解析网站标签，拆分普通标签与权重标签
+   * @param {unknown} source 标签字段原始值
+   * @return {{tags: string[], weightTags: string[]}} 标签结果
+   */
+  parseWebsiteTagBundle(source) {
+    const rows = (() => {
+      if (!source) return [];
+      if (Array.isArray(source)) {
+        return source.map(item => String(item || '').trim()).filter(Boolean);
+      }
+      try {
+        const parsed = JSON.parse(source);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map(item => String(item || '').trim()).filter(Boolean);
+      } catch (error) {
+        if (typeof source === 'string') {
+          return source.split(',').map(item => item.trim()).filter(Boolean);
+        }
+        return [];
+      }
+    })();
+
+    const tags = [];
+    const weightTags = [];
+    rows.forEach(item => {
+      const normalizedItem = String(item || '').trim();
+      if (!normalizedItem) return;
+      const normalizedWeightKey = this.normalizeWebsiteWeightTag(normalizedItem);
+      if (normalizedWeightKey) {
+        weightTags.push(normalizedWeightKey);
+        return;
+      }
+      if (normalizedItem.toLowerCase().startsWith('weight:')) {
+        const fallbackKey = this.normalizeWebsiteWeightTag(normalizedItem.replace(/^weight:/i, ''));
+        if (fallbackKey) {
+          weightTags.push(fallbackKey);
+          return;
+        }
+      }
+      tags.push(normalizedItem);
+    });
+    return {
+      tags: Array.from(new Set(tags)),
+      weightTags: Array.from(new Set(weightTags)),
+    };
+  }
+
+  /**
    * 获取热门推荐列表
    */
   async list({ page = 1, pageSize = 20, position, pageSlug }) {
@@ -177,7 +251,7 @@ class HotRecommendationService extends Service {
       `SELECT hr.id, hr.name, hr.description, hr.url, hr.icon_url as iconUrl, 
               hr.page_slug as pageSlug, hr.position, hr.sort as 'order', 
               hr.is_show as visible, hr.click_count as clickCount,
-              w.id as websiteId, w.slug as websiteSlug
+              w.id as websiteId, w.slug as websiteSlug, w.tags as websiteTags
        FROM uied_hot_recommendation hr
        LEFT JOIN uied_website w ON hr.url = w.url AND w.is_delete = 0
        WHERE ${whereClause}
@@ -187,12 +261,17 @@ class HotRecommendationService extends Service {
     );
 
     // 转换 visible 为布尔值
-    return items.map(item => ({
-      ...item,
-      visible: item.visible === 1,
-      websiteId: item.websiteId || null,
-      websiteSlug: item.websiteSlug || null,
-    }));
+    return items.map(item => {
+      const tagBundle = this.parseWebsiteTagBundle(item.websiteTags);
+      return {
+        ...item,
+        visible: item.visible === 1,
+        websiteId: item.websiteId || null,
+        websiteSlug: item.websiteSlug || null,
+        tags: tagBundle.tags,
+        weightTags: tagBundle.weightTags,
+      };
+    });
   }
 
   /**

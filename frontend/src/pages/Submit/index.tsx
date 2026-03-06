@@ -140,6 +140,13 @@ interface SubmitServiceOption {
   ctaText: string;
 }
 
+interface PayChannelOption {
+  value: PayChannel;
+  label: string;
+  desc: string;
+  enabled: boolean;
+}
+
 interface BannerPositionOption {
   value: string;
   label: string;
@@ -185,7 +192,7 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   pageTitle: '提交网站',
   pageSubtitle: '提交后进入审核与收录流程，可按需加购置顶推荐与 Banner 运营位。',
   pageDescription: '基础提交为正式收录服务，运营加购项用于新品发布、首页曝光与短期活动冲刺。',
-  containerMaxWidth: 1480,
+  containerMaxWidth: 1320,
   pricingTitle: '服务与加购',
   faqTitle: '常见问题',
   submitService: {
@@ -448,6 +455,22 @@ const Icons = {
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   ),
+  /**
+   * 支付宝品牌图标（官方蓝色语义）
+   */
+  Alipay: () => (
+    <svg viewBox="0 0 1024 1024" fill="none">
+      <path d="M1024.0512 701.0304V196.864A196.9664 196.9664 0 0 0 827.136 0H196.864A196.9664 196.9664 0 0 0 0 196.864v630.272A196.9152 196.9152 0 0 0 196.864 1024h630.272a197.12 197.12 0 0 0 193.8432-162.0992c-52.224-22.6304-278.528-120.32-396.4416-176.64-89.7024 108.6976-183.7056 173.9264-325.3248 173.9264s-236.1856-87.2448-224.8192-194.048c7.4752-70.0416 55.552-184.576 264.2944-164.9664 110.08 10.3424 160.4096 30.8736 250.1632 60.5184 23.1936-42.5984 42.496-89.4464 57.1392-139.264H248.064v-39.424h196.9152V311.1424H204.8V267.776h240.128V165.632s2.1504-15.9744 19.8144-15.9744h98.4576V267.776h256v43.4176h-256V381.952h208.8448a805.9904 805.9904 0 0 1-84.8384 212.6848c60.672 22.016 336.7936 106.3936 336.7936 106.3936zM283.5456 791.6032c-149.6576 0-173.312-94.464-165.376-133.9392 7.8336-39.3216 51.2-90.624 134.4-90.624 95.5904 0 181.248 24.4736 284.0576 74.5472-72.192 94.0032-160.9216 150.016-253.0816 150.016z" fill="#009FE8" />
+    </svg>
+  ),
+  /**
+   * 微信支付品牌图标（官方绿色语义）
+   */
+  WechatPay: () => (
+    <svg viewBox="0 0 1228 1024" fill="none">
+      <path d="M530.8928 703.1296a41.472 41.472 0 0 1-35.7376-19.8144l-2.7136-5.5808L278.272 394.752a18.7392 18.7392 0 0 1-2.048-8.1408 19.968 19.968 0 0 1 20.48-19.3536c4.608 0 8.8576 1.4336 12.288 3.84l234.3936 139.9296a64.4096 64.4096 0 0 0 54.528 5.9392L1116.2624 204.8C1004.9536 80.896 821.76 0 614.4 0 275.0464 0 0 216.576 0 483.6352c0 145.7152 82.7392 276.8896 212.2752 365.5168a38.1952 38.1952 0 0 1 17.2032 31.488 44.4928 44.4928 0 0 1-2.1504 12.3904l-27.6992 97.4848c-1.3312 4.608-3.328 9.3696-3.328 14.1312 0 10.752 9.216 19.3536 20.48 19.3536 4.4032 0 8.0384-1.536 11.776-3.584l134.5536-73.3184c10.1376-5.5296 20.7872-8.96 32.6144-8.96 6.2976 0 12.288 0.9216 18.0736 2.5088 62.72 17.0496 130.4576 26.5728 200.5504 26.5728C953.7024 967.168 1228.8 750.592 1228.8 483.6352c0-80.9472-25.4464-157.1328-70.0416-224.1024l-604.9792 436.992-4.4544 2.4064a42.1376 42.1376 0 0 1-18.432 4.1984z" fill="#15BA11" />
+    </svg>
+  ),
   ChevronDown: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="6 9 12 15 18 9" />
@@ -637,6 +660,7 @@ const SubmitPage: React.FC = () => {
   const [submitResult, setSubmitResult] = useState<SubmitResultState | null>(null);
   const [submissionConfig, setSubmissionConfig] = useState<SubmissionPublicConfig>(DEFAULT_SUBMISSION_PUBLIC_CONFIG);
   const [payChannel, setPayChannel] = useState<PayChannel>('alipay');
+  const [allowDuplicateSubmit, setAllowDuplicateSubmit] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [urlCheckResult, setUrlCheckResult] = useState<{
     checking: boolean;
@@ -646,7 +670,7 @@ const SubmitPage: React.FC = () => {
     website?: { name: string; url: string };
   }>({ checking: false, exists: false });
   const layoutStyle = useMemo(
-    () => ({ '--submit-layout-config-max-width': `${submissionConfig.containerMaxWidth || 1480}px` } as CSSProperties),
+    () => ({ '--submit-layout-config-max-width': `${submissionConfig.containerMaxWidth || 1320}px` } as CSSProperties),
     [submissionConfig.containerMaxWidth],
   );
 
@@ -748,7 +772,7 @@ const SubmitPage: React.FC = () => {
 
   const shouldRequirePayment = totalPrice > 0;
 
-  const paymentChannelOptions = useMemo(
+  const paymentChannelOptions = useMemo<PayChannelOption[]>(
     () => [
       {
         value: 'alipay' as const,
@@ -1006,6 +1030,7 @@ const SubmitPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (name === 'url') {
       setUrlCheckResult({ checking: false, exists: false });
+      setAllowDuplicateSubmit(false);
     }
   };
 
@@ -1132,6 +1157,7 @@ const SubmitPage: React.FC = () => {
       submitterName: formData.submitterName.trim(),
       submitterEmail: formData.submitterEmail.trim(),
       iconUrl: iconUrl || undefined,
+      allowDuplicate: allowDuplicateSubmit,
       serviceMeta: {
         plan: addonPlan || formData.promotionPlan || '基础收录',
         budget: formData.promotionBudget.trim(),
@@ -1141,7 +1167,7 @@ const SubmitPage: React.FC = () => {
         bannerPositions: formData.bannerPositions,
       },
     };
-  }, [addonOptions, formData, iconUrl]);
+  }, [addonOptions, allowDuplicateSubmit, formData, iconUrl]);
 
   /**
    * 提交动作：有价格走支付订单，无价格则直接提交。
@@ -1161,8 +1187,8 @@ const SubmitPage: React.FC = () => {
       setSubmitResult({ success: false, message: '请填写网站名称和URL' });
       return;
     }
-    if (urlCheckResult.exists) {
-      setSubmitResult({ success: false, message: '该网址已存在，不能重复提交收录' });
+    if (urlCheckResult.exists && !allowDuplicateSubmit) {
+      setSubmitResult({ success: false, message: '该网址疑似已存在，请勾选“允许重复提交”后继续' });
       return;
     }
     if (formData.selectedAddons.length > 0 && !formData.promotionContact.trim()) {
@@ -1182,6 +1208,13 @@ const SubmitPage: React.FC = () => {
       return;
     }
 
+    let preOpenedPayWindow: Window | null = null;
+    if (shouldRequirePayment) {
+      /**
+       * 先预开支付窗口，降低浏览器对异步 window.open 的拦截概率。
+       */
+      preOpenedPayWindow = window.open('', '_blank', 'noopener,noreferrer');
+    }
     setLoading(true);
     try {
       if (shouldRequirePayment) {
@@ -1192,7 +1225,18 @@ const SubmitPage: React.FC = () => {
         const data = unwrapApiResponse<SubmissionPayOrderPayload>(res.data, {});
         clearDraft();
         const payUrl = String(data.payUrl || '').trim();
-        const opened = payUrl ? openPayWindow(payUrl) : false;
+        let opened = false;
+        if (payUrl) {
+          if (preOpenedPayWindow && !preOpenedPayWindow.closed) {
+            preOpenedPayWindow.location.href = payUrl;
+            opened = true;
+          } else {
+            opened = openPayWindow(payUrl);
+          }
+        }
+        if (preOpenedPayWindow && !preOpenedPayWindow.closed && !opened) {
+          preOpenedPayWindow.close();
+        }
         setSubmitResult({
           success: true,
           id: data.submissionId ? String(data.submissionId) : undefined,
@@ -1221,6 +1265,9 @@ const SubmitPage: React.FC = () => {
         success: false,
         message: getApiErrorMessage(error, '提交失败，请稍后重试'),
       });
+      if (preOpenedPayWindow && !preOpenedPayWindow.closed) {
+        preOpenedPayWindow.close();
+      }
     } finally {
       setLoading(false);
     }
@@ -1234,6 +1281,7 @@ const SubmitPage: React.FC = () => {
     setIconUrl('');
     setSubmitResult(null);
     setUrlCheckResult({ checking: false, exists: false });
+    setAllowDuplicateSubmit(false);
     clearDraft();
   };
 
@@ -1461,7 +1509,7 @@ const SubmitPage: React.FC = () => {
                         <div className="url-exists-warning">
                           <Icons.Info />
                           <span>
-                            {urlCheckResult.message || '该网址已存在，不能重复提交收录'}
+                            {urlCheckResult.message || '该网址已存在'}
                             {urlCheckResult.website ? <>：<strong>{urlCheckResult.website.name}</strong></> : null}
                           </span>
                         </div>
@@ -1473,6 +1521,16 @@ const SubmitPage: React.FC = () => {
                       ) : (
                         <p className="form-hint">输入网站地址后，可直接使用 AI 自动补全站点信息</p>
                       )}
+                      {urlCheckResult.exists ? (
+                        <label className="duplicate-submit-confirm">
+                          <input
+                            type="checkbox"
+                            checked={allowDuplicateSubmit}
+                            onChange={(event) => setAllowDuplicateSubmit(event.target.checked)}
+                          />
+                          <span>允许重复提交（进入人工复核，不保证收录）</span>
+                        </label>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1727,7 +1785,7 @@ const SubmitPage: React.FC = () => {
                     <button
                       type="submit"
                       className="btn-primary"
-                      disabled={loading || urlCheckResult.exists}
+                      disabled={loading || (urlCheckResult.exists && !allowDuplicateSubmit)}
                     >
                       {loading ? (
                         <span className="loading-text">提交中</span>
@@ -1805,7 +1863,7 @@ const SubmitPage: React.FC = () => {
                       {paymentChannelOptions.map((channel) => (
                         <label
                           key={channel.value}
-                          className={`pay-channel-item ${payChannel === channel.value ? 'is-active' : ''} ${channel.enabled ? '' : 'is-disabled'}`}
+                          className={`pay-channel-item pay-channel-item--${channel.value} ${payChannel === channel.value ? 'is-active' : ''} ${channel.enabled ? '' : 'is-disabled'}`}
                         >
                           <input
                             type="radio"
@@ -1815,8 +1873,13 @@ const SubmitPage: React.FC = () => {
                             disabled={!channel.enabled}
                             onChange={() => setPayChannel(channel.value)}
                           />
-                          <span className="pay-channel-item__name">{channel.label}</span>
-                          <span className="pay-channel-item__desc">{channel.desc}</span>
+                          <span className={`pay-channel-item__logo pay-channel-item__logo--${channel.value}`}>
+                            {channel.value === 'alipay' ? <Icons.Alipay /> : <Icons.WechatPay />}
+                          </span>
+                          <span className="pay-channel-item__meta">
+                            <span className="pay-channel-item__name">{channel.label}</span>
+                            <span className="pay-channel-item__desc">{channel.desc}</span>
+                          </span>
                         </label>
                       ))}
                     </div>

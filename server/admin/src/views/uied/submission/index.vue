@@ -45,6 +45,9 @@
                 <el-form-item>
                     <el-button type="primary" @click="resetPage">查询</el-button>
                     <el-button @click="resetParams">重置</el-button>
+                    <el-button type="primary" plain @click="handleReconcilePayOrders()"
+                        >手动补单</el-button
+                    >
                     <el-button type="warning" plain @click="handleOpenSubmissionConfig"
                         >投稿与支付配置</el-button
                     >
@@ -69,6 +72,9 @@
                     <template #default="{ row }">
                         <el-tag v-if="row.payStatus === 'paid'" type="success">已支付</el-tag>
                         <el-tag v-else-if="row.payStatus === 'created'" type="warning">待支付</el-tag>
+                        <el-tag v-else-if="row.payStatus === 'closed'" type="danger"
+                            >已关闭</el-tag
+                        >
                         <el-tag v-else-if="row.payStatus === 'free'" type="info">免费</el-tag>
                         <span v-else class="text-muted">-</span>
                     </template>
@@ -91,7 +97,7 @@
                 <el-table-column label="提交时间" prop="createdAt" width="170">
                     <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
                 </el-table-column>
-                <el-table-column label="操作" width="200" fixed="right">
+                <el-table-column label="操作" width="260" fixed="right">
                     <template #default="{ row }">
                         <template v-if="row.status === 'pending'">
                             <el-button type="success" link @click="handleApprove(row)"
@@ -101,6 +107,13 @@
                                 >拒绝</el-button
                             >
                         </template>
+                        <el-button
+                            v-if="row.payStatus === 'created' && row.payOrderNo"
+                            type="warning"
+                            link
+                            @click="handleReconcilePayOrders(row.payOrderNo)"
+                            >补单</el-button
+                        >
                         <el-button type="primary" link @click="handleView(row)">查看</el-button>
                         <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
                     </template>
@@ -248,6 +261,81 @@ const formatTime = (ts: number) => (ts ? new Date(ts * 1000).toLocaleString('zh-
  */
 const handleOpenSubmissionConfig = () => {
     router.push('/system-setting/base-config/setting?tab=submissionService')
+}
+
+/**
+ * 将补单结果格式化为可读文案
+ */
+const formatReconcileSummary = (payload: any) => {
+    const rows = [
+        `扫描订单：${Number(payload?.total || 0)}`,
+        `补单成功：${Number(payload?.paid || 0)}`,
+        `已关闭：${Number(payload?.closed || 0)}`,
+        `仍待支付：${Number(payload?.pending || 0)}`,
+        `已跳过：${Number(payload?.skipped || 0)}`,
+        `失败：${Number(payload?.failed || 0)}`
+    ]
+    const details = Array.isArray(payload?.details) ? payload.details.slice(0, 6) : []
+    if (details.length > 0) {
+        rows.push('')
+        rows.push('执行明细：')
+        details.forEach((item: any) => {
+            const orderNo = String(item?.orderNo || '-')
+            const status = String(item?.status || '-')
+            const message = String(item?.message || '')
+            rows.push(`${orderNo} ｜ ${status} ｜ ${message}`)
+        })
+    }
+    return rows.join('\n')
+}
+
+/**
+ * 手动触发支付补单
+ */
+const handleReconcilePayOrders = async (defaultOrderNo = '') => {
+    let orderNo = String(defaultOrderNo || '').trim()
+    let limit = 20
+    if (!orderNo) {
+        try {
+            const promptRes: any = await feedback.prompt(
+                '请输入订单号（可留空，留空将按待支付订单批量补单）',
+                '手动补单',
+                {
+                    inputValue: '',
+                    inputPlaceholder: '例如：SUBP202603060001ABC'
+                }
+            )
+            orderNo = String(promptRes?.value || '').trim()
+        } catch (error) {
+            return
+        }
+        if (!orderNo) {
+            try {
+                const limitRes: any = await feedback.prompt('请输入批量扫描数量（1-100）', '手动补单', {
+                    inputValue: '20',
+                    inputPattern: /^(100|[1-9]?\d)$/,
+                    inputErrorMessage: '请输入 1-100 的整数'
+                })
+                limit = Math.max(1, Math.min(100, Number(limitRes?.value || 20)))
+            } catch (error) {
+                return
+            }
+        }
+    }
+    feedback.loading('正在执行补单，请稍候...')
+    try {
+        const result = await request.post({
+            url: '/uied/submission/reconcilePayOrders',
+            params: {
+                orderNo,
+                limit
+            }
+        })
+        feedback.alertSuccess(formatReconcileSummary(result || {}))
+        getLists()
+    } finally {
+        feedback.closeLoading()
+    }
 }
 
 const handleView = (row: any) => {

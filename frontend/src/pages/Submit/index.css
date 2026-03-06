@@ -6,8 +6,8 @@
 .submit-page {
   min-height: 100%;
   padding: 14px 0 36px;
-  --submit-layout-max-width: var(--container-width, 1480px);
-  --submit-layout-config-max-width: 1480px;
+  --submit-layout-max-width: var(--container-width, 1320px);
+  --submit-layout-config-max-width: 1320px;
   --submit-layout-effective-max-width: min(var(--submit-layout-max-width), var(--submit-layout-config-max-width));
   background:
     radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.08), transparent 42%),
@@ -16,11 +16,11 @@
 }
 
 .submit-page--layout-contained {
-  --submit-layout-max-width: var(--container-width, 1480px);
+  --submit-layout-max-width: var(--container-width, 1320px);
 }
 
 .submit-page--layout-wide {
-  --submit-layout-max-width: min(1480px, calc(100vw - 2 * var(--container-padding, 12px)));
+  --submit-layout-max-width: min(1360px, calc(100vw - 2 * var(--container-padding, 16px)));
 }
 
 .submit-page--layout-fluid {
@@ -29,7 +29,7 @@
 
 .submit-page__hero,
 .submit-page__shell {
-  width: min(var(--submit-layout-effective-max-width), calc(100% - 24px));
+  width: min(var(--submit-layout-effective-max-width), calc(100% - 32px));
   margin-left: auto;
   margin-right: auto;
 }
@@ -41,8 +41,8 @@
   border: 1px solid color-mix(in srgb, var(--border-color, #e5e7eb) 76%, transparent 24%);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 252, 255, 0.92));
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 18px;
 }
 
 .submit-page__kicker {
@@ -56,7 +56,7 @@
 
 .submit-page__hero h1 {
   margin: 0 0 10px;
-  font-size: 36px;
+  font-size: 34px;
   line-height: 1.12;
   color: var(--text-primary, #111827);
 }
@@ -132,8 +132,8 @@
 
 .submit-page__shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 20px;
   align-items: start;
 }
 
@@ -620,6 +620,25 @@
   flex-shrink: 0;
 }
 
+.duplicate-submit-confirm {
+  margin-top: 10px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 248, 235, 0.85);
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.duplicate-submit-confirm input {
+  width: 14px;
+  height: 14px;
+  accent-color: #f59e0b;
+}
+
 .icon-group {
   display: flex;
   align-items: flex-start;
@@ -1082,8 +1101,8 @@
   border-radius: 14px;
   padding: 12px 14px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
   background: #fff;
 }
@@ -1099,9 +1118,41 @@
   background: rgba(239, 246, 255, 0.92);
 }
 
+.pay-channel-item--alipay.is-active {
+  border-color: rgba(22, 119, 255, 0.38);
+  background: rgba(239, 246, 255, 0.95);
+}
+
+.pay-channel-item--wechat.is-active {
+  border-color: rgba(16, 185, 129, 0.34);
+  background: rgba(236, 253, 245, 0.95);
+}
+
 .pay-channel-item.is-disabled {
   opacity: 0.42;
   cursor: not-allowed;
+}
+
+.pay-channel-item__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pay-channel-item__logo svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.pay-channel-item__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .pay-channel-item__name {

@@ -110,7 +110,7 @@ class SubmissionController extends baseController {
       if (!orderNo) {
         return this.result({ code: 400, message: '缺少订单号' });
       }
-      const data = await ctx.service.uied.submission.getPayOrderStatus(orderNo);
+      const data = await ctx.service.uied.submission.getPayOrderStatus(orderNo, { reconcileIfPending: true });
       if (!data) {
         return this.result({ code: 404, message: '订单不存在' });
       }
@@ -118,6 +118,27 @@ class SubmissionController extends baseController {
     } catch (error) {
       ctx.logger.error('查询投稿支付订单状态失败:', error);
       this.result({ code: 500, message: error.message || '查询失败' });
+    }
+  }
+
+  /**
+   * 手动触发投稿支付补单（后台运维入口）
+   */
+  async reconcilePayOrders() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const orderNo = String(payload.orderNo || ctx.query.orderNo || '').trim();
+      const limit = Number(payload.limit || ctx.query.limit || 20);
+      const data = await ctx.service.uied.submission.reconcilePendingOrders({
+        orderNo,
+        limit,
+        source: 'admin_manual',
+      });
+      this.result({ data, message: '补单任务执行完成' });
+    } catch (error) {
+      ctx.logger.error('手动补单失败:', error);
+      this.result({ code: 500, message: error.message || '补单失败' });
     }
   }
 

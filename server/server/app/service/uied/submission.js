@@ -70,9 +70,23 @@ class SubmissionService extends Service {
     const bannerPositions = Array.isArray(serviceMeta.bannerPositions)
       ? Array.from(new Set(serviceMeta.bannerPositions.map(item => String(item || '').trim()).filter(Boolean)))
       : [];
-    const hasAnyContent = Boolean(plan || budget || target || contact || addons.length > 0 || bannerPositions.length > 0);
+    const bannerStartTime = this.normalizeUnixTimestamp(serviceMeta.bannerStartTime || serviceMeta.bannerStartAt || 0, 0);
+    let bannerEndTime = this.normalizeUnixTimestamp(serviceMeta.bannerEndTime || serviceMeta.bannerEndAt || 0, 0);
+    if (bannerStartTime > 0 && bannerEndTime > 0 && bannerEndTime < bannerStartTime) {
+      bannerEndTime = bannerStartTime + 24 * 60 * 60;
+    }
+    const hasAnyContent = Boolean(
+      plan
+      || budget
+      || target
+      || contact
+      || addons.length > 0
+      || bannerPositions.length > 0
+      || bannerStartTime > 0
+      || bannerEndTime > 0
+    );
     if (!hasAnyContent) return null;
-    return { plan, budget, target, contact, addons, bannerPositions };
+    return { plan, budget, target, contact, addons, bannerPositions, bannerStartTime, bannerEndTime };
   }
 
   /**
@@ -91,6 +105,7 @@ class SubmissionService extends Service {
       `联系方式: ${serviceMeta.contact || '-'}`,
       `加购项: ${(Array.isArray(serviceMeta.addons) && serviceMeta.addons.length > 0) ? serviceMeta.addons.join(', ') : '-'}`,
       `Banner位: ${(Array.isArray(serviceMeta.bannerPositions) && serviceMeta.bannerPositions.length > 0) ? serviceMeta.bannerPositions.join(', ') : '-'}`,
+      `Banner排期: ${this.formatTimestampRange(serviceMeta.bannerStartTime, serviceMeta.bannerEndTime)}`,
     ];
     return `${baseDescription}\n\n${lines.join('\n')}`.trim();
   }
@@ -142,6 +157,62 @@ class SubmissionService extends Service {
         .map(item => String(item || '').trim())
         .filter(item => allowSet.has(item))
     ));
+  }
+
+  /**
+   * 规范化 Unix 时间戳，兼容秒/毫秒时间戳与日期字符串。
+   */
+  normalizeUnixTimestamp(value, fallback = 0) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const num = Number(value);
+    if (Number.isFinite(num) && num > 0) {
+      return num > 1e12 ? Math.floor(num / 1000) : Math.floor(num);
+    }
+    const parsed = Date.parse(String(value));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.floor(parsed / 1000);
+    }
+    return fallback;
+  }
+
+  /**
+   * 规范化 Banner 排期时间窗；若未指定则使用“当前时间 + 7 天”默认窗。
+   */
+  normalizeBannerScheduleRange(serviceMeta = null) {
+    const now = Math.floor(Date.now() / 1000);
+    const rawStart = this.normalizeUnixTimestamp(serviceMeta?.bannerStartTime || 0, 0);
+    const rawEnd = this.normalizeUnixTimestamp(serviceMeta?.bannerEndTime || 0, 0);
+    const hasExplicitRange = rawStart > 0 || rawEnd > 0;
+    const startTime = hasExplicitRange ? (rawStart || now) : now;
+    let endTime = hasExplicitRange ? (rawEnd || (startTime + 7 * 24 * 60 * 60)) : now;
+    if (endTime < startTime) {
+      endTime = startTime + 24 * 60 * 60;
+    }
+    return {
+      startTime,
+      endTime,
+    };
+  }
+
+  /**
+   * 友好格式化时间窗，用于描述兜底文本。
+   */
+  formatTimestampRange(startTime = 0, endTime = 0) {
+    const start = this.normalizeUnixTimestamp(startTime, 0);
+    const end = this.normalizeUnixTimestamp(endTime, 0);
+    if (start <= 0 && end <= 0) return '-';
+    const format = ts => {
+      const date = new Date(ts * 1000);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${d} ${hh}:${mm}`;
+    };
+    if (start > 0 && end > 0) return `${format(start)} ~ ${format(end)}`;
+    if (start > 0) return `${format(start)} 起`;
+    return `截至 ${format(end)}`;
   }
 
   /**
@@ -387,7 +458,136 @@ class SubmissionService extends Service {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='投稿支付订单表'`,
       { type: app.Sequelize.QueryTypes.RAW }
     );
+    await this.ensurePayOrderColumns();
     this._payOrderTableReady = true;
+  }
+
+  /**
+   * 为支付订单表补齐演进字段（幂等执行）。
+   */
+  async ensurePayOrderColumns() {
+    if (this._payOrderColumnsReady) return;
+    const { app } = this;
+    const columns = await app.model.query('SHOW COLUMNS FROM uied_submission_pay_order', {
+      type: app.Sequelize.QueryTypes.SELECT,
+    });
+    const columnSet = new Set(columns.map(item => String(item.Field || '').toLowerCase()));
+    const alterSqlList = [];
+    if (!columnSet.has('price_snapshot')) {
+      alterSqlList.push('ADD COLUMN price_snapshot longtext NULL COMMENT \'价格快照\' AFTER amount');
+    }
+    if (!columnSet.has('notify_retry_count')) {
+      alterSqlList.push('ADD COLUMN notify_retry_count int unsigned NOT NULL DEFAULT 0 COMMENT \'补单重试次数\' AFTER raw_response');
+    }
+    if (!columnSet.has('last_reconcile_time')) {
+      alterSqlList.push('ADD COLUMN last_reconcile_time int unsigned NOT NULL DEFAULT 0 COMMENT \'最近补单时间\' AFTER notify_retry_count');
+    }
+    if (!columnSet.has('reconcile_note')) {
+      alterSqlList.push('ADD COLUMN reconcile_note varchar(255) DEFAULT NULL COMMENT \'补单说明\' AFTER last_reconcile_time');
+    }
+    if (!columnSet.has('expire_time')) {
+      alterSqlList.push('ADD COLUMN expire_time int unsigned NOT NULL DEFAULT 0 COMMENT \'订单过期时间\' AFTER pay_time');
+    }
+    if (alterSqlList.length > 0) {
+      await app.model.query(
+        `ALTER TABLE uied_submission_pay_order ${alterSqlList.join(', ')}`,
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+    }
+    this._payOrderColumnsReady = true;
+  }
+
+  /**
+   * 构建支付价格快照，避免后续后台改价影响已下单记录。
+   */
+  buildPayOrderPriceSnapshot(serviceConfig = {}, addonConfigs = [], serviceMeta = null, amount = 0) {
+    return {
+      currency: 'CNY',
+      baseService: {
+        key: 'submission',
+        label: String(serviceConfig?.label || '付费提交收录'),
+        price: Number(serviceConfig?.price || 0),
+        originalPrice: Number(serviceConfig?.originalPrice || 0),
+      },
+      addons: (Array.isArray(addonConfigs) ? addonConfigs : []).map(item => ({
+        key: String(item?.key || ''),
+        label: String(item?.config?.label || item?.key || ''),
+        price: Number(item?.config?.price || 0),
+        originalPrice: Number(item?.config?.originalPrice || 0),
+      })),
+      bannerPositions: Array.isArray(serviceMeta?.bannerPositions) ? serviceMeta.bannerPositions : [],
+      bannerSchedule: {
+        startTime: Number(serviceMeta?.bannerStartTime || 0),
+        endTime: Number(serviceMeta?.bannerEndTime || 0),
+      },
+      totalAmount: Number(Number(amount || 0).toFixed(2)),
+      generatedAt: Math.floor(Date.now() / 1000),
+    };
+  }
+
+  /**
+   * 校验 Banner 位排期冲突，避免同一广告位在同时间窗被重复售卖。
+   */
+  async checkBannerSlotAvailability(serviceMeta = null) {
+    const { app, ctx } = this;
+    const positions = Array.isArray(serviceMeta?.bannerPositions)
+      ? Array.from(new Set(serviceMeta.bannerPositions.map(item => String(item || '').trim()).filter(Boolean)))
+      : [];
+    if (positions.length === 0) return { available: true, conflicts: [] };
+    const bannerService = ctx.service.uied.banner;
+    const aliasSet = new Set();
+    positions.forEach(position => {
+      const normalized = typeof bannerService?.normalizePosition === 'function'
+        ? bannerService.normalizePosition(position)
+        : String(position || '').trim().toLowerCase();
+      const aliases = typeof bannerService?.getPositionAliases === 'function'
+        ? bannerService.getPositionAliases(normalized)
+        : [ normalized ];
+      aliases.forEach(alias => {
+        const text = String(alias || '').trim();
+        if (text) aliasSet.add(text);
+      });
+    });
+    const aliasList = Array.from(aliasSet).filter(Boolean);
+    if (aliasList.length === 0) return { available: true, conflicts: [] };
+
+    const { startTime, endTime } = this.normalizeBannerScheduleRange(serviceMeta);
+    let positionSql = `position IN (${aliasList.map(() => '?').join(',')})`;
+    const replacements = [ ...aliasList ];
+    aliasList.forEach(() => {
+      positionSql += ' OR FIND_IN_SET(?, REPLACE(position, \' \', \'\')) > 0';
+    });
+    replacements.push(...aliasList);
+
+    const rows = await app.model.query(
+      `SELECT id, title, position, start_time, end_time
+       FROM uied_banner
+       WHERE is_delete = 0
+         AND is_show = 1
+         AND (${positionSql})
+         AND (COALESCE(NULLIF(start_time, 0), 0) <= ?)
+         AND (COALESCE(NULLIF(end_time, 0), 2147483647) >= ?)
+       ORDER BY sort ASC, id ASC
+       LIMIT 20`,
+      {
+        replacements: [ ...replacements, endTime, startTime ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const conflicts = (Array.isArray(rows) ? rows : []).map(item => ({
+      id: Number(item?.id || 0),
+      title: String(item?.title || ''),
+      position: String(item?.position || ''),
+      startTime: Number(item?.start_time || 0),
+      endTime: Number(item?.end_time || 0),
+    }));
+    return {
+      available: conflicts.length === 0,
+      conflicts,
+      startTime,
+      endTime,
+    };
   }
 
   /**
@@ -432,18 +632,37 @@ class SubmissionService extends Service {
       throw new Error('微信支付暂未开启');
     }
 
+    const normalizedServiceMeta = this.normalizeServiceMeta({
+      ...(data?.serviceMeta || {}),
+      plan: data?.serviceMeta?.plan || data?.promotionPlan || data?.plan || '',
+      budget: data?.serviceMeta?.budget || data?.promotionBudget || data?.budget || '',
+      target: data?.serviceMeta?.target || data?.promotionTarget || data?.target || '',
+      contact: data?.serviceMeta?.contact || data?.promotionContact || data?.contact || '',
+      addons: addonKeys,
+      bannerPositions: data?.serviceMeta?.bannerPositions || data?.bannerPositions || [],
+      bannerStartTime: data?.serviceMeta?.bannerStartTime || data?.bannerStartTime || 0,
+      bannerEndTime: data?.serviceMeta?.bannerEndTime || data?.bannerEndTime || 0,
+    });
+    if (addonKeys.includes('banner_slot')) {
+      if (!Array.isArray(normalizedServiceMeta?.bannerPositions) || normalizedServiceMeta.bannerPositions.length === 0) {
+        throw new Error('购买 Banner 位时，请至少选择一个投放位置');
+      }
+      const bannerAvailability = await this.checkBannerSlotAvailability(normalizedServiceMeta);
+      if (!bannerAvailability.available) {
+        const conflictTitles = bannerAvailability.conflicts
+          .map(item => item.title || `广告#${item.id}`)
+          .filter(Boolean)
+          .slice(0, 3);
+        throw new Error(
+          `Banner 位当前排期冲突，请更换位置或时间窗：${conflictTitles.join('、') || '已被占用'}`
+        );
+      }
+    }
+
     const submitPayload = {
       ...data,
       serviceType,
-      serviceMeta: this.normalizeServiceMeta({
-        ...(data?.serviceMeta || {}),
-        plan: data?.serviceMeta?.plan || data?.promotionPlan || data?.plan || '',
-        budget: data?.serviceMeta?.budget || data?.promotionBudget || data?.budget || '',
-        target: data?.serviceMeta?.target || data?.promotionTarget || data?.target || '',
-        contact: data?.serviceMeta?.contact || data?.promotionContact || data?.contact || '',
-        addons: addonKeys,
-        bannerPositions: data?.serviceMeta?.bannerPositions || data?.bannerPositions || [],
-      }),
+      serviceMeta: normalizedServiceMeta,
     };
     const submissionResult = await this.submit(submitPayload);
     const submissionId = Number(submissionResult?.id || 0);
@@ -455,6 +674,7 @@ class SubmissionService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const orderNo = `SUBP${Date.now()}${this.randomString(6).toUpperCase()}`;
     const expireMinutes = Number(paymentConfig?.orderExpireMinutes || 30);
+    const expireTime = now + Math.max(5, Math.min(180, expireMinutes)) * 60;
     const addonTitle = enabledAddons.map(item => String(item.config?.label || '')).filter(Boolean).join(' + ');
     const subject = addonTitle
       ? `${String(serviceConfig?.label || '付费提交收录').trim()} + ${addonTitle}`
@@ -464,6 +684,12 @@ class SubmissionService extends Service {
     let payUrl = '';
     let rawResponse = null;
     let status = 'created';
+    const priceSnapshot = this.buildPayOrderPriceSnapshot(
+      serviceConfig,
+      enabledAddons,
+      normalizedServiceMeta,
+      amount
+    );
     if (amount <= 0) {
       status = 'free';
     } else if (payChannel === 'alipay') {
@@ -499,8 +725,8 @@ class SubmissionService extends Service {
 
     await app.model.query(
       `INSERT INTO uied_submission_pay_order
-       (order_no, submission_id, service_type, pay_channel, amount, status, pay_url, raw_response, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, raw_response, expire_time, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           orderNo,
@@ -508,9 +734,11 @@ class SubmissionService extends Service {
           serviceType,
           payChannel,
           Number(amount.toFixed(2)),
+          JSON.stringify(priceSnapshot),
           status,
           payUrl || null,
           rawResponse ? JSON.stringify(rawResponse) : null,
+          amount > 0 ? expireTime : 0,
           now,
           now,
         ],
@@ -526,6 +754,8 @@ class SubmissionService extends Service {
       amount: Number(amount.toFixed(2)),
       status,
       payUrl: payUrl || '',
+      expireTime: amount > 0 ? expireTime : 0,
+      priceSnapshot,
       message: amount > 0 ? '支付订单创建成功' : '已提交成功（免费服务）',
     };
   }
@@ -533,15 +763,23 @@ class SubmissionService extends Service {
   /**
    * 查询投稿支付订单状态
    */
-  async getPayOrderStatus(orderNo) {
+  async getPayOrderStatus(orderNo, options = {}) {
     const { app } = this;
     await this.ensurePayOrderTable();
     const no = String(orderNo || '').trim();
     if (!no) {
       throw new Error('缺少订单号');
     }
+    if (options.reconcileIfPending === true) {
+      await this.reconcilePendingOrders({
+        orderNo: no,
+        limit: 1,
+        source: 'status_poll',
+      });
+    }
     const [ row ] = await app.model.query(
-      `SELECT id, order_no, submission_id, service_type, pay_channel, amount, status, pay_url, transaction_id, pay_time, create_time, update_time
+      `SELECT id, order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, transaction_id,
+              raw_response, notify_retry_count, last_reconcile_time, reconcile_note, pay_time, expire_time, create_time, update_time
        FROM uied_submission_pay_order
        WHERE order_no = ?
        LIMIT 1`,
@@ -555,10 +793,21 @@ class SubmissionService extends Service {
       serviceType: String(row.service_type || ''),
       payChannel: String(row.pay_channel || ''),
       amount: Number(row.amount || 0),
+      priceSnapshot: (() => {
+        try {
+          return row.price_snapshot ? JSON.parse(row.price_snapshot) : null;
+        } catch (error) {
+          return null;
+        }
+      })(),
       status: String(row.status || ''),
       payUrl: String(row.pay_url || ''),
       transactionId: String(row.transaction_id || ''),
+      notifyRetryCount: Number(row.notify_retry_count || 0),
+      lastReconcileTime: Number(row.last_reconcile_time || 0),
+      reconcileNote: String(row.reconcile_note || ''),
       payTime: Number(row.pay_time || 0),
+      expireTime: Number(row.expire_time || 0),
       createTime: Number(row.create_time || 0),
       updateTime: Number(row.update_time || 0),
     };
@@ -574,6 +823,13 @@ class SubmissionService extends Service {
     if (!no) {
       throw new Error('缺少订单号');
     }
+    const currentOrder = await this.getPayOrderStatus(no);
+    if (!currentOrder) {
+      throw new Error('订单不存在');
+    }
+    if (currentOrder.status === 'paid') {
+      return currentOrder;
+    }
     const now = Math.floor(Date.now() / 1000);
     await app.model.query(
       `UPDATE uied_submission_pay_order
@@ -581,6 +837,7 @@ class SubmissionService extends Service {
            transaction_id = ?,
            raw_response = ?,
            pay_time = ?,
+           reconcile_note = ?,
            update_time = ?
        WHERE order_no = ?`,
       {
@@ -588,6 +845,7 @@ class SubmissionService extends Service {
           String(transactionId || '').trim() || null,
           rawResponse ? JSON.stringify(rawResponse) : null,
           now,
+          'notify:paid',
           now,
           no,
         ],
@@ -595,6 +853,319 @@ class SubmissionService extends Service {
       }
     );
     return await this.getPayOrderStatus(no);
+  }
+
+  /**
+   * 标记订单为关闭（未支付过期或渠道返回关闭）。
+   */
+  async markPayOrderClosed(orderNo, note = '', rawResponse = null) {
+    const { app } = this;
+    await this.ensurePayOrderTable();
+    const no = String(orderNo || '').trim();
+    if (!no) {
+      throw new Error('缺少订单号');
+    }
+    const currentOrder = await this.getPayOrderStatus(no);
+    if (!currentOrder) {
+      throw new Error('订单不存在');
+    }
+    if (currentOrder.status === 'paid' || currentOrder.status === 'closed') {
+      return currentOrder;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    await app.model.query(
+      `UPDATE uied_submission_pay_order
+       SET status = 'closed',
+           raw_response = ?,
+           reconcile_note = ?,
+           update_time = ?
+       WHERE order_no = ?
+         AND status <> 'paid'`,
+      {
+        replacements: [
+          rawResponse ? JSON.stringify(rawResponse) : null,
+          String(note || '').trim().slice(0, 255) || 'reconcile:closed',
+          now,
+          no,
+        ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+    return await this.getPayOrderStatus(no);
+  }
+
+  /**
+   * 记录补单轮询元信息。
+   */
+  async touchPayOrderReconcile(orderNo, note = '', rawResponse = null) {
+    const { app } = this;
+    const no = String(orderNo || '').trim();
+    if (!no) return;
+    const now = Math.floor(Date.now() / 1000);
+    await app.model.query(
+      `UPDATE uied_submission_pay_order
+       SET notify_retry_count = notify_retry_count + 1,
+           last_reconcile_time = ?,
+           reconcile_note = ?,
+           raw_response = COALESCE(?, raw_response),
+           update_time = ?
+       WHERE order_no = ?`,
+      {
+        replacements: [
+          now,
+          String(note || '').trim().slice(0, 255) || 'reconcile:pending',
+          rawResponse ? JSON.stringify(rawResponse) : null,
+          now,
+          no,
+        ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+  }
+
+  /**
+   * 支付宝订单查询接口，供补单轮询使用。
+   */
+  async queryAlipayOrder(order = null, paymentConfig = {}) {
+    const { app } = this;
+    const alipayConfig = paymentConfig?.alipay || {};
+    const gateway = String(alipayConfig?.gateway || 'https://openapi.alipay.com/gateway.do').trim();
+    const appId = String(alipayConfig?.appId || '').trim();
+    const privateKey = this.normalizePemKey(alipayConfig?.privateKey, 'PRIVATE');
+    if (!order?.orderNo || !appId || !privateKey) {
+      return { status: 'unknown', note: 'alipay-config-missing' };
+    }
+    const params = {
+      app_id: appId,
+      method: 'alipay.trade.query',
+      format: 'JSON',
+      charset: 'utf-8',
+      sign_type: 'RSA2',
+      timestamp: this.formatAlipayTimestamp(new Date()),
+      version: '1.0',
+      biz_content: JSON.stringify({
+        out_trade_no: String(order.orderNo || ''),
+      }),
+    };
+    const signContent = Object.keys(params)
+      .sort()
+      .map(key => `${key}=${params[key]}`)
+      .join('&');
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(signContent, 'utf8');
+    signer.end();
+    const sign = signer.sign(privateKey, 'base64');
+    const queryParams = new URLSearchParams();
+    Object.keys(params).forEach(key => queryParams.append(key, String(params[key])));
+    queryParams.append('sign', sign);
+    const response = await app.curl(`${gateway}?${queryParams.toString()}`, {
+      method: 'GET',
+      dataType: 'json',
+      timeout: 12000,
+    });
+    const payload = response?.data || {};
+    const tradeResult = payload?.alipay_trade_query_response || {};
+    const code = String(tradeResult?.code || '');
+    const tradeStatus = String(tradeResult?.trade_status || '').toUpperCase();
+    const tradeNo = String(tradeResult?.trade_no || '').trim();
+    if (code !== '10000') {
+      return {
+        status: 'unknown',
+        note: String(tradeResult?.sub_msg || tradeResult?.msg || 'alipay-query-failed').slice(0, 255),
+        rawResponse: payload,
+      };
+    }
+    if ([ 'TRADE_SUCCESS', 'TRADE_FINISHED' ].includes(tradeStatus)) {
+      return {
+        status: 'paid',
+        transactionId: tradeNo,
+        note: 'alipay-query-paid',
+        rawResponse: payload,
+      };
+    }
+    if (tradeStatus === 'TRADE_CLOSED') {
+      return {
+        status: 'closed',
+        note: 'alipay-query-closed',
+        rawResponse: payload,
+      };
+    }
+    return {
+      status: 'pending',
+      note: `alipay-query-${tradeStatus || 'waiting'}`.slice(0, 255),
+      rawResponse: payload,
+    };
+  }
+
+  /**
+   * 微信订单查询接口，供补单轮询使用。
+   */
+  async queryWechatOrder(order = null, paymentConfig = {}) {
+    const { app } = this;
+    const wechatConfig = paymentConfig?.wechat || {};
+    const appId = String(wechatConfig?.appId || '').trim();
+    const mchId = String(wechatConfig?.mchId || '').trim();
+    const apiKey = String(wechatConfig?.apiKey || '').trim();
+    if (!order?.orderNo || !appId || !mchId || !apiKey) {
+      return { status: 'unknown', note: 'wechat-config-missing' };
+    }
+    const payload = {
+      appid: appId,
+      mch_id: mchId,
+      nonce_str: this.randomString(24),
+      out_trade_no: String(order.orderNo || ''),
+    };
+    payload.sign = this.buildWechatSign(payload, apiKey);
+    const xml = this.toWechatXml(payload);
+    const response = await app.curl('https://api.mch.weixin.qq.com/pay/orderquery', {
+      method: 'POST',
+      contentType: 'text/xml; charset=utf-8',
+      dataType: 'text',
+      data: xml,
+      timeout: 12000,
+    });
+    const text = String(response?.data || '');
+    const parsed = this.parseWechatXml(text);
+    if (String(parsed.return_code || '').toUpperCase() !== 'SUCCESS') {
+      return {
+        status: 'unknown',
+        note: String(parsed.return_msg || 'wechat-query-failed').slice(0, 255),
+        rawResponse: parsed,
+      };
+    }
+    if (String(parsed.result_code || '').toUpperCase() !== 'SUCCESS') {
+      return {
+        status: 'unknown',
+        note: String(parsed.err_code_des || parsed.err_code || 'wechat-query-failed').slice(0, 255),
+        rawResponse: parsed,
+      };
+    }
+    const tradeState = String(parsed.trade_state || '').toUpperCase();
+    if (tradeState === 'SUCCESS') {
+      return {
+        status: 'paid',
+        transactionId: String(parsed.transaction_id || '').trim(),
+        note: 'wechat-query-paid',
+        rawResponse: parsed,
+      };
+    }
+    if ([ 'CLOSED', 'REVOKED', 'PAYERROR' ].includes(tradeState)) {
+      return {
+        status: 'closed',
+        note: `wechat-query-${tradeState.toLowerCase()}`.slice(0, 255),
+        rawResponse: parsed,
+      };
+    }
+    return {
+      status: 'pending',
+      note: `wechat-query-${tradeState || 'waiting'}`.slice(0, 255),
+      rawResponse: parsed,
+    };
+  }
+
+  /**
+   * 轮询单个待支付订单，执行补单状态修正。
+   */
+  async reconcileSinglePayOrder(order = null, paymentConfig = {}, source = 'manual') {
+    if (!order || !order.orderNo) {
+      return { orderNo: '', status: 'skip', message: '订单不存在' };
+    }
+    if (order.status !== 'created') {
+      return { orderNo: order.orderNo, status: 'skip', message: `当前状态:${order.status}` };
+    }
+    const now = Math.floor(Date.now() / 1000);
+    if (Number(order.lastReconcileTime || 0) > 0 && now - Number(order.lastReconcileTime || 0) < 30) {
+      return { orderNo: order.orderNo, status: 'skip', message: '轮询过于频繁，已跳过' };
+    }
+
+    const expireTime = Number(order.expireTime || 0);
+    if (expireTime > 0 && now > expireTime) {
+      await this.markPayOrderClosed(order.orderNo, `expired:${source}`, {
+        source,
+        reason: 'expired',
+        timestamp: now,
+      });
+      return { orderNo: order.orderNo, status: 'closed', message: '订单已过期关闭' };
+    }
+
+    let queryResult = { status: 'unknown', note: 'reconcile-not-run', rawResponse: null, transactionId: '' };
+    if (order.payChannel === 'alipay') {
+      queryResult = await this.queryAlipayOrder(order, paymentConfig);
+    } else if (order.payChannel === 'wechat') {
+      queryResult = await this.queryWechatOrder(order, paymentConfig);
+    }
+
+    if (queryResult.status === 'paid') {
+      await this.markPayOrderPaid(order.orderNo, queryResult.transactionId, queryResult.rawResponse || {
+        source,
+        note: queryResult.note,
+      });
+      return { orderNo: order.orderNo, status: 'paid', message: '补单成功：订单已支付' };
+    }
+    if (queryResult.status === 'closed') {
+      await this.markPayOrderClosed(order.orderNo, queryResult.note || `closed:${source}`, queryResult.rawResponse);
+      return { orderNo: order.orderNo, status: 'closed', message: '补单完成：订单关闭' };
+    }
+
+    await this.touchPayOrderReconcile(order.orderNo, queryResult.note || `pending:${source}`, queryResult.rawResponse);
+    return { orderNo: order.orderNo, status: 'pending', message: queryResult.note || '待支付' };
+  }
+
+  /**
+   * 批量轮询待支付订单，用于定时补单与状态纠偏。
+   */
+  async reconcilePendingOrders(options = {}) {
+    const { app } = this;
+    await this.ensurePayOrderTable();
+    const limit = Math.max(1, Math.min(100, Number(options.limit || 20)));
+    const orderNo = String(options.orderNo || '').trim();
+    const source = String(options.source || 'manual').trim() || 'manual';
+    const paymentConfig = await this.getPaymentConfig();
+
+    let rows = [];
+    if (orderNo) {
+      const current = await this.getPayOrderStatus(orderNo);
+      rows = current ? [ current ] : [];
+    } else {
+      const result = await app.model.query(
+        `SELECT order_no
+         FROM uied_submission_pay_order
+         WHERE status = 'created'
+         ORDER BY id ASC
+         LIMIT ?`,
+        {
+          replacements: [ limit ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      for (const item of result) {
+        const current = await this.getPayOrderStatus(String(item?.order_no || ''));
+        if (current) rows.push(current);
+      }
+    }
+
+    const details = [];
+    for (const item of rows) {
+      try {
+        const result = await this.reconcileSinglePayOrder(item, paymentConfig, source);
+        details.push(result);
+      } catch (error) {
+        details.push({
+          orderNo: item.orderNo,
+          status: 'error',
+          message: String(error?.message || 'reconcile-failed'),
+        });
+      }
+    }
+    return {
+      total: rows.length,
+      paid: details.filter(item => item.status === 'paid').length,
+      closed: details.filter(item => item.status === 'closed').length,
+      pending: details.filter(item => item.status === 'pending').length,
+      skipped: details.filter(item => item.status === 'skip').length,
+      failed: details.filter(item => item.status === 'error').length,
+      details,
+    };
   }
 
   /**
@@ -631,8 +1202,7 @@ class SubmissionService extends Service {
    * 处理支付宝异步回调
    */
   async handleAlipayNotify(payload = {}) {
-    const config = await this.getSubmissionServiceConfig();
-    const payment = config?.payment || {};
+    const payment = await this.getPaymentConfig();
     const alipayConfig = payment?.alipay || {};
     if (!(payment?.enabled && payment?.allowAlipay && alipayConfig?.enabled)) {
       throw new Error('支付宝支付未开启');
@@ -671,10 +1241,10 @@ class SubmissionService extends Service {
    */
   buildWechatNotifyResponse(returnCode = 'SUCCESS', returnMsg = 'OK') {
     return (
-      `<xml>` +
+      '<xml>' +
       `<return_code><![CDATA[${String(returnCode || 'SUCCESS')}]]></return_code>` +
       `<return_msg><![CDATA[${String(returnMsg || 'OK')}]]></return_msg>` +
-      `</xml>`
+      '</xml>'
     );
   }
 
@@ -687,8 +1257,7 @@ class SubmissionService extends Service {
       throw new Error('微信回调内容为空');
     }
     const payload = this.parseWechatXml(text);
-    const config = await this.getSubmissionServiceConfig();
-    const payment = config?.payment || {};
+    const payment = await this.getPaymentConfig();
     const wechatConfig = payment?.wechat || {};
     if (!(payment?.enabled && payment?.allowWechat && wechatConfig?.enabled)) {
       throw new Error('微信支付未开启');
@@ -777,10 +1346,30 @@ class SubmissionService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const serviceType = this.normalizeServiceType(data.serviceType);
     const serviceMeta = this.normalizeServiceMeta(data.serviceMeta);
+    const addonKeys = this.normalizeAddonKeys(serviceMeta?.addons || data?.addons || []);
     const columns = await this.getSubmissionColumnSet();
 
-    // 基础收录服务需要拦截重复网址，避免重复收录。
-    if (serviceType === 'submission') {
+    if (addonKeys.includes('banner_slot')) {
+      if (!Array.isArray(serviceMeta?.bannerPositions) || serviceMeta.bannerPositions.length === 0) {
+        throw new Error('购买 Banner 位时，请至少选择一个投放位置');
+      }
+      const bannerAvailability = await this.checkBannerSlotAvailability(serviceMeta);
+      if (!bannerAvailability.available) {
+        const conflictTitles = bannerAvailability.conflicts
+          .map(item => item.title || `广告#${item.id}`)
+          .filter(Boolean)
+          .slice(0, 3);
+        throw new Error(
+          `Banner 位当前排期冲突，请更换位置或时间窗：${conflictTitles.join('、') || '已被占用'}`
+        );
+      }
+    }
+
+    // 基础收录服务默认拦截重复网址；前端显式 allowDuplicate 时进入人工复核流程。
+    const allowDuplicate = data.allowDuplicate === true
+      || Number(data.allowDuplicate) === 1
+      || String(data.allowDuplicate || '').trim().toLowerCase() === 'true';
+    if (serviceType === 'submission' && !allowDuplicate) {
       const checkResult = await this.checkUrl(data.url);
       if (checkResult.exists) {
         throw new Error(checkResult.message);

@@ -111,9 +111,13 @@ const AdBanner: React.FC<AdBannerProps> = ({
     ? `ad-banner--slot-${String(commercialSlotKey).trim().replace(/[^a-zA-Z0-9_-]/g, '-')}`
     : '';
   const positionClassName = `ad-banner--position-${normalizedPosition.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  /**
+   * 全局横条广告位默认不按 pageSlug 过滤，避免搜索页等频道出现“已配置但空白”的误判。
+   */
+  const effectivePageSlug = normalizedPosition === 'global_strip' ? undefined : pageSlug;
 
   const { banners: backendBanners, loading: backendLoading, recordClick: recordBackendClick } = useBanners({
-    pageSlug,
+    pageSlug: effectivePageSlug,
     position: requestPosition,
     limit,
   });

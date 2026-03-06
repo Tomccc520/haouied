@@ -1135,6 +1135,12 @@ const SearchPage: React.FC = () => {
 
   return (
     <div className="search-page" style={{ '--bg-image': `url(${bgImage})` } as React.CSSProperties}>
+      <AdBanner
+        pageSlug="search"
+        position="global_strip"
+        limit={1}
+        className="search-page__top-banner"
+      />
       <HeroBanner
         pageType="search"
         searchValue={searchQuery}
@@ -1148,12 +1154,6 @@ const SearchPage: React.FC = () => {
         customDescription={`收录 ${totalWebsites.toLocaleString()} 个优质网站资源`}
         aiSearchEnabled={aiSearchEnabled}
         aiSearchBtnText={aiSearchButtonText}
-      />
-      <AdBanner
-        pageSlug="search"
-        position="home"
-        limit={1}
-        className="search-page__top-banner"
       />
 
       <div className="search-content">

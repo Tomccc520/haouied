@@ -77,6 +77,7 @@ const resolvePageSlugByPathname = (pathname: string, search = ''): string => {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const currentPageSlug = resolvePageSlugByPathname(location.pathname, location.search);
+  const isSearchPage = location.pathname === '/search';
 
   return (
     <div className="layout">
@@ -85,12 +86,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       {/* 主内容区域 */}
       <main className="layout-main">
-        <AdBanner
-          pageSlug={currentPageSlug}
-          position="global_strip"
-          limit={1}
-          className="layout-global-strip-banner"
-        />
+        {!isSearchPage && (
+          <AdBanner
+            pageSlug={currentPageSlug}
+            position="global_strip"
+            limit={1}
+            className="layout-global-strip-banner"
+          />
+        )}
         <div className="content-wrapper">
           {children}
         </div>

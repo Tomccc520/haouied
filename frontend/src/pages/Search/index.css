@@ -120,8 +120,10 @@
 
 /* 搜索页头部广告位 */
 .search-page__top-banner {
-  margin: 10px auto 0;
-  width: min(100rem, calc(100% - var(--spacing-8)));
+  margin: 0 0 10px;
+  padding-top: 8px;
+  width: 100%;
+  max-width: none;
 }
 
 /* 主要内容区域 */

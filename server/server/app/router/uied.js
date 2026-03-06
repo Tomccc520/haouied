@@ -227,6 +227,7 @@ module.exports = app => {
   router.all('/api/uied/submission/reject', controller.uied.submission.reject);
   router.all('/api/uied/submission/edit', controller.uied.submission.edit);
   router.all('/api/uied/submission/del', controller.uied.submission.del);
+  router.all('/api/uied/submission/reconcilePayOrders', controller.uied.submission.reconcilePayOrders);
 
   // ==================== 数据导出 ====================
   router.all('/api/uied/export/websites', controller.uied.export.websites);
