@@ -173,6 +173,14 @@ module.exports = app => {
   get('/api/submissions/check-url', controller.uied.submission.checkUrl);
   // POST /api/submissions - 前端提交网站
   post('/api/submissions', controller.uied.submission.submit);
+  // POST /api/submissions/pay/create - 创建投稿支付订单
+  post('/api/submissions/pay/create', controller.uied.submission.createPayOrder);
+  // GET /api/submissions/pay/status - 查询投稿支付订单状态
+  get('/api/submissions/pay/status', controller.uied.submission.payOrderStatus);
+  // POST /api/submissions/pay/notify/alipay - 支付宝支付回调（原始文本响应）
+  router.post('/api/submissions/pay/notify/alipay', controller.uied.submission.payNotifyAlipay);
+  // POST /api/submissions/pay/notify/wechat - 微信支付回调（原始 XML 响应）
+  router.post('/api/submissions/pay/notify/wechat', controller.uied.submission.payNotifyWechat);
   // POST /api/ai-config/generate-website-info - AI 生成网站信息
   postFeature('/api/ai-config/generate-website-info', 'ai_assistant', controller.uied.aiConfig.generateWebsiteInfo);
   // POST /api/ai-config/chat - AI 聊天

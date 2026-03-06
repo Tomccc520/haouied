@@ -30,9 +30,23 @@
                         @keyup.enter="resetPage"
                     />
                 </el-form-item>
+                <el-form-item label="服务类型">
+                    <el-select
+                        v-model="queryParams.serviceType"
+                        placeholder="全部"
+                        clearable
+                        style="width: 180px"
+                    >
+                        <el-option label="AI产品提交及增长服务" value="ai_growth" />
+                        <el-option label="付费加热推广产品" value="paid_boost" />
+                    </el-select>
+                </el-form-item>
                 <el-form-item>
                     <el-button type="primary" @click="resetPage">查询</el-button>
                     <el-button @click="resetParams">重置</el-button>
+                    <el-button type="warning" plain @click="handleOpenSubmissionConfig"
+                        >投稿与支付配置</el-button
+                    >
                 </el-form-item>
             </el-form>
         </el-card>
@@ -41,8 +55,31 @@
                 <el-table-column label="ID" prop="id" width="80" />
                 <el-table-column label="网址" prop="url" min-width="200" show-overflow-tooltip />
                 <el-table-column label="名称" prop="name" width="150" />
+                <el-table-column label="服务类型" prop="serviceType" width="170">
+                    <template #default="{ row }">
+                        <el-tag :type="row.serviceType === 'paid_boost' ? 'danger' : 'success'">
+                            {{ getServiceTypeLabel(row.serviceType) }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
                 <el-table-column label="提交人" prop="submitterName" width="100" />
                 <el-table-column label="邮箱" prop="submitterEmail" width="150" />
+                <el-table-column label="支付" width="160">
+                    <template #default="{ row }">
+                        <el-tag v-if="row.payStatus === 'paid'" type="success">已支付</el-tag>
+                        <el-tag v-else-if="row.payStatus === 'created'" type="warning">待支付</el-tag>
+                        <el-tag v-else-if="row.payStatus === 'free'" type="info">免费</el-tag>
+                        <span v-else class="text-muted">-</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="渠道/金额" width="180">
+                    <template #default="{ row }">
+                        <div class="text-xs">
+                            <div>{{ row.payChannel || '-' }}</div>
+                            <div class="text-muted">{{ Number(row.payAmount || 0).toFixed(2) }}</div>
+                        </div>
+                    </template>
+                </el-table-column>
                 <el-table-column label="状态" prop="status" width="100">
                     <template #default="{ row }">
                         <el-tag :type="getStatusType(row.status)">{{
@@ -84,6 +121,18 @@
                 <el-descriptions-item label="提交人">{{
                     detailData.submitterName
                 }}</el-descriptions-item>
+                <el-descriptions-item label="服务类型">{{
+                    getServiceTypeLabel(detailData.serviceType)
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="detailData.serviceMeta?.target" label="推广目标">{{
+                    detailData.serviceMeta.target
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="detailData.serviceMeta?.budget" label="预算区间">{{
+                    detailData.serviceMeta.budget
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="detailData.serviceMeta?.contact" label="联系方式">{{
+                    detailData.serviceMeta.contact
+                }}</el-descriptions-item>
                 <el-descriptions-item label="邮箱">{{
                     detailData.submitterEmail
                 }}</el-descriptions-item>
@@ -117,6 +166,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePaging } from '@/hooks/usePaging'
 import Pagination from '@/components/pagination/index.vue'
 import request from '@/utils/request'
@@ -125,7 +175,8 @@ import feedback from '@/utils/feedback'
 type TagType = '' | 'success' | 'warning' | 'danger' | 'info'
 type SubmissionStatus = 'pending' | 'approved' | 'rejected'
 
-const queryParams = reactive({ status: '', url: '' })
+const queryParams = reactive({ status: '', url: '', serviceType: '' })
+const router = useRouter()
 const { pager, getLists, resetPage, resetParams, lists, loading } = usePaging({
     fetchFun: (params: any) => request.get({ url: '/uied/submission/list', params }),
     params: queryParams
@@ -159,7 +210,20 @@ const getStatusType = (status: string): TagType =>
 const getStatusLabel = (status: string) =>
     statusLabelMap[status as SubmissionStatus] || status || '-'
 
+/**
+ * 获取服务类型文案
+ */
+const getServiceTypeLabel = (serviceType: string) =>
+    serviceType === 'paid_boost' ? '付费加热推广产品' : 'AI产品提交及增长服务'
+
 const formatTime = (ts: number) => (ts ? new Date(ts * 1000).toLocaleString('zh-CN') : '-')
+
+/**
+ * 打开站点设置中的投稿与支付配置标签
+ */
+const handleOpenSubmissionConfig = () => {
+    router.push('/system-setting/base-config/setting?tab=submissionService')
+}
 
 const handleView = (row: any) => {
     detailData.value = row

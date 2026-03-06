@@ -230,6 +230,18 @@
   background: var(--bg-secondary);
 }
 
+/**
+ * 头部菜单不保留“选中”视觉态：点击/聚焦后回到默认样式。
+ */
+.navbar-menu-button:focus,
+.navbar-menu-button:focus-visible,
+.navbar-menu-button:active {
+  outline: none;
+  box-shadow: none;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
 .navbar-chip {
   position: absolute;
   top: 12px;

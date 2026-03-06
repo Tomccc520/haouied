@@ -890,6 +890,233 @@ class SettingService extends Service {
   }
 
   /**
+   * 获取投稿与支付配置默认值
+   * 该配置用于前端投稿页服务分流、定价展示、FAQ 展示与支付渠道开关。
+   */
+  getDefaultSubmissionServiceConfig() {
+    return {
+      enabled: true,
+      pageTitle: '提交网站',
+      pageSubtitle: 'AI产品提交及增长服务 / 付费加热推广产品',
+      pageDescription: '提交优质站点并选择合适的增长方案，审核与投放流程统一收口。',
+      containerMaxWidth: 1200,
+      pricingTitle: '服务方案',
+      faqTitle: '常见问题',
+      aiGrowthService: {
+        enabled: true,
+        key: 'ai_growth',
+        label: 'AI产品提交及增长服务',
+        badge: '推荐',
+        description: '适合首次收录与长期增长，提交后进入审核与推荐流程。',
+        price: 0,
+        originalPrice: 0,
+        ctaText: '免费提交',
+        features: [
+          'AI 智能补全站点信息',
+          '审核通过后收录到分类与搜索',
+          '支持后续运营人工优化'
+        ],
+      },
+      paidBoostService: {
+        enabled: true,
+        key: 'paid_boost',
+        label: '付费加热推广产品',
+        badge: '商业',
+        description: '适合新品发布和活动期快速曝光，支持指定推广目标与预算。',
+        price: 199,
+        originalPrice: 299,
+        ctaText: '提交并支付',
+        features: [
+          '首页/频道曝光位优先分发',
+          '支持预算与排期沟通',
+          '运营团队跟进投放'
+        ],
+      },
+      faqItems: [
+        { question: '提交后多久审核？', answer: '通常 1-3 个工作日完成审核。', sort: 10, enabled: true },
+        { question: '付费加热是否保证收录？', answer: '付费加热不改变审核标准，审核通过后进入推广排期。', sort: 20, enabled: true },
+        { question: '支持哪些支付方式？', answer: '支持支付宝和微信支付。', sort: 30, enabled: true },
+      ],
+      payment: {
+        enabled: false,
+        allowAlipay: true,
+        allowWechat: true,
+        orderExpireMinutes: 30,
+        notifyBaseUrl: '',
+        alipay: {
+          enabled: false,
+          gateway: 'https://openapi.alipay.com/gateway.do',
+          appId: '',
+          sellerId: '',
+          privateKey: '',
+          alipayPublicKey: '',
+          returnUrl: '',
+          notifyUrl: '',
+        },
+        wechat: {
+          enabled: false,
+          appId: '',
+          mchId: '',
+          apiKey: '',
+          notifyUrl: '',
+          tradeType: 'MWEB',
+          sceneName: 'UIED投稿支付',
+        },
+      },
+    };
+  }
+
+  /**
+   * 规范化投稿与支付配置
+   * @param {Record<string, any>} config 原始配置
+   * @return {Record<string, any>} 规范化结果
+   */
+  normalizeSubmissionServiceConfig(config = {}) {
+    const defaults = this.getDefaultSubmissionServiceConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const normalizePrice = (value, fallback = 0) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return Number(fallback || 0);
+      return Math.max(0, Math.min(999999, Number(num.toFixed(2))));
+    };
+    const normalizeFeatureList = (value, fallback = []) => {
+      const list = Array.isArray(value) ? value : fallback;
+      const normalized = list
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
+        .slice(0, 12);
+      return normalized.length > 0 ? normalized : fallback;
+    };
+    const normalizeFaqItems = (value, fallback = []) => {
+      const rows = Array.isArray(value) ? value : fallback;
+      return rows
+        .map((item, index) => ({
+          question: String(item?.question || '').trim().slice(0, 120),
+          answer: String(item?.answer || '').trim().slice(0, 1000),
+          sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+          enabled: item?.enabled !== false,
+        }))
+        .filter(item => item.question && item.answer)
+        .sort((a, b) => a.sort - b.sort)
+        .map((item, index) => ({ ...item, sort: (index + 1) * 10 }));
+    };
+    const merged = {
+      ...defaults,
+      ...source,
+      aiGrowthService: {
+        ...defaults.aiGrowthService,
+        ...(this.isPlainObject(source.aiGrowthService) ? source.aiGrowthService : {}),
+      },
+      paidBoostService: {
+        ...defaults.paidBoostService,
+        ...(this.isPlainObject(source.paidBoostService) ? source.paidBoostService : {}),
+      },
+      payment: {
+        ...defaults.payment,
+        ...(this.isPlainObject(source.payment) ? source.payment : {}),
+        alipay: {
+          ...defaults.payment.alipay,
+          ...(this.isPlainObject(source?.payment?.alipay) ? source.payment.alipay : {}),
+        },
+        wechat: {
+          ...defaults.payment.wechat,
+          ...(this.isPlainObject(source?.payment?.wechat) ? source.payment.wechat : {}),
+        },
+      },
+    };
+    return {
+      enabled: merged.enabled !== false,
+      pageTitle: String(merged.pageTitle || defaults.pageTitle).trim() || defaults.pageTitle,
+      pageSubtitle: String(merged.pageSubtitle || defaults.pageSubtitle).trim() || defaults.pageSubtitle,
+      pageDescription: String(merged.pageDescription || defaults.pageDescription).trim() || defaults.pageDescription,
+      containerMaxWidth: Number.isFinite(Number(merged.containerMaxWidth))
+        ? Math.max(960, Math.min(1600, Number(merged.containerMaxWidth)))
+        : defaults.containerMaxWidth,
+      pricingTitle: String(merged.pricingTitle || defaults.pricingTitle).trim() || defaults.pricingTitle,
+      faqTitle: String(merged.faqTitle || defaults.faqTitle).trim() || defaults.faqTitle,
+      aiGrowthService: {
+        ...merged.aiGrowthService,
+        enabled: merged.aiGrowthService.enabled !== false,
+        key: 'ai_growth',
+        label: String(merged.aiGrowthService.label || defaults.aiGrowthService.label).trim() || defaults.aiGrowthService.label,
+        badge: String(merged.aiGrowthService.badge || defaults.aiGrowthService.badge).trim(),
+        description: String(merged.aiGrowthService.description || defaults.aiGrowthService.description).trim() || defaults.aiGrowthService.description,
+        price: normalizePrice(merged.aiGrowthService.price, defaults.aiGrowthService.price),
+        originalPrice: normalizePrice(merged.aiGrowthService.originalPrice, defaults.aiGrowthService.originalPrice),
+        ctaText: String(merged.aiGrowthService.ctaText || defaults.aiGrowthService.ctaText).trim() || defaults.aiGrowthService.ctaText,
+        features: normalizeFeatureList(merged.aiGrowthService.features, defaults.aiGrowthService.features),
+      },
+      paidBoostService: {
+        ...merged.paidBoostService,
+        enabled: merged.paidBoostService.enabled !== false,
+        key: 'paid_boost',
+        label: String(merged.paidBoostService.label || defaults.paidBoostService.label).trim() || defaults.paidBoostService.label,
+        badge: String(merged.paidBoostService.badge || defaults.paidBoostService.badge).trim(),
+        description: String(merged.paidBoostService.description || defaults.paidBoostService.description).trim() || defaults.paidBoostService.description,
+        price: normalizePrice(merged.paidBoostService.price, defaults.paidBoostService.price),
+        originalPrice: normalizePrice(merged.paidBoostService.originalPrice, defaults.paidBoostService.originalPrice),
+        ctaText: String(merged.paidBoostService.ctaText || defaults.paidBoostService.ctaText).trim() || defaults.paidBoostService.ctaText,
+        features: normalizeFeatureList(merged.paidBoostService.features, defaults.paidBoostService.features),
+      },
+      faqItems: normalizeFaqItems(merged.faqItems, defaults.faqItems),
+      payment: {
+        enabled: merged.payment.enabled === true,
+        allowAlipay: merged.payment.allowAlipay !== false,
+        allowWechat: merged.payment.allowWechat !== false,
+        orderExpireMinutes: Number.isFinite(Number(merged.payment.orderExpireMinutes))
+          ? Math.max(5, Math.min(180, Number(merged.payment.orderExpireMinutes)))
+          : defaults.payment.orderExpireMinutes,
+        notifyBaseUrl: String(merged.payment.notifyBaseUrl || '').trim(),
+        alipay: {
+          enabled: merged.payment.alipay.enabled === true,
+          gateway: String(merged.payment.alipay.gateway || defaults.payment.alipay.gateway).trim() || defaults.payment.alipay.gateway,
+          appId: String(merged.payment.alipay.appId || '').trim(),
+          sellerId: String(merged.payment.alipay.sellerId || '').trim(),
+          privateKey: String(merged.payment.alipay.privateKey || '').trim(),
+          alipayPublicKey: String(merged.payment.alipay.alipayPublicKey || '').trim(),
+          returnUrl: String(merged.payment.alipay.returnUrl || '').trim(),
+          notifyUrl: String(merged.payment.alipay.notifyUrl || '').trim(),
+        },
+        wechat: {
+          enabled: merged.payment.wechat.enabled === true,
+          appId: String(merged.payment.wechat.appId || '').trim(),
+          mchId: String(merged.payment.wechat.mchId || '').trim(),
+          apiKey: String(merged.payment.wechat.apiKey || '').trim(),
+          notifyUrl: String(merged.payment.wechat.notifyUrl || '').trim(),
+          tradeType: 'MWEB',
+          sceneName: String(merged.payment.wechat.sceneName || defaults.payment.wechat.sceneName).trim() || defaults.payment.wechat.sceneName,
+        },
+      },
+    };
+  }
+
+  /**
+   * 构建前台可公开的投稿配置（去敏）
+   * @param {Record<string, any>} config 全量配置
+   * @return {Record<string, any>} 前台可读配置
+   */
+  buildPublicSubmissionServiceConfig(config = {}) {
+    const normalized = this.normalizeSubmissionServiceConfig(config);
+    return {
+      enabled: normalized.enabled,
+      pageTitle: normalized.pageTitle,
+      pageSubtitle: normalized.pageSubtitle,
+      pageDescription: normalized.pageDescription,
+      containerMaxWidth: normalized.containerMaxWidth,
+      pricingTitle: normalized.pricingTitle,
+      faqTitle: normalized.faqTitle,
+      aiGrowthService: normalized.aiGrowthService,
+      paidBoostService: normalized.paidBoostService,
+      faqItems: normalized.faqItems,
+      payment: {
+        enabled: normalized.payment.enabled,
+        allowAlipay: normalized.payment.allowAlipay && normalized.payment.alipay.enabled,
+        allowWechat: normalized.payment.allowWechat && normalized.payment.wechat.enabled,
+      },
+    };
+  }
+
+  /**
    * 规范化详情页配置，确保 SEO 开关与数组字段结构稳定
    */
   normalizeDetailPageConfig(config = {}) {
@@ -1191,6 +1418,8 @@ class SettingService extends Service {
         value = this.normalizeExitModalConfig(rawValue);
       } else if (key === 'searchConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSearchConfig(rawValue);
+      } else if (key === 'submissionServiceConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeSubmissionServiceConfig(rawValue);
       } else if (key === 'detailPageConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeDetailPageConfig(rawValue);
       } else if (key === 'hotArticlesConfig' && rawValue && typeof rawValue === 'object') {
@@ -1357,6 +1586,7 @@ class SettingService extends Service {
     const sidebarConfig = await this.get('sidebarConfig');
     const searchConfig = await this.get('searchConfig');
     const exitModalConfig = await this.get('exitModalConfig');
+    const submissionServiceConfig = await this.get('submissionServiceConfig');
     const detailPageConfig = await this.get('detailPageConfig');
     const hotArticlesConfig = await this.get('hotArticlesConfig');
     const articleConfig = await this.get('articleConfig');
@@ -1463,6 +1693,7 @@ class SettingService extends Service {
       copyrightAgreementText: '版权协议',
       copyrightAgreementUrl: '',
     };
+    const defaultSubmissionService = this.getDefaultSubmissionServiceConfig();
 
     const defaultDetailPage = {
       pageStylePreset: 'showcase',
@@ -1631,6 +1862,9 @@ class SettingService extends Service {
       cardStyle: cardStyleConfig || defaultCardStyle,
       sidebar: sidebarConfig || defaultSidebar,
       search: this.normalizeSearchConfig(searchConfig || defaultSearch),
+      submission: this.buildPublicSubmissionServiceConfig(
+        this.normalizeSubmissionServiceConfig(submissionServiceConfig || defaultSubmissionService)
+      ),
       exitModal: normalizedExitModalConfig,
       popup: normalizedExitModalConfig,
       detailPage: this.normalizeDetailPageConfig({ ...defaultDetailPage, ...(detailPageConfig || {}) }),

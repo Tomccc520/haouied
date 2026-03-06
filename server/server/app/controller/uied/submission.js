@@ -14,6 +14,31 @@ const baseController = require('../baseController');
 
 class SubmissionController extends baseController {
   /**
+   * 读取原始请求体（用于微信 XML 回调）
+   */
+  async readRawRequestBody() {
+    const { ctx } = this;
+    if (ctx.request.rawBody) {
+      return String(ctx.request.rawBody || '');
+    }
+    if (ctx.req.rawBody) {
+      return String(ctx.req.rawBody || '');
+    }
+    if (typeof ctx.request.body === 'string') {
+      return ctx.request.body;
+    }
+    if (ctx.request.body && typeof ctx.request.body === 'object') {
+      return '';
+    }
+    return await new Promise((resolve, reject) => {
+      const chunks = [];
+      ctx.req.on('data', chunk => chunks.push(Buffer.from(chunk)));
+      ctx.req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      ctx.req.on('error', reject);
+    });
+  }
+
+  /**
    * 检查 URL 是否已存在（前端用户）
    */
   async checkUrl() {
@@ -57,6 +82,85 @@ class SubmissionController extends baseController {
   }
 
   /**
+   * 创建投稿支付订单（前端用户）
+   */
+  async createPayOrder() {
+    const { ctx } = this;
+    try {
+      const data = ctx.request.body || {};
+      if (!data.name || !data.url) {
+        return this.result({ code: 400, message: '网站名称和URL为必填项' });
+      }
+      data.submitterIp = ctx.ip || ctx.request.ip;
+      const result = await ctx.service.uied.submission.createPayOrder(data);
+      this.result({ data: result, message: result?.message || '支付订单创建成功' });
+    } catch (error) {
+      ctx.logger.error('创建投稿支付订单失败:', error);
+      this.result({ code: 400, message: error.message || '创建支付订单失败' });
+    }
+  }
+
+  /**
+   * 查询投稿支付订单状态（前端用户）
+   */
+  async payOrderStatus() {
+    const { ctx } = this;
+    try {
+      const { orderNo } = ctx.query;
+      if (!orderNo) {
+        return this.result({ code: 400, message: '缺少订单号' });
+      }
+      const data = await ctx.service.uied.submission.getPayOrderStatus(orderNo);
+      if (!data) {
+        return this.result({ code: 404, message: '订单不存在' });
+      }
+      this.result({ data });
+    } catch (error) {
+      ctx.logger.error('查询投稿支付订单状态失败:', error);
+      this.result({ code: 500, message: error.message || '查询失败' });
+    }
+  }
+
+  /**
+   * 支付宝支付异步回调
+   */
+  async payNotifyAlipay() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body && typeof ctx.request.body === 'object'
+        ? ctx.request.body
+        : {};
+      await ctx.service.uied.submission.handleAlipayNotify(payload);
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'success';
+    } catch (error) {
+      ctx.logger.error('支付宝回调处理失败:', error);
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'failure';
+    }
+  }
+
+  /**
+   * 微信支付异步回调
+   */
+  async payNotifyWechat() {
+    const { ctx } = this;
+    try {
+      let rawBody = await this.readRawRequestBody();
+      if (!rawBody && ctx.request.body && typeof ctx.request.body === 'object') {
+        rawBody = ctx.service.uied.submission.toWechatXml(ctx.request.body);
+      }
+      await ctx.service.uied.submission.handleWechatNotify(rawBody);
+      ctx.type = 'text/xml; charset=utf-8';
+      ctx.body = ctx.service.uied.submission.buildWechatNotifyResponse('SUCCESS', 'OK');
+    } catch (error) {
+      ctx.logger.error('微信回调处理失败:', error);
+      ctx.type = 'text/xml; charset=utf-8';
+      ctx.body = ctx.service.uied.submission.buildWechatNotifyResponse('FAIL', error.message || 'FAIL');
+    }
+  }
+
+  /**
    * 查询提交状态（前端用户）
    */
   async status() {
@@ -83,11 +187,13 @@ class SubmissionController extends baseController {
   async list() {
     const { ctx } = this;
     try {
-      const { pageNo = 1, pageSize = 20, status } = ctx.query;
+      const { pageNo = 1, pageSize = 20, status, url, serviceType } = ctx.query;
       const result = await ctx.service.uied.submission.list({
         page: parseInt(pageNo),
         pageSize: parseInt(pageSize),
         status,
+        url,
+        serviceType,
       });
       this.result({ data: result });
     } catch (error) {

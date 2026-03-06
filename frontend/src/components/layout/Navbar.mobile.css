@@ -274,9 +274,12 @@
     border-bottom: none;
   }
 
-  .navbar-mobile-menu-item:hover,
-  .navbar-mobile-menu-item:active {
+  .navbar-mobile-menu-item:hover {
     background: rgba(0, 122, 255, 0.1); /* 苹果蓝色背景 */
+  }
+
+  .navbar-mobile-menu-item:active {
+    background: transparent;
   }
 
   .navbar-mobile-menu-text {

@@ -28,6 +28,7 @@ class NavMenuService extends Service {
    */
   getBuiltinEntryMap() {
     return {
+      home: '/',
       daily_hot: '/p/hot?tab=daily-hot',
       daily_new: '/p/hot?tab=daily-new',
       hot_articles: '/p/hot',

@@ -157,6 +157,10 @@ const rsa = {
     'favicon-api:fetch', // GET /api/favicon-api/fetch
     'submissions', // POST /api/submissions
     'submissions:check-url', // GET /api/submissions/check-url
+    'submissions:pay:create', // POST /api/submissions/pay/create
+    'submissions:pay:status', // GET /api/submissions/pay/status
+    'submissions:pay:notify:alipay', // POST /api/submissions/pay/notify/alipay
+    'submissions:pay:notify:wechat', // POST /api/submissions/pay/notify/wechat
     'ai-config:generate-website-info', // POST /api/ai-config/generate-website-info
     'ai-config:chat', // POST /api/ai-config/chat
     'ai-config:smart-search', // POST /api/ai-config/smart-search

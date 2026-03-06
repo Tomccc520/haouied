@@ -1414,6 +1414,209 @@
                     </el-form>
                 </el-tab-pane>
 
+                <!-- ==================== 投稿与支付 ==================== -->
+                <el-tab-pane label="投稿与支付" name="submissionService">
+                    <div class="setting-header">
+                        <h2 class="setting-title">投稿与支付</h2>
+                        <p class="setting-desc">
+                            配置投稿页服务方案、定价、FAQ 与官方支付参数（支付宝/微信）。
+                        </p>
+                    </div>
+                    <el-form :model="submissionServiceData" label-width="140px" class="form-max-700">
+                        <el-divider content-position="left">页面基础</el-divider>
+                        <el-form-item label="开启投稿页">
+                            <el-switch v-model="submissionServiceData.enabled" />
+                        </el-form-item>
+                        <el-form-item label="页面标题">
+                            <el-input v-model="submissionServiceData.pageTitle" />
+                        </el-form-item>
+                        <el-form-item label="页面副标题">
+                            <el-input v-model="submissionServiceData.pageSubtitle" />
+                        </el-form-item>
+                        <el-form-item label="页面描述">
+                            <el-input
+                                v-model="submissionServiceData.pageDescription"
+                                type="textarea"
+                                :rows="2"
+                            />
+                        </el-form-item>
+                        <el-form-item label="页面宽度">
+                            <el-input-number
+                                v-model="submissionServiceData.containerMaxWidth"
+                                :min="960"
+                                :max="1600"
+                                :step="20"
+                            />
+                            <span class="form-tip">px</span>
+                        </el-form-item>
+
+                        <el-divider content-position="left">AI产品提交及增长服务</el-divider>
+                        <el-form-item label="开启服务">
+                            <el-switch v-model="submissionServiceData.aiEnabled" />
+                        </el-form-item>
+                        <el-form-item label="服务名称">
+                            <el-input v-model="submissionServiceData.aiLabel" />
+                        </el-form-item>
+                        <el-form-item label="服务标签">
+                            <el-input v-model="submissionServiceData.aiBadge" placeholder="如：推荐" />
+                        </el-form-item>
+                        <el-form-item label="服务描述">
+                            <el-input v-model="submissionServiceData.aiDescription" type="textarea" :rows="2" />
+                        </el-form-item>
+                        <el-form-item label="价格">
+                            <el-input-number v-model="submissionServiceData.aiPrice" :min="0" :max="999999" :step="1" />
+                        </el-form-item>
+                        <el-form-item label="原价">
+                            <el-input-number v-model="submissionServiceData.aiOriginalPrice" :min="0" :max="999999" :step="1" />
+                        </el-form-item>
+                        <el-form-item label="按钮文案">
+                            <el-input v-model="submissionServiceData.aiCtaText" />
+                        </el-form-item>
+                        <el-form-item label="权益列表">
+                            <el-input
+                                v-model="submissionServiceData.aiFeaturesText"
+                                type="textarea"
+                                :rows="4"
+                                placeholder="每行一个权益"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">付费加热推广产品</el-divider>
+                        <el-form-item label="开启服务">
+                            <el-switch v-model="submissionServiceData.paidEnabled" />
+                        </el-form-item>
+                        <el-form-item label="服务名称">
+                            <el-input v-model="submissionServiceData.paidLabel" />
+                        </el-form-item>
+                        <el-form-item label="服务标签">
+                            <el-input v-model="submissionServiceData.paidBadge" placeholder="如：商业" />
+                        </el-form-item>
+                        <el-form-item label="服务描述">
+                            <el-input v-model="submissionServiceData.paidDescription" type="textarea" :rows="2" />
+                        </el-form-item>
+                        <el-form-item label="价格">
+                            <el-input-number v-model="submissionServiceData.paidPrice" :min="0" :max="999999" :step="1" />
+                        </el-form-item>
+                        <el-form-item label="原价">
+                            <el-input-number v-model="submissionServiceData.paidOriginalPrice" :min="0" :max="999999" :step="1" />
+                        </el-form-item>
+                        <el-form-item label="按钮文案">
+                            <el-input v-model="submissionServiceData.paidCtaText" />
+                        </el-form-item>
+                        <el-form-item label="权益列表">
+                            <el-input
+                                v-model="submissionServiceData.paidFeaturesText"
+                                type="textarea"
+                                :rows="4"
+                                placeholder="每行一个权益"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">FAQ</el-divider>
+                        <el-form-item label="FAQ 标题">
+                            <el-input v-model="submissionServiceData.faqTitle" />
+                        </el-form-item>
+                        <el-form-item label="FAQ 内容">
+                            <el-input
+                                v-model="submissionServiceData.faqText"
+                                type="textarea"
+                                :rows="5"
+                                placeholder="每行一条，格式：问题|答案"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">支付总开关</el-divider>
+                        <el-form-item label="开启支付">
+                            <el-switch v-model="submissionServiceData.paymentEnabled" />
+                        </el-form-item>
+                        <el-form-item label="允许支付宝">
+                            <el-switch v-model="submissionServiceData.allowAlipay" />
+                        </el-form-item>
+                        <el-form-item label="允许微信">
+                            <el-switch v-model="submissionServiceData.allowWechat" />
+                        </el-form-item>
+                        <el-form-item label="订单过期时间">
+                            <el-input-number
+                                v-model="submissionServiceData.orderExpireMinutes"
+                                :min="5"
+                                :max="180"
+                            />
+                            <span class="form-tip">分钟</span>
+                        </el-form-item>
+                        <el-form-item label="回调域名基址">
+                            <el-input
+                                v-model="submissionServiceData.notifyBaseUrl"
+                                placeholder="如：https://hao.uied.cn"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">支付宝官方（Page Pay）</el-divider>
+                        <el-form-item label="开启支付宝">
+                            <el-switch v-model="submissionServiceData.alipayEnabled" />
+                        </el-form-item>
+                        <el-form-item label="网关地址">
+                            <el-input v-model="submissionServiceData.alipayGateway" />
+                        </el-form-item>
+                        <el-form-item label="APPID">
+                            <el-input v-model="submissionServiceData.alipayAppId" />
+                        </el-form-item>
+                        <el-form-item label="商户ID">
+                            <el-input v-model="submissionServiceData.alipaySellerId" />
+                        </el-form-item>
+                        <el-form-item label="应用私钥">
+                            <el-input
+                                v-model="submissionServiceData.alipayPrivateKey"
+                                type="textarea"
+                                :rows="4"
+                                placeholder="支持 PEM 或单行密钥"
+                            />
+                        </el-form-item>
+                        <el-form-item label="支付宝公钥">
+                            <el-input
+                                v-model="submissionServiceData.alipayPublicKey"
+                                type="textarea"
+                                :rows="4"
+                                placeholder="支持 PEM 或单行公钥"
+                            />
+                        </el-form-item>
+                        <el-form-item label="前台回跳地址">
+                            <el-input v-model="submissionServiceData.alipayReturnUrl" />
+                        </el-form-item>
+                        <el-form-item label="异步回调地址">
+                            <el-input v-model="submissionServiceData.alipayNotifyUrl" />
+                        </el-form-item>
+
+                        <el-divider content-position="left">微信官方（V2 H5）</el-divider>
+                        <el-form-item label="开启微信支付">
+                            <el-switch v-model="submissionServiceData.wechatEnabled" />
+                        </el-form-item>
+                        <el-form-item label="APPID">
+                            <el-input v-model="submissionServiceData.wechatAppId" />
+                        </el-form-item>
+                        <el-form-item label="商户号">
+                            <el-input v-model="submissionServiceData.wechatMchId" />
+                        </el-form-item>
+                        <el-form-item label="API Key">
+                            <el-input v-model="submissionServiceData.wechatApiKey" />
+                        </el-form-item>
+                        <el-form-item label="异步回调地址">
+                            <el-input v-model="submissionServiceData.wechatNotifyUrl" />
+                        </el-form-item>
+                        <el-form-item label="场景名称">
+                            <el-input v-model="submissionServiceData.wechatSceneName" />
+                        </el-form-item>
+
+                        <el-form-item>
+                            <el-button
+                                type="primary"
+                                :loading="submissionServiceLoading"
+                                @click="handleSaveSubmissionService"
+                                >保存</el-button
+                            >
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
+
                 <!-- ==================== 跳转提醒 ==================== -->
                 <el-tab-pane label="跳转提醒" name="exitModal">
                     <div class="setting-header">
@@ -1658,6 +1861,7 @@ const settingTabNameSet = new Set([
     'sidebar',
     'search',
     'authConfig',
+    'submissionService',
     'exitModal'
 ])
 
@@ -2100,6 +2304,236 @@ const normalizeAuthConfigData = (config: any) => ({
         defaultAuthConfig.user_center_close_message
 })
 
+// ==================== 投稿与支付 ====================
+const submissionServiceLoading = ref(false)
+const defaultSubmissionServiceData = {
+    enabled: true,
+    pageTitle: '提交网站',
+    pageSubtitle: 'AI产品提交及增长服务 / 付费加热推广产品',
+    pageDescription: '提交优质站点并选择合适的增长方案，审核与投放流程统一收口。',
+    containerMaxWidth: 1200,
+    pricingTitle: '服务方案',
+    faqTitle: '常见问题',
+    aiEnabled: true,
+    aiLabel: 'AI产品提交及增长服务',
+    aiBadge: '推荐',
+    aiDescription: '适合首次收录与长期增长，提交后进入审核与推荐流程。',
+    aiPrice: 0,
+    aiOriginalPrice: 0,
+    aiCtaText: '免费提交',
+    aiFeaturesText: 'AI 智能补全站点信息\n审核通过后收录到分类与搜索\n支持后续运营人工优化',
+    paidEnabled: true,
+    paidLabel: '付费加热推广产品',
+    paidBadge: '商业',
+    paidDescription: '适合新品发布和活动期快速曝光，支持指定推广目标与预算。',
+    paidPrice: 199,
+    paidOriginalPrice: 299,
+    paidCtaText: '提交并支付',
+    paidFeaturesText: '首页/频道曝光位优先分发\n支持预算与排期沟通\n运营团队跟进投放',
+    faqText: '提交后多久审核？|通常 1-3 个工作日完成审核。\n付费加热是否保证收录？|付费加热不改变审核标准，审核通过后进入推广排期。\n支持哪些支付方式？|支持支付宝和微信支付。',
+    paymentEnabled: false,
+    allowAlipay: true,
+    allowWechat: true,
+    orderExpireMinutes: 30,
+    notifyBaseUrl: '',
+    alipayEnabled: false,
+    alipayGateway: 'https://openapi.alipay.com/gateway.do',
+    alipayAppId: '',
+    alipaySellerId: '',
+    alipayPrivateKey: '',
+    alipayPublicKey: '',
+    alipayReturnUrl: '',
+    alipayNotifyUrl: '',
+    wechatEnabled: false,
+    wechatAppId: '',
+    wechatMchId: '',
+    wechatApiKey: '',
+    wechatNotifyUrl: '',
+    wechatSceneName: 'UIED投稿支付',
+}
+const submissionServiceData = reactive({ ...defaultSubmissionServiceData })
+
+/**
+ * 多行文本拆分为字符串数组
+ */
+const parseLines = (value: unknown): string[] =>
+    String(value || '')
+        .split('\n')
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+
+/**
+ * FAQ 文本解析为结构化数据，格式：问题|答案
+ */
+const parseFaqText = (value: unknown): Array<{ question: string; answer: string; sort: number; enabled: boolean }> =>
+    String(value || '')
+        .split('\n')
+        .map((line, index) => {
+            const [question = '', answer = ''] = String(line || '').split('|')
+            const q = String(question || '').trim()
+            const a = String(answer || '').trim()
+            if (!q || !a) return null
+            return {
+                question: q,
+                answer: a,
+                sort: (index + 1) * 10,
+                enabled: true,
+            }
+        })
+        .filter((item): item is { question: string; answer: string; sort: number; enabled: boolean } => Boolean(item))
+
+/**
+ * 将 FAQ 结构化数据格式化为可编辑文本
+ */
+const formatFaqText = (items: any[]): string => {
+    if (!Array.isArray(items)) return ''
+    return items
+        .map((item) => {
+            const q = String(item?.question || '').trim()
+            const a = String(item?.answer || '').trim()
+            if (!q || !a) return ''
+            return `${q}|${a}`
+        })
+        .filter(Boolean)
+        .join('\n')
+}
+
+/**
+ * 规范化投稿与支付配置（后台表单视图）
+ */
+const normalizeSubmissionServiceData = (config: any) => {
+    const source = config && typeof config === 'object' ? config : {}
+    const aiService = source?.aiGrowthService || {}
+    const paidService = source?.paidBoostService || {}
+    const payment = source?.payment || {}
+    const alipay = payment?.alipay || {}
+    const wechat = payment?.wechat || {}
+    const aiFeaturesText = Array.isArray(aiService.features)
+        ? aiService.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+        : defaultSubmissionServiceData.aiFeaturesText
+    const paidFeaturesText = Array.isArray(paidService.features)
+        ? paidService.features.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+        : defaultSubmissionServiceData.paidFeaturesText
+    return {
+        ...defaultSubmissionServiceData,
+        ...source,
+        pageTitle: String(source?.pageTitle || defaultSubmissionServiceData.pageTitle),
+        pageSubtitle: String(source?.pageSubtitle || defaultSubmissionServiceData.pageSubtitle),
+        pageDescription: String(source?.pageDescription || defaultSubmissionServiceData.pageDescription),
+        containerMaxWidth: Number.isFinite(Number(source?.containerMaxWidth))
+            ? Number(source.containerMaxWidth)
+            : defaultSubmissionServiceData.containerMaxWidth,
+        pricingTitle: String(source?.pricingTitle || defaultSubmissionServiceData.pricingTitle),
+        faqTitle: String(source?.faqTitle || defaultSubmissionServiceData.faqTitle),
+        aiEnabled: aiService?.enabled !== false,
+        aiLabel: String(aiService?.label || defaultSubmissionServiceData.aiLabel),
+        aiBadge: String(aiService?.badge || defaultSubmissionServiceData.aiBadge),
+        aiDescription: String(aiService?.description || defaultSubmissionServiceData.aiDescription),
+        aiPrice: Number.isFinite(Number(aiService?.price)) ? Number(aiService.price) : defaultSubmissionServiceData.aiPrice,
+        aiOriginalPrice: Number.isFinite(Number(aiService?.originalPrice))
+            ? Number(aiService.originalPrice)
+            : defaultSubmissionServiceData.aiOriginalPrice,
+        aiCtaText: String(aiService?.ctaText || defaultSubmissionServiceData.aiCtaText),
+        aiFeaturesText: aiFeaturesText || defaultSubmissionServiceData.aiFeaturesText,
+        paidEnabled: paidService?.enabled !== false,
+        paidLabel: String(paidService?.label || defaultSubmissionServiceData.paidLabel),
+        paidBadge: String(paidService?.badge || defaultSubmissionServiceData.paidBadge),
+        paidDescription: String(paidService?.description || defaultSubmissionServiceData.paidDescription),
+        paidPrice: Number.isFinite(Number(paidService?.price))
+            ? Number(paidService.price)
+            : defaultSubmissionServiceData.paidPrice,
+        paidOriginalPrice: Number.isFinite(Number(paidService?.originalPrice))
+            ? Number(paidService.originalPrice)
+            : defaultSubmissionServiceData.paidOriginalPrice,
+        paidCtaText: String(paidService?.ctaText || defaultSubmissionServiceData.paidCtaText),
+        paidFeaturesText: paidFeaturesText || defaultSubmissionServiceData.paidFeaturesText,
+        faqText: formatFaqText(source?.faqItems || defaultSubmissionServiceData.faqText),
+        paymentEnabled: payment?.enabled === true,
+        allowAlipay: payment?.allowAlipay !== false,
+        allowWechat: payment?.allowWechat !== false,
+        orderExpireMinutes: Number.isFinite(Number(payment?.orderExpireMinutes))
+            ? Number(payment.orderExpireMinutes)
+            : defaultSubmissionServiceData.orderExpireMinutes,
+        notifyBaseUrl: String(payment?.notifyBaseUrl || ''),
+        alipayEnabled: alipay?.enabled === true,
+        alipayGateway: String(alipay?.gateway || defaultSubmissionServiceData.alipayGateway),
+        alipayAppId: String(alipay?.appId || ''),
+        alipaySellerId: String(alipay?.sellerId || ''),
+        alipayPrivateKey: String(alipay?.privateKey || ''),
+        alipayPublicKey: String(alipay?.alipayPublicKey || ''),
+        alipayReturnUrl: String(alipay?.returnUrl || ''),
+        alipayNotifyUrl: String(alipay?.notifyUrl || ''),
+        wechatEnabled: wechat?.enabled === true,
+        wechatAppId: String(wechat?.appId || ''),
+        wechatMchId: String(wechat?.mchId || ''),
+        wechatApiKey: String(wechat?.apiKey || ''),
+        wechatNotifyUrl: String(wechat?.notifyUrl || ''),
+        wechatSceneName: String(wechat?.sceneName || defaultSubmissionServiceData.wechatSceneName),
+    }
+}
+
+/**
+ * 将后台表单数据转换为后端持久化结构
+ */
+const buildSubmissionServicePayload = () => ({
+    enabled: submissionServiceData.enabled !== false,
+    pageTitle: String(submissionServiceData.pageTitle || '').trim(),
+    pageSubtitle: String(submissionServiceData.pageSubtitle || '').trim(),
+    pageDescription: String(submissionServiceData.pageDescription || '').trim(),
+    containerMaxWidth: Number(submissionServiceData.containerMaxWidth || 1200),
+    pricingTitle: String(submissionServiceData.pricingTitle || '').trim(),
+    faqTitle: String(submissionServiceData.faqTitle || '').trim(),
+    aiGrowthService: {
+        enabled: submissionServiceData.aiEnabled !== false,
+        key: 'ai_growth',
+        label: String(submissionServiceData.aiLabel || '').trim(),
+        badge: String(submissionServiceData.aiBadge || '').trim(),
+        description: String(submissionServiceData.aiDescription || '').trim(),
+        price: Number(submissionServiceData.aiPrice || 0),
+        originalPrice: Number(submissionServiceData.aiOriginalPrice || 0),
+        ctaText: String(submissionServiceData.aiCtaText || '').trim(),
+        features: parseLines(submissionServiceData.aiFeaturesText),
+    },
+    paidBoostService: {
+        enabled: submissionServiceData.paidEnabled !== false,
+        key: 'paid_boost',
+        label: String(submissionServiceData.paidLabel || '').trim(),
+        badge: String(submissionServiceData.paidBadge || '').trim(),
+        description: String(submissionServiceData.paidDescription || '').trim(),
+        price: Number(submissionServiceData.paidPrice || 0),
+        originalPrice: Number(submissionServiceData.paidOriginalPrice || 0),
+        ctaText: String(submissionServiceData.paidCtaText || '').trim(),
+        features: parseLines(submissionServiceData.paidFeaturesText),
+    },
+    faqItems: parseFaqText(submissionServiceData.faqText),
+    payment: {
+        enabled: submissionServiceData.paymentEnabled === true,
+        allowAlipay: submissionServiceData.allowAlipay !== false,
+        allowWechat: submissionServiceData.allowWechat !== false,
+        orderExpireMinutes: Number(submissionServiceData.orderExpireMinutes || 30),
+        notifyBaseUrl: String(submissionServiceData.notifyBaseUrl || '').trim(),
+        alipay: {
+            enabled: submissionServiceData.alipayEnabled === true,
+            gateway: String(submissionServiceData.alipayGateway || '').trim(),
+            appId: String(submissionServiceData.alipayAppId || '').trim(),
+            sellerId: String(submissionServiceData.alipaySellerId || '').trim(),
+            privateKey: String(submissionServiceData.alipayPrivateKey || '').trim(),
+            alipayPublicKey: String(submissionServiceData.alipayPublicKey || '').trim(),
+            returnUrl: String(submissionServiceData.alipayReturnUrl || '').trim(),
+            notifyUrl: String(submissionServiceData.alipayNotifyUrl || '').trim(),
+        },
+        wechat: {
+            enabled: submissionServiceData.wechatEnabled === true,
+            appId: String(submissionServiceData.wechatAppId || '').trim(),
+            mchId: String(submissionServiceData.wechatMchId || '').trim(),
+            apiKey: String(submissionServiceData.wechatApiKey || '').trim(),
+            notifyUrl: String(submissionServiceData.wechatNotifyUrl || '').trim(),
+            tradeType: 'MWEB',
+            sceneName: String(submissionServiceData.wechatSceneName || '').trim(),
+        },
+    },
+})
+
 // ==================== 跳转提醒 ====================
 const exitModalLoading = ref(false)
 const defaultExitModalConfig = {
@@ -2146,6 +2580,7 @@ const snapshotData = reactive({
     sidebar: '',
     search: '',
     authConfig: '',
+    submissionService: '',
     exitModal: ''
 })
 
@@ -2179,6 +2614,7 @@ const refreshSnapshot = () => {
     snapshotData.sidebar = serializeConfig(cloneConfig(sidebarData))
     snapshotData.search = serializeConfig(cloneConfig(searchData))
     snapshotData.authConfig = serializeConfig(normalizeAuthConfigData(cloneConfig(authConfigData)))
+    snapshotData.submissionService = serializeConfig(buildSubmissionServicePayload())
     snapshotData.exitModal = serializeConfig(cloneConfig(exitModalData))
 }
 
@@ -2214,6 +2650,8 @@ const hasTabChanges = (tab: string): boolean => {
             serializeConfig(normalizeAuthConfigData(cloneConfig(authConfigData))) !==
             snapshotData.authConfig
         )
+    if (tab === 'submissionService')
+        return serializeConfig(buildSubmissionServicePayload()) !== snapshotData.submissionService
     if (tab === 'exitModal')
         return serializeConfig(cloneConfig(exitModalData)) !== snapshotData.exitModal
     return false
@@ -2229,6 +2667,7 @@ const hasPendingChanges = computed(
         hasTabChanges('sidebar') ||
         hasTabChanges('search') ||
         hasTabChanges('authConfig') ||
+        hasTabChanges('submissionService') ||
         hasTabChanges('exitModal')
 )
 
@@ -2263,6 +2702,11 @@ const applyPublicSettings = (settings: Record<string, any>) => {
     if (settings.search) Object.assign(searchData, settings.search)
     if (settings.authConfig)
         Object.assign(authConfigData, normalizeAuthConfigData(settings.authConfig))
+    if (settings.submissionService)
+        Object.assign(
+            submissionServiceData,
+            normalizeSubmissionServiceData(settings.submissionService)
+        )
     if (settings.exitModal || settings.popup)
         Object.assign(exitModalData, normalizeExitModalConfigData(settings.exitModal || settings.popup))
 }
@@ -2288,6 +2732,7 @@ const loadAllSettings = async (silent = false) => {
             loadSidebar(),
             loadSearch(),
             loadAuthConfig(),
+            loadSubmissionService(),
             loadExitModal(),
             loadHomepagePageOptions(true)
         ])
@@ -2371,6 +2816,18 @@ const loadExitModal = async () => {
         if (res) Object.assign(exitModalData, normalizeExitModalConfigData(res))
     } catch (e) {
         console.error('加载跳转提醒配置失败', e)
+    }
+}
+
+/**
+ * 加载投稿与支付配置
+ */
+const loadSubmissionService = async () => {
+    try {
+        const res = await uiedSettingGet({ key: 'submissionServiceConfig' })
+        if (res) Object.assign(submissionServiceData, normalizeSubmissionServiceData(res))
+    } catch (e) {
+        console.error('加载投稿与支付配置失败', e)
     }
 }
 
@@ -2499,6 +2956,25 @@ const handleSaveExitModal = async () => {
 }
 
 /**
+ * 保存投稿与支付配置
+ */
+const handleSaveSubmissionService = async () => {
+    submissionServiceLoading.value = true
+    try {
+        await uiedSettingSave({
+            submissionServiceConfig: buildSubmissionServicePayload()
+        })
+        markSaved()
+        feedback.msgSuccess('保存成功')
+    } catch (error) {
+        console.error('保存投稿与支付配置失败:', error)
+        feedback.msgError('保存失败')
+    } finally {
+        submissionServiceLoading.value = false
+    }
+}
+
+/**
  * 保存全部配置（售卖版推荐工作流）
  */
 const handleSaveAll = async () => {
@@ -2513,6 +2989,7 @@ const handleSaveAll = async () => {
                 cardStyleConfig: cardStyleData,
                 sidebarConfig: sidebarData,
                 searchConfig: searchData,
+                submissionServiceConfig: buildSubmissionServicePayload(),
                 exitModalConfig: exitModalData
             }),
             uiedSettingAuthConfigUpdate(normalizeAuthConfigData(authConfigData))
@@ -2555,6 +3032,11 @@ const handleResetCurrentTab = () => {
         Object.assign(
             authConfigData,
             normalizeAuthConfigData(readSnapshotObject(snapshotData.authConfig))
+        )
+    if (tab === 'submissionService')
+        Object.assign(
+            submissionServiceData,
+            normalizeSubmissionServiceData(readSnapshotObject(snapshotData.submissionService))
         )
     if (tab === 'exitModal')
         Object.assign(exitModalData, readSnapshotObject(snapshotData.exitModal))
