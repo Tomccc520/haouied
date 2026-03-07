@@ -14,6 +14,15 @@ import { unwrapApiResponse } from '../../utils/apiResponse';
 import './index.css';
 import './index.mobile.css'; // 引入独立的移动端样式
 
+type HeroIconClickMode = 'direct' | 'detail';
+interface HeroScrollWebsiteItem {
+  id: string;
+  name: string;
+  iconUrl?: string;
+  url: string;
+  slug?: string;
+}
+
 // 旧版本接口兼容
 interface HeroBannerProps {
   title?: string;
@@ -41,7 +50,9 @@ interface HeroBannerProps {
   highlightText?: string; // 高亮显示的文本
   // 新增：显示模式配置
   heroDisplayMode?: string; // search, iconScroll
-  heroScrollWebsites?: { id: string; name: string; iconUrl?: string; url: string }[]; // 滚动图标的网站列表
+  heroScrollWebsites?: HeroScrollWebsiteItem[]; // 滚动图标的网站列表
+  heroIconClickMode?: HeroIconClickMode; // 图标点击方式：外链直达 / 打开详情
+  buildHeroWebsiteDetailUrl?: (website: HeroScrollWebsiteItem) => string; // 生成详情页链接
   // 搜索能力开关配置
   aiSearchEnabled?: boolean;
   aiSearchBtnText?: string;
@@ -73,6 +84,8 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   highlightText,
   heroDisplayMode = 'search',
   heroScrollWebsites = [],
+  heroIconClickMode = 'direct',
+  buildHeroWebsiteDetailUrl,
   aiSearchEnabled = true,
   aiSearchBtnText = 'AI 搜索',
 }) => {
@@ -355,6 +368,25 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     };
   };
 
+  /**
+   * 规范化 Hero 图标点击模式，避免异常配置值影响跳转行为。
+   */
+  const resolveHeroIconClickMode = (mode: unknown): HeroIconClickMode => {
+    return String(mode || '').trim() === 'detail' ? 'detail' : 'direct';
+  };
+  const normalizedHeroIconClickMode = resolveHeroIconClickMode(heroIconClickMode);
+
+  /**
+   * 解析图标墙每个站点的最终跳转地址（支持后台切换外链直达/详情页）。
+   */
+  const resolveHeroIconHref = (website: HeroScrollWebsiteItem): string => {
+    if (normalizedHeroIconClickMode === 'detail' && typeof buildHeroWebsiteDetailUrl === 'function') {
+      const detailUrl = String(buildHeroWebsiteDetailUrl(website) || '').trim();
+      if (detailUrl) return detailUrl;
+    }
+    return website.url;
+  };
+
   return (
     <div 
       className={`hero-banner ${isNewVersion ? 'hero-banner-new' : 'hero-banner-legacy'} ${getThemeClass()}`}
@@ -378,13 +410,14 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                   // 如果没有 iconUrl，使用 favicon API 生成
                   const iconSrc = website.iconUrl || 
                     `https://t3.gstatic.cn/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=128&url=${encodeURIComponent(website.url)}`;
+                  const href = resolveHeroIconHref(website);
                   
                   return (
                     <a
                       key={`${website.id}-${index}`}
-                      href={website.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={href}
+                      target={normalizedHeroIconClickMode === 'detail' ? '_self' : '_blank'}
+                      rel={normalizedHeroIconClickMode === 'detail' ? undefined : 'noopener noreferrer'}
                       className="icon-scroll-item"
                       title={website.name}
                     >

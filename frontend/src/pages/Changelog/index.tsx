@@ -69,6 +69,30 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.0',
+    date: '2026-03-07',
+    title: '正式版发布：移动端适配完成与上线稳定性修复',
+    changes: [
+      { type: 'improve', text: '完成首页、/p/hot、网址详情页移动端逐屏细调，多轮修复布局错乱与间距问题' },
+      { type: 'improve', text: 'design-article-grid-container 改为单行横向滑动，优化 No.1 标签与“查看更多”移动端样式' },
+      { type: 'improve', text: '详情页按钮与标签改为单行横向滚动交互，提升小屏信息密度与可操作性' },
+      { type: 'feature', text: '新增 Hero Banner 图标点击方式配置，支持“直接跳转”与“打开详情页”两种模式' },
+      { type: 'fix', text: '修复后台线上接口 404（/api 前缀重复）问题，保证管理端请求链路稳定' },
+    ]
+  },
+  {
+    version: '3.0.0-rc.5',
+    date: '2026-03-07',
+    title: '移动端逐屏细调第 7 轮与头部菜单颜色修复',
+    changes: [
+      { type: 'fix', text: '修复 Windows 系统深色模式下头部菜单发黑问题，导航栏改为固定浅色方案' },
+      { type: 'improve', text: '网址详情页移动端重新排布：标题信息区与缩略图区密度优化，站点数据卡片可横向浏览' },
+      { type: 'improve', text: '详情页按钮与标签统一为单行横向滚动交互，减少换行导致的错位' },
+      { type: 'fix', text: 'design-article-grid-container 移动端修复 No.1 标签遮挡问题，调整为标题旁角标' },
+      { type: 'improve', text: '重做“查看更多”移动端样式，改为简洁文本入口，减少视觉干扰' },
+    ]
+  },
+  {
     version: '3.0.0-rc.4',
     date: '2026-03-05',
     title: '内容中心统一路由与 Hot 页面运营化增强',
@@ -294,18 +318,6 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', text: '新增字体资源页面' },
     ]
   },
-  {
-    version: '1.0.0',
-    date: '2025-11-01',
-    title: '项目初始版本',
-    changes: [
-      { type: 'feature', text: '基础导航网站框架搭建' },
-      { type: 'feature', text: '响应式布局支持' },
-      { type: 'feature', text: '分类筛选功能' },
-      { type: 'feature', text: '搜索功能' },
-      { type: 'feature', text: '热门推荐展示' },
-    ]
-  },
 ];
 
 // 变更类型标签
@@ -313,6 +325,20 @@ const typeLabels: Record<string, { text: string; className: string }> = {
   feature: { text: '新功能', className: 'tag-feature' },
   improve: { text: '优化', className: 'tag-improve' },
   fix: { text: '修复', className: 'tag-fix' },
+};
+
+/**
+ * 合并 GitHub 与本地更新记录：
+ * 1) GitHub 版本优先（已发布）
+ * 2) 本地仅存在的版本追加到前面（未发布预告/本地补丁）
+ */
+const mergeChangelogData = (
+  githubReleases: ChangelogRelease[],
+  localReleases: ChangelogRelease[],
+): ChangelogRelease[] => {
+  const githubVersions = new Set(githubReleases.map((item) => item.version));
+  const localOnlyReleases = localReleases.filter((item) => !githubVersions.has(item.version));
+  return [...localOnlyReleases, ...githubReleases];
 };
 
 const ChangelogPage: React.FC = () => {
@@ -335,7 +361,7 @@ const ChangelogPage: React.FC = () => {
       try {
         const releases = await fetchGitHubChangelog({ limit: 16 });
         if (!cancelled && releases.length) {
-          setChangelogData(releases);
+          setChangelogData(mergeChangelogData(releases, localChangelogData));
           setSyncStatus('github');
           return;
         }

@@ -819,12 +819,18 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           </AnimatePresence>
         </div>
       )}
-      
+
       {/* 移动端底部的查看更多按钮 */}
       {effectiveShowMoreButton && (
         <div className="mobile-view-more">
-          <a href={effectiveShowMoreLink} className="mobile-view-more-btn" target="_blank" rel="noopener noreferrer">
-            查看更多 {'>'}
+          <a
+            href={effectiveShowMoreLink}
+            className="mobile-view-more-btn"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="查看更多设计文章"
+          >
+            查看更多
           </a>
         </div>
       )}

@@ -98,6 +98,7 @@ interface HomepageConfig {
   heroBgType: 'default' | 'color' | 'gradient' | 'image';
   heroBgValue: string;
   heroDisplayMode: 'search' | 'iconScroll';
+  heroIconClickMode: 'direct' | 'detail';
   heroShowStats: boolean;
   heroShowHotTags: boolean;
   bannerCardsEnabled: boolean;
@@ -264,6 +265,7 @@ const defaultHomepageConfig: HomepageConfig = {
   heroBgType: 'default',
   heroBgValue: '',
   heroDisplayMode: 'search',
+  heroIconClickMode: 'direct',
   heroShowStats: true,
   heroShowHotTags: true,
   bannerCardsEnabled: true,
@@ -399,6 +401,12 @@ const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
 const normalizeHomepageConfig = (config: unknown): HomepageConfig => {
   const mergedConfig = { ...defaultHomepageConfig, ...((config as Partial<HomepageConfig>) || {}) };
   /**
+   * 规范化 Hero 图标点击模式，仅允许 direct/detail。
+   */
+  const normalizedHeroIconClickMode = String(mergedConfig.heroIconClickMode || '').trim() === 'detail'
+    ? 'detail'
+    : 'direct';
+  /**
    * 规范化每日上新入口显示位置，限制受控枚举并去重。
    */
   const normalizedDailyNewPlacements = (() => {
@@ -425,6 +433,7 @@ const normalizeHomepageConfig = (config: unknown): HomepageConfig => {
     : defaultHomepageConfig.navSwitchItems;
   return {
     ...mergedConfig,
+    heroIconClickMode: normalizedHeroIconClickMode,
     homePageSlug: String(mergedConfig.homePageSlug || '').trim(),
     homeCarouselEnabled: mergedConfig.homeCarouselEnabled !== false,
     homeRecommendationEnabled: mergedConfig.homeRecommendationEnabled !== false,

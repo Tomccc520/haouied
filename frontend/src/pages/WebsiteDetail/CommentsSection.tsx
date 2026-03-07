@@ -113,7 +113,7 @@ const parseCommentListPayload = (payload: unknown) => {
 /**
  * 默认头像组件
  */
-const DefaultAvatar: React.FC<{ name: string; size?: number }> = ({ name, size = 40 }) => {
+const DefaultAvatar: React.FC<{ name: string }> = ({ name }) => {
   const initial = name.charAt(0).toUpperCase();
   const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2'];
   const colorIndex = name.charCodeAt(0) % colors.length;
@@ -122,16 +122,7 @@ const DefaultAvatar: React.FC<{ name: string; size?: number }> = ({ name, size =
     <div 
       className="comment-avatar-default"
       style={{ 
-        width: size, 
-        height: size, 
         backgroundColor: colors[colorIndex],
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        fontWeight: 600,
-        fontSize: size * 0.4,
       }}
     >
       {initial}

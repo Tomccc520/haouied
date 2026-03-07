@@ -58,7 +58,7 @@ const RelatedWebsites: React.FC<RelatedWebsitesProps> = ({ websites, loading }) 
                 websiteUrl={site.url}
                 iconUrl={site.iconUrl}
                 name={site.name}
-                size={40}
+                size={36}
               />
             </div>
             <div className="related-card-info">

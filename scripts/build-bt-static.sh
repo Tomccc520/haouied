@@ -17,6 +17,7 @@ if [[ -z "$SITE_DOMAIN" ]]; then
 fi
 
 API_URL="https://${SITE_DOMAIN}/api"
+ADMIN_BASE_URL="https://${SITE_DOMAIN}"
 
 ensure_cmd() {
   # 函数说明：检查必需命令是否可用
@@ -52,7 +53,7 @@ build_admin() {
   echo "[2/3] 构建 server/admin..."
   cd "$ROOT_DIR/server/admin"
   cat > .env.production <<EOF
-VITE_APP_BASE_URL=${API_URL}
+VITE_APP_BASE_URL=${ADMIN_BASE_URL}
 VITE_FRONTEND_URL=https://${SITE_DOMAIN}
 VITE_APP_BASE_PATH=/admin/
 EOF
@@ -67,6 +68,7 @@ write_manifest() {
   cat > "$OUTPUT_ROOT/manifest.txt" <<EOF
 domain=${SITE_DOMAIN}
 api_url=${API_URL}
+admin_base_url=${ADMIN_BASE_URL}
 build_time=$(date '+%Y-%m-%d %H:%M:%S')
 frontend_source_commit=$(cd "$ROOT_DIR/frontend" && git rev-parse --short HEAD 2>/dev/null || echo unknown)
 root_source_commit=$(cd "$ROOT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo unknown)

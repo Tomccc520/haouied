@@ -20,15 +20,7 @@
   transition: transform 0.3s ease, background-color 0.3s ease;
   overflow: visible;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03); /* 轻微阴影增加层次感 */
-}
-
-/* 暗色模式适配 */
-@media (prefers-color-scheme: dark) {
-  .navbar-container {
-    background: rgba(30, 30, 30, 0.85);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  }
+  color-scheme: light; /* 锁定浅色方案，避免 Windows 系统深色触发头部发黑 */
 }
 
 .navbar-container.navbar-hidden {
@@ -509,8 +501,7 @@
 
 /* 移动端隐藏 */
 @media (max-width: 768px) {
-  .navbar-menu,
-  .nav-switch-container {
+  .navbar-menu {
     display: none;
   }
   

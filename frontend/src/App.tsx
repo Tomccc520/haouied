@@ -53,7 +53,7 @@ const FixedDynamicPageRoute: React.FC<{ slug: string }> = ({ slug }) => {
 
 /**
  * 根路径入口路由：
- * 支持后台把某个页面配置为首页（/ -> /p/:slug），未配置时走默认固定首页。
+ * 支持后台把某个页面配置为首页（保留根路径 / 渲染对应页面），未配置时走默认固定首页。
  */
 const RootEntryRoute: React.FC = () => {
   const { config, loading } = useFrontendConfig();
@@ -64,9 +64,9 @@ const RootEntryRoute: React.FC = () => {
   }
   if (homePageSlug) {
     if (isFixedDynamicNavSlug(normalizedHomePageSlug)) {
-      return <Navigate to={`/${normalizedHomePageSlug}`} replace />;
+      return <FixedDynamicPageRoute slug={normalizedHomePageSlug} />;
     }
-    return <Navigate to={`/p/${normalizedHomePageSlug}`} replace />;
+    return <DynamicPage slug={normalizedHomePageSlug} />;
   }
   return <FixedDynamicPageRoute slug={ROOT_NAV_SLUG} />;
 };

@@ -30,6 +30,7 @@ import '../../styles/common.css';
 
 type HeroPageType = 'home' | 'ai' | 'uiux' | 'design' | 'search' | 'threed' | 'ecommerce' | 'interior' | 'font';
 type WebsiteWithExtra = Website & { slug?: string; oldId?: string };
+type HeroScrollWebsite = { id: string; name: string; iconUrl?: string; url: string; slug?: string };
 
 interface DirectVisitTarget {
   id: string;
@@ -77,7 +78,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Website[]>([]);
   const [isSearchMode, setIsSearchMode] = useState(false);
-  const [heroScrollWebsites, setHeroScrollWebsites] = useState<{ id: string; name: string; iconUrl?: string; url: string }[]>([]);
+  const [heroScrollWebsites, setHeroScrollWebsites] = useState<HeroScrollWebsite[]>([]);
   
   // 获取前端配置（跳转弹窗自定义文案）
   const { config: frontendConfig } = useFrontendConfig();
@@ -88,6 +89,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const directArrowNewWindow = frontendConfig?.pageGlobalConfig?.directArrowNewWindow ?? true;
   const detailPageNewWindow = frontendConfig?.pageGlobalConfig?.detailPageNewWindow ?? false;
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
+  const heroIconClickMode = frontendConfig?.homepageConfig?.heroIconClickMode ?? 'direct';
 
   // 直达箭头点击回调 - 与 useNavigation.ts 逻辑保持一致
   const handleDirectVisit = useCallback((tool: DirectVisitTarget, _event: React.MouseEvent) => {
@@ -117,6 +119,16 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     }
   }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, detailNavigate, frontendConfig?.pageGlobalConfig]);
 
+  /**
+   * 生成 Hero 图标墙详情链接，统一复用当前永久链接规则。
+   */
+  const buildHeroWebsiteDetailUrl = useCallback((website: HeroScrollWebsite) => {
+    return generateWebsiteUrl(permalinkConfig, {
+      id: website.id,
+      slug: website.slug,
+    });
+  }, [permalinkConfig]);
+
   // 获取滚动图标墙的网站数据
   useEffect(() => {
     if (pageConfig?.heroDisplayMode === 'iconScroll' && pageConfig?.heroScrollWebsites) {
@@ -137,7 +149,8 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                     id: w.id,
                     name: w.name,
                     iconUrl: w.iconUrl,
-                    url: w.url
+                    url: w.url,
+                    slug: w.slug,
                   }));
                 setHeroScrollWebsites(sortedWebsites);
               })
@@ -329,6 +342,8 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         highlightText={pageConfig?.heroHighlightText}
         heroDisplayMode={pageConfig?.heroDisplayMode}
         heroScrollWebsites={heroScrollWebsites}
+        heroIconClickMode={heroIconClickMode}
+        buildHeroWebsiteDetailUrl={buildHeroWebsiteDetailUrl}
         aiSearchEnabled={frontendConfig?.searchConfig?.enabled !== false && frontendConfig?.searchConfig?.aiSearchEnabled !== false}
         aiSearchBtnText={frontendConfig?.searchConfig?.aiSearchBtnText || 'AI 搜索'}
       />

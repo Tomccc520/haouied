@@ -123,21 +123,20 @@
                 <div>
                     <div v-for="(item, index) in workbenchData.support" :key="index">
                         <div
-                            class="flex items-center pb-10 pt-10"
+                            class="pb-8 pt-8"
                             :class="{
                                 'border-b border-br': index == 0
                             }"
                         >
-                            <img width="120" height="120" class="flex-none" :src="item.image" />
-                            <div class="ml-2">
-                                <div>{{ item.title }}</div>
+                            <div>
+                                <div class="text-base font-medium">{{ item.title }}</div>
                                 <div class="text-tx-regular text-xs mt-2 whitespace-pre-line">
                                     {{ item.desc }}
                                 </div>
-                                <div v-if="item.link" class="mt-2">
+                                <div v-if="item.link" class="mt-3">
                                     <a :href="item.link" target="_blank" rel="noopener noreferrer">
-                                        <el-button link type="primary" size="small">
-                                            {{ item.actionText || '查看详情' }}
+                                        <el-button type="primary" size="small">
+                                            {{ item.actionText || '立即前往' }}
                                         </el-button>
                                     </a>
                                 </div>
@@ -167,8 +166,6 @@ import menu_generator from './image/menu_generator.png'
 import menu_file from './image/menu_file.png'
 import menu_auth from './image/menu_auth.png'
 import menu_web from './image/menu_web.png'
-import qq_group from './image/qq_group.png'
-import customer_service from './image/customer_service.png'
 
 const defaultChannelLinks = {
     docs: 'https://fsuied.com'
@@ -195,7 +192,6 @@ const workbenchData: any = reactive({
     },
     support: [
         {
-            image: customer_service,
             title: '品牌信息',
             desc: `UIED 技术团队
 品牌官网：https://www.tomda.top
@@ -204,7 +200,6 @@ const workbenchData: any = reactive({
             actionText: '进入前端官网'
         },
         {
-            image: qq_group,
             title: '服务支持',
             desc: `文档中心：https://fsuied.com
 支持范围：功能答疑 / 运营配置 / 上线协助`,

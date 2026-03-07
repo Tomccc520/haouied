@@ -22,6 +22,7 @@ import {
   DEFAULT_NAV_SWITCH_ITEMS,
   getNavSwitchDescription,
   isFixedDynamicNavSlug,
+  ROOT_NAV_SLUG,
 } from '../../config/navModel';
 import './Navbar.css';
 import './Navbar.mobile.css'; // 引入独立的移动端样式
@@ -388,9 +389,12 @@ const Navbar = () => {
     }
 
     const pathname = location.pathname.toLowerCase();
+    const configuredHomeSlug = String(frontendConfig?.homepageConfig?.homePageSlug || '')
+      .trim()
+      .toLowerCase();
     let slug = '';
     if (pathname === '/') {
-      slug = 'uiux';
+      slug = configuredHomeSlug || ROOT_NAV_SLUG;
     } else if (pathname.startsWith('/p/')) {
       slug = pathname.replace('/p/', '').split('/')[0];
     } else {
@@ -405,7 +409,7 @@ const Navbar = () => {
     if (pathname === '/') {
       setCurrentNavType(navSwitchItems[0].type);
     }
-  }, [location.pathname, navSwitchItems]);
+  }, [location.pathname, navSwitchItems, frontendConfig?.homepageConfig?.homePageSlug]);
 
   /**
    * 切换导航类型并跳转到对应页面。
@@ -738,9 +742,12 @@ const Navbar = () => {
             <button
               type="button"
               onClick={() => navigate('/search')}
-              className="custom-button custom-button--text custom-button--medium navbar-mobile-search"
+              className="navbar-mobile-search"
+              aria-label="打开搜索页面"
             >
+              {/* 移动端搜索图标单独加 class，避免被通用按钮样式覆盖 */}
               <svg 
+                className="navbar-mobile-search-icon"
                 width="18" 
                 height="18" 
                 viewBox="0 0 24 24" 
@@ -796,7 +803,8 @@ const Navbar = () => {
             <button
               type="button"
               onClick={handleMenu}
-              className="custom-button custom-button--text custom-button--medium navbar-mobile-toggle"
+              className="navbar-mobile-toggle"
+              aria-label="打开菜单"
             >
               ☰
             </button>

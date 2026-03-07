@@ -8,7 +8,7 @@
  */
 
 /* 移动端导航栏样式 - 768px以下设备，遵循苹果设计规范 */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   /* ===== 导航栏容器 ===== */
   .navbar-container {
     height: 56px; /* 苹果推荐导航栏高度 */
@@ -26,16 +26,22 @@
 
   /* ===== Logo区域 ===== */
   .navbar-logo {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1;
     flex-shrink: 0;
   }
 
   .navbar-logo-img {
     height: var(--spacing-8); /* 32px */
     width: auto;
+    flex-shrink: 0;
   }
 
   /* ===== 导航切换容器 - 修复错乱问题 ===== */
   .nav-switch-container {
+    display: block !important;
     flex: 1;
     margin: 0 var(--spacing-2); /* 8的倍数，左右间距 */
     max-width: none; /* 移除最大宽度限制 */
@@ -120,8 +126,11 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease; /* 苹果动画时长 */
-    color: #475569; /* 显式指定图标颜色，避免被通用按钮样式覆盖 */
+    color: #334155 !important; /* 显式指定图标颜色，避免被通用按钮样式覆盖 */
     -webkit-text-fill-color: currentColor;
+    line-height: 0;
+    padding: 0;
+    appearance: none;
     /* 移除阴影 */
   }
 
@@ -132,12 +141,16 @@
     color: var(--primary-color);
   }
 
-  .navbar-mobile-search svg {
+  .navbar-mobile-search svg,
+  .navbar-mobile-search-icon {
     width: 1.125rem; /* 18px */
     height: 1.125rem;
     color: inherit;
-    stroke: currentColor;
-    opacity: 1;
+    stroke: currentColor !important;
+    fill: none !important;
+    stroke-width: 2.2;
+    opacity: 1 !important;
+    display: block;
   }
 
   .navbar-mobile-search:hover svg,
@@ -245,14 +258,16 @@
     position: fixed;
     top: 0;
     right: 0;
-    width: min(86vw, 320px);
-    height: 100vh;
+    width: min(90vw, 340px);
+    height: 100dvh;
+    max-width: 100%;
     background: var(--bg-card);
     box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
     transform: translateX(0);
     z-index: 2002;
     overflow-y: auto;
-    padding: var(--spacing-3) 0;
+    padding: calc(env(safe-area-inset-top) + 6px) 0 calc(env(safe-area-inset-bottom) + 12px);
+    overscroll-behavior: contain;
     animation: slideInRight 0.3s ease-out;
   }
 
@@ -267,10 +282,10 @@
   }
 
   .navbar-mobile-menu-item {
-    padding: 12px 14px;
+    padding: 10px 12px;
     border-bottom: 0.5px solid var(--border-light); /* 苹果分割线 */
     transition: background-color 0.2s ease;
-    min-height: 48px;
+    min-height: 46px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -301,9 +316,10 @@
     font-size: var(--text-base); /* 17px -> 16px (Base) */
     font-weight: 400; /* 苹果Regular */
     color: var(--text-primary); /* 苹果主文本 */
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.35;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: initial;
   }
 
   .navbar-mobile-chip {
@@ -323,7 +339,7 @@
   }
 
   .navbar-mobile-submenu {
-    padding: 6px 10px 10px;
+    padding: 5px 8px 8px;
     border-bottom: 0.5px solid var(--border-light);
     background: rgba(248, 250, 252, 0.7);
     display: flex;
@@ -336,9 +352,9 @@
     align-items: flex-start;
     gap: 8px;
     border: 1px solid rgba(15, 23, 42, 0.06);
-    border-radius: 10px;
+    border-radius: 9px;
     background: #fff;
-    padding: 8px 10px;
+    padding: 7px 8px;
   }
 
   .navbar-mobile-submenu-content {
@@ -489,6 +505,10 @@
   .navbar-mobile-toggle {
     width: 2.25rem; /* 36px */
     height: 2.25rem;
+  }
+
+  .navbar-mobile-menu {
+    width: min(92vw, 320px);
   }
 
   .navbar-mobile-search svg,

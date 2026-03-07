@@ -495,6 +495,24 @@
                         </el-form-item>
                         <el-form-item>
                             <template #label
+                                ><span>图标点击方式</span
+                                ><el-tooltip
+                                    content="图标滚动模式下可选：直达外部网站，或进入本站详情页"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-select
+                                v-model="homepageData.heroIconClickMode"
+                                class="input-w-200"
+                                :disabled="!homepageData.heroBannerEnabled"
+                            >
+                                <el-option label="直达网站（默认）" value="direct" />
+                                <el-option label="打开详情页" value="detail" />
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label
                                 ><span>显示收录统计</span
                                 ><el-tooltip
                                     content="显示「已收录 XXX+ 个优质网站」的统计信息"
@@ -620,13 +638,13 @@
                         </el-form-item>
                         <el-divider content-position="left">首页入口页面</el-divider>
                         <p class="section-desc">
-                            可将页面管理里的某个页面设为首页入口（访问 <code>/</code> 时自动进入）。
+                            可将页面管理里的某个页面设为首页入口（访问 <code>/</code> 时直接渲染该页面）。
                         </p>
                         <el-form-item>
                             <template #label
                                 ><span>首页页面</span
                                 ><el-tooltip
-                                    content="为空时使用默认首页（固定导航页）；选择后将跳转到对应 /p/slug"
+                                    content="为空时使用默认首页（固定导航页）；选择后访问根路径 / 会直接显示该页面"
                                     placement="top"
                                     ><el-icon class="label-tip-icon"
                                         ><QuestionFilled /></el-icon></el-tooltip
@@ -2000,6 +2018,7 @@ const homepageData = reactive({
     heroBgType: 'default',
     heroBgValue: '',
     heroDisplayMode: 'search',
+    heroIconClickMode: 'direct',
     heroShowStats: true,
     heroShowHotTags: true,
     bannerCardsEnabled: true,
@@ -2135,6 +2154,7 @@ const normalizeHomepageConfigData = (config: any) => ({
     ...homepageData,
     ...config,
     homePageSlug: String(config?.homePageSlug || '').trim(),
+    heroIconClickMode: String(config?.heroIconClickMode || '').trim() === 'detail' ? 'detail' : 'direct',
     homeCarouselEnabled: config?.homeCarouselEnabled !== false,
     homeRecommendationEnabled: config?.homeRecommendationEnabled !== false,
     homeCarouselSort: Number.isFinite(Number(config?.homeCarouselSort))

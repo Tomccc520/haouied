@@ -266,6 +266,7 @@ class SettingService extends Service {
       heroBgType: 'default',
       heroBgValue: '',
       heroDisplayMode: 'search',
+      heroIconClickMode: 'direct',
       heroShowStats: true,
       heroShowHotTags: true,
       bannerCardsEnabled: true,
@@ -290,6 +291,12 @@ class SettingService extends Service {
       dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
     };
     const merged = { ...defaults, ...(config || {}) };
+    /**
+     * 规范化 Hero 图标墙点击模式，仅允许 direct/detail 两种受控值。
+     */
+    const normalizeHeroIconClickMode = value => {
+      return String(value || '').trim() === 'detail' ? 'detail' : 'direct';
+    };
     const dailyNewPlacements = normalizeDailyNewPlacements(merged.dailyNewDisplayPlacements);
     /**
      * 规范化“每日上新”页面文案，避免空值或异常字符串导致前端展示错乱。
@@ -301,6 +308,7 @@ class SettingService extends Service {
     return {
       ...merged,
       homePageSlug: String(merged.homePageSlug || '').trim(),
+      heroIconClickMode: normalizeHeroIconClickMode(merged.heroIconClickMode),
       homeCarouselEnabled: merged.homeCarouselEnabled !== false,
       homeRecommendationEnabled: merged.homeRecommendationEnabled !== false,
       homeCarouselSort: Number.isFinite(Number(merged.homeCarouselSort)) ? Number(merged.homeCarouselSort) : 10,
@@ -1691,6 +1699,7 @@ class SettingService extends Service {
       heroBgType: 'default',
       heroBgValue: '',
       heroDisplayMode: 'search',
+      heroIconClickMode: 'direct',
       heroShowStats: true,
       heroShowHotTags: true,
       bannerCardsEnabled: true,
