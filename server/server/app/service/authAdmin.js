@@ -10,6 +10,41 @@ const urlUtil = require('../util/urlUtil');
 const md5 = require('md5');
 
 class AuthAdminService extends Service {
+  /**
+   * 判断菜单节点是否为工作台入口（兼容中英文名称、路径与组件命名）。
+   * @param {Object} node 菜单节点
+   * @return {boolean} 是否为工作台菜单
+   */
+  isWorkbenchMenuNode(node = {}) {
+    const name = String(node.menuName || '').trim().toLowerCase();
+    const path = String(node.paths || '').trim().toLowerCase();
+    const component = String(node.component || '').trim().toLowerCase();
+    const perms = String(node.perms || '').trim().toLowerCase();
+    return name.includes('工作台')
+      || name.includes('workbench')
+      || path.includes('workbench')
+      || component.includes('workbench')
+      || perms.includes('workbench');
+  }
+
+  /**
+   * 将工作台菜单置顶，其他菜单保持原有相对顺序。
+   * @param {Array<Object>} list 顶层菜单数组
+   * @return {Array<Object>} 重新排序后的菜单数组
+   */
+  prioritizeWorkbenchMenu(list = []) {
+    const rows = Array.isArray(list) ? list : [];
+    if (rows.length <= 1) return rows;
+    const next = [ ...rows ];
+    next.sort((a, b) => {
+      const aWorkbench = this.isWorkbenchMenuNode(a);
+      const bWorkbench = this.isWorkbenchMenuNode(b);
+      if (aWorkbench === bWorkbench) return 0;
+      return aWorkbench ? -1 : 1;
+    });
+    return next;
+  }
+
   async cacheAdminUserByUid(id) {
     const { ctx } = this;
     const admin = await ctx.model.SystemAuthAdmin.findOne({
@@ -128,7 +163,7 @@ class AuthAdminService extends Service {
       'pid',
       'children'
     );
-    return mapList;
+    return this.prioritizeWorkbenchMenu(mapList);
   }
 
   // BatchSaveByMenuIds 批量写入角色菜单

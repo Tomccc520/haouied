@@ -1,12 +1,24 @@
 module.exports = appInfo => {
     const config = {}
+
+    /**
+     * 解析端口号并做兜底。
+     * @param {string|undefined} value 端口字符串
+     * @param {number} fallback 默认端口
+     * @returns {number}
+     */
+    const resolvePort = (value, fallback) => {
+        const nextPort = Number(value)
+        return Number.isFinite(nextPort) && nextPort > 0 ? nextPort : fallback
+    }
+
     config.sequelize = {
         dialect: 'mysql',
-        host: '127.0.0.1',
-        port: 3306,
-        username: 'root', // 数据库用户名
-        password: 'root', // 数据库密码
-        database: 'localhost_likeadmin',
+        host: process.env.UIED_DB_HOST || '127.0.0.1',
+        port: resolvePort(process.env.UIED_DB_PORT, 3308),
+        username: process.env.UIED_DB_USER || 'uied',
+        password: process.env.UIED_DB_PASSWORD || 'uied123456',
+        database: process.env.UIED_DB_NAME || 'uied_nav',
         define: { // model的全局配置
             timestamps: true, // 添加create,update,delete时间戳
             paranoid: false, // 添加软删除
@@ -17,10 +29,10 @@ module.exports = appInfo => {
 
     config.redis = {
         client: {
-            port: 6379,
-            host: '127.0.0.1',
-            password: '',
-            db: 0
+            port: resolvePort(process.env.UIED_REDIS_PORT, 6380),
+            host: process.env.UIED_REDIS_HOST || '127.0.0.1',
+            password: process.env.UIED_REDIS_PASSWORD || '',
+            db: resolvePort(process.env.UIED_REDIS_DB, 0)
         }
     }
 

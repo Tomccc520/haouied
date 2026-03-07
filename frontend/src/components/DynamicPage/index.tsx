@@ -180,6 +180,18 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     [frontendConfig?.pageGlobalConfig?.categorySvgLibrary]
   );
 
+  /**
+   * 热门推荐首屏条数：按“网格列数 × 3 行”计算，保证默认展示三行卡片。
+   */
+  const hotRecommendationLimit = useMemo(() => {
+    const gridColumns = Number(frontendConfig?.pageGlobalConfig?.gridColumns || 4);
+    const safeColumns = Number.isFinite(gridColumns) ? Math.max(2, Math.min(6, Math.floor(gridColumns))) : 4;
+    /**
+     * 超大屏保持 6 列时，兜底至少 18 条，确保首屏仍可展示 3 行卡片。
+     */
+    return Math.max(18, safeColumns * 3);
+  }, [frontendConfig?.pageGlobalConfig?.gridColumns]);
+
   // 导航项 - 包含子分类信息
   const navItems: NavItem[] = useMemo(() => {
     return categories.map(cat => ({
@@ -370,7 +382,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
           {/* 热门推荐 - 使用 HotRecommendations 组件，与其他页面保持一致 */}
           {pageConfig?.showHotRecommendations && !isSearchMode && (
             <HotRecommendations 
-              limit={12}
+              limit={hotRecommendationLimit}
               title="热门推荐"
               showMoreButton={false}
               enableSubCategories={true}
@@ -485,6 +497,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                 {subCategories.length > 0 && hasSubCategoryWebsites && (
                   <SubCategoryTabs
                     subCategories={subCategories}
+                    categorySlug={category.slug}
                     getWebsitesBySubCategory={getWebsitesBySubCategory}
                     onWebsiteClick={handleWebsiteClick}
                     showDirectArrow={showDirectArrow}
@@ -536,6 +549,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
 // 子分类标签组件
 interface SubCategoryTabsProps {
   subCategories: SubCategory[];
+  categorySlug?: string;
   getWebsitesBySubCategory: (id: string) => Website[];
   onWebsiteClick: (website: Website) => void;
   showDirectArrow?: boolean;
@@ -547,6 +561,7 @@ interface SubCategoryTabsProps {
 
 const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   subCategories,
+  categorySlug,
   getWebsitesBySubCategory,
   onWebsiteClick,
   showDirectArrow = false,
@@ -555,6 +570,7 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   arrowIsExternal = true,
   directArrowNewWindow = true,
 }) => {
+  const navigate = useNavigate();
   // 当前选中的子分类，默认选中 'all'
   const [activeSubCategory, setActiveSubCategory] = useState<string>('all');
   // 分页状态
@@ -605,6 +621,35 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
     setActiveSubCategory(subCatId);
     setCurrentPage(1);
   };
+
+  /**
+   * 跳转分类页并重置滚动位置，规避历史滚动位置/锚点导致的落点偏移。
+   */
+  const navigateCategoryWithTopReset = useCallback((targetPath: string) => {
+    navigate(targetPath);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      if (document.documentElement) {
+        document.documentElement.scrollTop = 0;
+      }
+      if (document.body) {
+        document.body.scrollTop = 0;
+      }
+    });
+  }, [navigate]);
+
+  /**
+   * 打开分类页：优先当前激活子分类，其次主分类，最后回退分类列表页。
+   */
+  const handleViewCategory = useCallback(() => {
+    const activeSubCategoryItem = validSubCategories.find((item) => item.id === activeSubCategory);
+    const targetSlug = String(activeSubCategoryItem?.slug || categorySlug || '').trim();
+    if (targetSlug) {
+      navigateCategoryWithTopReset(`/category/${targetSlug}`);
+      return;
+    }
+    navigateCategoryWithTopReset('/category');
+  }, [activeSubCategory, validSubCategories, categorySlug, navigateCategoryWithTopReset]);
   
   if (allWebsites.length === 0) {
     return null;
@@ -683,14 +728,40 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
           </div>
         </div>
         
-        {/* 分页控制 */}
-        {paginationData.totalPages > 1 && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flexShrink: 0,
-          }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexShrink: 0,
+        }}>
+          <button
+            onClick={handleViewCategory}
+            style={{
+              height: '24px',
+              borderRadius: '5px',
+              border: '1px solid rgba(24, 144, 255, 0.32)',
+              background: 'rgba(24, 144, 255, 0.08)',
+              color: 'var(--primary-color, #1890ff)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              padding: '0 8px',
+              fontSize: '12px',
+              lineHeight: 1,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
+            title="查看更多分类内容"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+              <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            查看更多
+          </button>
+          {paginationData.totalPages > 1 && (
+            <>
             <button
               onClick={() => paginationData.hasPrevPage && setCurrentPage(currentPage - 1)}
               disabled={!paginationData.hasPrevPage}
@@ -734,8 +805,9 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
                 <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
       
       {/* 网站列表 */}

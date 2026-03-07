@@ -61,7 +61,8 @@ UIED 导航系统是一个现代化的设计资源导航网站系统，采用前
 
 - Node.js >= 16.0.0
 - npm >= 8.0.0
-- Docker (用于 MySQL)
+- MySQL >= 5.6.5（推荐 5.7+）
+- Docker（可选，用于本地容器化数据库）
 
 ### 安装步骤
 
@@ -72,10 +73,14 @@ git clone https://github.com/Tomccc520/UIED-NAV.git
 cd UIED-NAV
 ```
 
-#### 2. 启动 MySQL 数据库
+#### 2. 准备 MySQL 数据库
 
 ```bash
+# 方案A（默认）：Docker 启动 MySQL（端口 3308）
 docker-compose -f docker/docker-compose.mysql.yml up -d
+
+# 方案B（可选）：本机 MySQL / 宝塔 MySQL（通过 UIED_DB_* 环境变量覆盖）
+# 确保已创建数据库 uied_nav，并具备读写权限
 ```
 
 #### 3. 安装依赖
@@ -113,11 +118,13 @@ cp .env.example .env
 #### 5. 导入初始数据
 
 ```bash
-# 导入 likeadmin 基础表
+# 方案A（默认）：Docker MySQL
 docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/install.sql
-
-# 导入 UIED 业务表
 docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/uied_tables.sql
+
+# 方案B（可选）：本机 MySQL / 宝塔 MySQL
+mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/install.sql
+mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/uied_tables.sql
 ```
 
 #### 6. 启动服务
@@ -206,7 +213,7 @@ uied-nav/
 ### Backend（后端 API）
 - Egg.js (likeadmin)
 - Sequelize ORM
-- MySQL 8.0
+- MySQL 5.6.5+（推荐 5.7+）
 - JWT 认证
 
 ### Admin（管理后台）
@@ -215,8 +222,8 @@ uied-nav/
 - Vite
 
 ### Database（数据库）
-- MySQL 8.0
-- Docker 容器化
+- MySQL 5.6.5+（推荐 5.7+；5.6 建议开启 large_prefix 与 Barracuda）
+- Docker（可选）
 
 ---
 

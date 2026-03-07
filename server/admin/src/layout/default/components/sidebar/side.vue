@@ -60,7 +60,9 @@ const handleSelect = () => {
 .side {
     position: relative;
     z-index: 999;
-    @apply border-r border-br-light h-full flex flex-col;
-    background-color: var(--side-dark-color, var(--el-bg-color));
+    @apply h-full flex flex-col;
+    border-right: 1px solid var(--admin-sidebar-border-color);
+    background: var(--side-dark-color, var(--admin-sidebar-bg));
+    box-shadow: var(--admin-sidebar-shell-shadow);
 }
 </style>

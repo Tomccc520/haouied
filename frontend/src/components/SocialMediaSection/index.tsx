@@ -17,18 +17,24 @@ interface SocialMediaItem {
   name: string;
   type: string;
   icon?: string;
+  iconSvg?: string;
   link?: string;
   qrCodeUrl?: string;
   description?: string;
-  extraInfo?: string;
+  extraInfo?: unknown;
+  order?: number;
+  visible?: boolean;
 }
 
 interface SocialMediaGroup {
   id: string;
   name: string;
   icon?: string;
+  iconSvg?: string;
   displayType: 'links' | 'qrcode' | 'mixed';
   items: SocialMediaItem[];
+  order?: number;
+  visible?: boolean;
 }
 
 // 自定义 SVG 图标组件
@@ -138,10 +144,126 @@ const typeIcons: Record<string, string> = {
   other: '链',
 };
 
-// 渲染分组图标
-const renderGroupIcon = (iconKey?: string) => {
-  const IconComponent = GroupIcons[iconKey || 'link'] || GroupIcons.link;
+/**
+ * 判断字符串是否为图片资源 URL。
+ */
+const isAssetUrl = (value?: string): boolean => {
+  const text = String(value || '').trim();
+  return /^https?:\/\//i.test(text) || /^data:image\//i.test(text) || text.startsWith('/uploads/');
+};
+
+/**
+ * 清洗后端返回的 SVG 字符串，避免渲染时注入脚本与事件属性。
+ */
+const sanitizeSvgMarkup = (value?: string): string => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const sanitized = text
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, '')
+    .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '')
+    .replace(/javascript:/gi, '')
+    .trim();
+  return sanitized.toLowerCase().startsWith('<svg') ? sanitized : '';
+};
+
+/**
+ * 将 extraInfo 统一解析为对象，兼容对象/JSON 字符串/普通文本。
+ */
+const parseExtraInfo = (extraInfo: unknown): Record<string, unknown> => {
+  if (!extraInfo) return {};
+  if (typeof extraInfo === 'object') return extraInfo as Record<string, unknown>;
+  const raw = String(extraInfo).trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+  } catch {}
+  return { groups: raw.split(/[\n,，；;]+/).map((item) => item.trim()).filter(Boolean) };
+};
+
+/**
+ * 将后端返回的项目结构归一化并过滤不可见项。
+ */
+const normalizeItems = (items: unknown): SocialMediaItem[] => {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((row) => {
+      const record = row as Record<string, unknown>;
+      return {
+        id: String(record.id || ''),
+        name: String(record.name || ''),
+        type: String(record.type || 'other'),
+        icon: String(record.icon || ''),
+        iconSvg: sanitizeSvgMarkup(String(record.iconSvg || '')),
+        link: String(record.link || record.url || ''),
+        qrCodeUrl: String(record.qrCodeUrl || record.qrCode || ''),
+        description: String(record.description || ''),
+        extraInfo: record.extraInfo,
+        order: Number(record.order ?? record.sort ?? 0),
+        visible: record.visible !== false && record.isShow !== false,
+      };
+    })
+    .filter((item) => item.id && item.visible !== false)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+};
+
+/**
+ * 将后端返回的分组结构归一化并过滤不可见分组。
+ */
+const normalizeGroups = (groups: unknown): SocialMediaGroup[] => {
+  if (!Array.isArray(groups)) return [];
+  return groups
+    .map((row) => {
+      const record = row as Record<string, unknown>;
+      const displayTypeRaw = String(record.displayType || 'links');
+      const displayType = [ 'links', 'qrcode', 'mixed' ].includes(displayTypeRaw)
+        ? displayTypeRaw as SocialMediaGroup['displayType']
+        : 'links';
+      return {
+        id: String(record.id || ''),
+        name: String(record.name || ''),
+        icon: String(record.icon || ''),
+        iconSvg: sanitizeSvgMarkup(String(record.iconSvg || '')),
+        displayType,
+        order: Number(record.order ?? record.sort ?? 0),
+        visible: record.visible !== false && record.isShow !== false,
+        items: normalizeItems(record.items),
+      };
+    })
+    .filter((group) => group.id && group.visible !== false && group.items.length > 0)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+};
+
+/**
+ * 渲染分组图标：优先展示后台上传 URL，其次用内置 key 图标。
+ */
+const renderGroupIcon = (iconKey?: string, label?: string) => {
+  if (iconKey && iconKey.startsWith('<svg')) {
+    return <span className="group-icon-svg" dangerouslySetInnerHTML={{ __html: iconKey }} />;
+  }
+  if (isAssetUrl(iconKey)) {
+    return <img className="group-icon-image" src={iconKey} alt={label || 'icon'} loading="lazy" />;
+  }
+  const IconComponent = GroupIcons[String(iconKey || 'link')] || GroupIcons.link;
   return <IconComponent size={24} />;
+};
+
+/**
+ * 渲染项目图标：优先 URL，其次自定义文本，最后平台简称兜底。
+ */
+const renderItemIcon = (item: SocialMediaItem) => {
+  if (item.iconSvg) {
+    return <span className="link-icon-svg" dangerouslySetInnerHTML={{ __html: item.iconSvg }} />;
+  }
+  if (isAssetUrl(item.icon)) {
+    return <img className="link-icon-image" src={item.icon} alt={item.name} loading="lazy" />;
+  }
+  const iconText = String(item.icon || '').trim();
+  if (iconText) {
+    return <span className="link-icon-text">{iconText.slice(0, 2)}</span>;
+  }
+  return <span className="link-icon-text">{typeIcons[item.type] || '链'}</span>;
 };
 
 const SocialMediaSection: React.FC = () => {
@@ -153,12 +275,12 @@ const SocialMediaSection: React.FC = () => {
     const fetchGroups = async () => {
       try {
         const res = await api.get('/social-media');
-        // 使用工具函数解包数据，确保返回数组
         const data = unwrapApiList<SocialMediaGroup>(res.data);
-        setGroups(data);
+        const normalized = normalizeGroups(data);
+        setGroups(normalized);
+        setActiveGroup((prev) => prev || normalized[0]?.id || null);
       } catch (error) {
         console.error('获取关注交流数据失败:', error);
-        // 出错时也重置为空数组
         setGroups([]);
       } finally {
         setLoading(false);
@@ -167,7 +289,13 @@ const SocialMediaSection: React.FC = () => {
     fetchGroups();
   }, []);
 
-  // 增加数组类型检查
+  /**
+   * 点击分组时切换展开状态（用于移动端与触屏设备）。
+   */
+  const handleGroupToggle = (groupId: string) => {
+    setActiveGroup((prev) => (prev === groupId ? null : groupId));
+  };
+
   if (loading || !Array.isArray(groups) || groups.length === 0) return null;
 
   return (
@@ -180,13 +308,15 @@ const SocialMediaSection: React.FC = () => {
             onMouseEnter={() => setActiveGroup(group.id)}
             onMouseLeave={() => setActiveGroup(null)}
           >
-            {/* 分组标题 */}
-            <div className="group-trigger">
-              <span className="group-icon">{renderGroupIcon(group.icon)}</span>
+            <div
+              className="group-trigger"
+              aria-expanded={activeGroup === group.id}
+              onClick={() => handleGroupToggle(group.id)}
+            >
+              <span className="group-icon">{renderGroupIcon(group.iconSvg || group.icon, group.name)}</span>
               <span className="group-name">{group.name}</span>
             </div>
 
-            {/* 悬浮内容 */}
             <div className="group-content">
               {group.displayType === 'links' && (
                 <LinksDisplay items={group.items} />
@@ -205,18 +335,23 @@ const SocialMediaSection: React.FC = () => {
   );
 };
 
-// 链接列表展示
+/**
+ * 链接列表展示组件。
+ */
 const LinksDisplay: React.FC<{ items: SocialMediaItem[] }> = ({ items }) => (
   <div className="links-display">
     {items.map((item) => (
       <a
         key={item.id}
         href={item.link || '#'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="link-item"
+        target={item.link ? '_blank' : undefined}
+        rel={item.link ? 'noopener noreferrer' : undefined}
+        className={`link-item ${item.link ? '' : 'link-item--disabled'}`}
+        onClick={(event) => {
+          if (!item.link) event.preventDefault();
+        }}
       >
-        <span className="link-icon">{typeIcons[item.type] || '链'}</span>
+        <span className="link-icon">{renderItemIcon(item)}</span>
         <div className="link-info">
           <span className="link-name">{item.name}</span>
           {item.description && <span className="link-desc">{item.description}</span>}
@@ -226,7 +361,9 @@ const LinksDisplay: React.FC<{ items: SocialMediaItem[] }> = ({ items }) => (
   </div>
 );
 
-// 二维码展示
+/**
+ * 二维码展示组件。
+ */
 const QRCodeDisplay: React.FC<{ items: SocialMediaItem[] }> = ({ items }) => (
   <div className="qrcode-display">
     {items.map((item) => (
@@ -243,33 +380,32 @@ const QRCodeDisplay: React.FC<{ items: SocialMediaItem[] }> = ({ items }) => (
   </div>
 );
 
-// 混合展示（带群列表）
+/**
+ * 混合展示组件（链接 + 群列表 + 二维码）。
+ */
 const MixedDisplay: React.FC<{ items: SocialMediaItem[] }> = ({ items }) => (
   <div className="mixed-display">
     {items.map((item) => {
-      // 解析额外信息（如群列表）
-      let extraData: { groups?: string[] } = {};
-      try {
-        if (item.extraInfo) extraData = JSON.parse(item.extraInfo);
-      } catch {}
+      const extraData = parseExtraInfo(item.extraInfo);
+      const groups = Array.isArray(extraData.groups)
+        ? extraData.groups.map((group) => String(group)).filter(Boolean)
+        : [];
 
       return (
         <div key={item.id} className="mixed-item">
           <div className="mixed-header">
-            <span className="mixed-icon">{typeIcons[item.type] || '链'}</span>
+            <span className="mixed-icon">{renderItemIcon(item)}</span>
             <span className="mixed-name">{item.name}</span>
           </div>
-          
-          {/* 群列表 */}
-          {extraData.groups && extraData.groups.length > 0 && (
+
+          {groups.length > 0 && (
             <ul className="group-list">
-              {extraData.groups.map((g, i) => (
-                <li key={i}><span className="group-num">{String(i + 1).padStart(2, '0')}</span>{g}</li>
+              {groups.map((groupName, i) => (
+                <li key={i}><span className="group-num">{String(i + 1).padStart(2, '0')}</span>{groupName}</li>
               ))}
             </ul>
           )}
-          
-          {/* 二维码和描述 */}
+
           <div className="mixed-footer">
             {item.qrCodeUrl && (
               <img src={item.qrCodeUrl} alt={item.name} className="mixed-qrcode" />

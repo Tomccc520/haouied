@@ -152,6 +152,7 @@ const rsa = {
     'hot-recommendations:*', // POST /api/hot-recommendations/:id/click
     'settings:nav-menus', // GET /api/settings/nav-menus
     'settings:footer-groups', // GET /api/settings/footer-groups
+    'settings:footer-about-config', // GET /api/settings/footer-about-config
     'settings:friend-links', // GET /api/settings/friend-links
     'public:detail-sidebar-config', // GET /api/public/detail-sidebar-config
     'favicon-api:fetch', // GET /api/favicon-api/fetch
@@ -176,6 +177,7 @@ const rsa = {
     'nav-menus', // GET /api/nav-menus
     'friend-links', // GET /api/friend-links
     'footer', // GET /api/footer
+    'footer:about-config', // GET /api/footer/about-config
     'social-media', // GET /api/social-media
     'banners', // GET /api/banners
     'site-info', // GET /api/site-info

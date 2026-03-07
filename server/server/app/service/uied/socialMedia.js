@@ -228,6 +228,20 @@ class SocialMediaService extends Service {
   }
 
   formatItem(item) {
+    /**
+     * 兼容历史脏数据：extra_info 可能是 JSON 字符串、普通文本或非法 JSON。
+     * 非 JSON 时保留原文本，避免单条数据导致接口整体报错。
+     */
+    let extraInfo = null;
+    if (item.extra_info !== undefined && item.extra_info !== null && String(item.extra_info).trim() !== '') {
+      const raw = String(item.extra_info).trim();
+      try {
+        extraInfo = JSON.parse(raw);
+      } catch (error) {
+        extraInfo = raw;
+      }
+    }
+
     return {
       id: item.id,
       groupId: item.group_id,
@@ -240,7 +254,7 @@ class SocialMediaService extends Service {
       qrCodeUrl: item.qr_code_url,
       qrCode: item.qr_code_url, // 兼容
       description: item.description,
-      extraInfo: item.extra_info ? JSON.parse(item.extra_info) : null,
+      extraInfo,
       sort: item.sort,
       sortOrder: item.sort, // 兼容
       isShow: item.is_show === 1,

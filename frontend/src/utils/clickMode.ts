@@ -17,6 +17,17 @@ interface RefAppendConfig {
 }
 
 /**
+ * 规范化外链 URL 文本，兼容后台或富文本中出现的 HTML 实体编码。
+ * 说明：将 `&amp;` 还原为 `&`，避免 UTM 参数被解析为 `amp;utm_xxx`。
+ */
+const normalizeExternalUrlText = (rawUrl: unknown): string => {
+  return String(rawUrl || '')
+    .trim()
+    .replace(/&amp;/gi, '&')
+    .replace(/&#38;/gi, '&');
+};
+
+/**
  * 规范化分类区域点击模式
  * 兼容历史值：directExternal -> direct
  */
@@ -57,7 +68,7 @@ export const getArrowConfigByWebsiteClickMode = (mode: unknown) => {
  * 为外部跳转链接追加 ref 参数（仅在后台开关开启且目标 URL 未包含 ref 时生效）
  */
 export const appendRefParamToUrl = (rawUrl: unknown, config?: RefAppendConfig): string => {
-  const original = String(rawUrl || '').trim();
+  const original = normalizeExternalUrlText(rawUrl);
   if (!original) return '';
 
   const enabled = config?.appendRefEnabled === true;

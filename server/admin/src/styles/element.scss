@@ -67,7 +67,7 @@
             .el-menu {
                 .el-menu-item {
                     &.is-active {
-                        @apply bg-primary-light-9 border-primary border-r-2;
+                        font-weight: 600;
                     }
                 }
                 .el-menu-item:hover,
@@ -80,7 +80,7 @@
             .el-menu {
                 .el-menu-item {
                     &.is-active {
-                        @apply bg-primary;
+                        font-weight: 600;
                     }
                 }
             }

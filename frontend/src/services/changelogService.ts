@@ -10,10 +10,12 @@
  */
 
 export type ChangelogType = 'feature' | 'improve' | 'fix';
+export type ChangelogScope = 'frontend' | 'backend' | 'fullstack';
 
 export interface ChangelogChange {
   type: ChangelogType;
   text: string;
+  scope?: ChangelogScope;
 }
 
 export interface ChangelogRelease {
@@ -162,4 +164,3 @@ export const fetchGitHubChangelog = async (
   }
   return normalized;
 };
-

@@ -84,47 +84,11 @@ LEFT JOIN la_system_auth_perm AS perm_row
 WHERE perm_row.id IS NULL;
 
 -- 预置热门文章默认配置（仅在未配置时写入）
+-- 兼容说明：使用纯 JSON 文本，避免 MySQL 5.6 不支持 JSON_OBJECT/JSON_ARRAY
 INSERT INTO uied_site_setting (`key`, `value`, `description`, create_time, update_time)
 SELECT
     'hotArticlesConfig',
-    JSON_OBJECT(
-        'enabled', true,
-        'displayPlacements', JSON_ARRAY('nav_quick_entry', 'home_menu'),
-        'displayLabel', '热门文章',
-        'displayPath', '/p/hot',
-        'displaySort', 84,
-        'displayOpenInNewTab', false,
-        'pageKicker', 'HOT ARTICLES',
-        'pageTitle', '热门文章',
-        'pageDescription', '同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。',
-        'pageSize', 24,
-        'defaultOrderBy', 'date',
-        'defaultOrder', 'desc',
-        'defaultCategoryId', 417,
-        'defaultTagId', 0,
-        'apiSourceMode', 'auto',
-        'motionEnabled', true,
-        'heroTagline', '聚合国内外AI精选内容，探索AI技术前沿与应用',
-        'linksNewWindow', true,
-        'filterPresets', JSON_ARRAY(
-            JSON_OBJECT('key', 'all', 'name', '全部', 'type', 'all', 'id', 0, 'description', '全部热门文章', 'enabled', true, 'sort', 10),
-            JSON_OBJECT('key', 'aigc', 'name', 'AIGC', 'type', 'category', 'id', 417, 'description', 'AIGC 分类内容', 'enabled', true, 'sort', 20),
-            JSON_OBJECT('key', 'ai-tools', 'name', 'AI工具', 'type', 'category', 'id', 3351, 'description', 'AI 工具分类内容', 'enabled', true, 'sort', 30),
-            JSON_OBJECT('key', 'productivity', 'name', '效率工具', 'type', 'category', 'id', 338, 'description', '效率工具分类内容', 'enabled', true, 'sort', 40),
-            JSON_OBJECT('key', 'design', 'name', '设计干货', 'type', 'category', 'id', 307, 'description', '设计干货分类内容', 'enabled', true, 'sort', 50)
-        ),
-        'workbenchMenuItems', JSON_ARRAY(
-            JSON_OBJECT('key', 'latest-articles', 'label', '最新文章', 'mode', 'latest', 'iconKey', 'latest', 'source', 'uied_latest', 'presetKey', '', 'fallbackType', 'category', 'fallbackId', 0, 'categoryId', 0, 'tagId', 0, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '按发布时间实时更新', 'enabled', true, 'sort', 10),
-            JSON_OBJECT('key', 'hot-articles', 'label', '热门文章', 'mode', 'hot', 'iconKey', 'hot', 'source', 'uied_hot', 'presetKey', '', 'fallbackType', 'category', 'fallbackId', 0, 'categoryId', 417, 'tagId', 0, 'orderBy', 'views', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '按热度优先展示', 'enabled', true, 'sort', 20),
-            JSON_OBJECT('key', 'ai-realtime', 'label', 'AI实时文章', 'mode', 'preset', 'iconKey', 'ai', 'source', 'uied_latest', 'presetKey', 'aigc', 'fallbackType', 'category', 'fallbackId', 417, 'categoryId', 0, 'tagId', 0, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '', 'enabled', true, 'sort', 30),
-            JSON_OBJECT('key', 'ai-products', 'label', 'AI产品榜单', 'mode', 'preset', 'iconKey', 'product', 'source', 'uied_latest', 'presetKey', 'ai-tools', 'fallbackType', 'category', 'fallbackId', 3351, 'categoryId', 0, 'tagId', 0, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '', 'enabled', true, 'sort', 40),
-            JSON_OBJECT('key', 'design-articles', 'label', '设计文章', 'mode', 'preset', 'iconKey', 'design', 'source', 'uied_latest', 'presetKey', 'design', 'fallbackType', 'category', 'fallbackId', 307, 'categoryId', 0, 'tagId', 0, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '', 'enabled', true, 'sort', 50),
-            JSON_OBJECT('key', 'design-resources', 'label', '设计素材', 'mode', 'preset', 'iconKey', 'resource', 'source', 'uied_latest', 'presetKey', 'productivity', 'fallbackType', 'category', 'fallbackId', 338, 'categoryId', 0, 'tagId', 0, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '', 'enabled', true, 'sort', 60),
-            JSON_OBJECT('key', 'top-authors', 'label', '优秀作者', 'mode', 'authorHot', 'iconKey', 'author', 'source', 'uied_hot', 'presetKey', '', 'fallbackType', 'category', 'fallbackId', 0, 'categoryId', 0, 'tagId', 0, 'orderBy', 'comment_count', 'order', 'desc', 'period', 'weekly', 'externalUrl', '', 'subtitle', '', 'enabled', true, 'sort', 70),
-            JSON_OBJECT('key', 'study-circles', 'label', '学习圈子', 'mode', 'circle', 'iconKey', 'circle', 'source', 'uied_latest', 'presetKey', '', 'fallbackType', 'category', 'fallbackId', 0, 'categoryId', 0, 'tagId', 393, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', '', 'subtitle', '', 'enabled', true, 'sort', 80),
-            JSON_OBJECT('key', 'back-main-site', 'label', '返回主站', 'mode', 'external', 'iconKey', 'home', 'source', 'auto', 'presetKey', '', 'fallbackType', 'category', 'fallbackId', 0, 'categoryId', 0, 'tagId', 0, 'orderBy', 'date', 'order', 'desc', 'period', 'all', 'externalUrl', 'https://www.uied.cn', 'subtitle', '', 'enabled', true, 'sort', 999)
-        )
-    ),
+    '{"enabled":true,"displayPlacements":["nav_quick_entry","home_menu"],"displayLabel":"热门文章","displayPath":"/p/hot","displaySort":84,"displayOpenInNewTab":false,"pageKicker":"HOT ARTICLES","pageTitle":"热门文章","pageDescription":"同步 uied.cn 的优质文章内容，快速发现值得阅读的设计与产品洞察。","pageSize":24,"defaultOrderBy":"date","defaultOrder":"desc","defaultCategoryId":417,"defaultTagId":0,"apiSourceMode":"auto","motionEnabled":true,"heroTagline":"聚合国内外AI精选内容，探索AI技术前沿与应用","linksNewWindow":true,"filterPresets":[{"key":"all","name":"全部","type":"all","id":0,"description":"全部热门文章","enabled":true,"sort":10},{"key":"aigc","name":"AIGC","type":"category","id":417,"description":"AIGC 分类内容","enabled":true,"sort":20},{"key":"ai-tools","name":"AI工具","type":"category","id":3351,"description":"AI 工具分类内容","enabled":true,"sort":30},{"key":"productivity","name":"效率工具","type":"category","id":338,"description":"效率工具分类内容","enabled":true,"sort":40},{"key":"design","name":"设计干货","type":"category","id":307,"description":"设计干货分类内容","enabled":true,"sort":50}],"workbenchMenuItems":[{"key":"latest-articles","label":"最新文章","mode":"latest","iconKey":"latest","source":"uied_latest","presetKey":"","fallbackType":"category","fallbackId":0,"categoryId":0,"tagId":0,"orderBy":"date","order":"desc","period":"all","externalUrl":"","subtitle":"按发布时间实时更新","enabled":true,"sort":10},{"key":"hot-articles","label":"热门文章","mode":"hot","iconKey":"hot","source":"uied_hot","presetKey":"","fallbackType":"category","fallbackId":0,"categoryId":417,"tagId":0,"orderBy":"views","order":"desc","period":"all","externalUrl":"","subtitle":"按热度优先展示","enabled":true,"sort":20},{"key":"ai-realtime","label":"AI实时文章","mode":"preset","iconKey":"ai","source":"uied_latest","presetKey":"aigc","fallbackType":"category","fallbackId":417,"categoryId":0,"tagId":0,"orderBy":"date","order":"desc","period":"all","externalUrl":"","subtitle":"","enabled":true,"sort":30},{"key":"ai-products","label":"AI产品榜单","mode":"preset","iconKey":"product","source":"uied_latest","presetKey":"ai-tools","fallbackType":"category","fallbackId":3351,"categoryId":0,"tagId":0,"orderBy":"date","order":"desc","period":"all","externalUrl":"","subtitle":"","enabled":true,"sort":40},{"key":"design-articles","label":"设计文章","mode":"preset","iconKey":"design","source":"uied_latest","presetKey":"design","fallbackType":"category","fallbackId":307,"categoryId":0,"tagId":0,"orderBy":"date","order":"desc","period":"all","externalUrl":"","subtitle":"","enabled":true,"sort":50},{"key":"design-resources","label":"设计素材","mode":"preset","iconKey":"resource","source":"uied_latest","presetKey":"productivity","fallbackType":"category","fallbackId":338,"categoryId":0,"tagId":0,"orderBy":"date","order":"desc","period":"all","externalUrl":"","subtitle":"","enabled":true,"sort":60},{"key":"top-authors","label":"优秀作者","mode":"authorHot","iconKey":"author","source":"uied_hot","presetKey":"","fallbackType":"category","fallbackId":0,"categoryId":0,"tagId":0,"orderBy":"comment_count","order":"desc","period":"weekly","externalUrl":"","subtitle":"","enabled":true,"sort":70},{"key":"study-circles","label":"学习圈子","mode":"circle","iconKey":"circle","source":"uied_latest","presetKey":"","fallbackType":"category","fallbackId":0,"categoryId":0,"tagId":393,"orderBy":"date","order":"desc","period":"all","externalUrl":"","subtitle":"","enabled":true,"sort":80},{"key":"back-main-site","label":"返回主站","mode":"external","iconKey":"home","source":"auto","presetKey":"","fallbackType":"category","fallbackId":0,"categoryId":0,"tagId":0,"orderBy":"date","order":"desc","period":"all","externalUrl":"https://www.uied.cn","subtitle":"","enabled":true,"sort":999}]}',
     '热门文章（Hot）页面运营配置',
     UNIX_TIMESTAMP(),
     UNIX_TIMESTAMP()

@@ -25,6 +25,54 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 规范化 svg:key 里的 key，避免非法字符导致匹配失败。
+   * @param {unknown} value 图标值
+   * @returns {string} 规范化后的 key
+   */
+  normalizeSvgTokenKey(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    const key = raw.startsWith('svg:') ? raw.slice(4) : raw;
+    return key.replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+  }
+
+  /**
+   * 读取 pageGlobalConfig 中的 SVG 图标库并构建 key->svg 映射。
+   * @returns {Promise<Map<string, string>>} SVG 映射表
+   */
+  async buildCategorySvgLibraryMap() {
+    const { ctx } = this;
+    const pageGlobalConfig = ctx.service.uied.setting.normalizePageGlobalConfig(
+      (await ctx.service.uied.setting.get('pageGlobalConfig').catch(() => ({}))) || {}
+    );
+    const list = Array.isArray(pageGlobalConfig?.categorySvgLibrary)
+      ? pageGlobalConfig.categorySvgLibrary
+      : [];
+    return new Map(
+      list
+        .map(item => {
+          const key = this.normalizeSvgTokenKey(item?.key);
+          const svg = String(item?.svg || '').trim();
+          if (!key || !svg) return null;
+          return [ key, svg ];
+        })
+        .filter(Boolean)
+    );
+  }
+
+  /**
+   * 将 icon 字段解析为 SVG 标记（仅 svg:key 模式生效）。
+   * @param {unknown} value 图标值
+   * @param {Map<string, string>} svgMap SVG 映射表
+   * @returns {string} 匹配到的 SVG 字符串
+   */
+  resolveSvgIconMarkup(value, svgMap) {
+    const raw = String(value || '').trim();
+    if (!raw || !raw.toLowerCase().startsWith('svg:')) return '';
+    const key = this.normalizeSvgTokenKey(raw);
+    return svgMap.get(key) || '';
+  }
+
+  /**
    * 获取所有页面配置
    * GET /api/pages
    */
@@ -208,6 +256,27 @@ class FrontendController extends Controller {
       }
     } catch (error) {
       ctx.logger.error('获取网站列表失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message };
+    }
+  }
+
+  /**
+   * 获取网站总数统计（公开接口）
+   * GET /api/websites/stats
+   */
+  async websiteStats() {
+    const { ctx } = this;
+
+    try {
+      const [ countResult ] = await ctx.app.model.query(
+        'SELECT COUNT(*) as total FROM uied_website WHERE is_delete = 0',
+        { type: ctx.app.Sequelize.QueryTypes.SELECT }
+      );
+      const total = this.parsePositiveInt(countResult?.total, 0);
+      ctx.body = { total };
+    } catch (error) {
+      ctx.logger.error('获取网站总数统计失败:', error);
       ctx.status = 500;
       ctx.body = { error: error.message };
     }
@@ -1283,6 +1352,25 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取页脚关于区域配置
+   * GET /api/footer/about-config
+   */
+  async footerAboutConfig() {
+    const { ctx } = this;
+    try {
+      // 页脚关于区为运营配置，关闭缓存保证保存后立即生效。
+      this.setNoCacheHeaders();
+      const raw = await ctx.service.uied.setting.get('footerAboutConfig');
+      const config = ctx.service.uied.setting.normalizeFooterAboutConfig(raw || {});
+      ctx.body = config;
+    } catch (error) {
+      ctx.logger.error('获取页脚关于区域配置失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message };
+    }
+  }
+
+  /**
    * 获取社交媒体
    * GET /api/social-media
    * 返回格式与前端 useSocialMedia hook 期望的格式一致
@@ -1291,34 +1379,43 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
+      // 社交媒体属于运营配置，关闭缓存避免“保存后前台不生效”。
+      this.setNoCacheHeaders();
+      const svgLibraryMap = await this.buildCategorySvgLibraryMap();
       const groups = await ctx.service.uied.socialMedia.groupAll();
-      const result = [];
-
-      for (const group of groups) {
-        const items = await ctx.service.uied.socialMedia.itemList({ groupId: group.id });
-
-        // 转换为前端期望的格式
-        result.push({
-          id: String(group.id),
-          name: group.name,
-          icon: group.icon,
-          displayType: group.displayType,
-          order: group.sort || 0,
-          visible: group.isShow !== false,
-          items: (items.lists || []).map(item => ({
-            id: String(item.id),
-            name: item.name,
-            type: item.type,
-            qrCodeUrl: item.qrCodeUrl || item.qrCode,
-            link: item.link || item.url,
-            description: item.description,
-            extraInfo: item.extraInfo,
-            order: item.sort || 0,
-            visible: item.isShow !== false,
-          })),
+      const result = (groups || [])
+        // 前台只返回可见分组，避免后台“隐藏”后前台仍显示
+        .filter(group => group && group.isShow !== false)
+        .map(group => {
+          const displayType = [ 'links', 'qrcode', 'mixed' ].includes(String(group.displayType || ''))
+            ? String(group.displayType)
+            : 'links';
+          const visibleItems = Array.isArray(group.items)
+            ? group.items.filter(item => item && item.isShow !== false)
+            : [];
+          return {
+            id: String(group.id),
+            name: group.name,
+            icon: group.icon,
+            iconSvg: this.resolveSvgIconMarkup(group.icon, svgLibraryMap),
+            displayType,
+            order: group.sort || 0,
+            visible: true,
+            items: visibleItems.map(item => ({
+              id: String(item.id),
+              name: item.name,
+              type: item.type,
+              icon: item.icon || '',
+              iconSvg: this.resolveSvgIconMarkup(item.icon, svgLibraryMap),
+              qrCodeUrl: item.qrCodeUrl || item.qrCode,
+              link: item.link || item.url,
+              description: item.description,
+              extraInfo: item.extraInfo,
+              order: item.sort || 0,
+              visible: true,
+            })),
+          };
         });
-      }
-
       ctx.body = result;
     } catch (error) {
       ctx.logger.error('获取社交媒体失败:', error);

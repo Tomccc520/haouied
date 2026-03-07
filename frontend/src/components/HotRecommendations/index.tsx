@@ -75,7 +75,7 @@ interface HotRecommendationsProps {
  * 推荐热门组件
  */
 const HotRecommendations: React.FC<HotRecommendationsProps> = ({
-  limit = 8,
+  limit = 12,
   showTitle = true,
   title = '热门推荐',
   showMoreButton = false,
@@ -198,7 +198,14 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const pageSize = 12; // 每页显示12个工具
+  /**
+   * 分页条数兜底使用 limit，便于按“每屏展示行数”统一控制热门推荐卡片数量。
+   */
+  const pageSize = useMemo(() => {
+    const parsedLimit = Number(limit || 0);
+    if (!Number.isFinite(parsedLimit) || parsedLimit <= 0) return 12;
+    return Math.max(6, Math.min(36, Math.floor(parsedLimit)));
+  }, [limit]);
   
   // 初始化标记
   const [initialized, setInitialized] = useState(false);

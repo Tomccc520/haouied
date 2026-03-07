@@ -241,7 +241,7 @@
   overflow: visible;
 }
 
-/* 超大屏幕最多显示6列 */
+/* 超大屏幕保持6列（配合首屏18条，稳定展示三行） */
 @media (min-width: 1600px) {
   .hot-recommendations-grid {
     grid-template-columns: repeat(6, 1fr);

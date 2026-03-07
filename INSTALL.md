@@ -8,7 +8,8 @@
 
 - **Node.js**: >= 16.0.0
 - **npm**: >= 8.0.0
-- **Docker**: 用于运行 MySQL 数据库
+- **MySQL**: >= 5.6.5（推荐 5.7+）
+- **Docker**: 可选（用于容器化 MySQL）
 - **操作系统**: Linux / macOS / Windows
 
 ---
@@ -27,14 +28,15 @@ git clone https://gitee.com/tomdac/uied-nav.git
 cd uied-nav
 ```
 
-### 2. 启动 MySQL 数据库
+### 2. 准备 MySQL 数据库
 
 ```bash
-# 使用 Docker 启动 MySQL
+# 方案A（默认）：Docker 启动 MySQL（端口 3308）
 docker-compose -f docker/docker-compose.mysql.yml up -d
-
-# 验证 MySQL 是否启动成功
 docker ps | grep uied_mysql
+
+# 方案B（可选）：本机 MySQL / 宝塔 MySQL（通过 UIED_DB_* 环境变量覆盖）
+# 建议创建数据库 uied_nav，并保证账号具备读写权限
 ```
 
 ### 3. 安装依赖
@@ -73,11 +75,13 @@ PORT=3003
 ### 5. 初始化数据库
 
 ```bash
-# 导入 likeadmin 基础表
+# 方案A（默认）：Docker MySQL
 docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/install.sql
-
-# 导入 UIED 业务表
 docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/uied_tables.sql
+
+# 方案B（可选）：本机 MySQL / 宝塔 MySQL
+mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/install.sql
+mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/uied_tables.sql
 ```
 
 **默认管理员账号**：
@@ -126,14 +130,15 @@ chmod +x start.sh
 
 ### MySQL（默认）
 
-项目使用 MySQL 8.0 数据库，通过 Docker 容器运行。
+项目支持 MySQL 5.6.5+（推荐 5.7+）数据库，默认连接项目内 Docker MySQL。
+如需使用 MySQL 5.6，请确保启用 `innodb_file_per_table`、`innodb_large_prefix` 与 `Barracuda` 行格式后再执行补丁脚本。
 
 **数据库配置**：
 - 主机: `127.0.0.1`
-- 端口: `3308`
+- 端口: `3308`（本机/宝塔请改为 `3306` 并配置 UIED_DB_*）
 - 数据库名: `uied_nav`
-- 用户名: `uied`
-- 密码: `uied123456`
+- 用户名: `uied`（本机/宝塔请改为你的实际账号）
+- 密码: `uied123456`（本机/宝塔请改为你的实际密码）
 
 **备份数据库**：
 ```bash
@@ -162,14 +167,13 @@ docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < data/mysql_backu
 ### 2. MySQL 连接失败
 
 ```bash
-# 检查 MySQL 容器状态
+# Docker MySQL 检查（默认）
 docker ps | grep uied_mysql
-
-# 查看 MySQL 日志
 docker logs uied_mysql
-
-# 重启 MySQL 容器
 docker-compose -f docker/docker-compose.mysql.yml restart
+
+# 本机 MySQL（宝塔）检查
+mysql -h127.0.0.1 -P3306 -uroot -proot -e "SELECT VERSION();"
 ```
 
 ### 3. 依赖安装失败

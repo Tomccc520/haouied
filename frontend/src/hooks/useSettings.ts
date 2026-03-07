@@ -13,6 +13,7 @@ import {
   settingService,
   NavMenuItem,
   FooterGroup,
+  FooterAboutConfig,
   FriendLink
 } from '../services/settingService';
 import { debugLog } from '../utils/debugHelper';
@@ -78,6 +79,45 @@ export const useFooterGroups = () => {
   }, []);
 
   return { groups, loading, error };
+};
+
+// 页脚关于区域配置 Hook
+export const useFooterAboutConfig = () => {
+  const [config, setConfig] = useState<FooterAboutConfig>({
+    aboutTitle: 'UIED设计导航',
+    aboutDescription: 'UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。',
+    mobileDescription: 'UIED设计导航汇集优质设计工具与资源，为设计师提供一站式工具导航服务',
+    showSubmitButton: true,
+    submitButtonText: '提交网站',
+    submitButtonUrl: '/submit',
+    submitButtonNewWindow: true,
+    showChangelogButton: true,
+    changelogButtonText: '更新记录',
+    changelogButtonUrl: '/changelog',
+    changelogButtonNewWindow: true,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        setLoading(true);
+        const data = await settingService.getFooterAboutConfig();
+        setConfig(data);
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+        debugLog.error('Failed to fetch footer about config:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchConfig();
+  }, []);
+
+  return { config, loading, error };
 };
 
 // 友情链接 Hook

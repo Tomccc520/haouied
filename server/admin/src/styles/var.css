@@ -16,6 +16,23 @@
     --el-font-size-base: 14px;
     --el-font-size-small: 13px;
     --el-font-size-extra-small: 12px;
+    --admin-sidebar-bg: #ffffff;
+    --admin-sidebar-border-color: #ebeef5;
+    --admin-sidebar-toolbar-bg: rgba(255, 255, 255, 0.9);
+    --admin-sidebar-item-height: 40px;
+    --admin-sidebar-item-radius: 10px;
+    --admin-sidebar-item-hover-bg: rgba(64, 158, 255, 0.08);
+    --admin-sidebar-item-active-bg: rgba(64, 158, 255, 0.14);
+    --admin-sidebar-hover-text-color: var(--el-color-primary);
+    --admin-sidebar-icon-default-color: var(--el-text-color-secondary);
+    --admin-sidebar-icon-active-color: var(--el-color-primary);
+    --admin-sidebar-count-bg: rgba(64, 158, 255, 0.12);
+    --admin-sidebar-count-color: #1d4ed8;
+    --admin-sidebar-search-empty-bg: rgba(245, 247, 250, 0.9);
+    --admin-sidebar-search-empty-color: #909399;
+    --admin-sidebar-search-empty-border-color: rgba(0, 0, 0, 0.06);
+    --admin-sidebar-focus-ring-color: var(--el-color-primary-light-5);
+    --admin-sidebar-shell-shadow: 0 0 0 1px rgba(15, 23, 42, 0.02), 0 12px 28px rgba(15, 23, 42, 0.03);
 
     --el-bg-color: var(--color-white);
     --el-bg-color-page: #f6f6f6;

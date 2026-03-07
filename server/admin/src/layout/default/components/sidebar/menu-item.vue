@@ -78,10 +78,22 @@ const queryStr = computed<string>(() => {
 .el-menu-item,
 .el-sub-menu__title {
     .menu-item-icon {
-        margin-right: 8px;
+        margin-right: 10px;
         width: var(--el-menu-icon-width);
         text-align: center;
         vertical-align: middle;
+        color: var(--admin-sidebar-icon-default-color);
+        transition: color 0.2s ease;
+    }
+    &:hover .menu-item-icon {
+        color: var(--admin-sidebar-icon-active-color);
+    }
+}
+
+.el-menu-item.is-active,
+.el-sub-menu.is-active > .el-sub-menu__title {
+    .menu-item-icon {
+        color: var(--admin-sidebar-icon-active-color);
     }
 }
 </style>

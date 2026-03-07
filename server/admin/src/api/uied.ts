@@ -421,6 +421,14 @@ export function uiedFooterLinkDelete(params: any) {
     return request.post({ url: '/uied/footer/linkDel', params })
 }
 
+export function uiedFooterAboutConfigGet() {
+    return request.get({ url: '/uied/setting/get', params: { key: 'footerAboutConfig' } })
+}
+
+export function uiedFooterAboutConfigSave(params: any) {
+    return request.post({ url: '/uied/setting/save', params: { footerAboutConfig: params } })
+}
+
 // ==================== 社交媒体 ====================
 
 export function uiedSocialMediaGroupList(params?: any) {

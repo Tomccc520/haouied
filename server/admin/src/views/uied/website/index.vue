@@ -546,8 +546,15 @@ import { onActivated } from 'vue'
 const router = useRouter()
 const route = useRoute()
 
-// 前端访问地址（开发环境 localhost:3003，生产环境可根据实际域名修改）
-const FRONTEND_BASE_URL = 'http://localhost:3003'
+/**
+ * 获取前端基础地址：优先读取环境变量，未配置时回退本地开发地址。
+ */
+const getFrontendBaseUrl = () =>
+    String(import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3003')
+        .trim()
+        .replace(/\/+$/g, '')
+
+const FRONTEND_BASE_URL = getFrontendBaseUrl()
 /**
  * 判断是否草稿网站，草稿前端链接自动附加 preview=1。
  */

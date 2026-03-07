@@ -11,7 +11,9 @@
 
 import React, { useState, useEffect } from 'react';
 import SEO from '../../components/SEO';
+import api from '../../services/api';
 import { fetchGitHubChangelog, type ChangelogRelease } from '../../services/changelogService';
+import { unwrapApiResponse } from '../../utils/apiResponse';
 import './index.css';
 
 // 图标组件
@@ -68,6 +70,45 @@ const platformLinks = [
 
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
+  {
+    version: '1.0.2',
+    date: '2026-03-07',
+    title: '正式版1.0.2：运营展示增强 + 网址草稿修复 + 后台菜单交互重构',
+    changes: [
+      { type: 'feature', scope: 'fullstack', text: '【页脚配置】新增“关于区域”后台配置：footer-about-section 标题、桌面/移动文案、提交网站按钮、更新记录按钮均支持后台编辑并前台实时生效' },
+      { type: 'fix', scope: 'fullstack', text: '【社交媒体】修复“后台保存后前台页脚无变化”：统一后台分组/项目字段契约（displayType/type），前台 /api/social-media 接口加 no-cache 与可见项过滤' },
+      { type: 'improve', scope: 'frontend', text: '【后台交互】重构“前端配置-社交媒体”页面骨架：分组管理/项目管理分栏更清晰，表格新增图标与状态可视化' },
+      { type: 'feature', scope: 'frontend', text: '【后台能力】社交媒体编辑支持“图片 URL + 素材中心”双通道：分组图标、项目图标、二维码均可直接输入链接或从素材中心选择' },
+      { type: 'feature', scope: 'frontend', text: '【后台能力】所属分组支持自定义昵称与自定义图标（素材中心图标库），并支持在项目编辑弹窗内快速新建分组' },
+      { type: 'improve', scope: 'frontend', text: '【后台交互】前端配置-社交媒体页面新增“官网预览（每行3个）”区域，编辑时可直接对照前台图标排版效果' },
+      { type: 'feature', scope: 'fullstack', text: '【社交媒体图标】新增 SVG 图标库接入：后台分组/项目图标支持 svg:key 选择，前台 /api/social-media 返回 iconSvg 并优先渲染' },
+      { type: 'improve', scope: 'frontend', text: '【官网页脚】SocialMediaSection 支持 URL 图标优先渲染、移动端点击展开、extraInfo 多格式兼容，展示与运营配置保持一致' },
+      { type: 'improve', scope: 'frontend', text: '【首页分类交互】子分类标签区右侧新增“查看分类”按钮，并与分页操作区统一视觉，支持快速跳转当前分类/子分类页' },
+      { type: 'fix', scope: 'backend', text: '【网址管理】修复草稿筛选混入已发布：statusList 优先于 legacy status，避免旧参数叠加导致筛选污染' },
+      { type: 'fix', scope: 'fullstack', text: '【更新记录】修复 /changelog 网站总数显示为 0：新增 /websites/stats 公开统计接口，前端改为优先读取统计接口并增加回退解析' },
+      { type: 'improve', scope: 'backend', text: '【后台菜单】登录后菜单下发增加“工作台置顶”规则，工作台固定在第一位（首页位置）' },
+      { type: 'improve', scope: 'frontend', text: '【后台交互】重构侧栏菜单搜索与层级体验：新增导航统计、搜索态自动展开、统一 hover/active 视觉与折叠态对齐' },
+      { type: 'improve', scope: 'frontend', text: '【后台交互】菜单选中态视觉优化：取消整块底色与边线，仅保留轻量字重高亮' },
+      { type: 'improve', scope: 'frontend', text: '【后台交互】补充菜单键盘焦点态（focus-visible），提升后台可达性与操作反馈' },
+      { type: 'improve', scope: 'backend', text: '【部署兼容】投稿服务字段补丁改为 MySQL 5.6/5.7 兼容写法（移除 8.0 专属 ADD COLUMN IF NOT EXISTS）' },
+      { type: 'improve', scope: 'backend', text: '【部署兼容】补齐热门文章与文章配置补丁的 MySQL 5.6 兼容：移除 JSON_OBJECT/JSON_ARRAY，改为纯 JSON 文本写入' },
+      { type: 'improve', scope: 'backend', text: '【本地开发】后端数据库保持原有默认连接（Docker 3308），并新增 UIED_DB_* 环境变量用于宝塔/本机 MySQL 覆盖' },
+      { type: 'improve', scope: 'frontend', text: '【热门推荐】超大屏保持 6 列布局，首屏展示条数提升至 18 条，稳定显示 3 行卡片' },
+      { type: 'improve', scope: 'frontend', text: '【外链跳转】ref 参数增强：兼容 URL 中的 &amp; 实体，避免 UTM 参数被错误解析' },
+      { type: 'fix', scope: 'frontend', text: '【网址详情】正文排版间距收敛，标题/段落/列表与后台编辑器阅读节奏对齐' },
+      { type: 'improve', scope: 'backend', text: '【工程能力】新增 skill：uied-nav-admin-menu-ux-refactor，用于沉淀后台菜单 IA/交互重构流程与回归清单' },
+    ]
+  },
+  {
+    version: '1.0.1',
+    date: '2026-03-07',
+    title: '正式版1.0.1：后台网址管理与发布编辑链路修复',
+    changes: [
+      { type: 'fix', scope: 'frontend', text: '【后台前端】修复“网站管理-前端查看”写死本地地址问题，改为读取 VITE_FRONTEND_URL（正式环境跳转正式域名）' },
+      { type: 'fix', scope: 'backend', text: '【后端服务】修复已发布网站编辑时的重复网址误拦截：编辑保存/发布不再拦截重复网址（新增网站仍保留重复拦截）' },
+      { type: 'improve', scope: 'frontend', text: '【官网前端】/changelog 新增“前端/后端”标签区分，便于版本验收快速定位变更范围' },
+    ]
+  },
   {
     version: '1.0.0',
     date: '2026-03-07',
@@ -327,6 +368,13 @@ const typeLabels: Record<string, { text: string; className: string }> = {
   fix: { text: '修复', className: 'tag-fix' },
 };
 
+// 前后端范围标签
+const scopeLabels: Record<string, { text: string; className: string }> = {
+  frontend: { text: '前端', className: 'scope-frontend' },
+  backend: { text: '后端', className: 'scope-backend' },
+  fullstack: { text: '全栈', className: 'scope-fullstack' },
+};
+
 /**
  * 合并 GitHub 与本地更新记录：
  * 1) GitHub 版本优先（已发布）
@@ -341,12 +389,61 @@ const mergeChangelogData = (
   return [...localOnlyReleases, ...githubReleases];
 };
 
+/**
+ * 获取公开网站总数（读取前台公开接口分页总数）。
+ */
+const fetchPublicWebsiteCount = async (): Promise<number | null> => {
+  try {
+    /**
+     * 优先读取专用统计接口，避免误把 `/websites` 的列表结构当作分页结构解析成 0。
+     */
+    const statsResponse = await api.get('/websites/stats');
+    const statsPayload = unwrapApiResponse<{ total?: number }>(statsResponse.data, {});
+    const statsTotal = Number(statsPayload?.total);
+    if (Number.isFinite(statsTotal) && statsTotal >= 0) {
+      return statsTotal;
+    }
+  } catch (error) {
+    console.warn('读取网站总数统计接口失败，尝试回退统计来源:', error);
+  }
+
+  try {
+    /**
+     * 回退到首页统计接口（兼容旧后端未提供 `/websites/stats` 的场景）。
+     */
+    const pageStatsResponse = await api.get('/pages/home/stats');
+    const pageStatsPayload = unwrapApiResponse<{ totalWebsites?: number }>(pageStatsResponse.data, {});
+    const totalFromPageStats = Number(pageStatsPayload?.totalWebsites);
+    if (Number.isFinite(totalFromPageStats) && totalFromPageStats > 0) {
+      return totalFromPageStats;
+    }
+  } catch (error) {
+    console.warn('读取首页统计失败，尝试回退列表分页统计:', error);
+  }
+
+  try {
+    /**
+     * 最后回退：仅当返回里明确有 pagination.total 时才使用，避免把无分页结构误判为 0。
+     */
+    const response = await api.get('/websites', { params: { pageSize: 1 } });
+    const payload = unwrapApiResponse<{ pagination?: { total?: number } }>(response.data, {});
+    if (payload && payload.pagination && payload.pagination.total !== undefined) {
+      const total = Number(payload.pagination.total);
+      return Number.isFinite(total) && total >= 0 ? total : null;
+    }
+    return null;
+  } catch (error) {
+    console.warn('获取公开网站总数失败:', error);
+    return null;
+  }
+};
+
 const ChangelogPage: React.FC = () => {
   const [changelogData, setChangelogData] = useState<ChangelogRelease[]>(localChangelogData);
   const [syncStatus, setSyncStatus] = useState<'loading' | 'github' | 'local'>('loading');
+  const [websiteCount, setWebsiteCount] = useState<number | null>(null);
 
   // 统计信息
-  const websiteCount = 2440;
   const lastUpdate = changelogData[0]?.date ? `${changelogData[0].date} 00:00` : '-';
   
   // 当前激活的版本（用于目录高亮）
@@ -387,6 +484,23 @@ const ChangelogPage: React.FC = () => {
       setActiveVersion(changelogData[0].version);
     }
   }, [changelogData]);
+
+  /**
+   * 页面加载时同步网站总数（失败时保持空值展示）。
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const loadWebsiteCount = async () => {
+      const total = await fetchPublicWebsiteCount();
+      if (!cancelled) {
+        setWebsiteCount(total);
+      }
+    };
+    loadWebsiteCount();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 滚动监听
   useEffect(() => {
@@ -487,7 +601,7 @@ const ChangelogPage: React.FC = () => {
 
             {/* 统计信息 */}
             <div className="stats-info">
-              当前网站总数：{websiteCount}个 | 最后更新：{lastUpdate} | 数据源：
+              当前网站总数：{websiteCount === null ? '--' : `${websiteCount}个`} | 最后更新：{lastUpdate} | 数据源：
               {syncStatus === 'loading' ? '加载中' : syncStatus === 'github' ? 'GitHub Release' : '本地内置记录'}
             </div>
           </div>
@@ -532,6 +646,11 @@ const ChangelogPage: React.FC = () => {
                         <span className={`change-tag ${typeLabels[change.type].className}`}>
                           {typeLabels[change.type].text}
                         </span>
+                        {change.scope && scopeLabels[change.scope] ? (
+                          <span className={`change-scope-tag ${scopeLabels[change.scope].className}`}>
+                            {scopeLabels[change.scope].text}
+                          </span>
+                        ) : null}
                         <span className="change-text">{change.text}</span>
                       </li>
                     ))}

@@ -928,12 +928,19 @@ class WebsiteService extends Service {
       replacements.push(likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword);
     }
 
-    const parsedStatusList = Array.from(
-      new Set([
-        ...this.parseStringList(status),
-        ...this.parseStringList(statusList),
-      ].map(item => item.toLowerCase()))
-    );
+    /**
+     * 状态筛选兼容策略：
+     * 1. 优先使用新版多选参数 statusList；
+     * 2. 仅当 statusList 为空时，回退 legacy 单值参数 status。
+     * 说明：避免两者叠加导致“筛了草稿却混入已发布”。
+     */
+    const parsedStatusList = (() => {
+      const normalizedStatusList = this.parseStringList(statusList).map(item => item.toLowerCase());
+      if (normalizedStatusList.length > 0) {
+        return Array.from(new Set(normalizedStatusList));
+      }
+      return Array.from(new Set(this.parseStringList(status).map(item => item.toLowerCase())));
+    })();
     if (parsedStatusList.length > 0) {
       const includesPublished = parsedStatusList.some(item => item === 'active' || item === 'normal');
       const exactStatuses = parsedStatusList.filter(item => item !== 'active' && item !== 'normal');
@@ -1237,7 +1244,6 @@ class WebsiteService extends Service {
   async edit(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
-    const allowDuplicate = data.allowDuplicate === true;
     const hasSlugField = Object.prototype.hasOwnProperty.call(data, 'slug');
     const hasCategoryIdField = Object.prototype.hasOwnProperty.call(data, 'categoryId');
     const hasCategoryIdsField = Object.prototype.hasOwnProperty.call(data, 'categoryIds');
@@ -1288,12 +1294,12 @@ class WebsiteService extends Service {
     if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description); }
     if (data.url !== undefined) {
       const normalizedUrl = this.normalizeVarchar(data.url, 500, { allowNull: false, fallback: '' });
-      if (normalizedUrl && !allowDuplicate) {
-        const duplicateUrl = await this.findDuplicateWebsiteByUrl(normalizedUrl, { excludeId: data.id });
-        if (duplicateUrl) {
-          throw new Error(`网站URL已存在（ID: ${duplicateUrl.id}，名称：${duplicateUrl.name || '未命名'}）`);
-        }
-      }
+      /**
+       * 按业务要求：编辑态不拦截重复网址。
+       * 说明：
+       * 1. 重复提醒仅保留在“获取网站信息”动作中（前端提示）。
+       * 2. 新增网站仍保留重复拦截，避免新增脏数据。
+       */
       updates.push('url = ?');
       values.push(normalizedUrl);
     }

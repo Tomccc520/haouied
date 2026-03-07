@@ -93,6 +93,8 @@ module.exports = app => {
   get('/api/websites/featured/list', controller.uied.frontend.featuredWebsites);
   // GET /api/websites/hot/list - 获取热门网站（兼容旧前端）
   get('/api/websites/hot/list', controller.uied.frontend.hotWebsites);
+  // GET /api/websites/stats - 获取网站总数统计（公开）
+  get('/api/websites/stats', controller.uied.frontend.websiteStats);
   // GET /api/websites/:idOrSlug - 获取网站详情
   get('/api/websites/:idOrSlug', controller.uied.frontend.websiteDetail);
   // GET /api/websites/:id/related - 获取相关推荐网站
@@ -147,6 +149,8 @@ module.exports = app => {
   getLegacy('/websites/:id/preview-snapshot', controller.uied.frontend.websitePreviewSnapshot);
   // GET /websites/daily-new - 每日上新网站（兼容旧前端无 /api 前缀）
   getLegacy('/websites/daily-new', controller.uied.frontend.dailyNewWebsites);
+  // GET /websites/stats - 获取网站总数统计（兼容旧前端无 /api 前缀）
+  getLegacy('/websites/stats', controller.uied.frontend.websiteStats);
   // POST /websites/:id/like - 网站点赞（兼容旧前端无 /api 前缀）
   postLegacy('/websites/:id/like', controller.uied.frontend.websiteLikeAdd);
   // DELETE /websites/:id/like - 取消网站点赞（兼容旧前端无 /api 前缀）
@@ -216,6 +220,10 @@ module.exports = app => {
 
   // GET /api/footer - 获取页脚设置
   get('/api/footer', controller.uied.frontend.footer);
+  // GET /api/footer/about-config - 获取页脚关于区域配置
+  get('/api/footer/about-config', controller.uied.frontend.footerAboutConfig);
+  // GET /api/settings/footer-about-config - 获取页脚关于区域配置（兼容 settings 前缀）
+  get('/api/settings/footer-about-config', controller.uied.frontend.footerAboutConfig);
 
   // GET /api/social-media - 获取社交媒体
   get('/api/social-media', controller.uied.frontend.socialMedia);

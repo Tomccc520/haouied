@@ -8,7 +8,7 @@
  */
 
 import React, { useState } from 'react';
-import { useFooterGroups, useFriendLinks } from '../../hooks/useSettings';
+import { useFooterGroups, useFriendLinks, useFooterAboutConfig } from '../../hooks/useSettings';
 import { useSiteInfo } from '../../hooks/useSiteInfo';
 import SocialMediaSection from '../SocialMediaSection';
 import './Footer.css';
@@ -23,8 +23,19 @@ const Footer: React.FC = () => {
   
   // 从API获取数据
   const { groups: footerGroups, loading: groupsLoading } = useFooterGroups();
+  const { config: footerAboutConfig } = useFooterAboutConfig();
   const { links: friendLinks, loading: linksLoading } = useFriendLinks();
   const { siteInfo } = useSiteInfo();
+
+  /**
+   * 根据按钮配置返回链接属性，统一处理新窗口打开行为。
+   */
+  const getLinkAttrs = (openInNewTab: boolean) => {
+    return {
+      target: openInNewTab ? '_blank' : '_self',
+      rel: openInNewTab ? 'noopener noreferrer' : undefined,
+    };
+  };
 
   // 切换显示/隐藏详细信息
   const toggleExpanded = () => {
@@ -83,7 +94,7 @@ const Footer: React.FC = () => {
           {/* 移动端版本的简洁页脚 */}
           <div className="footer-mobile-view">
             <div className="textwidget mobile-text-center">
-              UIED设计导航汇集优质设计工具与资源，为设计师提供一站式工具导航服务
+              {footerAboutConfig.mobileDescription}
             </div>
             
             <button className="footer-toggle-btn" onClick={toggleExpanded}>
@@ -115,58 +126,60 @@ const Footer: React.FC = () => {
             <div className="footer-sections-grid">
               {/* 关于UIED - 固定内容 */}
               <div className="footer-section footer-about-section">
-                <h6 className="widget-title">UIED设计导航</h6>
+                <h6 className="widget-title">{footerAboutConfig.aboutTitle}</h6>
                 <div className="textwidget">
-                  UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。
+                  {footerAboutConfig.aboutDescription}
                 </div>
                 {/* 操作按钮 */}
                 <div className="footer-actions">
-                  <a 
-                    href="/submit"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="footer-action-btn footer-submit-btn"
-                  >
-                    <svg 
-                      width="16" 
-                      height="16" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                  {footerAboutConfig.showSubmitButton && (
+                    <a
+                      href={footerAboutConfig.submitButtonUrl || '/submit'}
+                      {...getLinkAttrs(footerAboutConfig.submitButtonNewWindow)}
+                      className="footer-action-btn footer-submit-btn"
                     >
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    提交网站
-                  </a>
-                  <a 
-                    href="/changelog"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="footer-action-btn footer-changelog-btn"
-                  >
-                    <svg 
-                      width="16" 
-                      height="16" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      {footerAboutConfig.submitButtonText || '提交网站'}
+                    </a>
+                  )}
+                  {footerAboutConfig.showChangelogButton && (
+                    <a
+                      href={footerAboutConfig.changelogButtonUrl || '/changelog'}
+                      {...getLinkAttrs(footerAboutConfig.changelogButtonNewWindow)}
+                      className="footer-action-btn footer-changelog-btn"
                     >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
-                    </svg>
-                    更新记录
-                  </a>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                      </svg>
+                      {footerAboutConfig.changelogButtonText || '更新记录'}
+                    </a>
+                  )}
                 </div>
               </div>
               

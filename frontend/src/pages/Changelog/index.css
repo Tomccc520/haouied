@@ -335,6 +335,17 @@
   flex-shrink: 0;
 }
 
+/* 前后端范围标签 */
+.change-scope-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .tag-feature {
   background: #e0f2fe;
   color: #0369a1;
@@ -348,6 +359,21 @@
 .tag-fix {
   background: #fee2e2;
   color: #dc2626;
+}
+
+.scope-frontend {
+  background: #e9f7ef;
+  color: #167c4d;
+}
+
+.scope-backend {
+  background: #fff4e5;
+  color: #9a5b00;
+}
+
+.scope-fullstack {
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 .change-text {

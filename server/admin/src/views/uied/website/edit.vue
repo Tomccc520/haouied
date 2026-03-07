@@ -2643,12 +2643,10 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
     await editFormRef.value?.validate()
     submitLoading.value = true
     try {
-        const hasDuplicateUrl = await handleCheckDuplicateUrl(true)
-        if (hasDuplicateUrl && duplicateUrlInfo.value) {
-            feedback.msgWarning(
-                `当前网址已存在：${duplicateUrlInfo.value.name}（ID: ${duplicateUrlInfo.value.id}），将继续执行保存`
-            )
-        }
+        /**
+         * 编辑态强制以路由 ID 为准，避免详情加载异常时 editData.id 丢失而误走新增接口。
+         */
+        const editingWebsiteId = getEditingWebsiteId()
         const screenshots = screenshotList.value.filter((url: string) => url?.trim())
         const normalizedCategoryIds = Array.from(
             new Set(
@@ -2666,6 +2664,7 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
         }
         const submitData = {
             ...editData,
+            id: editingWebsiteId > 0 ? editingWebsiteId : editData.id,
             categoryIds: normalizedCategoryIds,
             categoryId: normalizedCategoryIds[0],
             slug: String(editData.slug || '').trim() || null,
@@ -2685,7 +2684,11 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
             ),
             screenshots,
             thumbnail: editData.thumbnail || null,
-            allowDuplicate: !editData.id,
+            /**
+             * 兜底策略：保存/发布时不拦截重复网址，重复提醒仅保留在“获取网站信息”动作。
+             * 说明：即使后端仍在旧版本，也通过 allowDuplicate=true 避免编辑保存被误拦截。
+             */
+            allowDuplicate: true,
             order: editData.sortOrder,
             status: mode === 'draft' ? 'draft' : resolveWebsiteStatusFromForm(),
             trafficMetrics: {
@@ -2714,7 +2717,7 @@ const handleSubmit = async (mode: SubmitMode = 'publish') => {
         if (lengthGuardNotices.length > 0) {
             feedback.msgWarning(lengthGuardNotices.join('；'))
         }
-        if (editData.id) {
+        if (editingWebsiteId > 0 || Number(editData.id || 0) > 0) {
             await uiedWebsiteEdit(submitData)
             feedback.msgSuccess(mode === 'draft' ? '草稿已保存' : '编辑成功')
         } else {

@@ -29,6 +29,21 @@
     --el-box-shadow-lighter: 0px 0px 6px rgba(0, 0, 0, 0.72);
     --el-box-shadow-dark: 0px 16px 48px 16px rgba(0, 0, 0, 0.72), 0px 12px 32px #000000,
         0px 8px 16px -8px #000000 !important;
+    --admin-sidebar-bg: #171a1d;
+    --admin-sidebar-border-color: rgba(255, 255, 255, 0.08);
+    --admin-sidebar-toolbar-bg: rgba(23, 26, 29, 0.88);
+    --admin-sidebar-item-hover-bg: rgba(59, 130, 246, 0.2);
+    --admin-sidebar-item-active-bg: rgba(59, 130, 246, 0.3);
+    --admin-sidebar-hover-text-color: #c7dcff;
+    --admin-sidebar-icon-default-color: #9ea6b2;
+    --admin-sidebar-icon-active-color: #dbeafe;
+    --admin-sidebar-count-bg: rgba(59, 130, 246, 0.32);
+    --admin-sidebar-count-color: #dbeafe;
+    --admin-sidebar-search-empty-bg: rgba(30, 41, 59, 0.75);
+    --admin-sidebar-search-empty-color: #cbd5e1;
+    --admin-sidebar-search-empty-border-color: rgba(255, 255, 255, 0.08);
+    --admin-sidebar-focus-ring-color: rgba(147, 197, 253, 0.8);
+    --admin-sidebar-shell-shadow: 0 0 0 1px rgba(148, 163, 184, 0.08), 0 16px 34px rgba(15, 23, 42, 0.4);
     /* wangeditor主题 */
     --w-e-textarea-bg-color: var(--el-bg-color);
     --w-e-textarea-color: var(--el-text-color-primary);

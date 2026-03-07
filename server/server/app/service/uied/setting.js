@@ -898,6 +898,57 @@ class SettingService extends Service {
   }
 
   /**
+   * 获取页脚关于区域默认配置
+   * 用于“footer-section footer-about-section”后台可配置。
+   */
+  getDefaultFooterAboutConfig() {
+    return {
+      aboutTitle: 'UIED设计导航',
+      aboutDescription: 'UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。',
+      mobileDescription: 'UIED设计导航汇集优质设计工具与资源，为设计师提供一站式工具导航服务',
+      showSubmitButton: true,
+      submitButtonText: '提交网站',
+      submitButtonUrl: '/submit',
+      submitButtonNewWindow: true,
+      showChangelogButton: true,
+      changelogButtonText: '更新记录',
+      changelogButtonUrl: '/changelog',
+      changelogButtonNewWindow: true,
+    };
+  }
+
+  /**
+   * 规范化页脚关于区域配置
+   * 统一文案字段与按钮开关，确保前端可直接消费。
+   */
+  normalizeFooterAboutConfig(config = {}) {
+    const defaults = this.getDefaultFooterAboutConfig();
+    const merged = { ...defaults, ...(config || {}) };
+    /**
+     * 规范化跳转路径：支持相对路径与外链。
+     */
+    const normalizeLink = (value, fallback) => {
+      const text = String(value || '').trim();
+      if (!text) return fallback;
+      if (/^(https?:)?\/\//i.test(text)) return text;
+      return text.startsWith('/') ? text : `/${text}`;
+    };
+    return {
+      aboutTitle: String(merged.aboutTitle || defaults.aboutTitle).trim() || defaults.aboutTitle,
+      aboutDescription: String(merged.aboutDescription || defaults.aboutDescription).trim() || defaults.aboutDescription,
+      mobileDescription: String(merged.mobileDescription || defaults.mobileDescription).trim() || defaults.mobileDescription,
+      showSubmitButton: merged.showSubmitButton !== false,
+      submitButtonText: String(merged.submitButtonText || defaults.submitButtonText).trim() || defaults.submitButtonText,
+      submitButtonUrl: normalizeLink(merged.submitButtonUrl, defaults.submitButtonUrl),
+      submitButtonNewWindow: merged.submitButtonNewWindow !== false,
+      showChangelogButton: merged.showChangelogButton !== false,
+      changelogButtonText: String(merged.changelogButtonText || defaults.changelogButtonText).trim() || defaults.changelogButtonText,
+      changelogButtonUrl: normalizeLink(merged.changelogButtonUrl, defaults.changelogButtonUrl),
+      changelogButtonNewWindow: merged.changelogButtonNewWindow !== false,
+    };
+  }
+
+  /**
    * 获取全站支付配置默认值
    * 统一供投稿、订单、广告位加购等前后端支付链路复用。
    */
@@ -1489,6 +1540,8 @@ class SettingService extends Service {
         value = this.normalizeExitModalConfig(rawValue);
       } else if (key === 'searchConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSearchConfig(rawValue);
+      } else if (key === 'footerAboutConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeFooterAboutConfig(rawValue);
       } else if (key === 'paymentConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizePaymentConfig(rawValue);
       } else if (key === 'submissionServiceConfig' && rawValue && typeof rawValue === 'object') {
@@ -1665,6 +1718,7 @@ class SettingService extends Service {
     const hotArticlesConfig = await this.get('hotArticlesConfig');
     const articleConfig = await this.get('articleConfig');
     const articleTopicsConfig = await this.get('articleTopicsConfig');
+    const footerAboutConfig = await this.get('footerAboutConfig');
     const authConfig = await this.getAuthConfig();
 
     // 默认配置
@@ -1883,6 +1937,8 @@ class SettingService extends Service {
       topicsEnabled: true,
     };
 
+    const defaultFooterAbout = this.getDefaultFooterAboutConfig();
+
     const defaultHotArticlesConfig = {
       enabled: true,
       displayPlacements: [ 'nav_quick_entry', 'home_menu' ],
@@ -1951,6 +2007,7 @@ class SettingService extends Service {
       hotArticles: this.normalizeHotArticlesConfig(hotArticlesConfig || defaultHotArticlesConfig),
       article: this.normalizeArticleConfig(articleConfig || defaultArticleConfig),
       articleTopics: this.normalizeArticleTopicsConfig(articleTopicsConfig || {}),
+      footerAbout: this.normalizeFooterAboutConfig(footerAboutConfig || defaultFooterAbout),
     };
   }
 

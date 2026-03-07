@@ -107,6 +107,86 @@
                         <pagination v-model="linkPager" @change="getLinkLists" />
                     </div>
                 </el-tab-pane>
+
+                <!-- 关于区域 -->
+                <el-tab-pane label="关于区域" name="about">
+                    <el-form :model="footerAboutData" label-width="120px" class="max-w-[760px]">
+                        <el-form-item label="标题">
+                            <el-input
+                                v-model="footerAboutData.aboutTitle"
+                                placeholder="例如：UIED设计导航"
+                            />
+                        </el-form-item>
+                        <el-form-item label="桌面端简介">
+                            <el-input
+                                v-model="footerAboutData.aboutDescription"
+                                type="textarea"
+                                :rows="5"
+                                placeholder="页脚左侧关于区域的完整介绍文案"
+                            />
+                        </el-form-item>
+                        <el-form-item label="移动端简介">
+                            <el-input
+                                v-model="footerAboutData.mobileDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="移动端折叠区域展示的简短文案"
+                            />
+                        </el-form-item>
+                        <el-divider content-position="left">提交网站按钮</el-divider>
+                        <el-form-item label="显示按钮">
+                            <el-switch v-model="footerAboutData.showSubmitButton" />
+                        </el-form-item>
+                        <el-form-item label="按钮文字" v-if="footerAboutData.showSubmitButton">
+                            <el-input
+                                v-model="footerAboutData.submitButtonText"
+                                placeholder="例如：提交网站"
+                            />
+                        </el-form-item>
+                        <el-form-item label="按钮链接" v-if="footerAboutData.showSubmitButton">
+                            <el-input
+                                v-model="footerAboutData.submitButtonUrl"
+                                placeholder="/submit 或 https://example.com/submit"
+                            />
+                        </el-form-item>
+                        <el-form-item label="新窗口打开" v-if="footerAboutData.showSubmitButton">
+                            <el-switch v-model="footerAboutData.submitButtonNewWindow" />
+                        </el-form-item>
+
+                        <el-divider content-position="left">更新记录按钮</el-divider>
+                        <el-form-item label="显示按钮">
+                            <el-switch v-model="footerAboutData.showChangelogButton" />
+                        </el-form-item>
+                        <el-form-item label="按钮文字" v-if="footerAboutData.showChangelogButton">
+                            <el-input
+                                v-model="footerAboutData.changelogButtonText"
+                                placeholder="例如：更新记录"
+                            />
+                        </el-form-item>
+                        <el-form-item label="按钮链接" v-if="footerAboutData.showChangelogButton">
+                            <el-input
+                                v-model="footerAboutData.changelogButtonUrl"
+                                placeholder="/changelog 或 https://example.com/changelog"
+                            />
+                        </el-form-item>
+                        <el-form-item
+                            label="新窗口打开"
+                            v-if="footerAboutData.showChangelogButton"
+                        >
+                            <el-switch v-model="footerAboutData.changelogButtonNewWindow" />
+                        </el-form-item>
+
+                        <el-form-item>
+                            <el-button @click="handleResetFooterAbout">重置默认</el-button>
+                            <el-button
+                                type="primary"
+                                :loading="footerAboutLoading"
+                                @click="handleSaveFooterAbout"
+                                >保存关于区域</el-button
+                            >
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
             </el-tabs>
         </el-card>
 
@@ -221,11 +301,14 @@ import {
     uiedFooterLinkList,
     uiedFooterLinkAdd,
     uiedFooterLinkEdit,
-    uiedFooterLinkDelete
+    uiedFooterLinkDelete,
+    uiedFooterAboutConfigGet,
+    uiedFooterAboutConfigSave
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import type { FormInstance, FormRules } from 'element-plus'
+import { computed, reactive, ref, watch } from 'vue'
 
 const activeTab = ref('groups')
 const groupOptions = ref<any[]>([])
@@ -301,6 +384,27 @@ const linkRules: FormRules = {
 }
 
 /**
+ * 获取页脚关于区域默认配置（与前台默认值保持一致）
+ */
+const getDefaultFooterAboutConfig = () => ({
+    aboutTitle: 'UIED设计导航',
+    aboutDescription:
+        'UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。',
+    mobileDescription: 'UIED设计导航汇集优质设计工具与资源，为设计师提供一站式工具导航服务',
+    showSubmitButton: true,
+    submitButtonText: '提交网站',
+    submitButtonUrl: '/submit',
+    submitButtonNewWindow: true,
+    showChangelogButton: true,
+    changelogButtonText: '更新记录',
+    changelogButtonUrl: '/changelog',
+    changelogButtonNewWindow: true
+})
+
+const footerAboutLoading = ref(false)
+const footerAboutData = reactive(getDefaultFooterAboutConfig())
+
+/**
  * 内置页脚入口选项
  */
 const builtinFooterEntryOptions = [
@@ -331,6 +435,47 @@ const builtinFooterLinkPreview = computed(() => {
 const loadGroupOptions = async () => {
     const res = await uiedFooterGroupList({ pageSize: 100 })
     groupOptions.value = res?.lists || []
+}
+
+/**
+ * 读取页脚关于区域配置
+ */
+const loadFooterAboutConfig = async () => {
+    const config = await uiedFooterAboutConfigGet()
+    Object.assign(footerAboutData, getDefaultFooterAboutConfig(), config || {})
+}
+
+/**
+ * 重置页脚关于区域为默认值
+ */
+const handleResetFooterAbout = () => {
+    Object.assign(footerAboutData, getDefaultFooterAboutConfig())
+}
+
+/**
+ * 保存页脚关于区域配置
+ */
+const handleSaveFooterAbout = async () => {
+    footerAboutLoading.value = true
+    try {
+        const payload = {
+            aboutTitle: String(footerAboutData.aboutTitle || '').trim(),
+            aboutDescription: String(footerAboutData.aboutDescription || '').trim(),
+            mobileDescription: String(footerAboutData.mobileDescription || '').trim(),
+            showSubmitButton: Boolean(footerAboutData.showSubmitButton),
+            submitButtonText: String(footerAboutData.submitButtonText || '').trim(),
+            submitButtonUrl: String(footerAboutData.submitButtonUrl || '').trim(),
+            submitButtonNewWindow: Boolean(footerAboutData.submitButtonNewWindow),
+            showChangelogButton: Boolean(footerAboutData.showChangelogButton),
+            changelogButtonText: String(footerAboutData.changelogButtonText || '').trim(),
+            changelogButtonUrl: String(footerAboutData.changelogButtonUrl || '').trim(),
+            changelogButtonNewWindow: Boolean(footerAboutData.changelogButtonNewWindow)
+        }
+        await uiedFooterAboutConfigSave(payload)
+        feedback.msgSuccess('页脚关于区域保存成功')
+    } finally {
+        footerAboutLoading.value = false
+    }
 }
 
 // 分组操作
@@ -441,4 +586,5 @@ const handleDeleteLink = async (id: number) => {
 getGroupLists()
 getLinkLists()
 loadGroupOptions()
+loadFooterAboutConfig()
 </script>
