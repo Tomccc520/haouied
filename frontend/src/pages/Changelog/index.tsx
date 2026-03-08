@@ -71,6 +71,25 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.3',
+    date: '2026-03-09',
+    title: '正式版1.0.3：评论开关增强 + 自动审核抽屉化',
+    changes: [
+      { type: 'feature', scope: 'backend', text: '【后台设置】网址详情页配置新增“网址详情评论”明确开关文案与提示，支持单独控制详情页评论展示与提交能力' },
+      { type: 'feature', scope: 'backend', text: '【后台设置】文章配置新增“文章详情评论”明确开关文案与提示，支持单独控制文章详情评论入口' },
+      { type: 'improve', scope: 'backend', text: '【评论管理】评论类型与快捷开关文案统一为“网址详情评论/文章详情评论”，降低运营配置歧义' },
+      { type: 'improve', scope: 'fullstack', text: '【评论链路】当详情评论开关关闭时，前台评论列表返回空并阻止提交，前后台行为保持一致' },
+      { type: 'fix', scope: 'frontend', text: '【后台评论】修复评论开关状态显示异常：兼容 0/1、true/false、字符串等布尔值格式，避免“已关闭仍显示开启”' },
+      { type: 'improve', scope: 'frontend', text: '【后台评论】自动审核与文字检测改为独立标签入口 + 右侧抽屉配置，减少主列表干扰并提升配置效率' },
+      { type: 'fix', scope: 'frontend', text: '【后台评论】审核配置读取改为串行加载，规避同路由并发去重导致的 CanceledError 提示干扰' },
+      { type: 'feature', scope: 'fullstack', text: '【后台评论】新增自动审核“风险分”机制：按敏感词、疑似词、外链、长度、重复等规则综合评分并输出低/中/高风险等级' },
+      { type: 'feature', scope: 'frontend', text: '【后台评论】评论列表新增“审核命中”标签列，展示命中规则标签与风险分，便于运营快速人工复核' },
+      { type: 'improve', scope: 'frontend', text: '【官网页脚】关注交流区改版为三列图标卡片样式，强化层级与对齐，悬浮详情面板改为轻玻璃卡片并优化移动端触发展示' },
+      { type: 'fix', scope: 'fullstack', text: '【缓存链路】页脚相关公开接口（导航菜单/友情链接/页脚配置）补充 no-cache 响应头，前端设置接口请求统一追加时间戳，降低正式环境缓存滞后' },
+      { type: 'improve', scope: 'frontend', text: '【SEO链路】index.html 启动时动态同步后台 site-info 到 title/description/keywords 与 OG/Twitter 标签；下一步将推进 SSR/预渲染以满足“首屏源码即最新 SEO”' },
+    ]
+  },
+  {
     version: '1.0.2',
     date: '2026-03-07',
     title: '正式版1.0.2：运营展示增强 + 网址草稿修复 + 后台菜单交互重构',
@@ -83,7 +102,16 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'improve', scope: 'frontend', text: '【后台交互】前端配置-社交媒体页面新增“官网预览（每行3个）”区域，编辑时可直接对照前台图标排版效果' },
       { type: 'feature', scope: 'fullstack', text: '【社交媒体图标】新增 SVG 图标库接入：后台分组/项目图标支持 svg:key 选择，前台 /api/social-media 返回 iconSvg 并优先渲染' },
       { type: 'improve', scope: 'frontend', text: '【官网页脚】SocialMediaSection 支持 URL 图标优先渲染、移动端点击展开、extraInfo 多格式兼容，展示与运营配置保持一致' },
-      { type: 'improve', scope: 'frontend', text: '【首页分类交互】子分类标签区右侧新增“查看分类”按钮，并与分页操作区统一视觉，支持快速跳转当前分类/子分类页' },
+      { type: 'improve', scope: 'frontend', text: '【首页分类交互】子分类标签区右侧改为“纯图标查看更多”按钮，减少文案占位并保持操作区更紧凑' },
+      { type: 'feature', scope: 'fullstack', text: '【查看更多配置】后台页面配置新增“查看更多新窗口”开关，支持分类区查看更多图标按配置在新标签页打开' },
+      { type: 'fix', scope: 'frontend', text: '【分类页跳转】修复“查看更多”跳转落点异常：布局层新增全局强制回顶（关闭平滑滚动干扰），避免从页脚位置开始渲染' },
+      { type: 'feature', scope: 'backend', text: '【后台评论】评论管理页新增“网站评论/文章评论”总开关，支持一键开启/关闭并保持配置合并保存' },
+      { type: 'fix', scope: 'fullstack', text: '【后台评论】修复删除/审核偶发“缺少评论ID”：管理端改为透传 ids 与评论类型，后端删除接口兼容 id/ids 两种参数' },
+      { type: 'feature', scope: 'fullstack', text: '【评论策略】新增“登录后评论”总开关：后台评论页可配置，开启后网站/文章评论提交必须登录' },
+      { type: 'feature', scope: 'fullstack', text: '【评论审核】评论管理页新增“自动审核+文字检测”配置面板，支持关闭/全待审/智能审核三种模式' },
+      { type: 'feature', scope: 'backend', text: '【评论审核】智能审核支持敏感词自动拒绝、疑似词转待审、最小长度/最大链接数校验与短时间重复评论检测' },
+      { type: 'improve', scope: 'frontend', text: '【评论反馈】前台提交评论按审核状态返回明确提示：通过、待审核、未通过三类文案' },
+      { type: 'fix', scope: 'fullstack', text: '【SEO生效】修复后台站点SEO修改后前台不刷新的问题：/api/site-info 与 /api/settings/frontend-config 增加 no-cache，前端请求追加时间戳参数强制取最新配置' },
       { type: 'fix', scope: 'backend', text: '【网址管理】修复草稿筛选混入已发布：statusList 优先于 legacy status，避免旧参数叠加导致筛选污染' },
       { type: 'fix', scope: 'fullstack', text: '【更新记录】修复 /changelog 网站总数显示为 0：新增 /websites/stats 公开统计接口，前端改为优先读取统计接口并增加回退解析' },
       { type: 'improve', scope: 'backend', text: '【后台菜单】登录后菜单下发增加“工作台置顶”规则，工作台固定在第一位（首页位置）' },

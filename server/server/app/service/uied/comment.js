@@ -14,6 +14,361 @@ const Service = require('egg').Service;
 
 class CommentService extends Service {
   /**
+   * 获取评论审核配置（已归一化）
+   */
+  async getCommentConfig() {
+    const { ctx } = this;
+    const rawConfig = await ctx.service.uied.setting.getSettingByKey('commentConfig');
+    if (typeof ctx.service.uied.setting.normalizeCommentConfig === 'function') {
+      return ctx.service.uied.setting.normalizeCommentConfig(rawConfig || {});
+    }
+    return {
+      loginRequired: false,
+      autoAuditMode: 'off',
+      enableTextDetection: true,
+      autoRejectSensitive: true,
+      sensitiveWords: '',
+      autoPendingSuspicious: true,
+      suspiciousWords: '',
+      minLength: 2,
+      maxLinkCount: 2,
+      duplicateCheckEnabled: true,
+      duplicateWindowSec: 300,
+      duplicateThreshold: 2,
+    };
+  }
+
+  /**
+   * 规范化评论文本，便于重复检测与关键词匹配。
+   */
+  normalizeCommentText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * 将词库文本解析为词条数组（支持换行/逗号/分号分隔）。
+   */
+  parseWordList(value) {
+    return String(value || '')
+      .split(/[\n,，;；|]+/)
+      .map(item => String(item || '').trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  /**
+   * 命中词条检测，返回首个命中词。
+   */
+  findMatchedKeyword(content, words = []) {
+    const text = String(content || '').toLowerCase();
+    return words.find(word => text.includes(String(word || '').toLowerCase())) || '';
+  }
+
+  /**
+   * 统计评论中的链接数量（http/https/www）。
+   */
+  countContentLinks(content) {
+    const text = String(content || '');
+    const matches = text.match(/(https?:\/\/|www\.)/gi);
+    return Array.isArray(matches) ? matches.length : 0;
+  }
+
+  /**
+   * 获取评论来源 IP
+   */
+  getClientIp() {
+    const { ctx } = this;
+    const xff = String(ctx.request.header['x-forwarded-for'] || '').trim();
+    if (xff) {
+      const firstIp = xff.split(',').map(item => item.trim()).find(Boolean);
+      if (firstIp) return firstIp;
+    }
+    const realIp = String(ctx.request.header['x-real-ip'] || '').trim();
+    if (realIp) return realIp;
+    return String(ctx.ip || ctx.request.ip || '').trim();
+  }
+
+  /**
+   * 解析布尔类型参数，兼容 1/0、true/false、yes/no。
+   */
+  parseBooleanParam(value, defaultValue = false) {
+    if (value === null || value === undefined || value === '') return Boolean(defaultValue);
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const normalized = String(value).trim().toLowerCase();
+    if ([ '1', 'true', 'yes', 'on' ].includes(normalized)) return true;
+    if ([ '0', 'false', 'no', 'off' ].includes(normalized)) return false;
+    return Boolean(defaultValue);
+  }
+
+  /**
+   * 审核命中原因映射：将内部原因码转换为前端可展示标签与风险权重。
+   */
+  normalizeAuditReasonMeta(rawReason) {
+    const reason = String(rawReason || '').trim();
+    if (!reason) {
+      return { code: 'unknown', label: '未知规则', weight: 10 };
+    }
+    if (reason === 'manual_mode') {
+      return { code: 'manual_mode', label: '全量待审', weight: 10 };
+    }
+    if (reason === 'min_length') {
+      return { code: 'min_length', label: '内容过短', weight: 20 };
+    }
+    if (reason === 'too_many_links') {
+      return { code: 'too_many_links', label: '外链过多', weight: 35 };
+    }
+    if (reason === 'duplicate') {
+      return { code: 'duplicate', label: '疑似重复', weight: 40 };
+    }
+    if (reason.startsWith('sensitive:')) {
+      const keyword = reason.slice('sensitive:'.length).trim();
+      return {
+        code: 'sensitive',
+        label: keyword ? `敏感词：${keyword}` : '命中敏感词',
+        weight: 70,
+      };
+    }
+    if (reason.startsWith('suspicious:')) {
+      const keyword = reason.slice('suspicious:'.length).trim();
+      return {
+        code: 'suspicious',
+        label: keyword ? `疑似词：${keyword}` : '命中疑似词',
+        weight: 30,
+      };
+    }
+    return { code: 'unknown', label: reason, weight: 15 };
+  }
+
+  /**
+   * 由命中原因构建审核洞察（风险分、风险等级、标签列表）。
+   */
+  buildAuditInsightFromReasons(hitReasons = [], status = 'pending') {
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    const reasonMetaList = (Array.isArray(hitReasons) ? hitReasons : [])
+      .map(item => this.normalizeAuditReasonMeta(item))
+      .filter(Boolean);
+
+    const uniqueByCode = new Map();
+    reasonMetaList.forEach(item => {
+      const key = String(item.code || 'unknown');
+      const prev = uniqueByCode.get(key);
+      if (!prev || Number(item.weight || 0) > Number(prev.weight || 0)) {
+        uniqueByCode.set(key, item);
+      }
+    });
+    const dedupedMeta = Array.from(uniqueByCode.values());
+
+    let riskScore = dedupedMeta.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+    if (normalizedStatus === 'rejected') {
+      riskScore += 15;
+    } else if (normalizedStatus === 'pending' && dedupedMeta.length === 0) {
+      riskScore += 20;
+    }
+    riskScore = Math.max(0, Math.min(100, Math.round(riskScore)));
+
+    const riskLevel = riskScore >= 70 ? 'high' : riskScore >= 35 ? 'medium' : 'low';
+    return {
+      riskScore,
+      riskLevel,
+      auditReasonCodes: dedupedMeta.map(item => item.code),
+      auditReasonTags: dedupedMeta.map(item => item.label).slice(0, 5),
+    };
+  }
+
+  /**
+   * 针对已存量评论重算审核命中原因（用于后台列表展示“命中原因”标签）。
+   */
+  async detectAuditReasonsForStoredComment({
+    tableName,
+    targetIdField,
+    targetId,
+    content,
+    userId = 0,
+    ip = '',
+    status = 'pending',
+    config,
+  }) {
+    const normalizedContent = this.normalizeCommentText(content);
+    const hitReasons = [];
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+
+    if (String(config?.autoAuditMode || '').trim() === 'manual' && normalizedStatus === 'pending') {
+      hitReasons.push('manual_mode');
+    }
+
+    if (config?.enableTextDetection) {
+      const minLength = Number(config?.minLength || 0);
+      if (minLength > 0 && normalizedContent.length < minLength) {
+        hitReasons.push('min_length');
+      }
+
+      const maxLinkCount = Number(config?.maxLinkCount || 0);
+      const linkCount = this.countContentLinks(normalizedContent);
+      if (maxLinkCount >= 0 && linkCount > maxLinkCount) {
+        hitReasons.push('too_many_links');
+      }
+
+      const sensitiveWords = this.parseWordList(config?.sensitiveWords);
+      const suspiciousWords = this.parseWordList(config?.suspiciousWords);
+      const matchedSensitive = this.findMatchedKeyword(normalizedContent, sensitiveWords);
+      const matchedSuspicious = this.findMatchedKeyword(normalizedContent, suspiciousWords);
+      if (matchedSensitive) {
+        hitReasons.push(`sensitive:${matchedSensitive}`);
+      }
+      if (matchedSuspicious && config?.autoPendingSuspicious) {
+        hitReasons.push(`suspicious:${matchedSuspicious}`);
+      }
+    }
+
+    if (config?.duplicateCheckEnabled && normalizedContent) {
+      const duplicateCount = await this.countRecentDuplicateComments({
+        tableName,
+        targetIdField,
+        targetId,
+        content: normalizedContent,
+        userId: Number(userId || 0),
+        ip: String(ip || '').trim(),
+        windowSec: Number(config?.duplicateWindowSec || 300),
+      });
+      if (duplicateCount >= Number(config?.duplicateThreshold || 2)) {
+        hitReasons.push('duplicate');
+      }
+    }
+
+    return Array.from(new Set(hitReasons));
+  }
+
+  /**
+   * 获取同源重复评论数量（窗口时间内）
+   */
+  async countRecentDuplicateComments({ tableName, targetIdField, targetId, content, userId = 0, ip = '', windowSec = 300 }) {
+    const { app } = this;
+    const since = Math.floor(Date.now() / 1000) - Math.max(10, Number(windowSec || 300));
+    if (Number(userId || 0) > 0) {
+      const [ row ] = await app.model.query(
+        `SELECT COUNT(*) AS total
+         FROM ${tableName}
+         WHERE is_delete = 0
+           AND ${targetIdField} = ?
+           AND user_id = ?
+           AND content = ?
+           AND create_time >= ?`,
+        {
+          replacements: [ targetId, Number(userId || 0), content, since ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      return Number(row?.total || 0);
+    }
+    if (!ip) return 0;
+    const [ row ] = await app.model.query(
+      `SELECT COUNT(*) AS total
+       FROM ${tableName}
+       WHERE is_delete = 0
+         AND ${targetIdField} = ?
+         AND user_id = 0
+         AND ip = ?
+         AND content = ?
+         AND create_time >= ?`,
+      {
+        replacements: [ targetId, ip, content, since ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    return Number(row?.total || 0);
+  }
+
+  /**
+   * 评论自动审核判定（off/manual/smart）
+   */
+  async evaluateCommentAudit({
+    tableName,
+    targetIdField,
+    targetId,
+    content,
+    userId = 0,
+    ip = '',
+  }) {
+    const config = await this.getCommentConfig();
+    const normalizedContent = this.normalizeCommentText(content);
+    const hitReasons = [];
+    if (config.autoAuditMode === 'off') {
+      return {
+        status: 'approved',
+        hitReasons,
+        config,
+        ...this.buildAuditInsightFromReasons(hitReasons, 'approved'),
+      };
+    }
+    if (config.autoAuditMode === 'manual') {
+      hitReasons.push('manual_mode');
+      return {
+        status: 'pending',
+        hitReasons,
+        config,
+        ...this.buildAuditInsightFromReasons(hitReasons, 'pending'),
+      };
+    }
+    if (config.enableTextDetection) {
+      const minLength = Number(config.minLength || 0);
+      if (minLength > 0 && normalizedContent.length < minLength) {
+        hitReasons.push('min_length');
+      }
+      const maxLinkCount = Number(config.maxLinkCount || 0);
+      const linkCount = this.countContentLinks(normalizedContent);
+      if (maxLinkCount >= 0 && linkCount > maxLinkCount) {
+        hitReasons.push('too_many_links');
+      }
+      const sensitiveWords = this.parseWordList(config.sensitiveWords);
+      const suspiciousWords = this.parseWordList(config.suspiciousWords);
+      const matchedSensitive = this.findMatchedKeyword(normalizedContent, sensitiveWords);
+      const matchedSuspicious = this.findMatchedKeyword(normalizedContent, suspiciousWords);
+      if (matchedSensitive) {
+        hitReasons.push(`sensitive:${matchedSensitive}`);
+        if (config.autoRejectSensitive) {
+          return {
+            status: 'rejected',
+            hitReasons,
+            config,
+            ...this.buildAuditInsightFromReasons(hitReasons, 'rejected'),
+          };
+        }
+      }
+      if (matchedSuspicious && config.autoPendingSuspicious) {
+        hitReasons.push(`suspicious:${matchedSuspicious}`);
+      }
+    }
+    if (config.duplicateCheckEnabled) {
+      const duplicateCount = await this.countRecentDuplicateComments({
+        tableName,
+        targetIdField,
+        targetId,
+        content: normalizedContent,
+        userId,
+        ip,
+        windowSec: Number(config.duplicateWindowSec || 300),
+      });
+      if ((duplicateCount + 1) >= Number(config.duplicateThreshold || 2)) {
+        hitReasons.push('duplicate');
+      }
+    }
+    if (hitReasons.length > 0) {
+      return {
+        status: 'pending',
+        hitReasons,
+        config,
+        ...this.buildAuditInsightFromReasons(hitReasons, 'pending'),
+      };
+    }
+    return {
+      status: 'approved',
+      hitReasons,
+      config,
+      ...this.buildAuditInsightFromReasons(hitReasons, 'approved'),
+    };
+  }
+
+  /**
    * 格式化评论时间文本（YYYY-MM-DD HH:mm:ss）
    */
   formatCommentTimeString(timestamp) {
@@ -119,6 +474,7 @@ class CommentService extends Service {
     );
 
     const orderClause = await this.buildCommentOrderClause(tableName, sort);
+    const includeAuditInsight = this.parseBooleanParam(params.withAuditInsight, false);
 
     // 查询列表（关联目标表获取标题）
     const lists = await app.model.query(
@@ -134,9 +490,32 @@ class CommentService extends Service {
       }
     );
 
+    let formattedLists = lists.map(item => this.formatComment(item, type));
+    if (includeAuditInsight) {
+      const commentConfig = await this.getCommentConfig();
+      formattedLists = await Promise.all(
+        formattedLists.map(async item => {
+          const hitReasons = await this.detectAuditReasonsForStoredComment({
+            tableName,
+            targetIdField,
+            targetId: Number(item.targetId || 0),
+            content: item.content,
+            userId: Number(item.userId || 0),
+            ip: item.ip || '',
+            status: item.status,
+            config: commentConfig,
+          });
+          return {
+            ...item,
+            ...this.buildAuditInsightFromReasons(hitReasons, item.status),
+          };
+        })
+      );
+    }
+
     return {
-      lists: lists.map(item => this.formatComment(item, type)),
-      count: countResult.total,
+      lists: formattedLists,
+      count: Number(countResult.total || 0),
       page: parseInt(page),
       pageSize: parseInt(pageSize),
     };
@@ -159,20 +538,34 @@ class CommentService extends Service {
     const tableName = type === 'article' ? 'uied_article_comment' : 'uied_website_comment';
     const targetIdField = type === 'article' ? 'article_id' : 'website_id';
     const targetId = articleId || websiteId;
+    const normalizedContent = this.normalizeCommentText(content);
+    const clientIp = this.getClientIp();
+    const userAgent = String(this.ctx.get('user-agent') || '').slice(0, 500);
+    const auditDecision = await this.evaluateCommentAudit({
+      tableName,
+      targetIdField,
+      targetId,
+      content: normalizedContent,
+      userId: Number(userId || 0),
+      ip: clientIp,
+    });
 
     // 插入评论
     const insertResult = await app.model.query(
       `INSERT INTO ${tableName} 
-       (${targetIdField}, parent_id, content, user_id, nickname, email, status, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, 'approved', ?, ?)`,
+       (${targetIdField}, parent_id, content, user_id, nickname, email, status, ip, user_agent, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           targetId,
           parentId,
-          content,
+          normalizedContent,
           userId || 0,
           userName || '匿名用户',
           email || '',
+          auditDecision.status,
+          clientIp,
+          userAgent,
           now,
           now,
         ],
@@ -194,15 +587,23 @@ class CommentService extends Service {
       }
     );
     if (!detail) {
+      const auditInsight = this.buildAuditInsightFromReasons(auditDecision.hitReasons, auditDecision.status);
       return {
         id: insertId,
-        content,
+        content: normalizedContent,
         parentId: Number(parentId || 0),
         createTime: this.formatCommentTimeString(now),
-        status: 'approved',
+        status: auditDecision.status,
+        auditReasons: auditDecision.hitReasons,
+        ...auditInsight,
       };
     }
-    return this.formatComment(detail, type);
+    const auditInsight = this.buildAuditInsightFromReasons(auditDecision.hitReasons, auditDecision.status);
+    return {
+      ...this.formatComment(detail, type),
+      auditReasons: auditDecision.hitReasons,
+      ...auditInsight,
+    };
   }
 
   /**

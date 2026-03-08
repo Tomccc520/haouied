@@ -11,6 +11,11 @@
 import api from './api';
 import { unwrapApiList, unwrapApiResponse } from '../utils/apiResponse';
 
+/**
+ * 生成防缓存参数，避免 CDN/浏览器返回旧配置。
+ */
+const buildNoCacheParams = () => ({ _t: Date.now() });
+
 // 导航菜单类型
 export interface NavMenuItem {
   id: string;
@@ -72,19 +77,19 @@ export interface FriendLink {
 export const settingService = {
   // 获取导航菜单（树形结构）
   getNavMenus: async (): Promise<NavMenuItem[]> => {
-    const response = await api.get('/settings/nav-menus');
+    const response = await api.get('/settings/nav-menus', { params: buildNoCacheParams() });
     return unwrapApiList<NavMenuItem>(response.data);
   },
 
   // 获取页脚分组（含链接）
   getFooterGroups: async (): Promise<FooterGroup[]> => {
-    const response = await api.get('/settings/footer-groups');
+    const response = await api.get('/settings/footer-groups', { params: buildNoCacheParams() });
     return unwrapApiList<FooterGroup>(response.data);
   },
 
   // 获取页脚关于区域配置
   getFooterAboutConfig: async (): Promise<FooterAboutConfig> => {
-    const response = await api.get('/settings/footer-about-config');
+    const response = await api.get('/settings/footer-about-config', { params: buildNoCacheParams() });
     const fallback: FooterAboutConfig = {
       aboutTitle: 'UIED设计导航',
       aboutDescription: 'UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。',
@@ -103,7 +108,7 @@ export const settingService = {
 
   // 获取友情链接
   getFriendLinks: async (): Promise<FriendLink[]> => {
-    const response = await api.get('/settings/friend-links');
+    const response = await api.get('/settings/friend-links', { params: buildNoCacheParams() });
     return unwrapApiList<FriendLink>(response.data);
   },
 };

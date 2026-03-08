@@ -570,10 +570,10 @@
                         >
                     </el-form-item>
 
-                    <el-form-item label="评论功能">
+                    <el-form-item label="网址详情评论">
                         <el-switch v-model="config.commentsEnabled" />
                         <span class="form-tip"
-                            >开启后，用户可以在详情页发表评论。评论需在「评论管理」中审核</span
+                            >关闭后，网址详情页不展示评论区，且前台评论提交接口会返回已关闭提示。</span
                         >
                     </el-form-item>
 

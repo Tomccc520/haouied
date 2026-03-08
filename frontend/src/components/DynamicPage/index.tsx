@@ -88,6 +88,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const websiteClickMode = frontendConfig?.pageGlobalConfig?.websiteClickMode ?? 'detail';
   const directArrowNewWindow = frontendConfig?.pageGlobalConfig?.directArrowNewWindow ?? true;
   const detailPageNewWindow = frontendConfig?.pageGlobalConfig?.detailPageNewWindow ?? false;
+  const viewMoreNewWindow = frontendConfig?.pageGlobalConfig?.viewMoreNewWindow ?? false;
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
   const heroIconClickMode = frontendConfig?.homepageConfig?.heroIconClickMode ?? 'direct';
 
@@ -505,6 +506,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                     arrowLabel={arrowLabel}
                     arrowIsExternal={arrowIsExternal}
                     directArrowNewWindow={directArrowNewWindow}
+                    viewMoreNewWindow={viewMoreNewWindow}
                   />
                 )}
                 
@@ -557,6 +559,7 @@ interface SubCategoryTabsProps {
   arrowLabel?: string;
   arrowIsExternal?: boolean;
   directArrowNewWindow?: boolean;
+  viewMoreNewWindow?: boolean;
 }
 
 const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
@@ -569,6 +572,7 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   arrowLabel = '直达网站',
   arrowIsExternal = true,
   directArrowNewWindow = true,
+  viewMoreNewWindow = false,
 }) => {
   const navigate = useNavigate();
   // 当前选中的子分类，默认选中 'all'
@@ -639,17 +643,28 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   }, [navigate]);
 
   /**
-   * 打开分类页：优先当前激活子分类，其次主分类，最后回退分类列表页。
+   * 解析“查看更多”跳转路径：优先当前激活子分类，其次主分类，最后回退分类列表页。
    */
-  const handleViewCategory = useCallback(() => {
+  const resolveViewMoreTargetPath = useCallback(() => {
     const activeSubCategoryItem = validSubCategories.find((item) => item.id === activeSubCategory);
     const targetSlug = String(activeSubCategoryItem?.slug || categorySlug || '').trim();
     if (targetSlug) {
-      navigateCategoryWithTopReset(`/category/${targetSlug}`);
+      return `/category/${targetSlug}`;
+    }
+    return '/category';
+  }, [activeSubCategory, validSubCategories, categorySlug]);
+
+  /**
+   * 处理“查看更多”按钮：支持当前窗口或新窗口打开。
+   */
+  const handleViewCategory = useCallback(() => {
+    const targetPath = resolveViewMoreTargetPath();
+    if (viewMoreNewWindow) {
+      window.open(targetPath, '_blank', 'noopener,noreferrer');
       return;
     }
-    navigateCategoryWithTopReset('/category');
-  }, [activeSubCategory, validSubCategories, categorySlug, navigateCategoryWithTopReset]);
+    navigateCategoryWithTopReset(targetPath);
+  }, [resolveViewMoreTargetPath, viewMoreNewWindow, navigateCategoryWithTopReset]);
   
   if (allWebsites.length === 0) {
     return null;
@@ -736,8 +751,10 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
         }}>
           <button
             onClick={handleViewCategory}
+            aria-label="查看更多分类"
             style={{
               height: '24px',
+              width: '24px',
               borderRadius: '5px',
               border: '1px solid rgba(24, 144, 255, 0.32)',
               background: 'rgba(24, 144, 255, 0.08)',
@@ -746,19 +763,14 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
-              padding: '0 8px',
-              fontSize: '12px',
+              padding: 0,
               lineHeight: 1,
-              fontWeight: 500,
-              whiteSpace: 'nowrap',
             }}
-            title="查看更多分类内容"
+            title="查看更多"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 7h2M5 12h2M5 17h2M9 7h10M9 12h10M9 17h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
-            查看更多
           </button>
           {paginationData.totalPages > 1 && (
             <>

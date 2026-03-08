@@ -188,8 +188,11 @@
                         </el-table-column>
                     </el-table>
                 </div>
-                <el-form-item label="评论启用">
+                <el-form-item label="文章详情评论">
                     <el-switch v-model="articleConfig.commentsEnabled" />
+                    <span class="form-tip"
+                        >关闭后，文章详情页不展示评论区，且前台评论提交接口会返回已关闭提示。</span
+                    >
                 </el-form-item>
                 <el-form-item label="专题配置启用">
                     <el-switch v-model="articleConfig.topicsEnabled" />
@@ -424,5 +427,11 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     gap: 8px;
+}
+
+.form-tip {
+    margin-left: 8px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
 }
 </style>

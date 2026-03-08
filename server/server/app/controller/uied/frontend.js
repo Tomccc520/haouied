@@ -594,15 +594,24 @@ class FrontendController extends Controller {
         ctx.body = { error: '网站评论功能已关闭' };
         return;
       }
+      const resolvedUserId = await this.resolveCurrentCommentUserId();
+      if ((await this.isCommentLoginRequired()) && resolvedUserId <= 0) {
+        ctx.status = 401;
+        ctx.body = { error: '请先登录后再评论' };
+        return;
+      }
 
       const comment = await ctx.service.uied.comment.add({
         websiteId,
         parentId: this.parsePositiveInt(ctx.request.body?.parentId, 0),
         content,
-        userId,
+        userId: resolvedUserId || this.parsePositiveInt(userId, 0),
         userName,
       });
-      ctx.body = comment;
+      ctx.body = {
+        ...comment,
+        message: this.getCommentSubmitMessage(comment?.status),
+      };
     } catch (error) {
       ctx.logger.error('提交网站评论失败:', error);
       ctx.status = 500;
@@ -1051,6 +1060,7 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
+      this.setNoCacheHeaders();
       const [
         exitModalConfig,
         pageGlobalConfig,
@@ -1227,6 +1237,8 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
+      // 导航菜单属于运营配置，关闭缓存确保后台修改后前台立即同步。
+      this.setNoCacheHeaders();
       const menus = await ctx.service.uied.navMenu.all();
 
       // 转换为前端期望的格式
@@ -1278,6 +1290,8 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
+      // 友情链接属于运营配置，关闭缓存确保后台修改后前台立即同步。
+      this.setNoCacheHeaders();
       const result = await ctx.service.uied.friendLink.list({ page: 1, pageSize: 100 });
 
       // 转换为前端期望的格式，只返回可见的链接
@@ -1308,6 +1322,8 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
+      // 页脚分组属于运营配置，关闭缓存确保后台修改后前台立即同步。
+      this.setNoCacheHeaders();
       const groups = await ctx.service.uied.footer.groupAll();
 
       // 转换为前端期望的格式
@@ -1486,6 +1502,7 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
+      this.setNoCacheHeaders();
       const info = await ctx.service.uied.setting.getSiteInfo();
       ctx.body = info;
     } catch (error) {
@@ -1765,6 +1782,35 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 判断评论是否要求登录（全站评论统一开关）。
+   */
+  async isCommentLoginRequired() {
+    const { ctx } = this;
+    try {
+      const commentConfig = await ctx.service.uied.setting.getSettingByKey('commentConfig');
+      return commentConfig?.loginRequired === true;
+    } catch (error) {
+      ctx.logger.warn('读取评论登录限制开关失败，按关闭处理:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 解析当前评论请求用户 ID（优先 token，会话失效时回退为 0）。
+   */
+  async resolveCurrentCommentUserId() {
+    const { ctx } = this;
+    try {
+      const resolved = await ctx.service.uied.websiteInteraction.resolveUserId();
+      const userId = Number.parseInt(String(resolved || 0), 10);
+      return Number.isInteger(userId) && userId > 0 ? userId : 0;
+    } catch (error) {
+      ctx.logger.warn('解析评论用户登录态失败，按匿名处理:', error.message || error);
+      return 0;
+    }
+  }
+
+  /**
    * 解析正整数参数
    */
   parsePositiveInt(value, defaultValue = 0) {
@@ -1784,6 +1830,17 @@ class FrontendController extends Controller {
     if ([ '1', 'true', 'yes', 'y', 'on' ].includes(text)) return true;
     if ([ '0', 'false', 'no', 'n', 'off' ].includes(text)) return false;
     return defaultValue;
+  }
+
+  /**
+   * 根据审核状态生成评论提交提示文案
+   */
+  getCommentSubmitMessage(status) {
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    if (normalizedStatus === 'approved') return '评论发布成功';
+    if (normalizedStatus === 'pending') return '评论已提交，等待审核';
+    if (normalizedStatus === 'rejected') return '评论未通过审核，请调整内容后重试';
+    return '评论提交成功';
   }
 
   /**
@@ -2395,16 +2452,25 @@ class FrontendController extends Controller {
         ctx.body = { error: '文章评论功能已关闭' };
         return;
       }
+      const resolvedUserId = await this.resolveCurrentCommentUserId();
+      if ((await this.isCommentLoginRequired()) && resolvedUserId <= 0) {
+        ctx.status = 401;
+        ctx.body = { error: '请先登录后再评论' };
+        return;
+      }
 
       const comment = await ctx.service.uied.comment.add({
         articleId,
         parentId: this.parsePositiveInt(ctx.request.body?.parentId, 0),
         content: text.trim(),
-        userId,
+        userId: resolvedUserId || this.parsePositiveInt(userId, 0),
         userName,
       });
 
-      ctx.body = comment;
+      ctx.body = {
+        ...comment,
+        message: this.getCommentSubmitMessage(comment?.status),
+      };
     } catch (error) {
       const message = String(error?.message || '');
       if (message.includes('未登录') || message.includes('登录已失效')) {

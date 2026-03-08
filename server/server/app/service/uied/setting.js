@@ -822,6 +822,7 @@ class SettingService extends Service {
     const normalized = { ...config };
     normalized.websiteClickMode = this.normalizeWebsiteClickMode(config.websiteClickMode);
     normalized.hotRecommendationClickMode = this.normalizeHotRecommendationClickMode(config.hotRecommendationClickMode);
+    normalized.viewMoreNewWindow = config.viewMoreNewWindow === true;
     normalized.appendRefEnabled = config.appendRefEnabled === true;
     normalized.appendRefValue = String(config.appendRefValue || '').trim();
     /**
@@ -830,6 +831,58 @@ class SettingService extends Service {
     normalized.sortZeroNewFirstEnabled = config.sortZeroNewFirstEnabled === true;
     normalized.categorySvgLibrary = this.normalizeCategorySvgLibrary(config.categorySvgLibrary);
     return normalized;
+  }
+
+  /**
+   * 获取评论审核配置默认值
+   */
+  getDefaultCommentConfig() {
+    return {
+      loginRequired: false,
+      autoAuditMode: 'off', // off | manual | smart
+      enableTextDetection: true,
+      autoRejectSensitive: true,
+      sensitiveWords: '',
+      autoPendingSuspicious: true,
+      suspiciousWords: '',
+      minLength: 2,
+      maxLinkCount: 2,
+      duplicateCheckEnabled: true,
+      duplicateWindowSec: 300,
+      duplicateThreshold: 2,
+    };
+  }
+
+  /**
+   * 规范化评论审核配置，确保自动审核参数范围稳定
+   */
+  normalizeCommentConfig(config = {}) {
+    const defaults = this.getDefaultCommentConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const merged = { ...defaults, ...source };
+    const mode = String(merged.autoAuditMode || '').trim().toLowerCase();
+    return {
+      loginRequired: merged.loginRequired === true,
+      autoAuditMode: [ 'off', 'manual', 'smart' ].includes(mode) ? mode : defaults.autoAuditMode,
+      enableTextDetection: merged.enableTextDetection !== false,
+      autoRejectSensitive: merged.autoRejectSensitive !== false,
+      sensitiveWords: String(merged.sensitiveWords || '').trim().slice(0, 2000),
+      autoPendingSuspicious: merged.autoPendingSuspicious !== false,
+      suspiciousWords: String(merged.suspiciousWords || '').trim().slice(0, 2000),
+      minLength: Number.isFinite(Number(merged.minLength))
+        ? Math.max(0, Math.min(500, Number(merged.minLength)))
+        : defaults.minLength,
+      maxLinkCount: Number.isFinite(Number(merged.maxLinkCount))
+        ? Math.max(0, Math.min(50, Number(merged.maxLinkCount)))
+        : defaults.maxLinkCount,
+      duplicateCheckEnabled: merged.duplicateCheckEnabled !== false,
+      duplicateWindowSec: Number.isFinite(Number(merged.duplicateWindowSec))
+        ? Math.max(10, Math.min(86400, Number(merged.duplicateWindowSec)))
+        : defaults.duplicateWindowSec,
+      duplicateThreshold: Number.isFinite(Number(merged.duplicateThreshold))
+        ? Math.max(2, Math.min(100, Number(merged.duplicateThreshold)))
+        : defaults.duplicateThreshold,
+    };
   }
 
   /**
@@ -1550,6 +1603,8 @@ class SettingService extends Service {
         value = this.normalizeDetailPageConfig(rawValue);
       } else if (key === 'hotArticlesConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeHotArticlesConfig(rawValue);
+      } else if (key === 'commentConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeCommentConfig(rawValue);
       }
       const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
@@ -1727,6 +1782,7 @@ class SettingService extends Service {
       showDirectArrow: true,
       directArrowNewWindow: true,
       detailPageNewWindow: false,
+      viewMoreNewWindow: false,
       pageSize: 20,
       hotRecommendationClickMode: 'detail', // 热门推荐独立配置，默认进详情页
       appendRefEnabled: false,

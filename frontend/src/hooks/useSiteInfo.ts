@@ -72,7 +72,9 @@ const useSiteInfoStandalone = () => {
   const fetchSiteInfo = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/site-info');
+      const response = await api.get('/site-info', {
+        params: { _t: Date.now() },
+      });
       setSiteInfo(normalizeSiteInfoPayload(response.data, DEFAULT_SITE_INFO));
       setError(null);
     } catch (err) {

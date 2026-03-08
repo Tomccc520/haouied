@@ -7,7 +7,7 @@
  * @version 1.3.0
  */
 
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -68,6 +68,43 @@ const resolvePageSlugByPathname = (pathname: string, search = ''): string => {
 };
 
 /**
+ * 强制滚动到页头：
+ * 1. 临时关闭平滑滚动，避免出现“从页脚缓慢滚动回顶部”的视觉错位。
+ * 2. 同时重置 window / html / body / layout-main，兼容不同浏览器滚动容器实现。
+ */
+const forceScrollTopImmediately = () => {
+  const html = document.documentElement;
+  const body = document.body;
+  const layoutMain = document.querySelector('.layout-main');
+  const previousHtmlBehavior = html?.style.scrollBehavior || '';
+  const previousBodyBehavior = body?.style.scrollBehavior || '';
+  if (html) {
+    html.style.scrollBehavior = 'auto';
+  }
+  if (body) {
+    body.style.scrollBehavior = 'auto';
+  }
+  window.scrollTo(0, 0);
+  if (html) {
+    html.scrollTop = 0;
+  }
+  if (body) {
+    body.scrollTop = 0;
+  }
+  if (layoutMain instanceof HTMLElement) {
+    layoutMain.scrollTop = 0;
+  }
+  window.requestAnimationFrame(() => {
+    if (html) {
+      html.style.scrollBehavior = previousHtmlBehavior;
+    }
+    if (body) {
+      body.style.scrollBehavior = previousBodyBehavior;
+    }
+  });
+};
+
+/**
  * 布局组件
  * 提供统一的页面框架，包含导航栏、主内容区域和页脚
  * 
@@ -78,6 +115,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const currentPageSlug = resolvePageSlugByPathname(location.pathname, location.search);
   const isSearchPage = location.pathname === '/search';
+
+  /**
+   * 全局路由切换后统一回到页面顶部，避免历史滚动位置残留。
+   */
+  useLayoutEffect(() => {
+    forceScrollTopImmediately();
+  }, [location.pathname, location.search]);
 
   return (
     <div className="layout">

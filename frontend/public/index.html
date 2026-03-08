@@ -12,6 +12,77 @@
     <meta name="keywords" content="设计导航,UI设计工具,UX设计,平面设计,AI设计,设计资源,设计师工具,Figma,Sketch,设计灵感,UIED" />
     <meta name="author" content="UIED技术团队" />
     <meta name="robots" content="index,follow" />
+
+    <script>
+    /**
+     * 启动阶段动态同步后台站点 SEO，避免构建时写死的 meta 长期滞后。
+     * 说明：此方案依赖浏览器执行 JS，搜索引擎最终收录仍受抓取策略影响。
+     */
+    (function() {
+      var DEFAULT_SEO = {
+        siteName: 'UIED设计导航',
+        siteTitle: 'UIED设计导航 - 精选设计工具与资源导航平台',
+        siteDescription: 'UIED设计导航是专业的设计师导航网站，精选优质UI/UX设计工具、平面设计资源、AI设计工具，为设计师提供一站式设计资源导航服务。',
+        siteKeywords: '设计导航,UI设计工具,UX设计,平面设计,AI设计,设计资源,设计师工具,Figma,Sketch,设计灵感,UIED'
+      };
+
+      function upsertMeta(type, key, content) {
+        if (!content) return;
+        var selector = type === 'property' ? 'meta[property="' + key + '"]' : 'meta[name="' + key + '"]';
+        var node = document.head.querySelector(selector);
+        if (!node) {
+          node = document.createElement('meta');
+          node.setAttribute(type, key);
+          document.head.appendChild(node);
+        }
+        node.setAttribute('content', content);
+      }
+
+      function normalizeSeo(payload) {
+        var source = payload && typeof payload === 'object' ? payload : {};
+        var siteName = String(source.siteName || source.site_name || DEFAULT_SEO.siteName).trim() || DEFAULT_SEO.siteName;
+        var siteTitle = String(source.siteTitle || source.site_title || siteName).trim() || siteName;
+        var siteDescription = String(
+          source.siteDescription || source.site_description || source.description || DEFAULT_SEO.siteDescription
+        ).trim() || DEFAULT_SEO.siteDescription;
+        var siteKeywords = String(
+          source.siteKeywords || source.site_keywords || source.keywords || DEFAULT_SEO.siteKeywords
+        ).trim() || DEFAULT_SEO.siteKeywords;
+        return {
+          siteName: siteName,
+          siteTitle: siteTitle,
+          siteDescription: siteDescription,
+          siteKeywords: siteKeywords
+        };
+      }
+
+      function applySeo(seo) {
+        var resolved = normalizeSeo(seo);
+        document.title = resolved.siteTitle;
+        upsertMeta('name', 'description', resolved.siteDescription);
+        upsertMeta('name', 'keywords', resolved.siteKeywords);
+        upsertMeta('property', 'og:title', resolved.siteTitle);
+        upsertMeta('property', 'og:description', resolved.siteDescription);
+        upsertMeta('property', 'og:site_name', resolved.siteName);
+        upsertMeta('property', 'twitter:title', resolved.siteTitle);
+        upsertMeta('property', 'twitter:description', resolved.siteDescription);
+      }
+
+      fetch('/api/site-info?_t=' + Date.now(), { cache: 'no-store' })
+        .then(function(response) {
+          if (!response || !response.ok) return null;
+          return response.json();
+        })
+        .then(function(payload) {
+          if (!payload) return;
+          var data = payload && typeof payload === 'object' && payload.data ? payload.data : payload;
+          applySeo(data);
+        })
+        .catch(function() {
+          // 静默降级：保留构建时默认 SEO，避免阻断页面加载。
+        });
+    })();
+    </script>
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />

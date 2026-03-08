@@ -14,6 +14,27 @@ const Controller = require('egg').Controller;
 
 class CommentController extends Controller {
   /**
+   * 规范化评论类型，仅允许 website/article。
+   */
+  normalizeCommentType(type) {
+    return String(type || '').trim().toLowerCase() === 'article' ? 'article' : 'website';
+  }
+
+  /**
+   * 解析评论主键列表，兼容 id / ids 两种入参格式。
+   */
+  parseCommentIds(payload = {}) {
+    const rawIds = Array.isArray(payload.ids)
+      ? payload.ids
+      : payload.id !== undefined && payload.id !== null
+        ? [ payload.id ]
+        : [];
+    return rawIds
+      .map(item => Number.parseInt(String(item || ''), 10))
+      .filter(item => Number.isInteger(item) && item > 0);
+  }
+
+  /**
    * 获取评论列表
    * GET /api/uied/comment/list
    */
@@ -76,7 +97,8 @@ class CommentController extends Controller {
    */
   async approve() {
     const { ctx } = this;
-    const { id, type = 'website' } = ctx.request.body;
+    const id = this.parseCommentIds(ctx.request.body)[0] || 0;
+    const type = this.normalizeCommentType(ctx.request.body?.type);
 
     if (!id) {
       ctx.body = { code: 400, msg: '缺少评论ID' };
@@ -104,7 +126,8 @@ class CommentController extends Controller {
    */
   async reject() {
     const { ctx } = this;
-    const { id, type = 'website' } = ctx.request.body;
+    const id = this.parseCommentIds(ctx.request.body)[0] || 0;
+    const type = this.normalizeCommentType(ctx.request.body?.type);
 
     if (!id) {
       ctx.body = { code: 400, msg: '缺少评论ID' };
@@ -132,7 +155,8 @@ class CommentController extends Controller {
    */
   async del() {
     const { ctx } = this;
-    const { ids, type = 'website' } = ctx.request.body;
+    const type = this.normalizeCommentType(ctx.request.body?.type);
+    const ids = this.parseCommentIds(ctx.request.body);
 
     if (!ids || (Array.isArray(ids) && ids.length === 0)) {
       ctx.body = { code: 400, msg: '缺少评论ID' };

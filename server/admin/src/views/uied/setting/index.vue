@@ -834,9 +834,20 @@
                                     content="开启后，点击卡片进入详情页时在新标签页打开"
                                     placement="top"
                                     ><el-icon class="label-tip-icon"
-                                        ><QuestionFilled /></el-icon></el-tooltip
+                                    ><QuestionFilled /></el-icon></el-tooltip
                             ></template>
                             <el-switch v-model="pageConfigData.detailPageNewWindow" />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label
+                                ><span>查看更多新窗口</span
+                                ><el-tooltip
+                                    content="开启后，分类区右侧“查看更多”图标在新标签页打开分类页"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-switch v-model="pageConfigData.viewMoreNewWindow" />
                         </el-form-item>
                         <el-divider content-position="left">分页</el-divider>
                         <el-form-item>
@@ -2267,6 +2278,7 @@ const pageConfigData = reactive({
     showDirectArrow: false,
     detailPageNewWindow: false,
     directArrowNewWindow: true,
+    viewMoreNewWindow: false,
     pageSize: 20,
     hotRecommendationClickMode: 'detail', // 热门推荐独立配置
     appendRefEnabled: false,
@@ -2302,6 +2314,7 @@ const normalizePageConfigData = (config: any) => ({
     hotRecommendationClickMode: normalizeHotRecommendationClickMode(
         config?.hotRecommendationClickMode
     ),
+    viewMoreNewWindow: config?.viewMoreNewWindow === true,
     appendRefEnabled: config?.appendRefEnabled === true,
     appendRefValue: String(config?.appendRefValue || '').trim(),
     sortZeroNewFirstEnabled: config?.sortZeroNewFirstEnabled === true,

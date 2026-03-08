@@ -91,6 +91,7 @@ export interface PageGlobalConfig {
   showDirectArrow: boolean;
   detailPageNewWindow: boolean;
   directArrowNewWindow: boolean;
+  viewMoreNewWindow: boolean;
   pageSize: number;
   hotRecommendationClickMode: 'detail' | 'direct';
   appendRefEnabled: boolean;
@@ -390,6 +391,7 @@ export const DEFAULT_PAGE_GLOBAL: PageGlobalConfig = {
   showDirectArrow: false,
   detailPageNewWindow: false,
   directArrowNewWindow: true,
+  viewMoreNewWindow: false,
   pageSize: 20,
   hotRecommendationClickMode: 'detail',
   appendRefEnabled: false,
@@ -622,6 +624,7 @@ export const publicSettingService = {
       ...mergedConfig,
       websiteClickMode: publicSettingService.normalizeWebsiteClickMode(mergedConfig.websiteClickMode),
       hotRecommendationClickMode: publicSettingService.normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
+      viewMoreNewWindow: mergedConfig.viewMoreNewWindow === true,
       appendRefEnabled: mergedConfig.appendRefEnabled === true,
       appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
       sortZeroNewFirstEnabled: mergedConfig.sortZeroNewFirstEnabled === true,

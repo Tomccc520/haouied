@@ -67,6 +67,7 @@ interface PageGlobalConfig {
   detailPageNewWindow?: boolean;
   showDirectArrow?: boolean;
   directArrowNewWindow?: boolean;
+  viewMoreNewWindow?: boolean;
   hotRecommendationClickMode?: 'detail' | 'direct'; // 热门推荐独立配置
   appendRefEnabled?: boolean;
   appendRefValue?: string;
@@ -240,6 +241,7 @@ const defaultPageGlobalConfig: PageGlobalConfig = {
   detailPageNewWindow: false,
   showDirectArrow: false,
   directArrowNewWindow: true,
+  viewMoreNewWindow: false,
   hotRecommendationClickMode: 'detail', // 热门推荐默认跳转详情页
   appendRefEnabled: false,
   appendRefValue: '',
@@ -388,6 +390,7 @@ const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
     ...mergedConfig,
     websiteClickMode: normalizeWebsiteClickMode(mergedConfig.websiteClickMode),
     hotRecommendationClickMode: normalizeHotRecommendationClickMode(mergedConfig.hotRecommendationClickMode),
+    viewMoreNewWindow: mergedConfig.viewMoreNewWindow === true,
     appendRefEnabled: mergedConfig.appendRefEnabled === true,
     appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
     sortZeroNewFirstEnabled: mergedConfig.sortZeroNewFirstEnabled === true,

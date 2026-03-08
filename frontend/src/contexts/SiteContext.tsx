@@ -147,7 +147,9 @@ export const SiteProvider: React.FC<SiteProviderProps> = ({
   const fetchSiteInfo = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/site-info');
+      const response = await api.get('/site-info', {
+        params: { _t: Date.now() },
+      });
       
       if (response.data) {
         setSiteInfo(normalizeSiteInfoPayload(response.data, defaultSiteInfo));
