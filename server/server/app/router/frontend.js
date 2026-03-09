@@ -237,6 +237,8 @@ module.exports = app => {
 
   // GET /api/site-info - 获取站点信息
   get('/api/site-info', controller.uied.frontend.siteInfo);
+  // GET /api/seo/prerender-manifest - 获取 SEO 预渲染路由清单
+  get('/api/seo/prerender-manifest', controller.uied.frontend.seoPrerenderManifest);
 
   // ==================== 每日热榜（聚合） ====================
   // GET /api/daily-hot/config - 获取每日热榜公开显示配置

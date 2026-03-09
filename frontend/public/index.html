@@ -38,6 +38,17 @@
         node.setAttribute('content', content);
       }
 
+      function upsertCanonical(url) {
+        if (!url) return;
+        var node = document.head.querySelector('link[rel="canonical"]');
+        if (!node) {
+          node = document.createElement('link');
+          node.setAttribute('rel', 'canonical');
+          document.head.appendChild(node);
+        }
+        node.setAttribute('href', url);
+      }
+
       function normalizeSeo(payload) {
         var source = payload && typeof payload === 'object' ? payload : {};
         var siteName = String(source.siteName || source.site_name || DEFAULT_SEO.siteName).trim() || DEFAULT_SEO.siteName;
@@ -58,14 +69,18 @@
 
       function applySeo(seo) {
         var resolved = normalizeSeo(seo);
+        var currentUrl = window.location.origin + window.location.pathname;
         document.title = resolved.siteTitle;
         upsertMeta('name', 'description', resolved.siteDescription);
         upsertMeta('name', 'keywords', resolved.siteKeywords);
         upsertMeta('property', 'og:title', resolved.siteTitle);
         upsertMeta('property', 'og:description', resolved.siteDescription);
         upsertMeta('property', 'og:site_name', resolved.siteName);
-        upsertMeta('property', 'twitter:title', resolved.siteTitle);
-        upsertMeta('property', 'twitter:description', resolved.siteDescription);
+        upsertMeta('property', 'og:url', currentUrl);
+        upsertMeta('name', 'twitter:title', resolved.siteTitle);
+        upsertMeta('name', 'twitter:description', resolved.siteDescription);
+        upsertMeta('name', 'twitter:url', currentUrl);
+        upsertCanonical(currentUrl);
       }
 
       fetch('/api/site-info?_t=' + Date.now(), { cache: 'no-store' })
@@ -94,11 +109,12 @@
     <meta property="og:locale" content="zh_CN" />
     
     <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://hao.uied.cn/" />
-    <meta property="twitter:title" content="UIED设计导航 - 精选设计工具与资源导航平台" />
-    <meta property="twitter:description" content="专业的设计师导航网站，精选优质UI/UX设计工具、平面设计资源、AI设计工具，为设计师提供一站式设计资源导航服务。" />
-    <meta property="twitter:image" content="https://hao.uied.cn/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://hao.uied.cn/" />
+    <meta name="twitter:title" content="UIED设计导航 - 精选设计工具与资源导航平台" />
+    <meta name="twitter:description" content="专业的设计师导航网站，精选优质UI/UX设计工具、平面设计资源、AI设计工具，为设计师提供一站式设计资源导航服务。" />
+    <meta name="twitter:image" content="https://hao.uied.cn/og-image.jpg" />
+    <link rel="canonical" href="https://hao.uied.cn/" />
     
     <!-- 其他 SEO 标签 -->
     <meta name="format-detection" content="telephone=no" />

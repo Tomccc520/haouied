@@ -309,12 +309,14 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
 
   // 热门标签优先级：
   // 1. 传入的 hotTags（旧版本兼容）
-  // 2. 动态热门标签（按点击量排序，如果有的话）
-  // 3. API 配置的热门标签（后台配置）
-  // 4. 默认的静态标签
-  const currentHotTags = hotTags || 
+  // 2. API 配置的热门标签（后台页面管理自定义）
+  // 3. 动态热门标签（按后台网站标签热度）
+  // 4. 默认静态标签
+  // 说明：后台填写“热门搜索标签”即使用自定义；留空时自动回退动态标签。
+  const apiConfiguredHotTags = parseApiHotSearchTags();
+  const currentHotTags = hotTags ||
+    (apiConfiguredHotTags && apiConfiguredHotTags.length > 0 ? apiConfiguredHotTags : null) ||
     (dynamicHotTags && dynamicHotTags.length > 0 ? dynamicHotTags : null) ||
-    parseApiHotSearchTags() || 
     getHotTags();
 
   // 根据页面类型添加主题类名

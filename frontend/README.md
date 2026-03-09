@@ -48,6 +48,21 @@ npm start
 npm run build
 ```
 
+### 仅构建前端静态包（不做 SEO 预渲染）
+```bash
+npm run build:plain
+```
+
+### SEO 预渲染构建（推荐正式环境）
+```bash
+# 可选环境变量：
+# SEO_API_ORIGIN=http://127.0.0.1:7001
+# SEO_SITE_ORIGIN=https://hao.uied.cn
+# SEO_INCLUDE_WEBSITE_DETAILS=true
+# SEO_WEBSITE_LIMIT=5000
+npm run build:seo
+```
+
 ## 🏗️ 技术架构
 
 ### 前端技术栈

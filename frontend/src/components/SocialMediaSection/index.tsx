@@ -278,7 +278,8 @@ const SocialMediaSection: React.FC = () => {
         const data = unwrapApiList<SocialMediaGroup>(res.data);
         const normalized = normalizeGroups(data);
         setGroups(normalized);
-        setActiveGroup((prev) => prev || normalized[0]?.id || null);
+        // 首屏默认不展开，避免打开页面时误触发弹层显示。
+        setActiveGroup(null);
       } catch (error) {
         console.error('获取关注交流数据失败:', error);
         setGroups([]);

@@ -26,7 +26,7 @@ const SEO: React.FC<SEOProps> = ({
   description,
   keywords,
   image = 'https://hao.uied.cn/og-image.jpg',
-  url = 'https://hao.uied.cn',
+  url,
   type = 'website',
   noindex = false,
   canonical
@@ -36,10 +36,13 @@ const SEO: React.FC<SEOProps> = ({
   const defaultTitle = String(siteInfo?.siteTitle || siteName).trim() || siteName;
   const defaultDescription = String(
     siteInfo?.description ||
+      (siteInfo as { siteDescription?: string } | undefined)?.siteDescription ||
       'UIED设计导航是专业的设计师导航网站，精选优质UI/UX设计工具、平面设计资源、AI设计工具，为设计师提供一站式设计资源导航服务。'
   ).trim();
   const defaultKeywords = String(
-    siteInfo?.keywords || '设计导航,UI设计工具,UX设计,平面设计,AI设计,设计资源,设计师工具,Figma,Sketch,设计灵感,UIED'
+    siteInfo?.keywords ||
+      (siteInfo as { siteKeywords?: string } | undefined)?.siteKeywords ||
+      '设计导航,UI设计工具,UX设计,平面设计,AI设计,设计资源,设计师工具,Figma,Sketch,设计灵感,UIED'
   ).trim();
 
   /**
@@ -54,19 +57,50 @@ const SEO: React.FC<SEOProps> = ({
   })();
   const resolvedDescription = String(description || defaultDescription).trim() || defaultDescription;
   const resolvedKeywords = String(keywords || defaultKeywords).trim() || defaultKeywords;
+  const defaultCanonicalUrl = (() => {
+    if (typeof window === 'undefined') {
+      return 'https://hao.uied.cn/';
+    }
+    return `${window.location.origin}${window.location.pathname}`;
+  })();
+  const resolvedUrl = (() => {
+    if (!url) return defaultCanonicalUrl;
+    const raw = String(url).trim();
+    if (!raw) return defaultCanonicalUrl;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (typeof window === 'undefined') return `https://hao.uied.cn${raw.startsWith('/') ? raw : `/${raw}`}`;
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch (_error) {
+      return defaultCanonicalUrl;
+    }
+  })();
+  const canonicalHref = (() => {
+    if (canonical === undefined) return defaultCanonicalUrl;
+    if (canonical === false) return false;
+    const raw = String(canonical || '').trim();
+    if (!raw) return defaultCanonicalUrl;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (typeof window === 'undefined') return `https://hao.uied.cn${raw.startsWith('/') ? raw : `/${raw}`}`;
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch (_error) {
+      return defaultCanonicalUrl;
+    }
+  })();
 
   useEffect(() => {
     // 更新页面标题
     document.title = fullTitle;
 
     // 更新或创建meta标签的通用函数
-    const updateMetaTag = (name: string, content: string, property = false) => {
-      const selector = property ? `meta[property="${name}"]` : `meta[name="${name}"]`;
+    const updateMetaTag = (name: string, content: string, mode: 'name' | 'property' = 'name') => {
+      const selector = mode === 'property' ? `meta[property="${name}"]` : `meta[name="${name}"]`;
       let meta = document.querySelector(selector) as HTMLMetaElement;
       
       if (!meta) {
         meta = document.createElement('meta');
-        if (property) {
+        if (mode === 'property') {
           meta.setAttribute('property', name);
         } else {
           meta.setAttribute('name', name);
@@ -82,21 +116,21 @@ const SEO: React.FC<SEOProps> = ({
     updateMetaTag('robots', noindex ? 'noindex,nofollow' : 'index,follow');
 
     // 更新Open Graph标签
-    updateMetaTag('og:type', type, true);
-    updateMetaTag('og:title', fullTitle, true);
-    updateMetaTag('og:description', resolvedDescription, true);
-    updateMetaTag('og:image', image, true);
-    updateMetaTag('og:url', url, true);
-    updateMetaTag('og:site_name', siteName, true);
+    updateMetaTag('og:type', type, 'property');
+    updateMetaTag('og:title', fullTitle, 'property');
+    updateMetaTag('og:description', resolvedDescription, 'property');
+    updateMetaTag('og:image', image, 'property');
+    updateMetaTag('og:url', resolvedUrl, 'property');
+    updateMetaTag('og:site_name', siteName, 'property');
 
-    // 更新Twitter标签
-    updateMetaTag('twitter:card', 'summary_large_image', true);
-    updateMetaTag('twitter:title', fullTitle, true);
-    updateMetaTag('twitter:description', resolvedDescription, true);
-    updateMetaTag('twitter:image', image, true);
+    // 更新Twitter标签（使用 name 属性，避免被部分抓取器忽略）
+    updateMetaTag('twitter:card', 'summary_large_image');
+    updateMetaTag('twitter:title', fullTitle);
+    updateMetaTag('twitter:description', resolvedDescription);
+    updateMetaTag('twitter:image', image);
+    updateMetaTag('twitter:url', resolvedUrl);
 
     // 更新 canonical 链接（支持按页面关闭 canonical）
-    const canonicalHref = canonical === undefined ? url : canonical;
     const canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (canonicalHref === false) {
       if (canonicalLink?.parentNode) {
@@ -109,10 +143,10 @@ const SEO: React.FC<SEOProps> = ({
         node.setAttribute('rel', 'canonical');
         document.head.appendChild(node);
       }
-      node.setAttribute('href', String(canonicalHref || url));
+      node.setAttribute('href', String(canonicalHref || defaultCanonicalUrl));
     }
 
-  }, [fullTitle, resolvedDescription, resolvedKeywords, image, url, type, noindex, canonical, siteName]);
+  }, [fullTitle, resolvedDescription, resolvedKeywords, image, resolvedUrl, type, noindex, canonicalHref, defaultCanonicalUrl, siteName]);
 
   return null; // 该组件不渲染任何内容
 };

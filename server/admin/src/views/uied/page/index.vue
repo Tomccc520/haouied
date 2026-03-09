@@ -178,7 +178,9 @@
                                 :rows="2"
                                 placeholder="标签1,标签2,标签3"
                             />
-                            <div class="text-gray-400 text-xs mt-1">多个标签用逗号分隔</div>
+                            <div class="text-gray-400 text-xs mt-1">
+                                支持两种模式：填写则使用自定义标签；留空则前台按后台网站标签热度自动生成。
+                            </div>
                         </el-form-item>
                         <el-form-item label="背景类型">
                             <el-select v-model="editData.heroBgType" class="w-100">
@@ -1489,12 +1491,34 @@ const getBgHint = () => {
 const loadScrollCategories = async () => {
     try {
         const cats = await uiedCategoryAll()
-        // 过滤出有网站的分类（通过检查是否有子分类或直接有网站）
-        // 这里简化处理：只显示子分类（parent_id 不为空的）
-        scrollCategories.value = (cats || []).filter((c: any) => c.parentId !== null)
+        // 仅保留子分类，避免把顶级分类混入滚动图标来源。
+        scrollCategories.value = (cats || []).filter(
+            (c: any) => Number.parseInt(String(c?.parentId || 0), 10) > 0
+        )
     } catch (e) {
         console.error('加载分类失败:', e)
     }
+}
+
+/**
+ * 根据网站列表反推“滚动图标分类”已选值，便于编辑态正确回显。
+ */
+const resolveScrollCategoryIdsByWebsites = (websites: any[]): number[] => {
+    const ids = new Set<number>()
+    ;(Array.isArray(websites) ? websites : []).forEach((website) => {
+        const categoryIds = Array.isArray(website?.categoryIds)
+            ? website.categoryIds
+            : []
+        categoryIds.forEach((rawId: any) => {
+            const parsed = Number.parseInt(String(rawId || 0), 10)
+            if (Number.isInteger(parsed) && parsed > 0) ids.add(parsed)
+        })
+        const primaryCategoryId = Number.parseInt(String(website?.categoryId || 0), 10)
+        if (Number.isInteger(primaryCategoryId) && primaryCategoryId > 0) {
+            ids.add(primaryCategoryId)
+        }
+    })
+    return Array.from(ids)
 }
 
 // 监听分类选择变化，自动获取分类下的网站并更新 selectedScrollWebsites
@@ -1502,7 +1526,14 @@ const loadingScrollWebsites = ref(false)
 watch(selectedScrollCategoryIds, async (newIds) => {
     // 编辑加载时不触发，避免覆盖已有数据
     if (isEditLoading.value) return
-    if (!newIds || newIds.length === 0) {
+    const normalizedIds = Array.from(
+        new Set(
+            (Array.isArray(newIds) ? newIds : [])
+                .map((item) => Number.parseInt(String(item || 0), 10))
+                .filter((item) => Number.isInteger(item) && item > 0)
+        )
+    )
+    if (normalizedIds.length === 0) {
         selectedScrollWebsites.value = []
         return
     }
@@ -1510,20 +1541,20 @@ watch(selectedScrollCategoryIds, async (newIds) => {
     try {
         // 逐个分类获取网站，合并去重
         const allWebsites: any[] = []
-        const seenIds = new Set<number>()
-        for (const catId of newIds) {
+        const seenIds = new Set<string>()
+        for (const catId of normalizedIds) {
             const res = await uiedWebsiteList({
                 categoryId: catId,
                 includeChildren: 'true',
-                pageSize: 200,
+                pageSize: 500,
                 pageNo: 1
             })
             const websites = res?.lists || []
             for (const w of websites) {
-                if (!seenIds.has(w.id)) {
-                    seenIds.add(w.id)
-                    allWebsites.push(w)
-                }
+                const websiteId = String(w?.id || '')
+                if (!websiteId || seenIds.has(websiteId)) continue
+                seenIds.add(websiteId)
+                allWebsites.push(w)
             }
         }
         selectedScrollWebsites.value = allWebsites
@@ -1534,6 +1565,20 @@ watch(selectedScrollCategoryIds, async (newIds) => {
         loadingScrollWebsites.value = false
     }
 })
+
+/**
+ * Hero 显示模式切换为“搜索框模式”时，清空滚动图标分类与网站选择，避免误保存旧配置。
+ */
+watch(
+    () => editData.heroDisplayMode,
+    (mode) => {
+        if (!showEdit.value) return
+        if (isEditLoading.value) return
+        if (mode === 'iconScroll') return
+        selectedScrollCategoryIds.value = []
+        selectedScrollWebsites.value = []
+    }
+)
 
 const resetEditData = () => {
     Object.assign(editData, {
@@ -1584,6 +1629,8 @@ const handleAdd = () => {
 const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'basic') => {
     isEditLoading.value = true
     slugTouched.value = true
+    selectedScrollCategoryIds.value = []
+    selectedScrollWebsites.value = []
     // 转换热门标签数组为字符串
     const hotSearchTagsStr = Array.isArray(row.hotSearchTags)
         ? row.hotSearchTags.join(',')
@@ -1620,8 +1667,10 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
     // 加载分类列表
     await loadScrollCategories()
 
+    const isIconScrollMode = String(row?.heroDisplayMode || '').trim() === 'iconScroll'
+
     // 如果有滚动网站，加载网站详情
-    if (heroScrollWebsites.length > 0) {
+    if (isIconScrollMode && heroScrollWebsites.length > 0) {
         try {
             // 使用 uiedWebsiteSearch 通过 ids 参数查询，支持新旧ID格式
             const idsStr = heroScrollWebsites.map((id) => String(id)).join(',')
@@ -1643,15 +1692,29 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
                         )
                     )
                     .filter(Boolean)
+                const matchedCategoryIds = resolveScrollCategoryIdsByWebsites(
+                    selectedScrollWebsites.value
+                )
+                const availableCategoryIds = new Set(
+                    scrollCategories.value.map((item: any) =>
+                        Number.parseInt(String(item?.id || 0), 10)
+                    )
+                )
+                selectedScrollCategoryIds.value = matchedCategoryIds.filter((id) =>
+                    availableCategoryIds.has(id)
+                )
             } else {
                 selectedScrollWebsites.value = []
+                selectedScrollCategoryIds.value = []
             }
         } catch (e) {
             console.error('加载滚动网站失败:', e)
             selectedScrollWebsites.value = []
+            selectedScrollCategoryIds.value = []
         }
     } else {
         selectedScrollWebsites.value = []
+        selectedScrollCategoryIds.value = []
     }
 
     editTab.value = initialTab
@@ -1663,6 +1726,7 @@ const handleSubmit = async () => {
     await editFormRef.value?.validate()
     editLoading.value = true
     try {
+        const isIconScrollMode = editData.heroDisplayMode === 'iconScroll'
         // 转换热门标签字符串为数组
         const submitData = {
             ...editData,
@@ -1672,7 +1736,9 @@ const handleSubmit = async () => {
                       .map((s) => s.trim())
                       .filter(Boolean)
                 : [],
-            heroScrollWebsites: selectedScrollWebsites.value.map((w) => w.id)
+            heroScrollWebsites: isIconScrollMode
+                ? selectedScrollWebsites.value.map((w) => w.id)
+                : []
         }
         delete (submitData as any).hotSearchTagsStr
 

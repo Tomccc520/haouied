@@ -30,7 +30,10 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build:plain": "react-scripts build",
+    "build": "npm run build:plain && node scripts/prerender-seo.js",
+    "build:seo": "npm run build",
+    "seo:prerender": "node scripts/prerender-seo.js",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "npm run lint -- --fix",
     "test": "react-scripts test",

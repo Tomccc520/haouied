@@ -386,10 +386,13 @@ class FrontendService extends Service {
   async getPageHotTags(slug, limit = 10) {
     const { app } = this;
     await this.ensureWebsiteCategoryTable();
+    const safeLimit = Number.isInteger(parseInt(limit, 10))
+      ? Math.max(1, Math.min(30, parseInt(limit, 10)))
+      : 10;
 
     // 获取页面
     const [ page ] = await app.model.query(
-      'SELECT id FROM uied_page WHERE slug = ? AND is_delete = 0',
+      'SELECT id, hot_search_tags FROM uied_page WHERE slug = ? AND is_delete = 0',
       { replacements: [ slug ], type: app.Sequelize.QueryTypes.SELECT }
     );
 
@@ -402,13 +405,13 @@ class FrontendService extends Service {
 
     // 获取点击量最高的网站
     let topWebsites = await app.model.query(
-      `SELECT w.id, w.name, w.click_count as clickCount
+      `SELECT w.id, w.name, w.click_count as clickCount, w.tags
        FROM uied_website w
        WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')} AND w.click_count > 0
        ORDER BY w.click_count DESC, w.is_hot DESC, w.is_featured DESC
        LIMIT ?`,
       {
-        replacements: [ ...categoryFilter.replacements, parseInt(limit) ],
+        replacements: [ ...categoryFilter.replacements, safeLimit * 4 ],
         type: app.Sequelize.QueryTypes.SELECT,
       }
     );
@@ -416,21 +419,50 @@ class FrontendService extends Service {
     // 如果没有点击量数据，回退到热门网站
     if (topWebsites.length === 0) {
       topWebsites = await app.model.query(
-        `SELECT w.id, w.name, w.click_count as clickCount
+        `SELECT w.id, w.name, w.click_count as clickCount, w.tags
          FROM uied_website w
          WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')}
            AND (w.is_hot = 1 OR w.is_featured = 1)
          ORDER BY w.is_hot DESC, w.is_featured DESC, w.sort ASC
          LIMIT ?`,
         {
-          replacements: [ ...categoryFilter.replacements, parseInt(limit) ],
+          replacements: [ ...categoryFilter.replacements, safeLimit * 4 ],
           type: app.Sequelize.QueryTypes.SELECT,
         }
       );
     }
 
+    /**
+     * 统计页面范围内网站标签热度，优先返回站点标签而非站点名称。
+     */
+    const buildDynamicTags = () => {
+      const scoreMap = new Map();
+      (Array.isArray(topWebsites) ? topWebsites : []).forEach((website, index) => {
+        const clickCount = Number.parseInt(String(website?.clickCount || 0), 10) || 0;
+        const weight = Math.max(clickCount, Math.max(safeLimit - index, 1));
+        const tagBundle = this.parseWebsiteTagBundle(website?.tags);
+        const tags = Array.from(new Set((tagBundle?.tags || []).map(item => String(item || '').trim()).filter(Boolean)));
+        tags.forEach(tag => {
+          const prev = Number(scoreMap.get(tag) || 0);
+          scoreMap.set(tag, prev + weight);
+        });
+      });
+      return Array.from(scoreMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, safeLimit)
+        .map(item => String(item[0]));
+    };
+
+    const dynamicTags = buildDynamicTags();
+    const pageCustomTags = this.safeJsonParse(page.hot_search_tags, [])
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    const resolvedTags = dynamicTags.length > 0
+      ? dynamicTags
+      : pageCustomTags.slice(0, safeLimit);
+
     return {
-      tags: topWebsites.map(w => w.name),
+      tags: resolvedTags,
       websites: topWebsites.map(w => ({
         id: String(w.id),
         name: w.name,
@@ -1178,6 +1210,397 @@ class FrontendService extends Service {
     );
 
     return apis;
+  }
+
+  /**
+   * 规范化 SEO 文本，去除首尾空白并提供兜底值。
+   * @param {unknown} value 原始文本
+   * @param {string} fallback 兜底文本
+   * @return {string} 规范化文本
+   */
+  normalizeSeoText(value, fallback = '') {
+    const text = String(value ?? '').trim();
+    return text || String(fallback || '').trim();
+  }
+
+  /**
+   * 解析布尔值（兼容 0/1、true/false、yes/no 等形式）。
+   * @param {unknown} value 原始值
+   * @param {boolean} fallback 默认值
+   * @return {boolean} 解析结果
+   */
+  parseBoolean(value, fallback = false) {
+    if (value === undefined || value === null || value === '') return fallback;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    const text = String(value).trim().toLowerCase();
+    if ([ '1', 'true', 'yes', 'y', 'on' ].includes(text)) return true;
+    if ([ '0', 'false', 'no', 'n', 'off' ].includes(text)) return false;
+    return fallback;
+  }
+
+  /**
+   * 构建“标题 + 站点名”格式，避免重复追加站点名。
+   * @param {unknown} title 页面标题
+   * @param {unknown} siteName 站点名称
+   * @return {string} 规范化标题
+   */
+  buildSeoTitle(title, siteName) {
+    const resolvedSiteName = this.normalizeSeoText(siteName, 'UIED设计导航');
+    const resolvedTitle = this.normalizeSeoText(title, resolvedSiteName);
+    if (!resolvedTitle) return resolvedSiteName;
+    if (!resolvedSiteName) return resolvedTitle;
+    if (resolvedTitle.includes(resolvedSiteName)) return resolvedTitle;
+    return `${resolvedTitle} - ${resolvedSiteName}`;
+  }
+
+  /**
+   * 规范化路由路径，统一为以 "/" 开头且不带尾部 "/"（根路径除外）。
+   * @param {unknown} inputPath 原始路径
+   * @param {string} fallback 兜底路径
+   * @return {string} 规范化路径
+   */
+  normalizeRoutePath(inputPath, fallback = '/') {
+    const raw = String(inputPath || '').trim();
+    if (!raw) return fallback;
+    if (/^https?:\/\//i.test(raw)) return fallback;
+    const purePath = raw.split('?')[0].split('#')[0].trim();
+    if (!purePath || purePath === '/') return '/';
+    const normalized = `/${purePath.replace(/^\/+/, '').replace(/\/+$/, '')}`;
+    return normalized === '/' ? '/' : normalized;
+  }
+
+  /**
+   * 根据固定链接配置生成网站详情页路径。
+   * @param {object} permalinkConfig 固定链接配置
+   * @param {number|string} websiteId 网站ID
+   * @param {string} websiteSlug 网站slug
+   * @return {string} 详情路径
+   */
+  buildWebsitePermalinkPath(permalinkConfig = {}, websiteId, websiteSlug = '') {
+    const idText = String(websiteId || '').trim();
+    const slugText = String(websiteSlug || '').trim() || idText;
+    const structure = String(permalinkConfig?.structure || 'plain').trim().toLowerCase();
+    const customPattern = String(permalinkConfig?.customPattern || '').trim();
+
+    if (structure === 'id') {
+      return this.normalizeRoutePath(`/website/${idText}.html`, `/website/${idText}`);
+    }
+    if (structure === 'name') {
+      return this.normalizeRoutePath(`/website/${slugText}`, `/website/${idText}`);
+    }
+    if (structure === 'custom' && customPattern) {
+      const resolved = customPattern
+        .replace(/%id%/g, idText)
+        .replace(/%slug%/g, slugText)
+        .replace(/%name%/g, slugText);
+      return this.normalizeRoutePath(`/website/${resolved}`, `/website/${idText}`);
+    }
+    return this.normalizeRoutePath(`/website/${idText}`, '/website');
+  }
+
+  /**
+   * 构建前端预渲染所需的 SEO 路由清单（用于构建后生成静态路由 HTML）。
+   * @param {object} options 选项
+   * @param {string} options.siteOrigin 站点主域名（含协议）
+   * @param {boolean} options.includeWebsiteDetails 是否包含网站详情路由
+   * @param {number} options.websiteLimit 网站详情路由数量上限
+   * @return {Promise<object>} SEO 预渲染清单
+   */
+  async buildSeoPrerenderManifest(options = {}) {
+    const { app, ctx } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const siteOrigin = String(options.siteOrigin || process.env.UIED_SITE_ORIGIN || 'https://hao.uied.cn')
+      .trim()
+      .replace(/\/+$/, '') || 'https://hao.uied.cn';
+    const includeWebsiteDetails = this.parseBoolean(options.includeWebsiteDetails, true);
+    const rawWebsiteLimit = Number.parseInt(String(options.websiteLimit || 5000), 10);
+    const websiteLimit = Number.isInteger(rawWebsiteLimit) && rawWebsiteLimit > 0
+      ? Math.min(rawWebsiteLimit, 50000)
+      : 5000;
+
+    const siteInfo = (await ctx.service.uied.setting.getSiteInfo().catch(() => null)) || {};
+    const siteName = this.normalizeSeoText(siteInfo.siteName, 'UIED设计导航');
+    const siteTitle = this.buildSeoTitle(siteInfo.siteTitle || siteName, siteName);
+    const siteDescription = this.normalizeSeoText(
+      siteInfo.siteDescription || siteInfo.description,
+      '发现优质设计与 AI 工具资源'
+    );
+    const siteKeywords = this.normalizeSeoText(
+      siteInfo.siteKeywords || siteInfo.keywords,
+      'UIED,AI工具导航,设计导航,设计资源'
+    );
+
+    const routeMap = new Map();
+
+    /**
+     * 合并并写入一条路由 SEO 元数据，后写入值仅覆盖非空字段。
+     * @param {object} route 路由对象
+     */
+    const upsertRoute = route => {
+      const path = this.normalizeRoutePath(route?.path || '/');
+      const existing = routeMap.get(path) || {};
+      const noindex = route?.noindex === true
+        ? true
+        : (route?.noindex === false ? false : existing.noindex === true);
+      const normalized = {
+        path,
+        canonicalPath: this.normalizeRoutePath(route?.canonicalPath || existing.canonicalPath || path),
+        title: this.normalizeSeoText(route?.title, existing.title || siteTitle),
+        description: this.normalizeSeoText(route?.description, existing.description || siteDescription),
+        keywords: this.normalizeSeoText(route?.keywords, existing.keywords || siteKeywords),
+        noindex,
+        updatedAt: Number.parseInt(String(route?.updatedAt || existing.updatedAt || now), 10) || now,
+      };
+      routeMap.set(path, normalized);
+    };
+
+    // 全站公共路由（保证核心页面有首屏 SEO）
+    [
+      { path: '/', title: siteTitle, description: siteDescription, keywords: siteKeywords },
+      { path: '/search', title: this.buildSeoTitle('全站搜索', siteName), description: siteDescription },
+      { path: '/submit', title: this.buildSeoTitle('网站提交', siteName), description: siteDescription },
+      { path: '/changelog', title: this.buildSeoTitle('更新日志', siteName), description: siteDescription },
+      { path: '/p/hot', title: this.buildSeoTitle('热门内容', siteName), description: siteDescription },
+      { path: '/hot', canonicalPath: '/p/hot', title: this.buildSeoTitle('热门内容', siteName), description: siteDescription, noindex: true },
+      { path: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription },
+      { path: '/categories', canonicalPath: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription, noindex: true },
+      { path: '/p/category', canonicalPath: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription, noindex: true },
+      { path: '/p/categories', canonicalPath: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription, noindex: true },
+      { path: '/tag', title: this.buildSeoTitle('全部标签', siteName), description: siteDescription },
+      { path: '/tags', canonicalPath: '/tag', title: this.buildSeoTitle('全部标签', siteName), description: siteDescription, noindex: true },
+      { path: '/p/tag', canonicalPath: '/tag', title: this.buildSeoTitle('全部标签', siteName), description: siteDescription, noindex: true },
+      { path: '/p/tags', canonicalPath: '/tag', title: this.buildSeoTitle('全部标签', siteName), description: siteDescription, noindex: true },
+      { path: '/articles', title: this.buildSeoTitle('文章中心', siteName), description: siteDescription },
+      { path: '/daily-hot', canonicalPath: '/p/hot', title: this.buildSeoTitle('每日热榜', siteName), description: siteDescription, noindex: true },
+      { path: '/p/daily-hot', canonicalPath: '/p/hot', title: this.buildSeoTitle('每日热榜', siteName), description: siteDescription, noindex: true },
+      { path: '/daily-new', canonicalPath: '/p/hot', title: this.buildSeoTitle('每日上新', siteName), description: siteDescription, noindex: true },
+      { path: '/p/daily-new', canonicalPath: '/p/hot', title: this.buildSeoTitle('每日上新', siteName), description: siteDescription, noindex: true },
+      { path: '/rankings', canonicalPath: '/p/hot', title: this.buildSeoTitle('热榜排行', siteName), description: siteDescription, noindex: true },
+      { path: '/p/rankings', canonicalPath: '/p/hot', title: this.buildSeoTitle('热榜排行', siteName), description: siteDescription, noindex: true },
+    ].forEach(upsertRoute);
+
+    // 动态导航页
+    try {
+      const pageRows = await app.model.query(
+        `SELECT id, slug, name, description, update_time
+         FROM uied_page
+         WHERE is_delete = 0 AND is_show = 1
+         ORDER BY sort ASC, id ASC`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      const fixedSlugSet = new Set([ 'uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font' ]);
+      const frontendConfig = await ctx.service.uied.setting.get('homepageConfig').catch(() => ({}));
+      const homePageSlug = String(frontendConfig?.homePageSlug || 'uiux').trim().toLowerCase() || 'uiux';
+
+      (Array.isArray(pageRows) ? pageRows : []).forEach(row => {
+        const slug = String(row?.slug || '').trim().toLowerCase();
+        if (!slug) return;
+        const pageName = this.normalizeSeoText(row?.name, slug);
+        const title = this.buildSeoTitle(pageName, siteName);
+        const description = this.normalizeSeoText(row?.description, siteDescription);
+        const keywords = `${pageName},${siteKeywords}`;
+        const updatedAt = Number.parseInt(String(row?.update_time || now), 10) || now;
+        upsertRoute({ path: `/p/${slug}`, title, description, keywords, updatedAt });
+        if (fixedSlugSet.has(slug)) {
+          upsertRoute({ path: `/${slug}`, title, description, keywords, updatedAt });
+        }
+        if (slug === homePageSlug) {
+          upsertRoute({ path: '/', title, description, keywords, updatedAt });
+        }
+      });
+    } catch (error) {
+      ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取页面数据失败: ${error?.message || error}`);
+    }
+
+    // 分类详情页
+    try {
+      const categoryRows = await app.model.query(
+        `SELECT slug, name, description, seo_title, seo_description, seo_keywords, update_time
+         FROM uied_category
+         WHERE is_delete = 0 AND is_show = 1 AND slug IS NOT NULL AND slug <> ''
+         ORDER BY sort ASC, id ASC`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      (Array.isArray(categoryRows) ? categoryRows : []).forEach(row => {
+        const slug = String(row?.slug || '').trim();
+        if (!slug) return;
+        const name = this.normalizeSeoText(row?.name, slug);
+        upsertRoute({
+          path: `/category/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 分类`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+        });
+        upsertRoute({
+          path: `/categories/${slug}`,
+          canonicalPath: `/category/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 分类`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+          noindex: true,
+        });
+        upsertRoute({
+          path: `/p/category/${slug}`,
+          canonicalPath: `/category/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 分类`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+          noindex: true,
+        });
+        upsertRoute({
+          path: `/p/categories/${slug}`,
+          canonicalPath: `/category/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 分类`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+          noindex: true,
+        });
+      });
+    } catch (error) {
+      ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取分类数据失败: ${error?.message || error}`);
+    }
+
+    // 标签详情页
+    try {
+      const tagRows = await app.model.query(
+        `SELECT slug, name, description, seo_title, seo_description, seo_keywords, update_time
+         FROM uied_website_tag
+         WHERE is_delete = 0 AND slug IS NOT NULL AND slug <> ''
+         ORDER BY sort ASC, id ASC`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      (Array.isArray(tagRows) ? tagRows : []).forEach(row => {
+        const slug = String(row?.slug || '').trim();
+        if (!slug) return;
+        const name = this.normalizeSeoText(row?.name, slug);
+        upsertRoute({
+          path: `/tag/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 标签`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+        });
+        upsertRoute({
+          path: `/tags/${slug}`,
+          canonicalPath: `/tag/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 标签`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+          noindex: true,
+        });
+        upsertRoute({
+          path: `/p/tag/${slug}`,
+          canonicalPath: `/tag/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 标签`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+          noindex: true,
+        });
+        upsertRoute({
+          path: `/p/tags/${slug}`,
+          canonicalPath: `/tag/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} 标签`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+          updatedAt: Number.parseInt(String(row?.update_time || now), 10) || now,
+          noindex: true,
+        });
+      });
+    } catch (error) {
+      ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取标签数据失败: ${error?.message || error}`);
+    }
+
+    // 文章详情页
+    try {
+      const articleRows = await app.model.query(
+        `SELECT slug, title, excerpt, seo_title, seo_description, update_time, published_at
+         FROM uied_article
+         WHERE is_delete = 0 AND status = 'published' AND slug IS NOT NULL AND slug <> ''
+         ORDER BY COALESCE(published_at, update_time) DESC, id DESC`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      (Array.isArray(articleRows) ? articleRows : []).forEach(row => {
+        const slug = String(row?.slug || '').trim();
+        if (!slug) return;
+        const titleSeed = this.normalizeSeoText(row?.seo_title || row?.title, slug);
+        const updatedAt = Number.parseInt(String(row?.published_at || row?.update_time || now), 10) || now;
+        upsertRoute({
+          path: `/article/${slug}`,
+          title: this.buildSeoTitle(titleSeed, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.excerpt, siteDescription),
+          keywords: `${titleSeed},${siteKeywords}`,
+          updatedAt,
+        });
+        upsertRoute({
+          path: `/articles/${slug}`,
+          canonicalPath: `/article/${slug}`,
+          title: this.buildSeoTitle(titleSeed, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.excerpt, siteDescription),
+          keywords: `${titleSeed},${siteKeywords}`,
+          updatedAt,
+          noindex: true,
+        });
+      });
+    } catch (error) {
+      ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取文章数据失败: ${error?.message || error}`);
+    }
+
+    // 网站详情页（可选）
+    if (includeWebsiteDetails) {
+      try {
+        const permalinkConfig = await ctx.service.uied.setting.get('permalink_config').catch(() => ({}));
+        const websiteRows = await app.model.query(
+          `SELECT id, slug, name, description, seo_title, seo_description, seo_keywords, update_time
+           FROM uied_website
+           WHERE is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()}
+           ORDER BY id DESC
+           LIMIT ?`,
+          {
+            replacements: [ websiteLimit ],
+            type: app.Sequelize.QueryTypes.SELECT,
+          }
+        );
+        (Array.isArray(websiteRows) ? websiteRows : []).forEach(row => {
+          const id = Number.parseInt(String(row?.id || 0), 10);
+          if (!Number.isInteger(id) || id <= 0) return;
+          const name = this.normalizeSeoText(row?.name, `网站 ${id}`);
+          const detailPath = this.buildWebsitePermalinkPath(permalinkConfig || {}, id, row?.slug || '');
+          const updatedAt = Number.parseInt(String(row?.update_time || now), 10) || now;
+          upsertRoute({
+            path: detailPath,
+            title: this.buildSeoTitle(row?.seo_title || name, siteName),
+            description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
+            keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
+            updatedAt,
+          });
+        });
+      } catch (error) {
+        ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取网站详情失败: ${error?.message || error}`);
+      }
+    }
+
+    const routes = Array.from(routeMap.values())
+      .sort((a, b) => a.path.localeCompare(b.path));
+
+    return {
+      generatedAt: now,
+      siteOrigin,
+      siteInfo: {
+        siteName,
+        siteTitle,
+        siteDescription,
+        siteKeywords,
+      },
+      routeCount: routes.length,
+      routes,
+    };
   }
 
   /**

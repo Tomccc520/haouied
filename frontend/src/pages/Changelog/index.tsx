@@ -71,6 +71,24 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.4',
+    date: '2026-03-09',
+    title: '正式版1.0.4：SEO 预渲染上线 + 专题页生成器增强',
+    changes: [
+      { type: 'feature', scope: 'backend', text: '【SEO】新增公开接口 /api/seo/prerender-manifest：统一输出站点信息、频道页、分类页、标签页、文章页与网址详情页的预渲染 SEO 路由清单（支持网站详情开关与数量上限）' },
+      { type: 'feature', scope: 'frontend', text: '【SEO】新增构建后预渲染脚本 frontend/scripts/prerender-seo.js，支持批量生成路由静态 HTML 首屏 meta + canonical，并同步生成 sitemap.xml' },
+      { type: 'improve', scope: 'frontend', text: '【SEO】新增 npm 脚本 build:seo / seo:prerender，部署时可直接产出“搜索引擎可读首屏源码”版本，降低仅靠运行时 JS 注入导致的抓取延迟' },
+      { type: 'fix', scope: 'frontend', text: '【SEO】修复 SEO 组件默认 canonical 错误指向首页的问题：未传 url 时自动使用当前页面路径，支持相对路径自动转绝对 URL' },
+      { type: 'fix', scope: 'frontend', text: '【SEO】修复 Twitter 元信息写入方式：改为 name 属性（twitter:title/description/url），提升主流抓取器识别稳定性' },
+      { type: 'fix', scope: 'frontend', text: '【SEO】修复动态频道页 canonical/og:url 生成错误：改为基于当前路由 pathname，避免 /p/slug 与固定频道页路径混淆' },
+      { type: 'improve', scope: 'backend', text: '【SEO】预渲染清单新增历史别名路由规范化：/hot、/categories、/tags、/p/category、/p/tag、/daily-hot 等别名统一输出 canonicalPath + noindex，减少重复收录与权重分散' },
+      { type: 'improve', scope: 'frontend', text: '【SEO】构建流程升级：npm run build 默认接入 prerender-seo 产物，新增 build:plain 用于仅打静态包，降低正式部署遗漏预渲染步骤的风险' },
+      { type: 'feature', scope: 'frontend', text: '【专题页工厂】后台模板工厂新增“新增模板 / 克隆模板 / 页面配置弹窗”能力，支持可视化编辑 Hero、热词、背景、显示开关与扩展 JSON，提升专题页售卖交付效率' },
+      { type: 'improve', scope: 'frontend', text: '【专题页工厂】模板列表新增分类Slug批量编辑，创建专题后返回前台访问路径提示；未保存模板支持本地直接移除，运营操作更顺手' },
+      { type: 'feature', scope: 'frontend', text: '【专题页工厂】新增模板包导入/导出：支持将模板批量打包为 JSON 交付文件，并在其他环境一键导入复用（适合售卖版快速落地）' },
+    ]
+  },
+  {
     version: '1.0.3',
     date: '2026-03-09',
     title: '正式版1.0.3：评论开关增强 + 自动审核抽屉化',
@@ -85,8 +103,11 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', scope: 'fullstack', text: '【后台评论】新增自动审核“风险分”机制：按敏感词、疑似词、外链、长度、重复等规则综合评分并输出低/中/高风险等级' },
       { type: 'feature', scope: 'frontend', text: '【后台评论】评论列表新增“审核命中”标签列，展示命中规则标签与风险分，便于运营快速人工复核' },
       { type: 'improve', scope: 'frontend', text: '【官网页脚】关注交流区改版为三列图标卡片样式，强化层级与对齐，悬浮详情面板改为轻玻璃卡片并优化移动端触发展示' },
+      { type: 'fix', scope: 'frontend', text: '【官网页脚】修复“关注交流”首屏自动展开问题：默认不激活任何分组，改为鼠标移入或触屏点击后才展示详情弹层' },
       { type: 'fix', scope: 'fullstack', text: '【缓存链路】页脚相关公开接口（导航菜单/友情链接/页脚配置）补充 no-cache 响应头，前端设置接口请求统一追加时间戳，降低正式环境缓存滞后' },
       { type: 'improve', scope: 'frontend', text: '【SEO链路】index.html 启动时动态同步后台 site-info 到 title/description/keywords 与 OG/Twitter 标签；下一步将推进 SSR/预渲染以满足“首屏源码即最新 SEO”' },
+      { type: 'fix', scope: 'frontend', text: '【页面管理】修复“滚动图标分类”编辑态设置异常：编辑页面时自动回显已关联分类，分类切换加载网站去重更稳定，非 iconScroll 模式不再误保存旧图标列表' },
+      { type: 'improve', scope: 'fullstack', text: '【热门搜索标签】页面管理支持“双模式”生效链路：填写自定义标签时前台优先显示；留空时自动按后台网站标签热度生成动态标签' },
     ]
   },
   {

@@ -19,7 +19,7 @@ import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalink
 import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { createSvgIconMap } from '../../utils/svgIconLibrary';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CategorySidebarSkeleton, 
   ToolGridSkeleton,
@@ -84,6 +84,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const { config: frontendConfig } = useFrontendConfig();
   const { config: permalinkConfig } = usePermalinkConfig();
   const detailNavigate = useNavigate();
+  const location = useLocation();
   const showDirectArrow = frontendConfig?.pageGlobalConfig?.showDirectArrow ?? false;
   const websiteClickMode = frontendConfig?.pageGlobalConfig?.websiteClickMode ?? 'detail';
   const directArrowNewWindow = frontendConfig?.pageGlobalConfig?.directArrowNewWindow ?? true;
@@ -338,7 +339,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         title={pageConfig?.name || '导航'}
         description={pageConfig?.description || ''}
         keywords={pageConfig?.name || ''}
-        url={`https://hao.uied.cn/${slug}`}
+        url={location.pathname || `/p/${slug}`}
       />
       
       {/* 头部Hero区域 */}

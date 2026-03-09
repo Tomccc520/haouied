@@ -1513,6 +1513,31 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取 SEO 预渲染路由清单（构建阶段使用）。
+   * GET /api/seo/prerender-manifest
+   */
+  async seoPrerenderManifest() {
+    const { ctx } = this;
+    const includeWebsiteDetails = this.parseBoolean(ctx.query?.includeWebsiteDetails, true);
+    const websiteLimit = this.parsePositiveInt(ctx.query?.websiteLimit, 5000);
+    const siteOrigin = String(ctx.query?.siteOrigin || '').trim();
+
+    try {
+      this.setNoCacheHeaders();
+      const data = await ctx.service.uied.frontend.buildSeoPrerenderManifest({
+        includeWebsiteDetails,
+        websiteLimit,
+        siteOrigin,
+      });
+      ctx.body = data;
+    } catch (error) {
+      ctx.logger.error('获取 SEO 预渲染清单失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 SEO 预渲染清单失败' };
+    }
+  }
+
+  /**
    * 获取每日热榜公开显示配置
    * GET /api/daily-hot/config
    */
