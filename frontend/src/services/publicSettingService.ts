@@ -331,10 +331,10 @@ export interface FrontendConfigPayload {
 // ==================== 默认配置 ====================
 
 export const DEFAULT_SITE_INFO: SiteInfo = {
-  siteName: 'UIED 导航',
-  siteTitle: '设计师导航 - 精选设计资源',
-  siteDescription: '为设计师精选的优质设计资源导航网站',
-  siteKeywords: '设计,UI,导航,资源',
+  siteName: 'UIED AI工具导航',
+  siteTitle: 'UIED AI工具导航 - 精选AI工具与资源平台',
+  siteDescription: 'UIED AI导航汇集全球优质AI工具与资源，涵盖AI写作、AI绘画、AI视频、AI办公、AI设计、AI编程等多个领域，帮助设计师、开发者与创作者快速发现和使用高效的人工智能工具。',
+  siteKeywords: 'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具,AI写作,AI绘画,AI视频,AI办公,AI设计工具',
   logo: '/logo-3.svg',
   favicon: '/favicon.ico',
   icp: '',

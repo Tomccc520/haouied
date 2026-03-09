@@ -44,13 +44,25 @@
         </el-card>
         <el-card class="!border-none mt-4" shadow="never">
             <div class="mb-4 flex justify-between">
-                <div>
+                <div class="flex items-center gap-2">
                     <el-button type="primary" @click="handleAdd()">
                         <template #icon><icon name="el-icon-Plus" /></template>
                         添加分类
                     </el-button>
+                    <el-button
+                        plain
+                        :loading="batchSeoPreparing || batchSeoGenerating"
+                        @click="openBatchGenerateSeoDialog"
+                    >
+                        批量生成SEO
+                    </el-button>
                 </div>
-                <div class="text-gray-400">共 {{ pager.count }} 个分类</div>
+                <div class="text-gray-400">
+                    <span v-if="batchSeoGenerating" class="mr-3 text-primary">{{
+                        batchSeoProgressText
+                    }}</span>
+                    共 {{ pager.count }} 个分类
+                </div>
             </div>
             <el-table
                 size="large"
@@ -117,6 +129,69 @@
                 <pagination v-model="pager" @change="getLists" />
             </div>
         </el-card>
+
+        <el-dialog
+            v-model="batchSeoConfigVisible"
+            title="批量生成SEO（仅空字段）"
+            width="520px"
+            :close-on-click-modal="!batchSeoGenerating"
+            :close-on-press-escape="!batchSeoGenerating"
+            :show-close="!batchSeoGenerating"
+        >
+            <el-alert
+                type="info"
+                :closable="false"
+                :title="`当前待处理分类 ${batchSeoTargetTotal} 条，预计本次执行 ${batchSeoEstimatedCount} 条`"
+            />
+            <el-form class="mt-4" label-width="110px">
+                <el-form-item label="从第几条开始">
+                    <el-input-number
+                        v-model="batchSeoForm.startFrom"
+                        :min="1"
+                        :max="Math.max(batchSeoTargetTotal, 1)"
+                        :step="1"
+                    />
+                </el-form-item>
+                <el-form-item label="最多处理条数">
+                    <el-input-number
+                        v-model="batchSeoForm.maxCount"
+                        :min="0"
+                        :max="batchSeoTargetTotal"
+                        :step="1"
+                    />
+                    <span class="ml-2 text-xs text-gray-400">0 表示处理剩余全部</span>
+                </el-form-item>
+                <el-form-item label="每批条数">
+                    <el-input-number
+                        v-model="batchSeoForm.batchSize"
+                        :min="1"
+                        :max="100"
+                        :step="1"
+                    />
+                </el-form-item>
+                <el-form-item label="批间隔(ms)">
+                    <el-input-number
+                        v-model="batchSeoForm.intervalMs"
+                        :min="0"
+                        :max="10000"
+                        :step="100"
+                    />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button :disabled="batchSeoGenerating" @click="batchSeoConfigVisible = false">
+                    取消
+                </el-button>
+                <el-button
+                    type="primary"
+                    :loading="batchSeoGenerating"
+                    :disabled="batchSeoEstimatedCount <= 0"
+                    @click="handleBatchGenerateSeoByAi"
+                >
+                    开始执行
+                </el-button>
+            </template>
+        </el-dialog>
 
         <!-- 添加/编辑弹窗 -->
         <el-dialog
@@ -425,6 +500,17 @@ const showEdit = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
 const seoGenerating = ref(false)
+const batchSeoPreparing = ref(false)
+const batchSeoGenerating = ref(false)
+const batchSeoProgressText = ref('')
+const batchSeoConfigVisible = ref(false)
+const batchSeoTargets = ref<Record<string, any>[]>([])
+const batchSeoForm = reactive({
+    startFrom: 1,
+    maxCount: 50,
+    batchSize: 10,
+    intervalMs: 300
+})
 const editData = reactive({
     id: 0,
     name: '',
@@ -552,6 +638,216 @@ const handleGenerateSeoByAi = async () => {
         feedback.msgError(error?.message || 'AI 生成失败，请检查 AI 配置')
     } finally {
         seoGenerating.value = false
+    }
+}
+
+/**
+ * 判断分类是否缺少 SEO 信息（任一字段为空即需要批量生成）。
+ */
+const needGenerateSeoForCategory = (category: Record<string, any>): boolean => {
+    const seoTitle = String(category?.seoTitle || '').trim()
+    const seoDescription = String(category?.seoDescription || '').trim()
+    const seoKeywords = String(category?.seoKeywords || '').trim()
+    return !seoTitle || !seoDescription || !seoKeywords
+}
+
+/**
+ * 将分类数据转换为编辑接口可用载荷，避免批量更新时覆盖其它字段。
+ */
+const buildBatchSeoEditPayload = (
+    category: Record<string, any>,
+    seoData: Record<string, any>
+): Record<string, any> => {
+    const fallbackSlug = String(category?.slug || '').trim() || `category-${category?.id || ''}`
+    const color = String(category?.color || '').trim() || '#1890ff'
+    const sortOrder = Number.parseInt(String(category?.order ?? 0), 10)
+    const visibleRaw = category?.visible
+    const isActive = visibleRaw === 0 || visibleRaw === false ? 0 : 1
+    const normalizedParentId = normalizeParentIdValue(category?.parentId)
+    return {
+        id: Number(category?.id || 0),
+        name: String(category?.name || '').trim(),
+        slug: fallbackSlug,
+        parentId: normalizedParentId,
+        description: String(category?.description || '').trim(),
+        icon: String(category?.icon || '').trim(),
+        themeColor: color,
+        sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+        isActive,
+        seoTitle: normalizeSeoText(
+            seoData?.seoTitle || category?.seoTitle || category?.name || '',
+            200
+        ),
+        seoDescription: normalizeSeoText(
+            seoData?.seoDescription || category?.seoDescription || category?.description || '',
+            500
+        ),
+        seoKeywords: normalizeSeoKeywordsText(
+            seoData?.seoKeywords || category?.seoKeywords || category?.name || ''
+        )
+    }
+}
+
+/**
+ * 计算批量SEO目标总数。
+ */
+const batchSeoTargetTotal = computed(() => batchSeoTargets.value.length)
+
+/**
+ * 计算本次预计处理条数，避免误触发超大批量。
+ */
+const batchSeoEstimatedCount = computed(() => {
+    const total = batchSeoTargetTotal.value
+    if (total <= 0) return 0
+    const startFrom = Math.max(1, Number.parseInt(String(batchSeoForm.startFrom || 1), 10) || 1)
+    const startIndex = Math.min(Math.max(startFrom - 1, 0), total)
+    const remainCount = Math.max(total - startIndex, 0)
+    const maxCount = Math.max(0, Number.parseInt(String(batchSeoForm.maxCount || 0), 10) || 0)
+    if (maxCount <= 0) return remainCount
+    return Math.min(remainCount, maxCount)
+})
+
+/**
+ * 异步等待：用于批处理节流，降低一次性AI请求压力。
+ */
+const sleep = (durationMs: number): Promise<void> =>
+    new Promise((resolve) => {
+        window.setTimeout(resolve, Math.max(0, durationMs))
+    })
+
+/**
+ * 基于批量配置构建最终执行队列。
+ */
+const buildBatchSeoQueue = (): Record<string, any>[] => {
+    const total = batchSeoTargetTotal.value
+    if (total <= 0) return []
+    const startFrom = Math.max(1, Number.parseInt(String(batchSeoForm.startFrom || 1), 10) || 1)
+    const startIndex = Math.min(Math.max(startFrom - 1, 0), total - 1)
+    const maxCount = Math.max(0, Number.parseInt(String(batchSeoForm.maxCount || 0), 10) || 0)
+    const queue = batchSeoTargets.value.slice(startIndex)
+    return maxCount > 0 ? queue.slice(0, maxCount) : queue
+}
+
+/**
+ * 打开批量SEO配置弹窗：
+ * 1. 先查询“SEO信息为空”的目标分类；
+ * 2. 提供分批参数配置，避免一次性处理过多。
+ */
+const openBatchGenerateSeoDialog = async () => {
+    if (batchSeoPreparing.value || batchSeoGenerating.value) return
+    batchSeoPreparing.value = true
+    try {
+        const rows = await uiedCategoryAll()
+        const allRows = Array.isArray(rows) ? rows : []
+        const targets = allRows.filter((item: any) => {
+            const name = String(item?.name || '').trim()
+            if (!name) return false
+            return needGenerateSeoForCategory(item)
+        })
+        if (!targets.length) {
+            feedback.msgWarning('没有需要批量生成SEO的分类')
+            return
+        }
+        batchSeoTargets.value = targets
+        const total = targets.length
+        if (batchSeoForm.startFrom > total) {
+            batchSeoForm.startFrom = 1
+        }
+        if (batchSeoForm.maxCount > total) {
+            batchSeoForm.maxCount = total
+        }
+        batchSeoConfigVisible.value = true
+    } catch (error: any) {
+        console.error('加载批量SEO分类失败:', error)
+        feedback.msgError(error?.message || '加载分类数据失败，请稍后重试')
+    } finally {
+        batchSeoPreparing.value = false
+    }
+}
+
+/**
+ * 批量生成分类 SEO：
+ * 1. 仅处理 SEO 字段缺失的分类；
+ * 2. 支持按“起始条数、最多处理、每批条数、批间隔”分批执行；
+ * 3. 输出成功/失败统计。
+ */
+const handleBatchGenerateSeoByAi = async () => {
+    if (batchSeoGenerating.value) return
+    batchSeoGenerating.value = true
+    batchSeoProgressText.value = '准备中...'
+
+    try {
+        const targets = buildBatchSeoQueue()
+        if (targets.length <= 0) {
+            feedback.msgWarning('没有需要批量生成SEO的分类')
+            return
+        }
+
+        const batchSize = Math.max(
+            1,
+            Number.parseInt(String(batchSeoForm.batchSize || 10), 10) || 10
+        )
+        const intervalMs = Math.max(
+            0,
+            Number.parseInt(String(batchSeoForm.intervalMs || 0), 10) || 0
+        )
+        let success = 0
+        let failed = 0
+
+        for (let index = 0; index < targets.length; index += 1) {
+            const item = targets[index]
+            const current = index + 1
+            const total = targets.length
+            batchSeoProgressText.value = `批量生成中 ${current}/${total}：${String(item?.name || '')}`
+            try {
+                const prompt = buildCategorySeoPrompt(
+                    String(item?.name || '').trim(),
+                    String(item?.description || '').trim(),
+                    String(item?.slug || '').trim()
+                )
+                const aiRes = await uiedAiChat({
+                    message: prompt,
+                    context: []
+                })
+                const reply = String(
+                    aiRes?.reply ||
+                        aiRes?.content ||
+                        aiRes?.data?.reply ||
+                        aiRes?.data?.content ||
+                        ''
+                ).trim()
+                const json = extractJsonPayload(reply)
+                if (!json) {
+                    failed += 1
+                    continue
+                }
+                const payload = buildBatchSeoEditPayload(item, json)
+                if (!payload.id || !payload.name || !payload.slug) {
+                    failed += 1
+                    continue
+                }
+                await uiedCategoryEdit(payload)
+                success += 1
+            } catch (error) {
+                console.error('批量生成分类SEO失败:', item?.id, error)
+                failed += 1
+            }
+            const finished = index + 1
+            const needPause =
+                intervalMs > 0 && finished < targets.length && finished % batchSize === 0
+            if (needPause) {
+                batchSeoProgressText.value = `批量生成中 ${finished}/${targets.length}：批次间隔 ${intervalMs}ms`
+                await sleep(intervalMs)
+            }
+        }
+
+        feedback.msgSuccess(`批量生成完成：成功 ${success}，失败 ${failed}，总计 ${targets.length}`)
+        batchSeoConfigVisible.value = false
+        getLists()
+        getTopCategories()
+    } finally {
+        batchSeoGenerating.value = false
+        batchSeoProgressText.value = ''
     }
 }
 

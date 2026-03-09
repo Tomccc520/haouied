@@ -37,10 +37,10 @@ export interface SiteInfo {
  */
 export const DEFAULT_SITE_INFO: SiteInfo = {
   id: 0,
-  siteName: 'UIED设计导航',
-  siteTitle: 'UIED设计导航 - 设计师的工具导航平台',
-  description: 'UIED设计导航汇集优质设计工具与资源',
-  keywords: '设计导航,UI设计,UX设计',
+  siteName: 'UIED AI工具导航',
+  siteTitle: 'UIED AI工具导航 - 精选AI工具与资源平台',
+  description: 'UIED AI导航汇集全球优质AI工具与资源，涵盖AI写作、AI绘画、AI视频、AI办公、AI设计、AI编程等多个领域，帮助设计师、开发者与创作者快速发现和使用高效的人工智能工具。',
+  keywords: 'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具,AI写作,AI绘画,AI视频,AI办公,AI设计工具',
   logo: '/logo-3.svg',
   favicon: '/favicon.ico',
 };

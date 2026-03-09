@@ -213,21 +213,35 @@
                 </el-table-column>
                 <el-table-column label="URL" min-width="200" show-overflow-tooltip>
                     <template #default="{ row }">
-                        <a :href="row.url" target="_blank" class="text-primary hover:underline">{{
+                        <a
+                            :href="row.url"
+                            target="_blank"
+                            class="text-primary hover:underline"
+                            @click.prevent="handleOpenWebsiteUrl(row)"
+                        >{{
                             row.url
                         }}</a>
                     </template>
                 </el-table-column>
                 <el-table-column label="前端路径" min-width="180" show-overflow-tooltip>
                     <template #default="{ row }">
-                        <a :href="getFrontendUrl(row)" target="_blank" class="text-primary hover:underline">
+                        <a
+                            :href="getFrontendUrl(row)"
+                            target="_blank"
+                            class="text-primary hover:underline"
+                            @click.prevent="handleOpenFrontendLink(row)"
+                        >
                             {{ getFrontendPath(row) }}
                         </a>
                     </template>
                 </el-table-column>
                 <el-table-column label="前端" width="80" align="center">
                     <template #default="{ row }">
-                        <a :href="getFrontendUrl(row)" target="_blank">
+                        <a
+                            :href="getFrontendUrl(row)"
+                            target="_blank"
+                            @click.prevent="handleOpenFrontendLink(row)"
+                        >
                             <el-button type="primary" link size="small">
                                 {{ isDraftWebsite(row) ? '预览' : '查看' }}
                             </el-button>
@@ -310,6 +324,7 @@
                             :href="websiteDetailData.url"
                             target="_blank"
                             class="text-primary hover:underline"
+                            @click.prevent="handleOpenWebsiteUrl(websiteDetailData)"
                         >
                             {{ websiteDetailData.url || '-' }}
                         </a>
@@ -322,6 +337,7 @@
                             :href="getFrontendUrl(websiteDetailData)"
                             target="_blank"
                             class="text-primary hover:underline"
+                            @click.prevent="handleOpenFrontendLink(websiteDetailData)"
                         >
                             打开页面
                         </a>
@@ -699,6 +715,7 @@ import {
     uiedWebsiteBatchImport,
     uiedWebsiteBatchGenerateDetailContent,
     uiedWebsiteBatchWeightTags,
+    uiedWebsiteClick,
     uiedCategoryAll
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
@@ -736,6 +753,70 @@ const getFrontendPath = (row: any) => {
  * 生成前端详情完整链接：用于后台快捷验证发布效果。
  */
 const getFrontendUrl = (row: any) => `${FRONTEND_BASE_URL}${getFrontendPath(row)}`
+
+/**
+ * 在当前列表与详情抽屉中同步递增点击量，避免必须手动刷新才能看到变化。
+ */
+const increaseWebsiteClickCountLocal = (websiteId: number) => {
+    if (!Number.isInteger(websiteId) || websiteId <= 0) return
+    const target = pager.lists.find((item: any) => Number(item?.id) === websiteId)
+    if (target) {
+        const current = Number.parseInt(String(target.clickCount || 0), 10) || 0
+        target.clickCount = current + 1
+    }
+    if (websiteDetailData.value && Number(websiteDetailData.value.id) === websiteId) {
+        const current = Number.parseInt(String(websiteDetailData.value.clickCount || 0), 10) || 0
+        websiteDetailData.value.clickCount = current + 1
+    }
+}
+
+/**
+ * 调用后端点击统计接口，统计口径与前端官网保持一致。
+ */
+const recordWebsiteClick = async (websiteId: number) => {
+    if (!Number.isInteger(websiteId) || websiteId <= 0) return
+    try {
+        await uiedWebsiteClick({ id: websiteId })
+        increaseWebsiteClickCountLocal(websiteId)
+    } catch (error) {
+        console.error('记录网站点击失败:', websiteId, error)
+    }
+}
+
+/**
+ * 后台打开网站外链并记录点击量：
+ * 1. 同步打开新窗口，避免浏览器拦截；
+ * 2. 异步记录点击统计并更新本地显示。
+ */
+const handleOpenWebsiteUrl = (row: any) => {
+    const targetUrl = String(row?.url || '').trim()
+    if (!targetUrl) {
+        feedback.msgWarning('该网站未配置有效URL')
+        return
+    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer')
+    const websiteId = Number.parseInt(String(row?.id || 0), 10)
+    if (!Number.isInteger(websiteId) || websiteId <= 0) return
+    void recordWebsiteClick(websiteId)
+}
+
+/**
+ * 后台打开前端详情页：
+ * 1. 支持直接预览草稿；
+ * 2. 非草稿站点同步写入点击统计，便于后台即时看到浏览量变化。
+ */
+const handleOpenFrontendLink = (row: any) => {
+    const targetUrl = String(getFrontendUrl(row) || '').trim()
+    if (!targetUrl) {
+        feedback.msgWarning('前端访问链接生成失败')
+        return
+    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer')
+    if (isDraftWebsite(row)) return
+    const websiteId = Number.parseInt(String(row?.id || 0), 10)
+    if (!Number.isInteger(websiteId) || websiteId <= 0) return
+    void recordWebsiteClick(websiteId)
+}
 
 /**
  * 格式化整数统计值，异常数据统一回退为 0。

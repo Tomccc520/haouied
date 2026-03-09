@@ -14,6 +14,13 @@ import SocialMediaSection from '../SocialMediaSection';
 import './Footer.css';
 
 /**
+ * 统一规范化文本，避免 null/undefined 影响标题判空逻辑。
+ */
+const normalizeText = (value: unknown): string => {
+  return String(value ?? '').trim();
+};
+
+/**
  * 页脚组件
  * 从后台API获取页脚内容
  */
@@ -26,6 +33,22 @@ const Footer: React.FC = () => {
   const { config: footerAboutConfig } = useFooterAboutConfig();
   const { links: friendLinks, loading: linksLoading } = useFriendLinks();
   const { siteInfo } = useSiteInfo();
+
+  /**
+   * 计算“关于区域”标题：
+   * 1. 若后台页脚标题为空或默认文案，优先使用站点信息标题（站点名称 -> 站点SEO标题）
+   * 2. 若后台已自定义页脚标题，则保持自定义值
+   */
+  const resolveAboutWidgetTitle = () => {
+    const configuredTitle = normalizeText(footerAboutConfig.aboutTitle);
+    const siteName = normalizeText(siteInfo?.siteName);
+    const siteTitle = normalizeText(siteInfo?.siteTitle);
+    const siteFallbackTitle = siteName || siteTitle;
+    const isDefaultTitle = configuredTitle === '' || configuredTitle === 'UIED设计导航';
+    return isDefaultTitle ? (siteFallbackTitle || 'UIED设计导航') : configuredTitle;
+  };
+
+  const aboutWidgetTitle = resolveAboutWidgetTitle();
 
   /**
    * 根据按钮配置返回链接属性，统一处理新窗口打开行为。
@@ -126,7 +149,7 @@ const Footer: React.FC = () => {
             <div className="footer-sections-grid">
               {/* 关于UIED - 固定内容 */}
               <div className="footer-section footer-about-section">
-                <h6 className="widget-title">{footerAboutConfig.aboutTitle}</h6>
+                <h6 className="widget-title">{aboutWidgetTitle}</h6>
                 <div className="textwidget">
                   {footerAboutConfig.aboutDescription}
                 </div>

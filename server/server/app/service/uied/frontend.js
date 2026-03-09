@@ -1246,7 +1246,7 @@ class FrontendService extends Service {
    * @return {string} 规范化标题
    */
   buildSeoTitle(title, siteName) {
-    const resolvedSiteName = this.normalizeSeoText(siteName, 'UIED设计导航');
+    const resolvedSiteName = this.normalizeSeoText(siteName, 'UIED AI工具导航');
     const resolvedTitle = this.normalizeSeoText(title, resolvedSiteName);
     if (!resolvedTitle) return resolvedSiteName;
     if (!resolvedSiteName) return resolvedTitle;
@@ -1320,15 +1320,15 @@ class FrontendService extends Service {
       : 5000;
 
     const siteInfo = (await ctx.service.uied.setting.getSiteInfo().catch(() => null)) || {};
-    const siteName = this.normalizeSeoText(siteInfo.siteName, 'UIED设计导航');
+    const siteName = this.normalizeSeoText(siteInfo.siteName, 'UIED AI工具导航');
     const siteTitle = this.buildSeoTitle(siteInfo.siteTitle || siteName, siteName);
     const siteDescription = this.normalizeSeoText(
       siteInfo.siteDescription || siteInfo.description,
-      '发现优质设计与 AI 工具资源'
+      'UIED AI导航汇集全球优质AI工具与资源，涵盖AI写作、AI绘画、AI视频、AI办公、AI设计、AI编程等多个领域，帮助设计师、开发者与创作者快速发现和使用高效的人工智能工具。'
     );
     const siteKeywords = this.normalizeSeoText(
       siteInfo.siteKeywords || siteInfo.keywords,
-      'UIED,AI工具导航,设计导航,设计资源'
+      'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具,AI写作,AI绘画,AI视频,AI办公,AI设计工具'
     );
 
     const routeMap = new Map();

@@ -276,7 +276,8 @@ const rsa = {
     'article:topic:all', // 所有文章专题
   ],
 
-  publicUrl: 'http://127.0.0.1:8002',
+  // 资源外链域名（可通过环境变量覆盖，避免线上返回 localhost 地址）
+  publicUrl: process.env.UIED_PUBLIC_URL || process.env.PUBLIC_URL || 'http://127.0.0.1:8002',
   // 资源访问前缀
   publicPrefix: '/api/uploads',
   // 版本

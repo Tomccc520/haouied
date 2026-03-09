@@ -71,6 +71,19 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.5',
+    date: '2026-03-09',
+    title: '正式版1.0.5：素材中心地址修复 + 分类SEO批量生成',
+    changes: [
+      { type: 'fix', scope: 'backend', text: '【素材中心】修复上传图片URL在正式环境返回 127.0.0.1 的问题：资源地址改为环境变量优先（UIED_PUBLIC_URL），并兼容历史本地绝对地址自动规范化' },
+      { type: 'fix', scope: 'fullstack', text: '【素材中心】修复本地开发素材预览异常：开发环境保留绝对资源地址，生产环境回退相对地址，避免后台素材中心图片加载失败' },
+      { type: 'improve', scope: 'frontend', text: '【站点SEO】统一默认兜底文案为“UIED AI工具导航”版本，接口异常回退时不再显示旧版设计导航文案' },
+      { type: 'feature', scope: 'frontend', text: '【分类管理】新增“批量生成SEO”脚本按钮：默认仅处理SEO字段为空的分类，逐条调用AI生成并自动保存，完成后展示成功/失败统计' },
+      { type: 'improve', scope: 'frontend', text: '【分类管理】批量SEO改为“可配置分批执行”：支持起始条目、最多处理条数、每批条数与批间隔，降低一次性跑全量导致卡顿风险' },
+      { type: 'fix', scope: 'frontend', text: '【网站管理】后台点击“网站URL/前端路径/查看按钮”时补齐点击上报（/api/uied/website/click），并在列表/详情抽屉实时回写点击量，避免“点击后浏览量不变”错觉' },
+    ]
+  },
+  {
     version: '1.0.4',
     date: '2026-03-09',
     title: '正式版1.0.4：SEO 预渲染上线 + 专题页生成器增强',
