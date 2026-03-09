@@ -86,6 +86,12 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', scope: 'frontend', text: '【专题页工厂】后台模板工厂新增“新增模板 / 克隆模板 / 页面配置弹窗”能力，支持可视化编辑 Hero、热词、背景、显示开关与扩展 JSON，提升专题页售卖交付效率' },
       { type: 'improve', scope: 'frontend', text: '【专题页工厂】模板列表新增分类Slug批量编辑，创建专题后返回前台访问路径提示；未保存模板支持本地直接移除，运营操作更顺手' },
       { type: 'feature', scope: 'frontend', text: '【专题页工厂】新增模板包导入/导出：支持将模板批量打包为 JSON 交付文件，并在其他环境一键导入复用（适合售卖版快速落地）' },
+      { type: 'fix', scope: 'frontend', text: '【导航切换】修复部分页面进入后顶部导航切换按钮默认值不一致：未命中频道路由时统一默认显示“AI导航”' },
+      { type: 'fix', scope: 'fullstack', text: '【点击统计】补齐前端多入口点击上报链路：分类页/标签页/搜索页/每日上新/动态频道/网址详情访问按钮均统一写入点击统计，后台“点击量”数据更完整' },
+      { type: 'improve', scope: 'backend', text: '【分类管理】分类列表统计改为真实关联口径：网站数与分类浏览量同时覆盖主分类 + 多分类关联表（uied_website_category），修复统计口径偏差' },
+      { type: 'feature', scope: 'frontend', text: '【分类管理】后台新增“前端路径 + 浏览量”列：可直接打开分类前端地址，并查看分类维度浏览数据' },
+      { type: 'feature', scope: 'frontend', text: '【网站管理】列表信息增强：新增前端路径、多分类标签、标记集与更新时间；新增“网站详情与点击数据”侧边抽屉，集中查看流量、来源占比与SEO内容' },
+      { type: 'improve', scope: 'frontend', text: '【批量导入】所属分类搜索体验优化：支持按“分类名称/层级路径/slug”检索，下拉项同步展示路径+slug，关闭下拉自动清空搜索词' },
     ]
   },
   {

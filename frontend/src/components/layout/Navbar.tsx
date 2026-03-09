@@ -22,7 +22,6 @@ import {
   DEFAULT_NAV_SWITCH_ITEMS,
   getNavSwitchDescription,
   isFixedDynamicNavSlug,
-  ROOT_NAV_SLUG,
 } from '../../config/navModel';
 import './Navbar.css';
 import './Navbar.mobile.css'; // 引入独立的移动端样式
@@ -313,7 +312,11 @@ const Navbar = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [navConfig, setNavConfig] = useState<NavbarConfig | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null); // 激活的二级菜单
-  const [currentNavType, setCurrentNavType] = useState<string>('uiux'); // 当前选中的导航类型，默认为UIUX
+  /**
+   * 导航切换默认值：统一优先展示 AI 导航。
+   */
+  const DEFAULT_NAV_SWITCH_TYPE = 'ai';
+  const [currentNavType, setCurrentNavType] = useState<string>(DEFAULT_NAV_SWITCH_TYPE); // 当前选中的导航类型，默认 AI
 
   /**
    * 打开认证弹窗（受个人中心总开关控制）
@@ -388,13 +391,13 @@ const Navbar = () => {
       return;
     }
 
+    const fallbackNavType = navSwitchItems.some((item) => item.type === DEFAULT_NAV_SWITCH_TYPE)
+      ? DEFAULT_NAV_SWITCH_TYPE
+      : navSwitchItems[0].type;
     const pathname = location.pathname.toLowerCase();
-    const configuredHomeSlug = String(frontendConfig?.homepageConfig?.homePageSlug || '')
-      .trim()
-      .toLowerCase();
     let slug = '';
     if (pathname === '/') {
-      slug = configuredHomeSlug || ROOT_NAV_SLUG;
+      slug = fallbackNavType;
     } else if (pathname.startsWith('/p/')) {
       slug = pathname.replace('/p/', '').split('/')[0];
     } else {
@@ -406,10 +409,8 @@ const Navbar = () => {
       return;
     }
 
-    if (pathname === '/') {
-      setCurrentNavType(navSwitchItems[0].type);
-    }
-  }, [location.pathname, navSwitchItems, frontendConfig?.homepageConfig?.homePageSlug]);
+    setCurrentNavType(fallbackNavType);
+  }, [location.pathname, navSwitchItems, DEFAULT_NAV_SWITCH_TYPE]);
 
   /**
    * 切换导航类型并跳转到对应页面。

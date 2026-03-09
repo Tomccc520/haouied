@@ -15,6 +15,7 @@ import { ToolGridSkeleton } from '../Skeleton';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
 import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
+import { recordWebsiteClick } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import './index.css';
 import './index.mobile.css';
@@ -123,6 +124,9 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
 
   // 直达箭头点击回调 - 与 useNavigation.ts 逻辑保持一致
   const handleDirectVisit = useCallback((tool: Tool, e: React.MouseEvent) => {
+    if (hasWebsiteMatch(tool)) {
+      recordWebsiteClick(tool.id);
+    }
     if (isDirectMode) {
       // 分类区域设置为直达时，箭头进入详情页
       const detailUrl = generateWebsiteUrl(permalinkConfig, { 
@@ -144,7 +148,7 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
         window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, getToolSlug, frontendConfig?.pageGlobalConfig]);
+  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, getToolSlug, frontendConfig?.pageGlobalConfig, hasWebsiteMatch]);
 
   /**
    * 热门推荐点击行为配置（独立于分类区域）
@@ -522,6 +526,7 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
                 window.open(directUrl, '_blank', 'noopener,noreferrer');
                 return;
               }
+              recordWebsiteClick(tool.id);
               
               // 热门推荐独立配置：直达模式
               if (hotRecommendationClickMode === 'direct') {

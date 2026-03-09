@@ -496,8 +496,16 @@ const SearchPage: React.FC = () => {
   const aiSearchButtonText = String(searchConfig?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索';
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
 
+  /**
+   * 上报网站点击，失败时静默处理，不阻断页面跳转。
+   */
+  const reportWebsiteClick = useCallback((websiteId: string) => {
+    void api.post(`/websites/${websiteId}/click`).catch(() => {});
+  }, []);
+
   // 直达箭头点击回调
   const handleDirectVisit = useCallback((tool: SearchResult, _event: React.MouseEvent) => {
+    reportWebsiteClick(tool.id);
     if (isDirectMode) {
       const detailUrl = generateWebsiteUrl(permalinkConfig, { id: tool?.id, slug: tool?.slug });
       if (detailPageNewWindow) {
@@ -516,7 +524,7 @@ const SearchPage: React.FC = () => {
         window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, permalinkConfig, detailPageNewWindow, navigate, directArrowNewWindow, frontendConfig?.pageGlobalConfig]);
+  }, [isDirectMode, permalinkConfig, detailPageNewWindow, navigate, directArrowNewWindow, frontendConfig?.pageGlobalConfig, reportWebsiteClick]);
   
   // AI 侧边栏状态
   const [showAiSidebar, setShowAiSidebar] = useState(false);
@@ -1070,7 +1078,7 @@ const SearchPage: React.FC = () => {
 
   // 处理网站点击
   const handleWebsiteClick = (website: SearchResult) => {
-    api.post(`/websites/${website.id}/click`).catch(() => {});
+    reportWebsiteClick(website.id);
     if (isDirectMode) {
       const directUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
       window.open(directUrl, '_blank', 'noopener,noreferrer');

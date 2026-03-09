@@ -1092,6 +1092,12 @@ const WebsiteDetailPage: React.FC = () => {
   const displayHost = getWebsiteHostLabel(website.url);
   const displayProtocol = getWebsiteProtocolLabel(website.url);
   const externalVisitUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
+  /**
+   * 上报网站点击，失败时静默处理，不阻断用户访问外部网址。
+   */
+  const reportWebsiteClick = (websiteId: string) => {
+    void api.post(`/websites/${websiteId}/click`).catch(() => {});
+  };
   const displayAverageRating = typeof website.averageRating === 'number'
     ? Number(website.averageRating).toFixed(1)
     : '';
@@ -1501,6 +1507,7 @@ const WebsiteDetailPage: React.FC = () => {
                       target={detailPageConfig.visitBtnNewWindow !== false ? '_blank' : '_self'}
                       rel={detailPageConfig.visitBtnNewWindow !== false ? 'noopener noreferrer' : undefined}
                       className="btn-visit-large"
+                      onClick={() => reportWebsiteClick(website.id)}
                     >
                       {website.visitBtnText || '访问网站'}
                       <svg className="icon-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

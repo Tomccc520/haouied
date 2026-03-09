@@ -70,6 +70,17 @@
                 </el-table-column>
                 <el-table-column label="分类名称" prop="name" min-width="200" />
                 <el-table-column label="别名" prop="slug" min-width="150" />
+                <el-table-column label="前端路径" min-width="220" show-overflow-tooltip>
+                    <template #default="{ row }">
+                        <a
+                            :href="getCategoryFrontendUrl(row)"
+                            target="_blank"
+                            class="text-primary hover:underline"
+                        >
+                            {{ getCategoryFrontendPath(row) }}
+                        </a>
+                    </template>
+                </el-table-column>
                 <el-table-column label="父级" width="120">
                     <template #default="{ row }">
                         <span v-if="isTopLevelCategory(row.parentId)" class="text-gray-400"
@@ -78,7 +89,12 @@
                         <span v-else>{{ getParentName(row.parentId) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="网站数" prop="websiteCount" width="90" />
+                <el-table-column label="网站数" width="100">
+                    <template #default="{ row }">{{ formatIntegerCount(row.websiteCount) }}</template>
+                </el-table-column>
+                <el-table-column label="浏览量" width="110">
+                    <template #default="{ row }">{{ formatIntegerCount(row.clickCount) }}</template>
+                </el-table-column>
                 <el-table-column label="排序" prop="sortOrder" width="80" />
                 <el-table-column label="状态" width="80">
                     <template #default="{ row }">
@@ -254,6 +270,39 @@ const queryParams = reactive({
     keyword: '',
     parentId: '' as string | number
 })
+
+/**
+ * 获取前端基础地址：优先读取环境变量，未配置时回退本地开发地址。
+ */
+const getFrontendBaseUrl = () =>
+    String(import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3003')
+        .trim()
+        .replace(/\/+$/g, '')
+
+const FRONTEND_BASE_URL = getFrontendBaseUrl()
+
+/**
+ * 生成分类前端相对路径，优先使用 slug。
+ */
+const getCategoryFrontendPath = (row: any): string => {
+    const pathId = String(row?.slug || row?.id || '').trim()
+    return pathId ? `/category/${pathId}` : '/category'
+}
+
+/**
+ * 生成分类前端完整访问地址，便于后台直接跳转验证。
+ */
+const getCategoryFrontendUrl = (row: any): string =>
+    `${FRONTEND_BASE_URL}${getCategoryFrontendPath(row)}`
+
+/**
+ * 格式化整数统计值，异常数据统一回退为 0。
+ */
+const formatIntegerCount = (value: unknown): string => {
+    const parsed = Number.parseInt(String(value ?? 0), 10)
+    if (!Number.isFinite(parsed) || parsed < 0) return '0'
+    return parsed.toLocaleString('zh-CN')
+}
 
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedCategoryList,

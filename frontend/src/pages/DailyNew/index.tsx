@@ -18,6 +18,7 @@ import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
 import { appendRefParamToUrl } from '../../utils/clickMode';
+import { recordWebsiteClick } from '../../services/api';
 import {
   getDailyNewWebsites,
   getDailyNewDisplayConfig,
@@ -235,9 +236,17 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
   }, [fetchDailyNewList]);
 
   /**
+   * 上报网站点击，失败时静默处理，不阻断页面跳转。
+   */
+  const reportWebsiteClick = useCallback((websiteId: string) => {
+    recordWebsiteClick(websiteId);
+  }, []);
+
+  /**
    * 根据全局点击模式处理行点击。
    */
   const handleWebsiteClick = (item: DailyNewWebsiteItem) => {
+    reportWebsiteClick(item.id);
     const detailUrl = generateWebsiteUrl(permalinkConfig, {
       id: item.id,
       slug: item.slug,
@@ -278,6 +287,7 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
   const handleDirectVisit = (item: DailyNewWebsiteItem, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    reportWebsiteClick(item.id);
     const target = pageGlobal.directArrowNewWindow !== false ? '_blank' : '_self';
     const directUrl = appendRefParamToUrl(item.url, pageGlobal);
     window.open(directUrl, target, 'noopener,noreferrer');

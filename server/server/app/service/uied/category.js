@@ -119,7 +119,36 @@ class CategoryService extends Service {
               c.seo_title as seoTitle, c.seo_description as seoDescription, c.seo_keywords as seoKeywords,
               c.parent_id as parentId, c.sort as sortOrder, c.is_show as isActive,
               c.color as themeColor, c.create_time as createdAt,
-              (SELECT COUNT(*) FROM uied_website w WHERE w.category_id = c.id AND w.is_delete = 0) as websiteCount
+              (
+                SELECT COUNT(DISTINCT w.id)
+                FROM uied_website w
+                WHERE w.is_delete = 0
+                  AND (
+                    w.category_id = c.id
+                    OR EXISTS (
+                      SELECT 1
+                      FROM uied_website_category uwc
+                      WHERE uwc.website_id = w.id
+                        AND uwc.category_id = c.id
+                        AND uwc.is_delete = 0
+                    )
+                  )
+              ) as websiteCount,
+              (
+                SELECT COALESCE(SUM(w.click_count), 0)
+                FROM uied_website w
+                WHERE w.is_delete = 0
+                  AND (
+                    w.category_id = c.id
+                    OR EXISTS (
+                      SELECT 1
+                      FROM uied_website_category uwc
+                      WHERE uwc.website_id = w.id
+                        AND uwc.category_id = c.id
+                        AND uwc.is_delete = 0
+                    )
+                  )
+              ) as clickCount
        FROM uied_category c
        WHERE ${whereClause}
        ORDER BY c.sort ASC, c.id ASC

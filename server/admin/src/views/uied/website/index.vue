@@ -38,7 +38,7 @@
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
-                            :label="item.label"
+                            :label="item.pathLabelWithSlug || item.label"
                             :value="item.id"
                         />
                     </el-select>
@@ -193,18 +193,36 @@
                         </el-avatar>
                     </template>
                 </el-table-column>
-                <el-table-column
-                    label="网站名称"
-                    prop="name"
-                    min-width="150"
-                    show-overflow-tooltip
-                />
-                <el-table-column label="分类" prop="categoryName" width="120" />
+                <el-table-column label="网站信息" min-width="220" show-overflow-tooltip>
+                    <template #default="{ row }">
+                        <div class="font-medium text-primary">{{ row.name || '-' }}</div>
+                        <div class="text-xs text-gray-400 mt-1">slug：{{ row.slug || '-' }}</div>
+                    </template>
+                </el-table-column>
+                <el-table-column label="分类" min-width="180" show-overflow-tooltip>
+                    <template #default="{ row }">
+                        <el-tag
+                            v-for="categoryName in getWebsiteCategoryNames(row)"
+                            :key="`${row.id}-${categoryName}`"
+                            size="small"
+                            class="mr-1 mb-1"
+                        >
+                            {{ categoryName }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
                 <el-table-column label="URL" min-width="200" show-overflow-tooltip>
                     <template #default="{ row }">
                         <a :href="row.url" target="_blank" class="text-primary hover:underline">{{
                             row.url
                         }}</a>
+                    </template>
+                </el-table-column>
+                <el-table-column label="前端路径" min-width="180" show-overflow-tooltip>
+                    <template #default="{ row }">
+                        <a :href="getFrontendUrl(row)" target="_blank" class="text-primary hover:underline">
+                            {{ getFrontendPath(row) }}
+                        </a>
                     </template>
                 </el-table-column>
                 <el-table-column label="前端" width="80" align="center">
@@ -216,7 +234,30 @@
                         </a>
                     </template>
                 </el-table-column>
-                <el-table-column label="点击量" prop="clickCount" width="90" />
+                <el-table-column label="点击量" width="90">
+                    <template #default="{ row }">{{ formatIntegerCount(row.clickCount) }}</template>
+                </el-table-column>
+                <el-table-column label="标记" min-width="180" show-overflow-tooltip>
+                    <template #default="{ row }">
+                        <el-space wrap :size="4">
+                            <el-tag v-if="row.isPinned" size="small" type="danger">置顶</el-tag>
+                            <el-tag v-if="row.isHot" size="small" type="warning">热门</el-tag>
+                            <el-tag v-if="row.isFeatured" size="small" type="success">推荐</el-tag>
+                            <el-tag v-if="row.isNew" size="small" type="info">新站</el-tag>
+                            <el-tag
+                                v-for="weightTag in normalizeWeightTags(row.weightTags)"
+                                :key="`${row.id}-weight-${weightTag}`"
+                                size="small"
+                                effect="plain"
+                            >
+                                {{ getWeightTagLabel(weightTag) }}
+                            </el-tag>
+                        </el-space>
+                    </template>
+                </el-table-column>
+                <el-table-column label="更新时间" width="168">
+                    <template #default="{ row }">{{ formatUnixDateTime(row.updatedAt) }}</template>
+                </el-table-column>
                 <el-table-column label="排序" prop="sortOrder" width="80" />
                 <el-table-column label="状态" width="92">
                     <template #default="{ row }">
@@ -225,8 +266,9 @@
                         </el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="120" fixed="right">
+                <el-table-column label="操作" width="190" fixed="right">
                     <template #default="{ row }">
+                        <el-button type="info" link @click="handleOpenDetailDrawer(row)">详情</el-button>
                         <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
                         <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
                     </template>
@@ -236,6 +278,116 @@
                 <pagination v-model="pager" @change="getLists" />
             </div>
         </el-card>
+
+        <el-drawer
+            v-model="websiteDetailDrawerVisible"
+            title="网站详情与点击数据"
+            size="720px"
+            destroy-on-close
+        >
+            <el-skeleton v-if="websiteDetailDrawerLoading" :rows="10" animated />
+            <template v-else-if="websiteDetailData">
+                <el-descriptions :column="2" border>
+                    <el-descriptions-item label="网站ID">
+                        {{ websiteDetailData.id || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="网站名称">
+                        {{ websiteDetailData.name || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="固定链接">
+                        {{ websiteDetailData.slug || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="状态">
+                        <el-tag :type="getWebsiteStatusTagType(websiteDetailData.status)" size="small">
+                            {{ getWebsiteStatusLabel(websiteDetailData.status) }}
+                        </el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="分类" :span="2">
+                        {{ getDetailCategoryText(websiteDetailData) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="网站URL" :span="2">
+                        <a
+                            :href="websiteDetailData.url"
+                            target="_blank"
+                            class="text-primary hover:underline"
+                        >
+                            {{ websiteDetailData.url || '-' }}
+                        </a>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="前端路径">
+                        {{ getFrontendPath(websiteDetailData) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="前端访问">
+                        <a
+                            :href="getFrontendUrl(websiteDetailData)"
+                            target="_blank"
+                            class="text-primary hover:underline"
+                        >
+                            打开页面
+                        </a>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="创建时间">
+                        {{ formatUnixDateTime(websiteDetailData.createdAt) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="更新时间">
+                        {{ formatUnixDateTime(websiteDetailData.updatedAt) }}
+                    </el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">点击与流量</el-divider>
+                <el-descriptions :column="2" border>
+                    <el-descriptions-item label="总点击量">
+                        {{ formatIntegerCount(websiteDetailData.clickCount) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="月访问量">
+                        {{ formatIntegerCount(websiteDetailData.trafficMetrics?.monthlyVisits) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="平均访问时长">
+                        {{ formatDurationLabel(websiteDetailData.trafficMetrics?.avgVisitDurationSeconds) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="每次访问页数">
+                        {{ formatFloatValue(websiteDetailData.trafficMetrics?.pagesPerVisit) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="跳出率">
+                        {{ formatPercentValue(websiteDetailData.trafficMetrics?.bounceRate) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="数据来源">
+                        {{ websiteDetailData.trafficMetrics?.dataSource || '-' }}
+                    </el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">来源占比</el-divider>
+                <el-descriptions :column="2" border>
+                    <el-descriptions-item
+                        v-for="sourceItem in resolveTrafficSourceItems(websiteDetailData.trafficMetrics?.sourceBreakdown)"
+                        :key="sourceItem.key"
+                        :label="sourceItem.label"
+                    >
+                        {{ sourceItem.value }}
+                    </el-descriptions-item>
+                </el-descriptions>
+
+                <el-divider content-position="left">SEO 与正文</el-divider>
+                <el-descriptions :column="1" border>
+                    <el-descriptions-item label="SEO 标题">
+                        {{ websiteDetailData.seoTitle || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="SEO 描述">
+                        {{ websiteDetailData.seoDescription || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="SEO 关键词">
+                        {{ websiteDetailData.seoKeywords || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="简介描述">
+                        {{ websiteDetailData.description || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="正文长度">
+                        {{ getDetailContentLengthLabel(websiteDetailData.detailContent) }}
+                    </el-descriptions-item>
+                </el-descriptions>
+            </template>
+            <el-empty v-else description="暂无网站详情数据" />
+        </el-drawer>
 
         <el-dialog
             v-model="batchImportDialogVisible"
@@ -262,9 +414,14 @@
                     <el-form-item label="所属分类" required>
                         <el-select
                             v-model="batchImportForm.categoryIds"
-                            placeholder="请选择分类（可多选）"
+                            placeholder="输入分类名/路径/别名搜索（可多选）"
                             multiple
                             filterable
+                            :filter-method="handleBatchImportCategoryFilter"
+                            @visible-change="handleBatchImportCategoryVisibleChange"
+                            :no-data-text="
+                                batchImportCategorySearchKeyword ? '未匹配到分类，请换个关键词' : '暂无可选分类'
+                            "
                             clearable
                             collapse-tags
                             collapse-tags-tooltip
@@ -272,14 +429,19 @@
                             :disabled="batchImportLoading"
                         >
                             <el-option
-                                v-for="item in categoryOptions"
+                                v-for="item in batchImportCategoryOptions"
                                 :key="item.id"
-                                :label="item.label"
+                                :label="item.pathLabelWithSlug || item.pathLabel || item.label"
                                 :value="item.id"
-                            />
+                            >
+                                <div class="flex items-center justify-between">
+                                    <span>{{ item.pathLabel || item.name }}</span>
+                                    <span v-if="item.slug" class="text-xs text-gray-400">/{{ item.slug }}</span>
+                                </div>
+                            </el-option>
                         </el-select>
                         <div class="text-xs text-tx-secondary mt-2">
-                            支持多选分类，第一项会作为主分类；后续可在“编辑网站”中切换分类顺序。
+                            支持按分类名称、层级路径、别名（slug）搜索；第一项会作为主分类，后续可在“编辑网站”中切换顺序。
                         </div>
                     </el-form-item>
                     <el-form-item label="主分类" required>
@@ -295,7 +457,7 @@
                             <el-option
                                 v-for="item in selectedBatchImportCategoryOptions"
                                 :key="item.id"
-                                :label="item.label"
+                                :label="item.pathLabelWithSlug || item.pathLabel || item.label"
                                 :value="item.id"
                             />
                         </el-select>
@@ -531,6 +693,7 @@
 <script lang="ts" setup name="uiedWebsite">
 import {
     uiedWebsiteList,
+    uiedWebsiteDetail,
     uiedWebsiteDelete,
     uiedWebsiteBatchDelete,
     uiedWebsiteBatchImport,
@@ -561,12 +724,72 @@ const FRONTEND_BASE_URL = getFrontendBaseUrl()
 const isDraftWebsite = (row: any) => String(row?.status || '').trim().toLowerCase() === 'draft'
 
 /**
- * 生成前端详情链接：草稿自动走预览模式。
+ * 生成前端详情路径：草稿自动附加 preview 参数。
  */
-const getFrontendUrl = (row: any) => {
+const getFrontendPath = (row: any) => {
     const path = row.slug || row.id
     const previewSuffix = isDraftWebsite(row) ? '?preview=1' : ''
-    return `${FRONTEND_BASE_URL}/website/${path}${previewSuffix}`
+    return `/website/${path}${previewSuffix}`
+}
+
+/**
+ * 生成前端详情完整链接：用于后台快捷验证发布效果。
+ */
+const getFrontendUrl = (row: any) => `${FRONTEND_BASE_URL}${getFrontendPath(row)}`
+
+/**
+ * 格式化整数统计值，异常数据统一回退为 0。
+ */
+const formatIntegerCount = (value: unknown): string => {
+    const parsed = Number.parseInt(String(value ?? 0), 10)
+    if (!Number.isFinite(parsed) || parsed < 0) return '0'
+    return parsed.toLocaleString('zh-CN')
+}
+
+/**
+ * 格式化时间戳（秒/毫秒）为中文日期时间文本。
+ */
+const formatUnixDateTime = (value: unknown): string => {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return '-'
+    const milliseconds = numericValue > 9999999999 ? numericValue : numericValue * 1000
+    const date = new Date(milliseconds)
+    if (Number.isNaN(date.getTime())) return '-'
+    return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+/**
+ * 格式化浮点数，空值回退为“-”。
+ */
+const formatFloatValue = (value: unknown, fractionDigits = 2): string => {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return '-'
+    return numericValue.toFixed(fractionDigits)
+}
+
+/**
+ * 格式化百分比值，支持数值或文本输入。
+ */
+const formatPercentValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '-'
+    const text = String(value).trim()
+    if (text.endsWith('%')) return text
+    const numericValue = Number(text)
+    if (!Number.isFinite(numericValue)) return '-'
+    return `${numericValue}%`
+}
+
+/**
+ * 格式化时长秒数（秒 -> 分钟+秒）。
+ */
+const formatDurationLabel = (seconds: unknown): string => {
+    const numericValue = Number(seconds)
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return '-'
+    const safeSeconds = Math.floor(numericValue)
+    const minutes = Math.floor(safeSeconds / 60)
+    const remainSeconds = safeSeconds % 60
+    if (minutes <= 0) return `${remainSeconds} 秒`
+    return `${minutes} 分 ${remainSeconds} 秒`
 }
 
 const queryParams = reactive({
@@ -696,6 +919,27 @@ const getWebsiteStatusTagType = (status: string) => {
 // 分类列表
 const categoryList = ref<any[]>([])
 const categoryOptions = computed(() => buildCategoryOptions(categoryList.value))
+const batchImportCategorySearchKeyword = ref('')
+const categoryNameMap = computed(() => {
+    const map = new Map<number, string>()
+    categoryList.value.forEach((item: any) => {
+        const categoryId = Number.parseInt(String(item?.id || 0), 10)
+        if (!Number.isInteger(categoryId) || categoryId <= 0) return
+        const categoryName = String(item?.name || '').trim()
+        if (!categoryName) return
+        map.set(categoryId, categoryName)
+    })
+    return map
+})
+
+/**
+ * 规范化搜索关键词：统一小写并压缩空白，提升模糊匹配稳定性。
+ */
+const normalizeSearchKeyword = (value: unknown): string =>
+    String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
 
 /**
  * 构建带层级缩进的分类下拉选项，便于后台筛选父子分类
@@ -715,16 +959,52 @@ const buildCategoryOptions = (categories: any[]) => {
         parentMap.get(parentId)?.push(item)
     })
 
+    /**
+     * 递归构建分类路径（例如：设计 / 图标 / 免费），用于搜索和展示。
+     */
+    const pathCache = new Map<number, string>()
+    const resolvePathLabel = (categoryId: number, depth = 0): string => {
+        if (pathCache.has(categoryId)) return pathCache.get(categoryId) || ''
+        const current = nodeMap.get(categoryId)
+        if (!current) return ''
+        if (depth > categories.length + 2) return String(current.name || '')
+        const parentId = current.parentId ?? null
+        const currentName = String(current.name || '')
+        const pathLabel =
+            parentId && nodeMap.has(parentId)
+                ? `${resolvePathLabel(parentId, depth + 1)} / ${currentName}`
+                : currentName
+        pathCache.set(categoryId, pathLabel)
+        return pathLabel
+    }
+
+    /**
+     * 统一封装下拉项字段：补充路径文案与搜索关键字。
+     */
+    const createOptionItem = (item: any, level: number, hasParent: boolean) => {
+        const indent = level > 0 ? `${'　'.repeat(level)}└ ` : hasParent ? '　└ ' : ''
+        const name = String(item?.name || '').trim()
+        const slug = String(item?.slug || '').trim()
+        const pathLabel = resolvePathLabel(item.id)
+        const pathLabelWithSlug = slug ? `${pathLabel}（slug: ${slug}）` : pathLabel
+        const searchText = normalizeSearchKeyword(
+            `${name} ${slug} ${pathLabel} ${pathLabelWithSlug} ${item?.id || ''}`
+        )
+        return {
+            ...item,
+            label: `${indent}${name}`,
+            pathLabel,
+            pathLabelWithSlug,
+            searchText
+        }
+    }
+
     const walk = (parentId: any, level = 0) => {
         const children = parentMap.get(parentId) || []
         children.forEach((item) => {
             if (visited.has(item.id)) return
             visited.add(item.id)
-            const indent = level > 0 ? `${'　'.repeat(level)}└ ` : ''
-            options.push({
-                ...item,
-                label: `${indent}${item.name}`
-            })
+            options.push(createOptionItem(item, level, false))
             walk(item.id, level + 1)
         })
     }
@@ -736,13 +1016,77 @@ const buildCategoryOptions = (categories: any[]) => {
     categories.forEach((item) => {
         if (visited.has(item.id)) return
         const hasParent = item.parentId && nodeMap.has(item.parentId)
-        options.push({
-            ...item,
-            label: `${hasParent ? '　└ ' : ''}${item.name}`
-        })
+        options.push(createOptionItem(item, 0, Boolean(hasParent)))
     })
 
     return options
+}
+
+/**
+ * 批量导入分类候选列表：支持按分类名/路径/slug 实时筛选。
+ */
+const batchImportCategoryOptions = computed(() => {
+    const normalizedKeyword = normalizeSearchKeyword(batchImportCategorySearchKeyword.value)
+    if (!normalizedKeyword) return categoryOptions.value
+    return categoryOptions.value.filter((item: any) =>
+        String(item?.searchText || '').includes(normalizedKeyword)
+    )
+})
+
+/**
+ * 记录批量导入分类搜索词，用于自定义过滤逻辑。
+ */
+const handleBatchImportCategoryFilter = (keyword: string) => {
+    batchImportCategorySearchKeyword.value = String(keyword || '')
+}
+
+/**
+ * 分类下拉关闭时清空搜索词，避免下次打开残留筛选状态。
+ */
+const handleBatchImportCategoryVisibleChange = (visible: boolean) => {
+    if (visible) return
+    batchImportCategorySearchKeyword.value = ''
+}
+
+/**
+ * 解析站点权重标签列表，兼容字符串/数组输入。
+ */
+const normalizeWeightTags = (value: unknown): string[] => {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item || '').trim()).filter(Boolean)
+    }
+    return String(value || '')
+        .split(/[，,]/)
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+}
+
+/**
+ * 权重标签展示文案映射。
+ */
+const getWeightTagLabel = (value: string): string => {
+    const normalized = String(value || '').trim().toLowerCase()
+    if (normalized === 'official') return '官方'
+    if (normalized === 'recommended') return '推荐'
+    if (normalized === 'enterprise_verified') return '企业认证'
+    return value || '-'
+}
+
+/**
+ * 读取网站所属分类名称（支持多分类）。
+ */
+const getWebsiteCategoryNames = (row: any): string[] => {
+    const categoryIds = Array.isArray(row?.categoryIds)
+        ? row.categoryIds
+              .map((item: unknown) => Number.parseInt(String(item || 0), 10))
+              .filter((item: number) => Number.isInteger(item) && item > 0)
+        : []
+    const names = categoryIds
+        .map((categoryId: number) => categoryNameMap.value.get(categoryId) || '')
+        .filter(Boolean)
+    if (names.length > 0) return Array.from(new Set(names))
+    const fallbackName = String(row?.categoryName || '').trim()
+    return fallbackName ? [ fallbackName ] : [ '未分类' ]
 }
 
 /**
@@ -761,6 +1105,68 @@ const getCategoryList = async () => {
 const selectedIds = ref<number[]>([])
 const handleSelectionChange = (rows: any[]) => {
     selectedIds.value = rows.map((row) => row.id)
+}
+
+const websiteDetailDrawerVisible = ref(false)
+const websiteDetailDrawerLoading = ref(false)
+const websiteDetailData = ref<any | null>(null)
+
+/**
+ * 汇总站点详情分类文案，便于抽屉内集中展示。
+ */
+const getDetailCategoryText = (website: any): string => {
+    const names = getWebsiteCategoryNames(website)
+    return names.length > 0 ? names.join(' / ') : '未分类'
+}
+
+/**
+ * 统计正文长度：用于快速判断站点详情内容完整度。
+ */
+const getDetailContentLengthLabel = (detailContent: unknown): string => {
+    const plainTextLength = String(detailContent || '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, '')
+        .trim().length
+    if (plainTextLength <= 0) return '无正文'
+    return `${plainTextLength} 字`
+}
+
+/**
+ * 规范化来源占比结构，统一输出可展示数组。
+ */
+const resolveTrafficSourceItems = (sourceBreakdown: any) => {
+    const sourceMap = [
+        { key: 'direct', label: '直接访问' },
+        { key: 'organicSearch', label: '自然搜索' },
+        { key: 'email', label: '邮件' },
+        { key: 'referral', label: '外链推荐' },
+        { key: 'social', label: '社交媒体' },
+        { key: 'displayAds', label: '广告投放' },
+        { key: 'others', label: '其他' }
+    ]
+    return sourceMap.map((item) => ({
+        key: item.key,
+        label: item.label,
+        value: formatPercentValue(sourceBreakdown?.[item.key])
+    }))
+}
+
+/**
+ * 打开网站详情侧边抽屉并拉取后端完整数据。
+ */
+const handleOpenDetailDrawer = async (row: any) => {
+    websiteDetailDrawerVisible.value = true
+    websiteDetailDrawerLoading.value = true
+    websiteDetailData.value = null
+    try {
+        const detailRes = await uiedWebsiteDetail({ id: row.id })
+        websiteDetailData.value = detailRes || row || null
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '获取网站详情失败')
+        websiteDetailData.value = row || null
+    } finally {
+        websiteDetailDrawerLoading.value = false
+    }
 }
 
 /**

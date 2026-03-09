@@ -95,6 +95,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
 
   // 直达箭头点击回调 - 与 useNavigation.ts 逻辑保持一致
   const handleDirectVisit = useCallback((tool: DirectVisitTarget, _event: React.MouseEvent) => {
+    recordWebsiteClick(tool.id);
     if (isDirectMode) {
       // 分类区域设置为直达时，箭头进入详情页
       const detailUrl = generateWebsiteUrl(permalinkConfig, { 

@@ -286,8 +286,16 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
     window.scrollTo(0, 0);
   }, [slug, page, retrySeed]);
 
+  /**
+   * 上报网站点击，失败时静默处理，不阻断页面跳转。
+   */
+  const reportWebsiteClick = useCallback((websiteId: string) => {
+    void api.post(`/websites/${websiteId}/click`).catch(() => {});
+  }, []);
+
   // 处理网站点击
   const handleWebsiteClick = useCallback((website: WebsiteItem) => {
+    reportWebsiteClick(website.id);
     if (isDirectMode) {
       const directUrl = appendRefParamToUrl(website.url, frontendConfig?.pageGlobalConfig);
       window.open(directUrl, '_blank', 'noopener,noreferrer');
@@ -299,10 +307,11 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
         navigate(detailUrl);
       }
     }
-  }, [isDirectMode, permalinkConfig, navigate, detailPageNewWindow, frontendConfig?.pageGlobalConfig]);
+  }, [isDirectMode, permalinkConfig, navigate, detailPageNewWindow, frontendConfig?.pageGlobalConfig, reportWebsiteClick]);
 
   // 直达箭头点击
   const handleDirectVisit = useCallback((tool: { id: string; slug?: string; url: string }, e: React.MouseEvent) => {
+    reportWebsiteClick(tool.id);
     if (isDirectMode) {
       const detailUrl = generateWebsiteUrl(permalinkConfig, { id: tool.id, slug: tool.slug });
       if (detailPageNewWindow) {
@@ -319,7 +328,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
         window.location.href = directUrl;
       }
     }
-  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, frontendConfig?.pageGlobalConfig]);
+  }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, frontendConfig?.pageGlobalConfig, reportWebsiteClick]);
 
   const totalPages = detail ? Math.ceil(detail.total / pageSize) : 0;
 
