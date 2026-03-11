@@ -32,17 +32,17 @@ const SEO: React.FC<SEOProps> = ({
   canonical
 }) => {
   const { siteInfo } = useSiteInfo();
-  const siteName = String(siteInfo?.siteName || 'UIED AI工具导航').trim() || 'UIED AI工具导航';
+  const siteName = String(siteInfo?.siteName || 'UIED设计导航').trim() || 'UIED设计导航';
   const defaultTitle = String(siteInfo?.siteTitle || siteName).trim() || siteName;
   const defaultDescription = String(
     siteInfo?.description ||
       (siteInfo as { siteDescription?: string } | undefined)?.siteDescription ||
-      'UIED AI导航汇集全球优质AI工具与资源，涵盖AI写作、AI绘画、AI视频、AI办公、AI设计、AI编程等多个领域，帮助设计师、开发者与创作者快速发现和使用高效的人工智能工具。'
+      '发现优质设计与 AI 工具资源'
   ).trim();
   const defaultKeywords = String(
     siteInfo?.keywords ||
       (siteInfo as { siteKeywords?: string } | undefined)?.siteKeywords ||
-      'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具,AI写作,AI绘画,AI视频,AI办公,AI设计工具'
+      'UIED,AI工具导航,设计导航'
   ).trim();
 
   /**

@@ -465,7 +465,7 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
         {!loading && hasMore && (
           <div className="daily-new-page__load-more">
             <button type="button" onClick={() => fetchDailyNewList(page + 1, true)}>
-              加载更多
+              查看更多
             </button>
           </div>
         )}

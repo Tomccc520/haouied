@@ -44,7 +44,16 @@ function isLoopbackBaseUrl(baseUrl = '') {
  */
 function isProductionRuntime() {
   const env = String(process.env.EGG_SERVER_ENV || process.env.NODE_ENV || '').trim().toLowerCase();
-  return env === 'prod' || env === 'production';
+  if (env === 'prod' || env === 'production') return true;
+
+  // 兼容容器里未注入 EGG_SERVER_ENV，但通过 `egg-bin dev --env=prod` 启动的场景
+  const cliArgText = Array.isArray(process.argv) ? process.argv.join(' ') : '';
+  const npmScript = String(process.env.npm_lifecycle_script || '');
+  const commandText = `${cliArgText} ${npmScript}`.toLowerCase();
+  if (commandText.includes('--env=prod')) return true;
+  if (commandText.includes('"env":"prod"')) return true;
+  if (commandText.includes("'env':'prod'")) return true;
+  return false;
 }
 
 /**

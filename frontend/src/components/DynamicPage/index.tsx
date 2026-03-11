@@ -19,6 +19,12 @@ import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalink
 import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { createSvgIconMap } from '../../utils/svgIconLibrary';
+import {
+  getDailyNewWebsites,
+  getDailyNewDisplayConfig,
+  type DailyNewWebsiteItem,
+  type DailyNewDisplayConfig,
+} from '../../services/dailyNewService';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CategorySidebarSkeleton, 
@@ -37,6 +43,11 @@ interface DirectVisitTarget {
   url: string;
   slug?: string;
 }
+
+/**
+ * 首页“最新网站更新”默认展示最近 7 天数据。
+ */
+const HOMEPAGE_LATEST_UPDATE_DAYS = 7;
 
 /**
  * 将页面标识统一映射为 HeroBanner 支持的 pageType。
@@ -79,6 +90,9 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const [searchResults, setSearchResults] = useState<Website[]>([]);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [heroScrollWebsites, setHeroScrollWebsites] = useState<HeroScrollWebsite[]>([]);
+  const [latestWebsiteUpdates, setLatestWebsiteUpdates] = useState<DailyNewWebsiteItem[]>([]);
+  const [latestWebsiteUpdatesLoading, setLatestWebsiteUpdatesLoading] = useState(false);
+  const [dailyNewDisplayConfig, setDailyNewDisplayConfig] = useState<DailyNewDisplayConfig | null>(null);
   
   // 获取前端配置（跳转弹窗自定义文案）
   const { config: frontendConfig } = useFrontendConfig();
@@ -92,6 +106,48 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const viewMoreNewWindow = frontendConfig?.pageGlobalConfig?.viewMoreNewWindow ?? false;
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
   const heroIconClickMode = frontendConfig?.homepageConfig?.heroIconClickMode ?? 'direct';
+
+  /**
+   * 将“上新时间”规范化为毫秒时间戳，兼容秒级时间戳、毫秒时间戳与 ISO 字符串。
+   * @param {unknown} value 原始时间值
+   * @returns {number} 毫秒时间戳，非法时返回 0
+   */
+  const parseTimeToMs = useCallback((value: unknown): number => {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value > 9999999999 ? value : value * 1000;
+    }
+    const text = String(value).trim();
+    if (!text) return 0;
+    if (/^\d+$/.test(text)) {
+      const numeric = Number.parseInt(text, 10);
+      if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+      return numeric > 9999999999 ? numeric : numeric * 1000;
+    }
+    const parsed = Date.parse(text);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, []);
+
+  /**
+   * 将网站更新时间格式化为“MM-DD HH:mm / HH:mm”。
+   * @param {DailyNewWebsiteItem} item 最新网站项
+   * @returns {string} 时间文案
+   */
+  const formatLatestUpdateTime = useCallback((item: DailyNewWebsiteItem): string => {
+    const timestamp = parseTimeToMs(item.latestAt || item.updatedAt || item.createdAt);
+    if (!timestamp) return '--:--';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const sameDay = date.getFullYear() === now.getFullYear()
+      && date.getMonth() === now.getMonth()
+      && date.getDate() === now.getDate();
+    const hh = `${date.getHours()}`.padStart(2, '0');
+    const mm = `${date.getMinutes()}`.padStart(2, '0');
+    if (sameDay) return `${hh}:${mm}`;
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${month}-${day} ${hh}:${mm}`;
+  }, [parseTimeToMs]);
 
   // 直达箭头点击回调 - 与 useNavigation.ts 逻辑保持一致
   const handleDirectVisit = useCallback((tool: DirectVisitTarget, _event: React.MouseEvent) => {
@@ -131,6 +187,65 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
       slug: website.slug,
     });
   }, [permalinkConfig]);
+
+  /**
+   * 拉取“最新网站更新”列表，用于 Hero 下方滚动条展示。
+   */
+  const fetchLatestWebsiteUpdates = useCallback(async () => {
+    /**
+     * 统一过滤并截断列表，避免空字段导致渲染异常。
+     */
+    const normalizeLatestItems = (rows: DailyNewWebsiteItem[] | undefined) => {
+      return (Array.isArray(rows) ? rows : [])
+        .filter((item) => item && item.id && item.name && item.url)
+        .slice(0, 8);
+    };
+
+    try {
+      setLatestWebsiteUpdatesLoading(true);
+      const scopedResult = await getDailyNewWebsites({
+        page: 1,
+        pageSize: 8,
+        days: HOMEPAGE_LATEST_UPDATE_DAYS,
+        pageSlug: slug,
+        sortBy: 'latest',
+      });
+      let normalized = normalizeLatestItems(scopedResult?.list);
+
+      /**
+       * 若当前页面关联分类近 7 天无数据，自动回退到全站近 7 天，避免模块空白。
+       */
+      if (normalized.length === 0 && slug) {
+        const globalResult = await getDailyNewWebsites({
+          page: 1,
+          pageSize: 8,
+          days: HOMEPAGE_LATEST_UPDATE_DAYS,
+          sortBy: 'latest',
+        });
+        normalized = normalizeLatestItems(globalResult?.list);
+      }
+
+      setLatestWebsiteUpdates(normalized);
+    } catch (error) {
+      console.warn('获取最新网站更新失败，降级为空列表:', error);
+      setLatestWebsiteUpdates([]);
+    } finally {
+      setLatestWebsiteUpdatesLoading(false);
+    }
+  }, [slug]);
+
+  /**
+   * 拉取“每日上新”公开展示配置（用于“查看更多”链接）。
+   */
+  const fetchDailyNewDisplayConfig = useCallback(async () => {
+    try {
+      const config = await getDailyNewDisplayConfig();
+      setDailyNewDisplayConfig(config);
+    } catch (error) {
+      console.warn('获取每日上新展示配置失败，使用默认查看链接:', error);
+      setDailyNewDisplayConfig(null);
+    }
+  }, []);
 
   // 获取滚动图标墙的网站数据
   useEffect(() => {
@@ -174,6 +289,16 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
       setActiveCategory(categories[0].id);
     }
   }, [categories, activeCategory]);
+
+  // 读取“最新网站更新”数据（用于 Hero 下方滚动模块）
+  useEffect(() => {
+    fetchLatestWebsiteUpdates();
+  }, [fetchLatestWebsiteUpdates]);
+
+  // 读取“每日上新”展示配置，供“查看更多”使用
+  useEffect(() => {
+    fetchDailyNewDisplayConfig();
+  }, [fetchDailyNewDisplayConfig]);
 
   /**
    * 构建 svg:key 图标索引，供分类侧边栏渲染自定义 SVG。
@@ -247,6 +372,54 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
       window.scrollTo(0, 0);
     }
   }, [isDirectMode, permalinkConfig, detailPageNewWindow, detailNavigate, frontendConfig?.pageGlobalConfig]);
+
+  /**
+   * 处理“最新网站更新”项点击，复用详情/直达统一跳转逻辑。
+   * @param {DailyNewWebsiteItem} item 最新网站项
+   */
+  const handleLatestUpdateClick = useCallback((item: DailyNewWebsiteItem) => {
+    handleWebsiteClick({
+      id: String(item.id),
+      name: String(item.name || ''),
+      description: String(item.description || ''),
+      url: String(item.url || ''),
+      iconUrl: item.iconUrl,
+      isHot: item.isHot === true,
+      isFeatured: item.isFeatured === true,
+      isNew: item.isNew === true,
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      weightTags: [],
+    });
+  }, [handleWebsiteClick]);
+
+  /**
+   * 最新更新模块“查看更多”入口。
+   */
+  const latestUpdatesMoreEntry = useMemo(() => {
+    const href = String(dailyNewDisplayConfig?.displayPath || '/p/hot?tab=daily-new').trim() || '/p/hot?tab=daily-new';
+    const openInNewTab = dailyNewDisplayConfig?.displayOpenInNewTab === true;
+    return {
+      href,
+      target: openInNewTab ? '_blank' as const : '_self' as const,
+      rel: openInNewTab ? 'noopener noreferrer' : undefined,
+    };
+  }, [dailyNewDisplayConfig?.displayOpenInNewTab, dailyNewDisplayConfig?.displayPath]);
+
+  /**
+   * 构建“最新网站更新”头部时间文案，显示当前列表最新一条的更新时间。
+   */
+  const latestUpdatesMetaText = useMemo(() => {
+    const latestItem = latestWebsiteUpdates[0];
+    if (!latestItem) return '更新至 --:--';
+    const timestamp = parseTimeToMs(latestItem.latestAt || latestItem.updatedAt || latestItem.createdAt);
+    if (!timestamp) return '更新至 --:--';
+    const date = new Date(timestamp);
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    const hh = `${date.getHours()}`.padStart(2, '0');
+    const mm = `${date.getMinutes()}`.padStart(2, '0');
+    return `更新至 ${month}-${day} ${hh}:${mm}`;
+  }, [latestWebsiteUpdates, parseTimeToMs]);
 
   // 侧边栏配置
   const sidebarConfig: SidebarConfig = {
@@ -382,6 +555,58 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
 
         {/* 右侧内容区域 */}
         <main className="tools-main">
+          {/* 最新网站更新（Hero 下方固定 8 条） */}
+          {!isSearchMode && (
+            <section className="latest-update-strip content-section" aria-label="最新网站更新">
+              <div className="latest-update-strip__header">
+                <h2 className="latest-update-strip__title">最新网站更新</h2>
+                <div className="latest-update-strip__header-right">
+                  <span className="latest-update-strip__meta">{latestUpdatesMetaText}</span>
+                  <a
+                    className="latest-update-strip__more"
+                    href={latestUpdatesMoreEntry.href}
+                    target={latestUpdatesMoreEntry.target}
+                    rel={latestUpdatesMoreEntry.rel}
+                  >
+                    查看更多
+                  </a>
+                </div>
+              </div>
+              {latestWebsiteUpdatesLoading && latestWebsiteUpdates.length === 0 ? (
+                <div className="latest-update-strip__loading">正在加载最新网站...</div>
+              ) : latestWebsiteUpdates.length > 0 ? (
+                <div className="latest-update-strip__list">
+                  {latestWebsiteUpdates.map((item, index) => (
+                    <button
+                      type="button"
+                      key={`${item.id}-${index}`}
+                      className="latest-update-strip__item"
+                      onClick={() => handleLatestUpdateClick(item)}
+                      title={`${item.name} · ${formatLatestUpdateTime(item)}`}
+                    >
+                      {item.iconUrl ? (
+                        <img
+                          src={item.iconUrl}
+                          alt={item.name}
+                          className="latest-update-strip__icon"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="latest-update-strip__icon latest-update-strip__icon--fallback">
+                          {String(item.name || 'W').slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="latest-update-strip__name">{item.name}</span>
+                      <span className="latest-update-strip__time">{formatLatestUpdateTime(item)}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="latest-update-strip__loading">近 7 天暂无更新数据</div>
+              )}
+            </section>
+          )}
+
           {/* 热门推荐 - 使用 HotRecommendations 组件，与其他页面保持一致 */}
           {pageConfig?.showHotRecommendations && !isSearchMode && (
             <HotRecommendations 

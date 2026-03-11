@@ -19,7 +19,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..')
 const BUILD_DIR = path.join(PROJECT_ROOT, 'build')
 const INDEX_HTML_PATH = path.join(BUILD_DIR, 'index.html')
 const DEFAULT_SITE_ORIGIN = String(process.env.SEO_SITE_ORIGIN || 'https://hao.uied.cn').trim().replace(/\/+$/, '') || 'https://hao.uied.cn'
-const DEFAULT_API_ORIGIN = String(process.env.SEO_API_ORIGIN || 'http://127.0.0.1:7001').trim().replace(/\/+$/, '') || 'http://127.0.0.1:7001'
+const DEFAULT_API_ORIGIN = String(process.env.SEO_API_ORIGIN || DEFAULT_SITE_ORIGIN).trim().replace(/\/+$/, '') || DEFAULT_SITE_ORIGIN
 
 /**
  * 解析布尔环境变量。
@@ -52,6 +52,30 @@ function parsePositiveInt(value, fallback, min = 1, max = 50000) {
 
 const INCLUDE_WEBSITE_DETAILS = parseBoolean(process.env.SEO_INCLUDE_WEBSITE_DETAILS, true)
 const WEBSITE_LIMIT = parsePositiveInt(process.env.SEO_WEBSITE_LIMIT, 5000, 1, 50000)
+const FALLBACK_SITE_SEO = {
+  siteName: 'UIED设计导航',
+  siteTitle: 'UIED设计导航',
+  siteDescription: '发现优质设计与 AI 工具资源',
+  siteKeywords: 'UIED,AI工具导航,设计导航',
+}
+
+/**
+ * 从站点信息中提取 SEO 字段并做兜底。
+ * @param {any} siteInfo 站点信息对象
+ * @returns {{siteName:string,siteTitle:string,siteDescription:string,siteKeywords:string}} 站点 SEO
+ */
+function resolveSiteSeo(siteInfo) {
+  const source = siteInfo && typeof siteInfo === 'object' ? siteInfo : {}
+  const siteName = String(source.siteName || source.site_name || FALLBACK_SITE_SEO.siteName).trim() || FALLBACK_SITE_SEO.siteName
+  const siteTitle = String(source.siteTitle || source.site_title || siteName).trim() || siteName
+  const siteDescription = String(
+    source.siteDescription || source.site_description || source.description || FALLBACK_SITE_SEO.siteDescription
+  ).trim() || FALLBACK_SITE_SEO.siteDescription
+  const siteKeywords = String(
+    source.siteKeywords || source.site_keywords || source.keywords || FALLBACK_SITE_SEO.siteKeywords
+  ).trim() || FALLBACK_SITE_SEO.siteKeywords
+  return { siteName, siteTitle, siteDescription, siteKeywords }
+}
 
 /**
  * 兼容接口返回包装结构（{code,data} / axios response.data / 裸对象）。
@@ -293,7 +317,19 @@ async function fetchJson(url) {
 }
 
 /**
- * 拉取后端 SEO 清单；失败时回退为首页基础清单。
+ * 拉取站点 SEO 信息（site-info）。
+ * @param {string} apiOrigin API 域名
+ * @returns {Promise<{siteName:string,siteTitle:string,siteDescription:string,siteKeywords:string}>} 站点 SEO
+ */
+async function fetchSiteSeo(apiOrigin) {
+  const requestUrl = `${apiOrigin}/api/site-info`
+  const payload = await fetchJson(requestUrl)
+  const data = unwrapData(payload) || {}
+  return resolveSiteSeo(data)
+}
+
+/**
+ * 拉取后端 SEO 清单；失败时回退为 site-info，再失败才回退默认首页清单。
  * @param {string} apiOrigin API 域名
  * @param {string} siteOrigin 站点域名
  * @returns {Promise<{siteSeo: object, routes: object[]}>} 清单结果
@@ -306,30 +342,43 @@ async function loadSeoManifest(apiOrigin, siteOrigin) {
     const data = unwrapData(payload) || {}
     const siteInfo = data.siteInfo && typeof data.siteInfo === 'object' ? data.siteInfo : {}
     const routes = Array.isArray(data.routes) ? data.routes : []
-    const siteSeo = {
-      siteName: String(siteInfo.siteName || 'UIED设计导航').trim() || 'UIED设计导航',
-      siteTitle: String(siteInfo.siteTitle || siteInfo.siteName || 'UIED设计导航').trim() || 'UIED设计导航',
-      siteDescription: String(siteInfo.siteDescription || '发现优质设计与 AI 工具资源').trim() || '发现优质设计与 AI 工具资源',
-      siteKeywords: String(siteInfo.siteKeywords || 'UIED,AI工具导航,设计导航').trim() || 'UIED,AI工具导航,设计导航',
+    const siteSeo = resolveSiteSeo(siteInfo)
+    const normalizedRoutes = routes.filter(item => item && typeof item === 'object')
+    if (normalizedRoutes.length > 0) {
+      return { siteSeo, routes: normalizedRoutes }
     }
+
+    // 清单为空时至少使用后台站点 SEO 生成首页，避免回退到硬编码文案
+    console.warn('[seo-prerender] 清单为空，降级为 site-info 首页 SEO')
     return { siteSeo, routes }
   } catch (error) {
-    console.warn(`[seo-prerender] 拉取清单失败，降级为默认首页：${error.message || error}`)
-    return {
-      siteSeo: {
-        siteName: 'UIED设计导航',
-        siteTitle: 'UIED设计导航',
-        siteDescription: '发现优质设计与 AI 工具资源',
-        siteKeywords: 'UIED,AI工具导航,设计导航',
-      },
-      routes: [
-        {
-          path: '/',
-          title: 'UIED设计导航',
-          description: '发现优质设计与 AI 工具资源',
-          keywords: 'UIED,AI工具导航,设计导航',
-        },
-      ],
+    console.warn(`[seo-prerender] 拉取清单失败，尝试 site-info：${error.message || error}`)
+    try {
+      const siteSeo = await fetchSiteSeo(apiOrigin)
+      return {
+        siteSeo,
+        routes: [
+          {
+            path: '/',
+            title: siteSeo.siteTitle,
+            description: siteSeo.siteDescription,
+            keywords: siteSeo.siteKeywords,
+          },
+        ],
+      }
+    } catch (siteError) {
+      console.warn(`[seo-prerender] site-info 也失败，降级为默认首页：${siteError.message || siteError}`)
+      return {
+        siteSeo: { ...FALLBACK_SITE_SEO },
+        routes: [
+          {
+            path: '/',
+            title: FALLBACK_SITE_SEO.siteTitle,
+            description: FALLBACK_SITE_SEO.siteDescription,
+            keywords: FALLBACK_SITE_SEO.siteKeywords,
+          },
+        ],
+      }
     }
   }
 }

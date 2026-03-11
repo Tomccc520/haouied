@@ -71,11 +71,25 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.6',
+    date: '2026-03-10',
+    title: '正式版1.0.6：首页新增“最新网站更新”滚动模块',
+    changes: [
+      { type: 'feature', scope: 'frontend', text: '【首页交互】在 Hero 下方、热门推荐上方新增“最新网站更新”模块，展示最近收录/更新的网站动态，支持横向连续滚动与悬停暂停' },
+      { type: 'feature', scope: 'frontend', text: '【首页交互】最新网站更新模块新增“查看更多”入口，支持跳转至 /p/hot?tab=daily-new，并兼容后台“新窗口打开”配置' },
+      { type: 'improve', scope: 'frontend', text: '【首页交互】最新网站条目新增明确时间显示（今天显示 HH:mm，历史显示 MM-DD HH:mm），提升时效感知' },
+      { type: 'improve', scope: 'frontend', text: '【点击体验】最新更新卡片复用现有详情/直达跳转链路，保持与分类卡片一致的点击行为与埋点逻辑' },
+      { type: 'improve', scope: 'frontend', text: '【每日上新】/p/hot?tab=daily-new 底部分页按钮文案由“加载更多”调整为“查看更多”，与站内交互口径统一' },
+      { type: 'improve', scope: 'frontend', text: '【移动端适配】更新条在移动端自动切换为可横向滑动模式，避免动画滚动导致可读性下降' },
+    ]
+  },
+  {
     version: '1.0.5',
     date: '2026-03-09',
     title: '正式版1.0.5：素材中心地址修复 + 分类SEO批量生成',
     changes: [
       { type: 'fix', scope: 'backend', text: '【素材中心】修复上传图片URL在正式环境返回 127.0.0.1 的问题：资源地址改为环境变量优先（UIED_PUBLIC_URL），并兼容历史本地绝对地址自动规范化' },
+      { type: 'fix', scope: 'backend', text: '【素材中心】兼容容器 `egg-bin dev --env=prod` 启动但未注入 EGG_SERVER_ENV 的场景：生产态判断新增启动参数兜底，避免误判为本地开发导致返回 localhost 资源地址' },
       { type: 'fix', scope: 'fullstack', text: '【素材中心】修复本地开发素材预览异常：开发环境保留绝对资源地址，生产环境回退相对地址，避免后台素材中心图片加载失败' },
       { type: 'improve', scope: 'frontend', text: '【站点SEO】统一默认兜底文案为“UIED AI工具导航”版本，接口异常回退时不再显示旧版设计导航文案' },
       { type: 'feature', scope: 'frontend', text: '【分类管理】新增“批量生成SEO”脚本按钮：默认仅处理SEO字段为空的分类，逐条调用AI生成并自动保存，完成后展示成功/失败统计' },

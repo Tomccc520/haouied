@@ -433,6 +433,7 @@
                             placeholder="输入分类名/路径/别名搜索（可多选）"
                             multiple
                             filterable
+                            :reserve-keyword="false"
                             :filter-method="handleBatchImportCategoryFilter"
                             @visible-change="handleBatchImportCategoryVisibleChange"
                             :no-data-text="
@@ -440,6 +441,7 @@
                             "
                             clearable
                             collapse-tags
+                            :max-collapse-tags="4"
                             collapse-tags-tooltip
                             style="width: 100%"
                             :disabled="batchImportLoading"
@@ -456,8 +458,41 @@
                                 </div>
                             </el-option>
                         </el-select>
-                        <div class="text-xs text-tx-secondary mt-2">
-                            支持按分类名称、层级路径、别名（slug）搜索；第一项会作为主分类，后续可在“编辑网站”中切换顺序。
+                        <div class="mt-2 flex items-center justify-between flex-wrap gap-2">
+                            <div class="text-xs text-tx-secondary">
+                                已选 {{ selectedBatchImportCategoryCount }} 个 / 当前可选 {{ batchImportSelectableCategoryCount }} 个
+                            </div>
+                            <el-space :size="8">
+                                <el-button
+                                    size="small"
+                                    link
+                                    type="primary"
+                                    :disabled="batchImportLoading || batchImportSelectableCategoryCount === 0"
+                                    @click="handleBatchImportSelectAllFiltered(false)"
+                                >
+                                    全选当前筛选
+                                </el-button>
+                                <el-button
+                                    size="small"
+                                    link
+                                    type="primary"
+                                    :disabled="batchImportLoading || batchImportSelectableLeafCategoryCount === 0"
+                                    @click="handleBatchImportSelectAllFiltered(true)"
+                                >
+                                    仅选末级分类
+                                </el-button>
+                                <el-button
+                                    size="small"
+                                    link
+                                    :disabled="batchImportLoading || selectedBatchImportCategoryCount === 0"
+                                    @click="handleBatchImportClearCategories"
+                                >
+                                    清空已选
+                                </el-button>
+                            </el-space>
+                        </div>
+                        <div class="text-xs text-tx-secondary mt-1">
+                            支持按分类名称、层级路径、别名（slug）搜索；可多选，第一项会作为主分类，后续可在“编辑网站”中切换顺序。
                         </div>
                     </el-form-item>
                     <el-form-item label="主分类" required>
@@ -1001,6 +1036,87 @@ const getWebsiteStatusTagType = (status: string) => {
 const categoryList = ref<any[]>([])
 const categoryOptions = computed(() => buildCategoryOptions(categoryList.value))
 const batchImportCategorySearchKeyword = ref('')
+
+/**
+ * 统一归一化分类 ID 列表，保证多选值稳定为正整数数组。
+ */
+const normalizeCategoryIdSelection = (value: unknown): number[] =>
+    Array.from(
+        new Set(
+            (Array.isArray(value) ? value : [])
+                .map((item) => Number(item))
+                .filter((item) => Number.isInteger(item) && item > 0)
+        )
+    )
+
+/**
+ * 末级分类集合：用于“仅选末级分类”快捷操作。
+ */
+const leafCategoryIdSet = computed(() => {
+    const normalizedRows = Array.isArray(categoryList.value) ? categoryList.value : []
+    const parentIds = new Set<number>()
+    normalizedRows.forEach((item: any) => {
+        const parentId = Number.parseInt(String(item?.parentId ?? 0), 10)
+        if (Number.isInteger(parentId) && parentId > 0) parentIds.add(parentId)
+    })
+    const leafIds = new Set<number>()
+    normalizedRows.forEach((item: any) => {
+        const categoryId = Number.parseInt(String(item?.id || 0), 10)
+        if (!Number.isInteger(categoryId) || categoryId <= 0) return
+        if (!parentIds.has(categoryId)) leafIds.add(categoryId)
+    })
+    return leafIds
+})
+
+/**
+ * 批量导入筛选后的可选分类数量。
+ */
+const batchImportSelectableCategoryCount = computed(() =>
+    Array.isArray(batchImportCategoryOptions.value) ? batchImportCategoryOptions.value.length : 0
+)
+
+/**
+ * 批量导入筛选后的可选末级分类数量。
+ */
+const batchImportSelectableLeafCategoryCount = computed(
+    () =>
+        (Array.isArray(batchImportCategoryOptions.value) ? batchImportCategoryOptions.value : []).filter((item: any) =>
+            leafCategoryIdSet.value.has(Number(item?.id || 0))
+        ).length
+)
+
+/**
+ * 批量导入当前已选分类数量。
+ */
+const selectedBatchImportCategoryCount = computed(
+    () => normalizeCategoryIdSelection(batchImportForm.categoryIds).length
+)
+
+/**
+ * 批量导入快捷选择：支持“全选当前筛选 / 仅选末级分类”。
+ */
+const handleBatchImportSelectAllFiltered = (onlyLeaf: boolean) => {
+    const candidates = (Array.isArray(batchImportCategoryOptions.value) ? batchImportCategoryOptions.value : [])
+        .filter((item: any) => !onlyLeaf || leafCategoryIdSet.value.has(Number(item?.id || 0)))
+        .map((item: any) => Number(item?.id || 0))
+        .filter((item: number) => Number.isInteger(item) && item > 0)
+    const normalized = Array.from(new Set(candidates))
+    batchImportForm.categoryIds = normalized
+    if (normalized.length === 0) {
+        feedback.msgWarning(onlyLeaf ? '当前筛选结果没有末级分类可选' : '当前筛选结果没有可选分类')
+        return
+    }
+    feedback.msgSuccess(onlyLeaf ? `已选择 ${normalized.length} 个末级分类` : `已选择 ${normalized.length} 个分类`)
+}
+
+/**
+ * 清空批量导入已选分类（保留当前搜索关键词）。
+ */
+const handleBatchImportClearCategories = () => {
+    batchImportForm.categoryIds = []
+    batchImportForm.primaryCategoryId = ''
+}
+
 const categoryNameMap = computed(() => {
     const map = new Map<number, string>()
     categoryList.value.forEach((item: any) => {
@@ -1312,11 +1428,7 @@ const handleBatchGenerateProgressBeforeClose = (done: () => void) => {
  * 批量导入已选分类项（用于主分类切换下拉）。
  */
 const selectedBatchImportCategoryOptions = computed(() => {
-    const selectedSet = new Set(
-        (Array.isArray(batchImportForm.categoryIds) ? batchImportForm.categoryIds : [])
-            .map((item) => Number(item))
-            .filter((item) => Number.isInteger(item) && item > 0)
-    )
+    const selectedSet = new Set(normalizeCategoryIdSelection(batchImportForm.categoryIds))
     return categoryOptions.value.filter((item) => selectedSet.has(Number(item.id)))
 })
 
@@ -1326,13 +1438,7 @@ const selectedBatchImportCategoryOptions = computed(() => {
 watch(
     () => [ ...(Array.isArray(batchImportForm.categoryIds) ? batchImportForm.categoryIds : []) ],
     (value) => {
-        const normalized = Array.from(
-            new Set(
-                value
-                    .map((item) => Number(item))
-                    .filter((item) => Number.isInteger(item) && item > 0)
-            )
-        )
+        const normalized = normalizeCategoryIdSelection(value)
         if (normalized.length === 0) {
             batchImportForm.primaryCategoryId = ''
             return
@@ -1452,13 +1558,7 @@ const handleExportBatchImportCsv = () => {
  * 提交批量导入任务
  */
 const handleBatchImportSubmit = async () => {
-    const normalizedCategoryIds = Array.from(
-        new Set(
-            (Array.isArray(batchImportForm.categoryIds) ? batchImportForm.categoryIds : [])
-                .map((item) => Number(item))
-                .filter((item) => Number.isInteger(item) && item > 0)
-        )
-    )
+    const normalizedCategoryIds = normalizeCategoryIdSelection(batchImportForm.categoryIds)
     const currentPrimary = Number(batchImportForm.primaryCategoryId || 0)
     const categoryId =
         Number.isInteger(currentPrimary) && currentPrimary > 0 && normalizedCategoryIds.includes(currentPrimary)
