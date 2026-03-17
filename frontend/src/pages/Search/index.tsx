@@ -29,6 +29,29 @@ const SEARCH_HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 10;
 const PAGE_SIZE = 40;
 const HOT_SEARCH_TAGS = ['AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG'];
+const MAX_SEMANTIC_KEYWORDS = 4;
+const MAX_AI_REWRITE_KEYWORDS = 8;
+const CATEGORY_CHIP_COLLAPSE_COUNT = 10;
+const TAG_CHIP_COLLAPSE_COUNT = 14;
+
+/**
+ * AI 搜索语义扩展词典：把用户常见表达扩展到更可命中的站内关键词。
+ */
+const SEMANTIC_SYNONYM_MAP: Record<string, string[]> = {
+  ai: ['人工智能', 'AI工具', '智能助手'],
+  chatgpt: ['大模型', 'AI问答', 'AI助手'],
+  写作: ['文案', '内容生成', '文章生成'],
+  绘画: ['图像生成', 'AI绘图', '设计灵感'],
+  设计: ['UI设计', 'UX设计', '视觉设计'],
+  图标: ['icon', '图标库', 'svg图标'],
+  字体: ['字体下载', '字库', '排版'],
+  建站: ['网站搭建', '站点工具', '网页制作'],
+  视频: ['视频生成', '视频剪辑', '短视频'],
+  办公: ['效率工具', '协作工具', '自动化办公'],
+  原型: ['交互原型', '产品设计', 'axure'],
+  代码: ['编程工具', '开发工具', '代码生成'],
+  搜索: ['资源发现', '导航站', '工具合集'],
+};
 
 // 搜索结果接口
 interface SearchResult {
@@ -67,6 +90,121 @@ interface BackendSearchItem {
  * 规范化文本，统一用于搜索相关性计算与去重键生成。
  */
 const normalizeText = (value: unknown): string => String(value || '').trim().toLowerCase();
+
+/**
+ * 规范化分类筛选键，保证 URL 参数与本地筛选比对稳定。
+ */
+const normalizeCategoryFilterKey = (value: unknown): string => {
+  return normalizeText(value).replace(/\s+/g, '-');
+};
+
+/**
+ * 规范化标签筛选键，保证 URL 参数与本地筛选比对稳定。
+ */
+const normalizeTagFilterKey = (value: unknown): string => {
+  return normalizeText(value).replace(/\s+/g, '-');
+};
+
+/**
+ * 拆分搜索词为语义 token（兼容中英文与符号分隔）。
+ */
+const tokenizeSearchQuery = (query: string): string[] => {
+  return String(query || '')
+    .split(/[、，,\s/+|:;；]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+};
+
+/**
+ * 生成语义扩展关键词列表，供 AI 搜索做“多关键词并行检索”兜底增强。
+ */
+const buildSemanticExpansionKeywords = (query: string): string[] => {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return [];
+
+  const seeds = [ ...tokenizeSearchQuery(query), normalizedQuery ];
+  const candidateMap = new Map<string, number>();
+
+  /**
+   * 写入扩展候选词并记录权重，后续按权重排序。
+   */
+  const pushCandidate = (rawKeyword: unknown, weight: number) => {
+    const keyword = String(rawKeyword || '').trim();
+    const normalizedKeyword = normalizeText(keyword);
+    if (!keyword || keyword.length < 2) return;
+    if (!normalizedKeyword || normalizedKeyword === normalizedQuery) return;
+    if (normalizedKeyword.includes(normalizedQuery)) return;
+    const prevWeight = Number(candidateMap.get(keyword) || 0);
+    candidateMap.set(keyword, Math.max(prevWeight, weight));
+  };
+
+  seeds.forEach((seed, index) => {
+    const normalizedSeed = normalizeText(seed);
+    if (!normalizedSeed) return;
+    const aliases = SEMANTIC_SYNONYM_MAP[normalizedSeed] || [];
+    aliases.forEach((alias) => pushCandidate(alias, 100 - index * 8));
+
+    Object.entries(SEMANTIC_SYNONYM_MAP).forEach(([ key, values ]) => {
+      if (!normalizedSeed.includes(key) && !key.includes(normalizedSeed)) return;
+      values.forEach((alias) => pushCandidate(alias, 90 - index * 6));
+    });
+  });
+
+  return Array.from(candidateMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([ keyword ]) => keyword)
+    .slice(0, MAX_SEMANTIC_KEYWORDS);
+};
+
+/**
+ * 生成 AI 改写推荐词，帮助用户把“模糊需求”快速改成可命中的检索表达。
+ */
+const buildAiRewriteSuggestions = (
+  query: string,
+  semanticKeywords: string[],
+  relatedKeywords: string[],
+): string[] => {
+  const rawQuery = String(query || '').trim();
+  const normalizedQuery = normalizeText(rawQuery);
+  if (!normalizedQuery) return [];
+
+  const uniqueMap = new Map<string, number>();
+
+  /**
+   * 写入候选改写词并附加权重，后续按权重排序。
+   */
+  const pushSuggestion = (rawKeyword: unknown, weight: number) => {
+    const keyword = String(rawKeyword || '').trim();
+    const normalizedKeyword = normalizeText(keyword);
+    if (!keyword || keyword.length < 2) return;
+    if (!normalizedKeyword || normalizedKeyword === normalizedQuery) return;
+    const prevWeight = Number(uniqueMap.get(keyword) || 0);
+    uniqueMap.set(keyword, Math.max(prevWeight, weight));
+  };
+
+  semanticKeywords.forEach((keyword, index) => {
+    pushSuggestion(keyword, 100 - index * 8);
+  });
+
+  const suffixTemplates = [ '免费', '中文', '开源', '替代', '合集' ];
+  suffixTemplates.forEach((suffix, index) => {
+    pushSuggestion(`${rawQuery} ${suffix}`, 86 - index * 6);
+  });
+
+  const prefixTemplates = [ '适合新手的', '高效率', '高质量' ];
+  prefixTemplates.forEach((prefix, index) => {
+    pushSuggestion(`${prefix}${rawQuery}`, 62 - index * 5);
+  });
+
+  relatedKeywords.slice(0, 4).forEach((keyword, index) => {
+    pushSuggestion(keyword, 56 - index * 4);
+  });
+
+  return Array.from(uniqueMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([ keyword ]) => keyword)
+    .slice(0, MAX_AI_REWRITE_KEYWORDS);
+};
 
 /**
  * 构建搜索结果去重键，优先使用 URL，其次 ID/名称。
@@ -449,6 +587,11 @@ const SearchPage: React.FC = () => {
   
   // 筛选状态
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState('all');
+  const [categoryExpanded, setCategoryExpanded] = useState(false);
+  const [tagExpanded, setTagExpanded] = useState(false);
+  const [showResultFilters, setShowResultFilters] = useState(false);
   
   // AI 搜索状态
   const [isAiMode, setIsAiMode] = useState(false);
@@ -464,21 +607,36 @@ const SearchPage: React.FC = () => {
   // 搜索建议
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const [isSearchInputFocused, setIsSearchInputFocused] = useState(false);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
   /**
    * 搜索建议防抖定时器引用，避免频繁触发后端接口。
    */
   const suggestionDebounceTimerRef = useRef<number | null>(null);
+  /**
+   * 输入框失焦延时定时器，保证下拉项点击时不被提前关闭。
+   */
+  const searchBlurTimerRef = useRef<number | null>(null);
   
   // 相关搜索
   const [relatedKeywords, setRelatedKeywords] = useState<string[]>([]);
   const [hotSearchTags, setHotSearchTags] = useState<string[]>(HOT_SEARCH_TAGS);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [aiEnhancedCount, setAiEnhancedCount] = useState(0);
+  const [aiExpandedKeywords, setAiExpandedKeywords] = useState<string[]>([]);
   /**
    * 搜索请求序列号，避免异步返回乱序覆盖当前结果。
    */
   const searchRequestSeqRef = useRef(0);
+  /**
+   * 记录最近一次执行的 URL 查询参数，避免仅切换来源筛选时重复请求搜索接口。
+   */
+  const lastUrlSearchRef = useRef<{ query: string; ai: boolean } | null>(null);
+  /**
+   * 搜索结果内存缓存（普通检索 / AI 检索 / 默认推荐），提升重复检索响应速度。
+   */
+  const searchResultCacheRef = useRef<Map<string, SearchResult[]>>(new Map());
   
   // 获取前端配置（跳转弹窗自定义文案）
   const { config: frontendConfig } = useFrontendConfig();
@@ -495,6 +653,37 @@ const SearchPage: React.FC = () => {
   const searchInputPlaceholder = String(searchConfig?.placeholder || '').trim() || '搜索网站名称、描述、标签...';
   const aiSearchButtonText = String(searchConfig?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索';
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
+
+  /**
+   * 生成搜索缓存键，保证不同模式与分页配置互不污染。
+   */
+  const buildSearchCacheKey = useCallback((mode: 'default' | 'keyword' | 'ai' | 'enhanced', query: string): string => {
+    const normalizedQuery = normalizeText(query || '');
+    return `${mode}:${normalizedQuery}:size-${resultPageSize}`;
+  }, [resultPageSize]);
+
+  /**
+   * 将结果写入缓存（做一次浅拷贝，避免后续引用修改污染缓存）。
+   */
+  const setSearchCache = useCallback((cacheKey: string, rows: SearchResult[]) => {
+    searchResultCacheRef.current.set(cacheKey, [ ...rows ]);
+  }, []);
+
+  /**
+   * 读取缓存结果（读取时同样浅拷贝，确保列表状态独立）。
+   */
+  const getSearchCache = useCallback((cacheKey: string): SearchResult[] | null => {
+    const rows = searchResultCacheRef.current.get(cacheKey);
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return [ ...rows ];
+  }, []);
+
+  /**
+   * 搜索配置变更后清空缓存，避免旧规则结果污染新配置体验。
+   */
+  useEffect(() => {
+    searchResultCacheRef.current.clear();
+  }, [aiSearchEnabled, resultPageSize, searchEnabled]);
 
   /**
    * 上报网站点击，失败时静默处理，不阻断页面跳转。
@@ -566,6 +755,7 @@ const SearchPage: React.FC = () => {
   // 清除搜索历史
   const clearSearchHistory = useCallback(() => {
     setSearchHistory([]);
+    setShowHistory(false);
     localStorage.removeItem(SEARCH_HISTORY_KEY);
   }, []);
 
@@ -582,6 +772,30 @@ const SearchPage: React.FC = () => {
     }
   }, []);
 
+  /**
+   * 关闭失焦延时定时器，避免搜索下拉状态错乱。
+   */
+  const clearSearchBlurTimer = useCallback(() => {
+    if (searchBlurTimerRef.current) {
+      window.clearTimeout(searchBlurTimerRef.current);
+      searchBlurTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * 生成本地快速建议（历史 + 热门标签），用于接口未命中时兜底。
+   */
+  const buildLocalSuggestions = useCallback((query: string, limit: number = 8): string[] => {
+    const normalizedQuery = normalizeText(query);
+    if (!normalizedQuery) return [];
+    return Array.from(new Set([ ...searchHistory, ...hotSearchTags ]))
+      .map(item => String(item || '').trim())
+      .filter(Boolean)
+      .filter(item => normalizeText(item).includes(normalizedQuery))
+      .filter(item => normalizeText(item) !== normalizedQuery)
+      .slice(0, limit);
+  }, [hotSearchTags, searchHistory]);
+
   // 获取搜索建议
   const fetchSuggestions = useCallback(async (query: string) => {
     if (!query.trim() || query.length < 2) {
@@ -590,11 +804,7 @@ const SearchPage: React.FC = () => {
     }
 
     if (!searchEnabled) {
-      const localSuggestions = [ ...hotSearchTags, ...searchHistory ]
-        .filter(item => item.toLowerCase().includes(query.toLowerCase()))
-        .filter(item => item !== query)
-        .slice(0, 8);
-      setSuggestions(localSuggestions);
+      setSuggestions(buildLocalSuggestions(query, 8));
       return;
     }
 
@@ -606,20 +816,16 @@ const SearchPage: React.FC = () => {
       const categorySuggestions = Array.isArray(response?.categories)
         ? response.categories.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
         : [];
-      const localSuggestions = [ ...hotSearchTags, ...searchHistory ]
-        .filter(item => item.toLowerCase().includes(query.toLowerCase()));
+      const localSuggestions = buildLocalSuggestions(query, 8);
       const merged = Array.from(new Set([ ...websiteSuggestions, ...categorySuggestions, ...localSuggestions ]))
         .filter(item => item !== query)
         .slice(0, 8);
       setSuggestions(merged);
     } catch (error) {
       debugLog.error('获取搜索建议失败:', error);
-      const localSuggestions = [ ...hotSearchTags, ...searchHistory ]
-        .filter(item => item.toLowerCase().includes(query.toLowerCase()))
-        .slice(0, 5);
-      setSuggestions(localSuggestions);
+      setSuggestions(buildLocalSuggestions(query, 5));
     }
-  }, [hotSearchTags, searchEnabled, searchHistory]);
+  }, [buildLocalSuggestions, searchEnabled]);
 
   /**
    * 基于当前搜索结果提取“相关搜索”关键词，并按出现频次与结果排名加权。
@@ -660,6 +866,62 @@ const SearchPage: React.FC = () => {
   }, []);
 
   /**
+   * 执行语义扩展关键词检索：把“AI 语义”转成可命中的多关键词并行查询。
+   */
+  const runSemanticKeywordSearch = useCallback(async (
+    query: string,
+    options?: { limit?: number; excludeKeywords?: string[] }
+  ): Promise<{ keywords: string[]; results: SearchResult[] }> => {
+    const normalizedQuery = normalizeText(query);
+    if (!normalizedQuery) return { keywords: [], results: [] };
+
+    const excludeSet = new Set(
+      (options?.excludeKeywords || []).map(keyword => normalizeText(keyword)).filter(Boolean)
+    );
+    const semanticKeywords = buildSemanticExpansionKeywords(query).filter((keyword) => {
+      const normalizedKeyword = normalizeText(keyword);
+      return normalizedKeyword && normalizedKeyword !== normalizedQuery && !excludeSet.has(normalizedKeyword);
+    });
+    if (!semanticKeywords.length) return { keywords: [], results: [] };
+
+    const queryLimit = Math.max(10, Math.min(Number(options?.limit || resultPageSize), 60));
+    const payloadList = await Promise.all(
+      semanticKeywords.map(async (keyword) => {
+        try {
+          const payload = await searchService.globalSearch({
+            keyword,
+            page: 1,
+            pageSize: queryLimit,
+            type: 'all',
+          });
+          return {
+            keyword,
+            rows: Array.isArray(payload?.lists)
+              ? payload.lists.map(item => mapBackendSearchItem(item, 'semantic'))
+              : [],
+          };
+        } catch (error) {
+          debugLog.warn(`语义扩展词检索失败: ${keyword}`, error);
+          return { keyword, rows: [] };
+        }
+      })
+    );
+
+    const mergedRows: SearchResult[] = [];
+    const hitKeywords: string[] = [];
+    payloadList.forEach((item) => {
+      if (!Array.isArray(item.rows) || item.rows.length === 0) return;
+      hitKeywords.push(item.keyword);
+      mergedRows.push(...item.rows);
+    });
+
+    return {
+      keywords: hitKeywords,
+      results: dedupeAndSortResults(mergedRows, query),
+    };
+  }, [resultPageSize]);
+
+  /**
    * 并行执行 AI 增强搜索，并把新增结果合并到当前普通搜索结果中。
    */
   const runAiEnhancement = useCallback(async (query: string, baseResults: SearchResult[], requestSeq: number) => {
@@ -667,6 +929,24 @@ const SearchPage: React.FC = () => {
 
     setAiEnhancing(true);
     setAiEnhancedCount(0);
+    setAiExpandedKeywords([]);
+    const cacheKey = buildSearchCacheKey('enhanced', query);
+    const cachedRows = getSearchCache(cacheKey);
+    if (cachedRows) {
+      if (requestSeq !== searchRequestSeqRef.current) return;
+      const mergedRows = dedupeAndSortResults([ ...baseResults, ...cachedRows ], query);
+      const increasedCount = Math.max(0, mergedRows.length - baseResults.length);
+      const cachedSemanticKeywords = buildSemanticExpansionKeywords(query).slice(0, MAX_SEMANTIC_KEYWORDS);
+      setAllResults(mergedRows);
+      setSearchResults(mergedRows.slice(0, resultPageSize));
+      setTotalResults(mergedRows.length);
+      setHasMore(mergedRows.length > resultPageSize);
+      setAiEnhancedCount(increasedCount);
+      setAiExpandedKeywords(cachedSemanticKeywords);
+      generateRelatedKeywords(mergedRows, query);
+      setAiEnhancing(false);
+      return;
+    }
 
     try {
       const payload = await searchService.aiSearch(query, Math.max(resultPageSize * 2, 40));
@@ -674,7 +954,23 @@ const SearchPage: React.FC = () => {
 
       const aiRawResults = Array.isArray(payload?.results) ? payload.results : [];
       const aiMappedResults = aiRawResults.map(item => mapBackendSearchItem(item, 'ai', true));
-      const merged = dedupeAndSortResults([ ...baseResults, ...aiMappedResults ], query);
+      let semanticRows: SearchResult[] = [];
+      let semanticKeywords: string[] = [];
+
+      /**
+       * AI 返回数量偏少时自动补一次语义扩展检索，提升“关键词覆盖”能力。
+       */
+      if (aiMappedResults.length < Math.max(10, Math.floor(resultPageSize / 2))) {
+        const semanticResult = await runSemanticKeywordSearch(query, {
+          limit: Math.max(resultPageSize, 24),
+        });
+        semanticRows = semanticResult.results;
+        semanticKeywords = semanticResult.keywords;
+      }
+
+      const enhancedRows = dedupeAndSortResults([ ...aiMappedResults, ...semanticRows ], query);
+      setSearchCache(cacheKey, enhancedRows);
+      const merged = dedupeAndSortResults([ ...baseResults, ...enhancedRows ], query);
       const increasedCount = Math.max(0, merged.length - baseResults.length);
 
       setAllResults(merged);
@@ -682,17 +978,19 @@ const SearchPage: React.FC = () => {
       setTotalResults(merged.length);
       setHasMore(merged.length > resultPageSize);
       setAiEnhancedCount(increasedCount);
+      setAiExpandedKeywords(semanticKeywords.slice(0, MAX_SEMANTIC_KEYWORDS));
       generateRelatedKeywords(merged, query);
     } catch (error) {
       debugLog.warn('AI 增强搜索失败，保留普通搜索结果:', error);
       if (requestSeq !== searchRequestSeqRef.current) return;
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
     } finally {
       if (requestSeq === searchRequestSeqRef.current) {
         setAiEnhancing(false);
       }
     }
-  }, [aiSearchEnabled, generateRelatedKeywords, resultPageSize]);
+  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, resultPageSize, runSemanticKeywordSearch, setSearchCache]);
 
   // 默认搜索
   const performDefaultSearch = useCallback(async () => {
@@ -709,6 +1007,7 @@ const SearchPage: React.FC = () => {
       setSearchErrorMessage('');
       setAiEnhancing(false);
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
       return;
     }
 
@@ -717,6 +1016,21 @@ const SearchPage: React.FC = () => {
     setSearchErrorMessage('');
     setAiEnhancing(false);
     setAiEnhancedCount(0);
+    setAiExpandedKeywords([]);
+    const cacheKey = buildSearchCacheKey('default', '__hot__');
+    const cachedRows = getSearchCache(cacheKey);
+    if (cachedRows) {
+      setAllResults(cachedRows);
+      setSearchResults(cachedRows.slice(0, resultPageSize));
+      setTotalResults(cachedRows.length);
+      setHasMore(cachedRows.length > resultPageSize);
+      setCurrentPage(1);
+      setRelatedKeywords([]);
+      setAiMessage('');
+      setSearchErrorMessage('');
+      setLoading(false);
+      return;
+    }
 
     try {
       /**
@@ -729,6 +1043,7 @@ const SearchPage: React.FC = () => {
       const list = Array.isArray(raw) ? raw : (raw?.websites || []);
       const mapped = (Array.isArray(list) ? list : []).map(item => mapBackendSearchItem(item, 'hot'));
       const uniqueResults = dedupeAndSortResults(mapped, '');
+      setSearchCache(cacheKey, uniqueResults);
 
       setAllResults(uniqueResults);
       setSearchResults(uniqueResults.slice(0, resultPageSize));
@@ -746,10 +1061,11 @@ const SearchPage: React.FC = () => {
       setSearchErrorMessage(extractApiErrorMessage(error));
       setAiEnhancing(false);
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
     } finally {
       setLoading(false);
     }
-  }, [resultPageSize, searchEnabled]);
+  }, [buildSearchCacheKey, getSearchCache, resultPageSize, searchEnabled, setSearchCache]);
 
   /**
    * 执行普通搜索（统一走后端 /api/search 契约）
@@ -770,6 +1086,7 @@ const SearchPage: React.FC = () => {
       setAiMessage('站内搜索功能已关闭');
       setAiEnhancing(false);
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
       return;
     }
 
@@ -780,7 +1097,26 @@ const SearchPage: React.FC = () => {
     setSearchErrorMessage('');
     setAiEnhancing(false);
     setAiEnhancedCount(0);
+    setAiExpandedKeywords([]);
     saveSearchHistory(query);
+    const cacheKey = buildSearchCacheKey('keyword', query);
+    const cachedRows = getSearchCache(cacheKey);
+    if (cachedRows) {
+      if (requestSeq !== searchRequestSeqRef.current) return;
+      setAllResults(cachedRows);
+      setSearchResults(cachedRows.slice(0, resultPageSize));
+      setTotalResults(cachedRows.length);
+      setHasMore(cachedRows.length > resultPageSize);
+      setCurrentPage(1);
+      generateRelatedKeywords(cachedRows, query);
+      setAiMessage('');
+      setSearchErrorMessage('');
+      setLoading(false);
+      if (query.trim() && aiSearchEnabled) {
+        runAiEnhancement(query, cachedRows, requestSeq);
+      }
+      return;
+    }
 
     try {
       const payload = await searchService.globalSearch({
@@ -792,6 +1128,7 @@ const SearchPage: React.FC = () => {
       const list = Array.isArray(payload?.lists) ? payload.lists : [];
       const mapped = list.map(item => mapBackendSearchItem(item, String(item?.source || 'global')));
       const uniqueResults = dedupeAndSortResults(mapped, query);
+      setSearchCache(cacheKey, uniqueResults);
 
       if (requestSeq !== searchRequestSeqRef.current) return;
 
@@ -821,12 +1158,13 @@ const SearchPage: React.FC = () => {
       setSearchErrorMessage(extractApiErrorMessage(error));
       setAiEnhancing(false);
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
     } finally {
       if (requestSeq === searchRequestSeqRef.current) {
         setLoading(false);
       }
     }
-  }, [aiSearchEnabled, generateRelatedKeywords, performDefaultSearch, resultPageSize, runAiEnhancement, saveSearchHistory, searchEnabled]);
+  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performDefaultSearch, resultPageSize, runAiEnhancement, saveSearchHistory, searchEnabled, setSearchCache]);
 
   /**
    * 执行 AI 搜索（统一走后端 /api/ai-search 契约）
@@ -839,6 +1177,7 @@ const SearchPage: React.FC = () => {
       setAiMessage('站内搜索功能已关闭');
       setAiEnhancing(false);
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
       return;
     }
 
@@ -847,6 +1186,7 @@ const SearchPage: React.FC = () => {
       setAiMessage('AI 搜索功能已关闭');
       setAiEnhancing(false);
       setAiEnhancedCount(0);
+      setAiExpandedKeywords([]);
       return;
     }
 
@@ -860,7 +1200,26 @@ const SearchPage: React.FC = () => {
     setSearchErrorMessage('');
     setAiEnhancing(false);
     setAiEnhancedCount(0);
+    setAiExpandedKeywords([]);
     saveSearchHistory(query);
+    const cacheKey = buildSearchCacheKey('ai', query);
+    const cachedRows = getSearchCache(cacheKey);
+    if (cachedRows) {
+      if (requestSeq !== searchRequestSeqRef.current) return;
+      setShowThinking(false);
+      const cachedSemanticKeywords = buildSemanticExpansionKeywords(query).slice(0, MAX_SEMANTIC_KEYWORDS);
+      setAllResults(cachedRows);
+      setSearchResults(cachedRows.slice(0, resultPageSize));
+      setTotalResults(cachedRows.length);
+      setHasMore(cachedRows.length > resultPageSize);
+      setCurrentPage(1);
+      setAiMessage(`AI 智能推荐找到 ${cachedRows.length} 个结果（缓存）`);
+      setSearchErrorMessage('');
+      setAiExpandedKeywords(cachedSemanticKeywords);
+      generateRelatedKeywords(cachedRows, query);
+      setAiLoading(false);
+      return;
+    }
 
     try {
       const payload = await searchService.aiSearch(query, Math.max(resultPageSize * 4, 80));
@@ -869,7 +1228,37 @@ const SearchPage: React.FC = () => {
 
       if (Array.isArray(payload.results) && payload.results.length > 0) {
         const mappedResults = payload.results.map(item => mapBackendSearchItem(item, 'ai', true));
-        const results = dedupeAndSortResults(mappedResults, query);
+        let results = dedupeAndSortResults(mappedResults, query);
+        let semanticKeywords: string[] = [];
+        let semanticRows: SearchResult[] = [];
+
+        /**
+         * 当 AI 结果较少时，自动补充关键词检索结果，降低“命中太少”体感。
+         */
+        if (results.length < Math.max(8, Math.floor(resultPageSize / 2))) {
+          const semanticResult = await runSemanticKeywordSearch(query, {
+            limit: Math.max(resultPageSize * 2, 60),
+          });
+          semanticKeywords = semanticResult.keywords;
+          semanticRows = semanticResult.results;
+          results = dedupeAndSortResults([ ...results, ...semanticRows ], query);
+
+          try {
+            const keywordPayload = await searchService.globalSearch({
+              keyword: query,
+              page: 1,
+              pageSize: Math.max(resultPageSize * 2, 60),
+              type: 'all',
+            });
+            const keywordRows = Array.isArray(keywordPayload?.lists)
+              ? keywordPayload.lists.map(item => mapBackendSearchItem(item, String(item?.source || 'global')))
+              : [];
+            results = dedupeAndSortResults([ ...results, ...keywordRows ], query);
+          } catch (mergeError) {
+            debugLog.warn('AI 搜索补充关键词结果失败:', mergeError);
+          }
+        }
+        setSearchCache(cacheKey, results);
 
         setAllResults(results);
         setSearchResults(results.slice(0, resultPageSize));
@@ -880,17 +1269,37 @@ const SearchPage: React.FC = () => {
         // 显示 AI 的推荐理由
         const modeText = payload.mode === 'ai' ? 'AI 智能推荐' : '关键词匹配';
         const reasonText = payload.reason ? ` - ${payload.reason}` : '';
-        setAiMessage(`${modeText}找到 ${results.length} 个结果${reasonText}`);
+        const semanticText = semanticKeywords.length > 0 ? ` · 语义扩展 ${semanticKeywords.join(' / ')}` : '';
+        setAiMessage(`${modeText}找到 ${results.length} 个结果${reasonText}${semanticText}`);
         setSearchErrorMessage('');
+        setAiExpandedKeywords(semanticKeywords.slice(0, MAX_SEMANTIC_KEYWORDS));
 
         generateRelatedKeywords(results, query);
       } else {
-        setAllResults([]);
-        setSearchResults([]);
-        setTotalResults(0);
-        setHasMore(false);
-        setAiMessage('AI 未找到相关结果，请尝试其他描述');
-        setSearchErrorMessage('');
+        const semanticResult = await runSemanticKeywordSearch(query, {
+          limit: Math.max(resultPageSize * 2, 60),
+        });
+        if (semanticResult.results.length > 0) {
+          const rows = dedupeAndSortResults(semanticResult.results, query);
+          setSearchCache(cacheKey, rows);
+          setAllResults(rows);
+          setSearchResults(rows.slice(0, resultPageSize));
+          setTotalResults(rows.length);
+          setHasMore(rows.length > resultPageSize);
+          setCurrentPage(1);
+          setAiExpandedKeywords(semanticResult.keywords.slice(0, MAX_SEMANTIC_KEYWORDS));
+          setAiMessage(`AI 语义扩展已返回 ${rows.length} 个结果 · ${semanticResult.keywords.join(' / ')}`);
+          setSearchErrorMessage('');
+          generateRelatedKeywords(rows, query);
+        } else {
+          setAllResults([]);
+          setSearchResults([]);
+          setTotalResults(0);
+          setHasMore(false);
+          setAiMessage('AI 未找到相关结果，请尝试其他描述');
+          setSearchErrorMessage('');
+          setAiExpandedKeywords([]);
+        }
       }
     } catch (error: unknown) {
       debugLog.error('AI 搜索失败:', error);
@@ -898,19 +1307,134 @@ const SearchPage: React.FC = () => {
       setShowThinking(false);
       setAiMessage('AI 搜索暂时不可用，已切换到普通搜索');
       setIsAiMode(false);
+      setAiExpandedKeywords([]);
       performSearch(query);
     } finally {
       if (requestSeq === searchRequestSeqRef.current) {
         setAiLoading(false);
       }
     }
-  }, [aiSearchEnabled, generateRelatedKeywords, performSearch, resultPageSize, saveSearchHistory, searchEnabled]);
+  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performSearch, resultPageSize, runSemanticKeywordSearch, saveSearchHistory, searchEnabled, setSearchCache]);
 
-  // 筛选后的结果
-  const filteredResults = useMemo(() => {
+  // 来源筛选后的结果
+  const sourceFilteredResults = useMemo(() => {
     if (sourceFilter === 'all') return allResults;
     return allResults.filter(r => r.source === sourceFilter);
   }, [allResults, sourceFilter]);
+
+  /**
+   * 计算分类分布（基于来源筛选后的结果）。
+   */
+  const categoryBreakdown = useMemo(() => {
+    const categoryMap = new Map<string, { key: string; label: string; count: number }>();
+    sourceFilteredResults.forEach((item) => {
+      const categoryLabel = String(item.category || '').trim();
+      if (!categoryLabel) return;
+      const categoryKey = normalizeCategoryFilterKey(categoryLabel);
+      if (!categoryKey) return;
+      const current = categoryMap.get(categoryKey);
+      if (current) {
+        current.count += 1;
+        return;
+      }
+      categoryMap.set(categoryKey, {
+        key: categoryKey,
+        label: categoryLabel,
+        count: 1,
+      });
+    });
+    return Array.from(categoryMap.values())
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'))
+      .slice(0, 14);
+  }, [sourceFilteredResults]);
+
+  // 来源 + 分类筛选后的结果
+  const categoryFilteredResults = useMemo(() => {
+    if (categoryFilter === 'all') return sourceFilteredResults;
+    return sourceFilteredResults.filter((item) => {
+      return normalizeCategoryFilterKey(item.category) === categoryFilter;
+    });
+  }, [categoryFilter, sourceFilteredResults]);
+
+  /**
+   * 计算标签分布（基于来源 + 分类筛选后的结果）。
+   */
+  const tagBreakdown = useMemo(() => {
+    const tagMap = new Map<string, { key: string; label: string; count: number }>();
+    categoryFilteredResults.forEach((item) => {
+      if (!Array.isArray(item.tags)) return;
+      item.tags.forEach((rawTag) => {
+        const tagLabel = String(rawTag || '').trim();
+        if (!tagLabel) return;
+        const tagKey = normalizeTagFilterKey(tagLabel);
+        if (!tagKey) return;
+        const current = tagMap.get(tagKey);
+        if (current) {
+          current.count += 1;
+          return;
+        }
+        tagMap.set(tagKey, {
+          key: tagKey,
+          label: tagLabel,
+          count: 1,
+        });
+      });
+    });
+    return Array.from(tagMap.values())
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'))
+      .slice(0, 18);
+  }, [categoryFilteredResults]);
+
+  /**
+   * 分类筛选默认折叠展示，避免标签过多导致区域过高；当前已选项始终保留可见。
+   */
+  const visibleCategoryBreakdown = useMemo(() => {
+    if (categoryExpanded || categoryBreakdown.length <= CATEGORY_CHIP_COLLAPSE_COUNT) {
+      return categoryBreakdown;
+    }
+    if (categoryFilter === 'all') {
+      return categoryBreakdown.slice(0, CATEGORY_CHIP_COLLAPSE_COUNT);
+    }
+    const selected = categoryBreakdown.find(item => item.key === categoryFilter);
+    if (!selected) {
+      return categoryBreakdown.slice(0, CATEGORY_CHIP_COLLAPSE_COUNT);
+    }
+    const topItems = categoryBreakdown.slice(0, CATEGORY_CHIP_COLLAPSE_COUNT - 1);
+    if (topItems.some(item => item.key === selected.key)) {
+      return categoryBreakdown.slice(0, CATEGORY_CHIP_COLLAPSE_COUNT);
+    }
+    return [ ...topItems, selected ];
+  }, [categoryBreakdown, categoryExpanded, categoryFilter]);
+
+  /**
+   * 标签筛选默认折叠展示，避免标签过密；当前已选项始终保留可见。
+   */
+  const visibleTagBreakdown = useMemo(() => {
+    if (tagExpanded || tagBreakdown.length <= TAG_CHIP_COLLAPSE_COUNT) {
+      return tagBreakdown;
+    }
+    if (tagFilter === 'all') {
+      return tagBreakdown.slice(0, TAG_CHIP_COLLAPSE_COUNT);
+    }
+    const selected = tagBreakdown.find(item => item.key === tagFilter);
+    if (!selected) {
+      return tagBreakdown.slice(0, TAG_CHIP_COLLAPSE_COUNT);
+    }
+    const topItems = tagBreakdown.slice(0, TAG_CHIP_COLLAPSE_COUNT - 1);
+    if (topItems.some(item => item.key === selected.key)) {
+      return tagBreakdown.slice(0, TAG_CHIP_COLLAPSE_COUNT);
+    }
+    return [ ...topItems, selected ];
+  }, [tagBreakdown, tagExpanded, tagFilter]);
+
+  // 来源 + 分类 + 标签筛选后的结果
+  const filteredResults = useMemo(() => {
+    if (tagFilter === 'all') return categoryFilteredResults;
+    return categoryFilteredResults.filter((item) => {
+      return Array.isArray(item.tags)
+        && item.tags.some((tag) => normalizeTagFilterKey(tag) === tagFilter);
+    });
+  }, [categoryFilteredResults, tagFilter]);
 
   /**
    * 动态计算来源筛选项，避免后端来源键变化时筛选器失效
@@ -939,6 +1463,83 @@ const SearchPage: React.FC = () => {
   }, [allResults]);
 
   /**
+   * 当前是否存在激活筛选项（来源/分类/标签）。
+   */
+  const hasActiveSearchFilter = sourceFilter !== 'all' || categoryFilter !== 'all' || tagFilter !== 'all';
+
+  /**
+   * 获取当前来源筛选显示文案，用于“当前筛选”摘要区。
+   */
+  const activeSourceFilterLabel = useMemo(() => {
+    return sourceFilterOptions.find(option => option.value === sourceFilter)?.label || sourceFilter;
+  }, [sourceFilter, sourceFilterOptions]);
+
+  /**
+   * 获取当前分类筛选显示文案，优先从分类分布中取真实标签名。
+   */
+  const activeCategoryFilterLabel = useMemo(() => {
+    if (categoryFilter === 'all') return '';
+    return categoryBreakdown.find(item => item.key === categoryFilter)?.label || categoryFilter;
+  }, [categoryBreakdown, categoryFilter]);
+
+  /**
+   * 获取当前标签筛选显示文案，优先从标签分布中取真实标签名。
+   */
+  const activeTagFilterLabel = useMemo(() => {
+    if (tagFilter === 'all') return '';
+    return tagBreakdown.find(item => item.key === tagFilter)?.label || tagFilter;
+  }, [tagBreakdown, tagFilter]);
+
+  /**
+   * 当前激活的筛选项数量，用于结果区筛选按钮提示。
+   */
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (sourceFilter !== 'all') count += 1;
+    if (categoryFilter !== 'all') count += 1;
+    if (tagFilter !== 'all') count += 1;
+    return count;
+  }, [categoryFilter, sourceFilter, tagFilter]);
+
+  /**
+   * 计算来源分布，用于展示“当前结果构成”并支持一键切换来源。
+   */
+  const sourceBreakdown = useMemo(() => {
+    const sourceCountMap = new Map<string, number>();
+    allResults.forEach((item) => {
+      const sourceKey = String(item.source || '').trim();
+      if (!sourceKey) return;
+      sourceCountMap.set(sourceKey, Number(sourceCountMap.get(sourceKey) || 0) + 1);
+    });
+
+    return sourceFilterOptions
+      .filter(option => option.value !== 'all')
+      .map(option => ({
+        ...option,
+        count: Number(sourceCountMap.get(option.value) || 0),
+      }))
+      .filter(option => option.count > 0);
+  }, [allResults, sourceFilterOptions]);
+
+  /**
+   * AI 快速改写推荐：结合语义扩展词、相关词与常见后缀模板生成可执行检索词。
+   */
+  const aiRewriteSuggestions = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return buildAiRewriteSuggestions(searchQuery, aiExpandedKeywords, relatedKeywords);
+  }, [aiExpandedKeywords, relatedKeywords, searchQuery]);
+
+  /**
+   * 统一计算搜索下拉展示模式，避免历史与建议同时出现。
+   */
+  const dropdownMode = useMemo<'history' | 'suggestions' | null>(() => {
+    if (!isSearchInputFocused) return null;
+    if (showSuggestions && suggestions.length > 0) return 'suggestions';
+    if (showHistory && searchHistory.length > 0) return 'history';
+    return null;
+  }, [isSearchInputFocused, searchHistory.length, showHistory, showSuggestions, suggestions.length]);
+
+  /**
    * 当来源筛选项变化时，兜底纠正失效的筛选值
    */
   useEffect(() => {
@@ -947,6 +1548,28 @@ const SearchPage: React.FC = () => {
       setSourceFilter('all');
     }
   }, [sourceFilter, sourceFilterOptions]);
+
+  /**
+   * 当分类筛选项失效时自动回退到“全部分类”。
+   */
+  useEffect(() => {
+    if (categoryFilter === 'all') return;
+    const valid = categoryBreakdown.some((item) => item.key === categoryFilter);
+    if (!valid) {
+      setCategoryFilter('all');
+    }
+  }, [categoryBreakdown, categoryFilter]);
+
+  /**
+   * 当标签筛选项失效时自动回退到“全部标签”。
+   */
+  useEffect(() => {
+    if (tagFilter === 'all') return;
+    const valid = tagBreakdown.some((item) => item.key === tagFilter);
+    if (!valid) {
+      setTagFilter('all');
+    }
+  }, [tagBreakdown, tagFilter]);
 
   // 应用筛选和分页
   useEffect(() => {
@@ -994,31 +1617,98 @@ const SearchPage: React.FC = () => {
     const query = params.get('q') || '';
     const isAiQuery = params.get('ai') === '1';
     const source = params.get('source') || 'all';
+    const category = normalizeCategoryFilterKey(params.get('category') || 'all') || 'all';
+    const tag = normalizeTagFilterKey(params.get('tag') || 'all') || 'all';
+    const nextAiMode = isAiQuery && aiSearchEnabled;
 
     setSearchQuery(query);
     setSourceFilter(source);
-    fetchTotalCount();
+    setCategoryFilter(category);
+    setTagFilter(tag);
 
-    if (query) {
-      if (isAiQuery && aiSearchEnabled) {
-        performAiSearch(query);
+    const shouldRunSearch = (
+      !lastUrlSearchRef.current ||
+      lastUrlSearchRef.current.query !== query ||
+      lastUrlSearchRef.current.ai !== nextAiMode
+    );
+    if (shouldRunSearch) {
+      if (query) {
+        if (nextAiMode) {
+          performAiSearch(query);
+        } else {
+          performSearch(query);
+        }
       } else {
-        performSearch(query);
+        performDefaultSearch();
       }
-    } else {
-      performDefaultSearch();
+      lastUrlSearchRef.current = { query, ai: nextAiMode };
     }
-  }, [aiSearchEnabled, fetchTotalCount, location.search, performAiSearch, performDefaultSearch, performSearch]);
+  }, [aiSearchEnabled, location.search, performAiSearch, performDefaultSearch, performSearch]);
+
+  /**
+   * 站点总量属于全局信息，页面初次渲染时获取一次即可。
+   */
+  useEffect(() => {
+    fetchTotalCount();
+  }, [fetchTotalCount]);
+
+  /**
+   * 搜索词或来源变化时重置“更多/收起”状态，避免旧状态影响新结果集阅读。
+   */
+  useEffect(() => {
+    setCategoryExpanded(false);
+    setTagExpanded(false);
+  }, [searchQuery, sourceFilter]);
+
+  /**
+   * 无检索词时关闭结果区筛选面板，避免默认推荐场景视觉冗余。
+   */
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setShowResultFilters(false);
+    }
+  }, [searchQuery]);
+
+  /**
+   * 筛选浮层展开时监听外部点击与 ESC，保持“点击即关”的轻交互。
+   */
+  useEffect(() => {
+    if (!showResultFilters) return;
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      if (!filterPopoverRef.current) return;
+      if (filterPopoverRef.current.contains(event.target as Node)) return;
+      setShowResultFilters(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setShowResultFilters(false);
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showResultFilters]);
 
   // 处理搜索 - 使用普通关键词搜索
   const handleSearch = useCallback((value: string) => {
     const newQuery = value.trim();
+    clearSearchBlurTimer();
+    setIsSearchInputFocused(false);
     setShowSuggestions(false);
     setShowHistory(false);
     
     if (newQuery) {
-      const sourceParam = sourceFilter !== 'all' ? `&source=${sourceFilter}` : '';
-      const newUrl = `/search?q=${encodeURIComponent(newQuery)}${sourceParam}`;
+      const params = new URLSearchParams();
+      params.set('q', newQuery);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
+      if (categoryFilter !== 'all') params.set('category', categoryFilter);
+      if (tagFilter !== 'all') params.set('tag', tagFilter);
+      const newUrl = `/search?${params.toString()}`;
       const currentUrl = location.pathname + location.search;
       
       if (newUrl !== currentUrl) {
@@ -1030,39 +1720,132 @@ const SearchPage: React.FC = () => {
     } else {
       navigate('/search');
     }
-  }, [sourceFilter, location.pathname, location.search, navigate, performSearch]);
+  }, [categoryFilter, clearSearchBlurTimer, sourceFilter, tagFilter, location.pathname, location.search, navigate, performSearch]);
+
+  /**
+   * 在“关键词搜索 / AI 搜索”之间切换，并同步 URL 参数，便于刷新后保持模式。
+   */
+  const handleSearchModeSwitch = useCallback((mode: 'keyword' | 'ai') => {
+    const normalizedQuery = String(searchQuery || '').trim();
+    if (!normalizedQuery) return;
+
+    const params = new URLSearchParams(location.search);
+    params.set('q', normalizedQuery);
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
+    else params.delete('source');
+    if (categoryFilter !== 'all') params.set('category', categoryFilter);
+    else params.delete('category');
+    if (tagFilter !== 'all') params.set('tag', tagFilter);
+    else params.delete('tag');
+
+    if (mode === 'ai' && aiSearchEnabled) params.set('ai', '1');
+    else params.delete('ai');
+
+    const nextSearch = params.toString();
+    const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+    const currentUrl = `${location.pathname}${location.search}`;
+    if (nextUrl !== currentUrl) {
+      navigate(nextUrl);
+      return;
+    }
+
+    if (mode === 'ai' && aiSearchEnabled) {
+      performAiSearch(normalizedQuery);
+      return;
+    }
+    performSearch(normalizedQuery);
+  }, [aiSearchEnabled, categoryFilter, location.pathname, location.search, navigate, performAiSearch, performSearch, searchQuery, sourceFilter, tagFilter]);
 
   // 处理搜索输入变化
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
+    const trimmedValue = value.trim();
     setSearchQuery(value);
-    setShowSuggestions(value.length >= 2);
-    setShowHistory(false);
+    setShowHistory(trimmedValue.length === 0 && isSearchInputFocused && searchHistory.length > 0);
+    setShowSuggestions(false);
 
     if (suggestionDebounceTimerRef.current) {
       window.clearTimeout(suggestionDebounceTimerRef.current);
       suggestionDebounceTimerRef.current = null;
     }
 
-    if (value.length < 2) {
+    if (trimmedValue.length === 0) {
       setSuggestions([]);
       return;
     }
 
+    if (trimmedValue.length < 2) {
+      const localSuggestions = buildLocalSuggestions(trimmedValue, 6);
+      setSuggestions(localSuggestions);
+      setShowSuggestions(localSuggestions.length > 0);
+      setShowHistory(false);
+      return;
+    }
+
+    setShowSuggestions(true);
+    setShowHistory(false);
     suggestionDebounceTimerRef.current = window.setTimeout(() => {
-      fetchSuggestions(value);
+      fetchSuggestions(trimmedValue);
     }, suggestionDebounceDelay);
-  };
+  }, [buildLocalSuggestions, fetchSuggestions, isSearchInputFocused, searchHistory.length, suggestionDebounceDelay]);
 
   /**
-   * 组件卸载时清理搜索建议防抖定时器，避免内存泄漏。
+   * 搜索输入框聚焦时展示历史或建议，提高二次检索效率。
+   */
+  const handleSearchInputFocus = useCallback(() => {
+    clearSearchBlurTimer();
+    setIsSearchInputFocused(true);
+
+    const trimmedValue = searchQuery.trim();
+    if (trimmedValue.length >= 2) {
+      setShowSuggestions(true);
+      setShowHistory(false);
+      void fetchSuggestions(trimmedValue);
+      return;
+    }
+
+    if (trimmedValue.length > 0) {
+      const localSuggestions = buildLocalSuggestions(trimmedValue, 6);
+      setSuggestions(localSuggestions);
+      setShowSuggestions(localSuggestions.length > 0);
+      setShowHistory(false);
+      return;
+    }
+
+    setShowSuggestions(false);
+    setShowHistory(searchHistory.length > 0);
+  }, [buildLocalSuggestions, clearSearchBlurTimer, fetchSuggestions, searchHistory.length, searchQuery]);
+
+  /**
+   * 搜索输入框失焦时延迟关闭下拉，确保可点击下拉项。
+   */
+  const handleSearchInputBlur = useCallback(() => {
+    clearSearchBlurTimer();
+    searchBlurTimerRef.current = window.setTimeout(() => {
+      setIsSearchInputFocused(false);
+      setShowSuggestions(false);
+      setShowHistory(false);
+    }, 140);
+  }, [clearSearchBlurTimer]);
+
+  /**
+   * 处理下拉面板的鼠标按下事件，防止 input blur 导致下拉瞬间关闭。
+   */
+  const handleDropdownMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    clearSearchBlurTimer();
+  }, [clearSearchBlurTimer]);
+
+  /**
+   * 组件卸载时清理搜索建议/失焦定时器，避免内存泄漏。
    */
   useEffect(() => {
     return () => {
       if (suggestionDebounceTimerRef.current) {
         window.clearTimeout(suggestionDebounceTimerRef.current);
       }
+      clearSearchBlurTimer();
     };
-  }, []);
+  }, [clearSearchBlurTimer]);
 
   // 处理热门标签点击
   const handleTagClick = (tag: string) => {
@@ -1070,11 +1853,87 @@ const SearchPage: React.FC = () => {
     handleSearch(tag);
   };
 
-  // 处理筛选变化
+  /**
+   * 执行 AI 改写词检索：写入 URL 并强制使用 ai=1，保持刷新后状态一致。
+   * @param keyword 改写关键词
+   */
+  const handleAiRewriteSearch = useCallback((keyword: string) => {
+    const normalizedKeyword = String(keyword || '').trim();
+    if (!normalizedKeyword) return;
+    clearSearchBlurTimer();
+    setSearchQuery(normalizedKeyword);
+    const params = new URLSearchParams(location.search);
+    params.set('q', normalizedKeyword);
+    params.set('ai', '1');
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
+    else params.delete('source');
+    if (categoryFilter !== 'all') params.set('category', categoryFilter);
+    else params.delete('category');
+    if (tagFilter !== 'all') params.set('tag', tagFilter);
+    else params.delete('tag');
+    navigate(`${location.pathname}?${params.toString()}`);
+  }, [categoryFilter, clearSearchBlurTimer, location.pathname, location.search, navigate, sourceFilter, tagFilter]);
+
+  /**
+   * 处理来源筛选变化，并同步 URL 参数，便于刷新后保持筛选状态。
+   */
   const handleSourceChange = (source: string) => {
     setSourceFilter(source);
     setCurrentPage(1);
+
+    const params = new URLSearchParams(location.search);
+    if (source === 'all') params.delete('source');
+    else params.set('source', source);
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
   };
+
+  /**
+   * 处理分类筛选切换，并同步 URL 参数，保证刷新后筛选状态不丢失。
+   */
+  const handleCategoryChange = useCallback((category: string) => {
+    const nextCategory = String(category || 'all').trim() || 'all';
+    setCategoryFilter(nextCategory);
+    setCurrentPage(1);
+
+    const params = new URLSearchParams(location.search);
+    if (nextCategory === 'all') params.delete('category');
+    else params.set('category', nextCategory);
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  /**
+   * 处理标签筛选切换，并同步 URL 参数，保证刷新后筛选状态不丢失。
+   */
+  const handleTagFilterChange = useCallback((tag: string) => {
+    const nextTag = String(tag || 'all').trim() || 'all';
+    setTagFilter(nextTag);
+    setCurrentPage(1);
+
+    const params = new URLSearchParams(location.search);
+    if (nextTag === 'all') params.delete('tag');
+    else params.set('tag', nextTag);
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  /**
+   * 一键清空来源/分类/标签筛选并同步 URL 参数。
+   */
+  const handleResetSearchFilters = useCallback(() => {
+    setSourceFilter('all');
+    setCategoryFilter('all');
+    setTagFilter('all');
+    setCurrentPage(1);
+
+    const params = new URLSearchParams(location.search);
+    params.delete('source');
+    params.delete('category');
+    params.delete('tag');
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   // 处理网站点击
   const handleWebsiteClick = (website: SearchResult) => {
@@ -1149,51 +2008,71 @@ const SearchPage: React.FC = () => {
         limit={1}
         className="search-page__top-banner"
       />
-      <HeroBanner
-        pageType="search"
-        searchValue={searchQuery}
-        onSearchChange={handleSearchChange}
-        hotTags={hotSearchTags}
-        onTagClick={handleTagClick}
-        searchPlaceholder={searchInputPlaceholder}
-        searchPageType="all"
-        showStats={true}
-        customTitle="全站搜索"
-        customDescription={`收录 ${totalWebsites.toLocaleString()} 个优质网站资源`}
-        aiSearchEnabled={aiSearchEnabled}
-        aiSearchBtnText={aiSearchButtonText}
-      />
+      <div className="search-hero-zone">
+        <HeroBanner
+          pageType="search"
+          searchValue={searchQuery}
+          onSearchChange={handleSearchChange}
+          onSearchSubmit={handleSearch}
+          onSearchFocus={handleSearchInputFocus}
+          onSearchBlur={handleSearchInputBlur}
+          hotTags={hotSearchTags}
+          onTagClick={handleTagClick}
+          searchPlaceholder={searchInputPlaceholder}
+          searchPageType="all"
+          showStats={true}
+          customTitle="全站搜索"
+          customDescription={`收录 ${totalWebsites.toLocaleString()} 个优质网站资源`}
+          aiSearchEnabled={aiSearchEnabled}
+          aiSearchBtnText={aiSearchButtonText}
+        />
+        {dropdownMode && (
+          <div className="search-dropdown-wrapper">
+            <div
+              className="search-dropdown"
+              ref={searchDropdownRef}
+              onMouseDown={handleDropdownMouseDown}
+            >
+              <div className="dropdown-header">
+                <span>{dropdownMode === 'history' ? '搜索历史' : '搜索建议'}</span>
+                {dropdownMode === 'history' && (
+                  <button onClick={clearSearchHistory}>清除</button>
+                )}
+              </div>
+              {dropdownMode === 'history' && searchHistory.map((historyKeyword, index) => (
+                <button
+                  type="button"
+                  key={`history-${index}`}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setSearchQuery(historyKeyword);
+                    handleSearch(historyKeyword);
+                  }}
+                >
+                  <span className="history-icon">🕐</span>
+                  {historyKeyword}
+                </button>
+              ))}
+              {dropdownMode === 'suggestions' && suggestions.map((suggestion, index) => (
+                <button
+                  type="button"
+                  key={`suggestion-${index}`}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setSearchQuery(suggestion);
+                    handleSearch(suggestion);
+                  }}
+                >
+                  <span className="suggestion-icon">🔍</span>
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="search-content">
-        {/* 搜索历史下拉 */}
-        {showHistory && searchHistory.length > 0 && (
-          <div className="search-dropdown" ref={suggestionsRef}>
-            <div className="dropdown-header">
-              <span>搜索历史</span>
-              <button onClick={clearSearchHistory}>清除</button>
-            </div>
-            {searchHistory.map((h, i) => (
-              <div key={i} className="dropdown-item" onClick={() => { setSearchQuery(h); handleSearch(h); }}>
-                <span className="history-icon">🕐</span>
-                {h}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 搜索建议下拉 */}
-        {showSuggestions && suggestions.length > 0 && (
-          <div className="search-dropdown" ref={suggestionsRef}>
-            <div className="dropdown-header"><span>搜索建议</span></div>
-            {suggestions.map((s, i) => (
-              <div key={i} className="dropdown-item" onClick={() => { setSearchQuery(s); handleSearch(s); }}>
-                <span className="suggestion-icon">🔍</span>
-                {s}
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* 搜索统计和筛选 */}
         <div className="search-header">
           <div className="search-stats-info">
@@ -1238,17 +2117,28 @@ const SearchPage: React.FC = () => {
                 <span className="ai-toggle-text">{aiSearchButtonText}</span>
               </button>
             )}
+
+            {searchQuery && (
+              <div className="search-mode-switch">
+                <button
+                  type="button"
+                  className={`search-mode-btn ${!isAiMode ? 'active' : ''}`}
+                  onClick={() => handleSearchModeSwitch('keyword')}
+                >
+                  关键词
+                </button>
+                {aiSearchEnabled && (
+                  <button
+                    type="button"
+                    className={`search-mode-btn ${isAiMode ? 'active' : ''}`}
+                    onClick={() => handleSearchModeSwitch('ai')}
+                  >
+                    AI 语义
+                  </button>
+                )}
+              </div>
+            )}
             
-            {/* 来源筛选 */}
-            <select 
-              className="source-filter"
-              value={sourceFilter}
-              onChange={(e) => handleSourceChange(e.target.value)}
-            >
-              {sourceFilterOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -1280,8 +2170,259 @@ const SearchPage: React.FC = () => {
           </div>
         )}
 
+        {aiExpandedKeywords.length > 0 && searchQuery && !showThinking && (
+          <div className="search-semantic-info">
+            <span className="search-semantic-label">AI 扩展词</span>
+            <div className="search-semantic-tags">
+              {aiExpandedKeywords.map((keyword, index) => (
+                <button
+                  key={`${keyword}-${index}`}
+                  type="button"
+                  className="search-semantic-tag"
+                  onClick={() => handleTagClick(keyword)}
+                >
+                  {keyword}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {aiRewriteSuggestions.length > 0 && searchQuery && aiSearchEnabled && !showThinking && (
+          <div className="search-ai-rewrite-info">
+            <div className="search-ai-rewrite-head">
+              <span className="search-ai-rewrite-title">AI 改写推荐</span>
+              <span className="search-ai-rewrite-tip">点击后自动切换 AI 语义搜索</span>
+            </div>
+            <div className="search-ai-rewrite-tags">
+              {aiRewriteSuggestions.map((keyword, index) => (
+                <button
+                  key={`${keyword}-${index}`}
+                  type="button"
+                  className="search-ai-rewrite-tag"
+                  onClick={() => handleAiRewriteSearch(keyword)}
+                >
+                  {keyword}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 搜索结果 */}
         <div className="search-results">
+          {searchQuery && (
+            <div className="search-filter-anchor" ref={filterPopoverRef}>
+              <div className="search-result-toolbar">
+                <button
+                  type="button"
+                  className={`search-filter-icon-btn ${showResultFilters ? 'active' : ''}`}
+                  onClick={() => setShowResultFilters(prev => !prev)}
+                  title="筛选"
+                  aria-label="筛选"
+                  aria-expanded={showResultFilters}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
+                  {activeFilterCount > 0 && <strong>{activeFilterCount}</strong>}
+                </button>
+              </div>
+
+              {showResultFilters && (
+                <div className="search-filter-popover">
+                  <div className="search-filter-popover__head">
+                    <span className="search-filter-popover__title">筛选</span>
+                    <div className="search-filter-popover__head-actions">
+                      {hasActiveSearchFilter && (
+                        <button
+                          type="button"
+                          className="search-clear-filters-btn"
+                          onClick={handleResetSearchFilters}
+                        >
+                          清空筛选
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="search-filter-popover__collapse"
+                        onClick={() => setShowResultFilters(false)}
+                      >
+                        收起
+                      </button>
+                    </div>
+                  </div>
+
+                  {hasActiveSearchFilter && (
+                    <div className="search-filter-popover__active">
+                      {sourceFilter !== 'all' && (
+                        <button
+                          type="button"
+                          className="search-active-filter-chip"
+                          onClick={() => handleSourceChange('all')}
+                        >
+                          <span>来源：{activeSourceFilterLabel}</span>
+                          <strong>×</strong>
+                        </button>
+                      )}
+                      {categoryFilter !== 'all' && (
+                        <button
+                          type="button"
+                          className="search-active-filter-chip"
+                          onClick={() => handleCategoryChange('all')}
+                        >
+                          <span>分类：{activeCategoryFilterLabel}</span>
+                          <strong>×</strong>
+                        </button>
+                      )}
+                      {tagFilter !== 'all' && (
+                        <button
+                          type="button"
+                          className="search-active-filter-chip"
+                          onClick={() => handleTagFilterChange('all')}
+                        >
+                          <span>标签：{activeTagFilterLabel}</span>
+                          <strong>×</strong>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="search-result-filters">
+                    <div className="search-result-filter-group">
+                      <div className="search-filter-block__head">
+                        <span className="search-result-filter-group__label">来源</span>
+                      </div>
+                      <div className="search-source-overview">
+                        <button
+                          type="button"
+                          className={`search-source-chip ${sourceFilter === 'all' ? 'active' : ''}`}
+                          onClick={() => handleSourceChange('all')}
+                        >
+                          <span>全部来源</span>
+                          <strong>{allResults.length}</strong>
+                        </button>
+                        {sourceBreakdown.map((sourceItem) => (
+                          <button
+                            key={sourceItem.value}
+                            type="button"
+                            className={`search-source-chip ${sourceFilter === sourceItem.value ? 'active' : ''}`}
+                            onClick={() => handleSourceChange(sourceItem.value)}
+                          >
+                            <span>{sourceItem.label}</span>
+                            <strong>{sourceItem.count}</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {categoryBreakdown.length > 0 && (
+                      <div className="search-result-filter-group">
+                        <div className="search-filter-block__head">
+                          <span className="search-result-filter-group__label">分类</span>
+                          <div className="search-filter-block__actions">
+                            {categoryFilter !== 'all' && (
+                              <button
+                                type="button"
+                                className="search-filter-action-btn"
+                                onClick={() => handleCategoryChange('all')}
+                              >
+                                清除
+                              </button>
+                            )}
+                            {categoryBreakdown.length > CATEGORY_CHIP_COLLAPSE_COUNT && (
+                              <button
+                                type="button"
+                                className="search-filter-action-btn"
+                                onClick={() => setCategoryExpanded(prev => !prev)}
+                              >
+                                {categoryExpanded
+                                  ? '收起'
+                                  : `更多 ${Math.max(0, categoryBreakdown.length - visibleCategoryBreakdown.length)}`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="search-category-overview__chips">
+                          <button
+                            type="button"
+                            className={`search-category-chip ${categoryFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => handleCategoryChange('all')}
+                          >
+                            <span>全部分类</span>
+                            <strong>{sourceFilteredResults.length}</strong>
+                          </button>
+                          {visibleCategoryBreakdown.map((item) => (
+                            <button
+                              key={item.key}
+                              type="button"
+                              className={`search-category-chip ${categoryFilter === item.key ? 'active' : ''}`}
+                              onClick={() => handleCategoryChange(item.key)}
+                            >
+                              <span>{item.label}</span>
+                              <strong>{item.count}</strong>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {tagBreakdown.length > 0 && (
+                      <div className="search-result-filter-group">
+                        <div className="search-filter-block__head">
+                          <span className="search-result-filter-group__label">标签</span>
+                          <div className="search-filter-block__actions">
+                            {tagFilter !== 'all' && (
+                              <button
+                                type="button"
+                                className="search-filter-action-btn"
+                                onClick={() => handleTagFilterChange('all')}
+                              >
+                                清除
+                              </button>
+                            )}
+                            {tagBreakdown.length > TAG_CHIP_COLLAPSE_COUNT && (
+                              <button
+                                type="button"
+                                className="search-filter-action-btn"
+                                onClick={() => setTagExpanded(prev => !prev)}
+                              >
+                                {tagExpanded
+                                  ? '收起'
+                                  : `更多 ${Math.max(0, tagBreakdown.length - visibleTagBreakdown.length)}`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="search-tag-overview__chips">
+                          <button
+                            type="button"
+                            className={`search-tag-chip ${tagFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => handleTagFilterChange('all')}
+                          >
+                            <span>全部标签</span>
+                            <strong>{categoryFilteredResults.length}</strong>
+                          </button>
+                          {visibleTagBreakdown.map((item) => (
+                            <button
+                              key={item.key}
+                              type="button"
+                              className={`search-tag-chip ${tagFilter === item.key ? 'active' : ''}`}
+                              onClick={() => handleTagFilterChange(item.key)}
+                            >
+                              <span>{item.label}</span>
+                              <strong>{item.count}</strong>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {isLoading && currentPage === 1 && !showThinking ? (
             <div className="search-loading">
               <div className="loading"></div>
