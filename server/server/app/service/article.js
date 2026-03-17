@@ -994,6 +994,272 @@ class ArticleService extends Service {
   }
 
   /**
+   * 解析批量导入公众号链接（支持换行/逗号/空格分隔，并去重）。
+   */
+  normalizeWechatBatchImportUrls(rawValue = '') {
+    const segments = String(rawValue || '')
+      .split(/[\n\r\t,，;；\s]+/g)
+      .map(item => this.extractFirstHttpUrl(String(item || '')))
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    const uniqueUrls = [];
+    const seen = new Set();
+    for (const item of segments) {
+      try {
+        const normalized = this.normalizeWechatArticleUrl(item);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        uniqueUrls.push(normalized);
+      } catch (error) {
+        // 非公众号链接会被忽略，最终在结果明细里按失败提示
+      }
+      if (uniqueUrls.length >= 100) break;
+    }
+    return uniqueUrls;
+  }
+
+  /**
+   * 解析批量导入标签 ID 列表（兼容数组/逗号串）。
+   */
+  normalizeBatchImportArticleTagIds(rawTagIds = []) {
+    const source = Array.isArray(rawTagIds)
+      ? rawTagIds
+      : String(rawTagIds || '')
+        .split(/[，,]/g)
+        .map(item => String(item || '').trim())
+        .filter(Boolean);
+    return Array.from(new Set(source
+      .map(item => Number.parseInt(String(item || 0), 10))
+      .filter(item => Number.isInteger(item) && item > 0)));
+  }
+
+  /**
+   * 规范化批量导入发布状态：draft=待发布，published/active=已发布。
+   */
+  normalizeBatchImportArticleStatus(status = '') {
+    const normalized = String(status || '').trim().toLowerCase();
+    if ([ 'published', 'active', '1', 'true' ].includes(normalized)) {
+      return 1;
+    }
+    return 0;
+  }
+
+  /**
+   * 构建“批量导入文章 AI 润色”提示词。
+   * 可用占位符：{title} {intro} {content} {author} {sourceUrl}
+   */
+  buildWechatBatchAiPrompt(importedArticle = {}, promptTemplate = '') {
+    const defaultTemplate = `请基于以下公众号文章内容进行专业润色，并直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+原始标题：{title}
+原始简介：{intro}
+作者：{author}
+来源链接：{sourceUrl}
+原始正文：
+{content}
+
+要求：
+1. 保留原文核心事实，不编造信息；
+2. 优化结构与可读性，可适当增加小标题（h2/h3）；
+3. 输出为可直接入库的 HTML 正文；
+4. 正文建议 600-2000 字；`;
+    const template = String(promptTemplate || '').trim() || defaultTemplate;
+    const safeTemplate = template.slice(0, 7000);
+    const safeContent = String(importedArticle?.content || '').trim().slice(0, 8000);
+    const variableMap = {
+      title: String(importedArticle?.title || '').trim(),
+      intro: String(importedArticle?.intro || '').trim(),
+      author: String(importedArticle?.author || '').trim(),
+      sourceUrl: String(importedArticle?.sourceUrl || '').trim(),
+      content: safeContent,
+    };
+    return safeTemplate.replace(/\{(title|intro|content|author|sourceUrl)\}/g, (_, key) => {
+      return String(variableMap[key] || '');
+    });
+  }
+
+  /**
+   * 通过 AI 润色批量导入的公众号正文。
+   */
+  async enhanceWechatArticleContentByAi(importedArticle = {}, options = {}) {
+    const { ctx } = this;
+    const aiEnabled = options?.enabled === true;
+    if (!aiEnabled) {
+      return {
+        content: String(importedArticle?.content || '').trim(),
+        model: '',
+      };
+    }
+
+    const aiService = ctx.service.uied.aiConfig;
+    const config = await aiService.getDefault();
+    if (!config) {
+      throw new Error('没有可用的 AI 配置，请先在 AI 配置中启用一个模型');
+    }
+    const requestUrl = aiService.resolveChatApiUrl(config.provider, config.apiUrl);
+    const requestModel = aiService.resolveChatModel(
+      config.provider,
+      String(options?.modelOverride || '').trim() || config.model
+    );
+    const prompt = this.buildWechatBatchAiPrompt(
+      importedArticle,
+      String(options?.promptTemplateOverride || '').trim()
+    );
+
+    const response = await aiService.requestChatCompletions({
+      url: requestUrl,
+      apiKey: config.apiKey,
+      data: aiService.buildChatRequestData(config, {
+        model: requestModel,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 2600,
+      }),
+      timeout: 90000,
+    });
+    if (response.status !== 200) {
+      throw new Error('AI 润色请求失败');
+    }
+
+    let content = String(response?.data?.choices?.[0]?.message?.content || '').trim();
+    if (!content) {
+      throw new Error('AI 返回内容为空');
+    }
+    content = content
+      .replace(/^```html?\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+    if (!content) {
+      throw new Error('AI 润色结果为空');
+    }
+
+    return { content, model: requestModel };
+  }
+
+  /**
+   * 批量导入公众号文章（后台导入弹窗调用）。
+   * 支持：草稿/发布、标签/专题、AI 助手导入配置（模型+提示词）与请求覆盖参数。
+   */
+  async importWechatBatch(payload = {}) {
+    const { ctx } = this;
+    const urls = this.normalizeWechatBatchImportUrls(payload.urls);
+    const cid = Number.parseInt(String(payload.cid || 0), 10);
+    const author = String(payload.author || '').trim();
+    const isShow = this.normalizeBatchImportArticleStatus(payload.status);
+    const topicId = Number.parseInt(String(payload.topicId || 0), 10);
+    const normalizedTopicId = Number.isInteger(topicId) && topicId > 0 ? topicId : 0;
+    const tagIds = this.normalizeBatchImportArticleTagIds(payload.tagIds);
+    let aiEnabled = payload.aiEnabled === true;
+    let aiModelOverride = String(payload.aiModel || '').trim();
+    let aiPromptTemplateOverride = String(payload.aiPromptTemplate || '').trim();
+
+    if (aiEnabled) {
+      try {
+        const importConfig = await ctx.service.uied.aiConfig.getImportConfig();
+        const articleImportConfig = importConfig?.articleBatchImport || {};
+        if (articleImportConfig.enabled === false) {
+          aiEnabled = false;
+        }
+        if (!aiModelOverride) {
+          aiModelOverride = String(articleImportConfig.model || '').trim();
+        }
+        if (!aiPromptTemplateOverride) {
+          aiPromptTemplateOverride = String(articleImportConfig.promptTemplate || '').trim();
+        }
+      } catch (error) {
+        ctx.logger.warn(`[article.importWechatBatch] 读取 AI 导入配置失败，将继续使用请求参数: ${error?.message || error}`);
+      }
+    }
+
+    if (!Number.isInteger(cid) || cid <= 0) {
+      throw new Error('请选择文章栏目');
+    }
+    if (!author) {
+      throw new Error('请选择作者');
+    }
+    if (!urls.length) {
+      throw new Error('请至少输入一个可用的公众号链接');
+    }
+
+    const rows = [];
+    for (const articleUrl of urls) {
+      try {
+        const importedArticle = await this.importWechatArticle(articleUrl);
+        let finalContent = String(importedArticle?.content || '').trim();
+        let aiModelUsed = '';
+        let aiError = '';
+
+        if (aiEnabled) {
+          try {
+            const aiResult = await this.enhanceWechatArticleContentByAi(importedArticle, {
+              enabled: true,
+              modelOverride: aiModelOverride || undefined,
+              promptTemplateOverride: aiPromptTemplateOverride || undefined,
+            });
+            if (String(aiResult?.content || '').trim()) {
+              finalContent = String(aiResult.content || '').trim();
+              aiModelUsed = String(aiResult?.model || '').trim();
+            }
+          } catch (error) {
+            aiError = String(error?.message || 'AI 润色失败').trim();
+          }
+        }
+
+        if (!finalContent) {
+          throw new Error('导入正文为空');
+        }
+
+        const finalTitle = String(importedArticle?.title || '').trim() || `公众号文章-${Date.now()}`;
+        const finalIntro = String(importedArticle?.intro || '').trim()
+          || this.stripHtmlTags(finalContent).slice(0, 120);
+        const finalSummary = String(finalIntro || '').slice(0, 200);
+        const finalImage = String(importedArticle?.image || '').trim()
+          || this.extractFirstImageFromContent(finalContent);
+
+        const articleId = await this.add({
+          cid,
+          title: finalTitle,
+          intro: finalIntro,
+          summary: finalSummary,
+          image: finalImage,
+          content: finalContent,
+          author,
+          tagIds,
+          topicId: normalizedTopicId,
+          isShow,
+          visit: 0,
+          sort: 0,
+        });
+
+        rows.push({
+          status: 'created',
+          url: articleUrl,
+          articleId,
+          title: finalTitle,
+          reason: aiError ? `导入成功，AI润色失败：${aiError}` : '导入成功',
+          aiModelUsed,
+        });
+      } catch (error) {
+        rows.push({
+          status: 'failed',
+          url: articleUrl,
+          reason: String(error?.message || '导入失败').trim(),
+        });
+      }
+    }
+
+    const created = rows.filter(item => item.status === 'created').length;
+    const failed = rows.filter(item => item.status === 'failed').length;
+    return {
+      total: rows.length,
+      created,
+      failed,
+      rows,
+    };
+  }
+
+  /**
    * 从正文 HTML 中提取第一张图片地址（用于未设置封面图时的兜底）
    */
   extractFirstImageFromContent(content) {

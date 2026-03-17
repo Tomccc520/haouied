@@ -30,6 +30,9 @@ interface HeroBannerProps {
   totalCount?: number;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
+  onSearchSubmit?: (value: string) => void;
+  onSearchFocus?: () => void;
+  onSearchBlur?: () => void;
   hotTags?: string[];
   onTagClick?: (tag: string) => void;
   searchPlaceholder?: string;
@@ -69,6 +72,9 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   totalCount,
   searchValue,
   onSearchChange,
+  onSearchSubmit,
+  onSearchFocus,
+  onSearchBlur,
   hotTags,
   onTagClick,
   searchPlaceholder = "搜索网站名称...",
@@ -99,6 +105,8 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   
   // AI 搜索状态（用于显示加载状态）
   const { loading: aiLoading } = useAISearch();
+  const [localSearchKeyword, setLocalSearchKeyword] = useState('');
+  const resolvedSearchKeyword = typeof searchValue === 'string' ? searchValue : localSearchKeyword;
   
   // 根据页面类型从API获取数量和设置内容
   useEffect(() => {
@@ -201,17 +209,23 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
    * 处理搜索
    */
   const handleSearch = (keyword: string) => {
-    if (!keyword.trim()) return;
-    
-    // 新版本默认跳转到搜索页面
-    if (isNewVersion) {
-      window.location.href = `/search?q=${encodeURIComponent(keyword.trim())}`;
+    const trimmedKeyword = keyword.trim();
+    if (!trimmedKeyword) return;
+
+    if (onSearchSubmit) {
+      onSearchSubmit(trimmedKeyword);
       return;
     }
-    
+
+    // 新版本默认跳转到搜索页面
+    if (isNewVersion) {
+      window.location.href = `/search?q=${encodeURIComponent(trimmedKeyword)}`;
+      return;
+    }
+
     // 旧版本使用回调
     if (onSearchChange) {
-      onSearchChange(keyword);
+      onSearchChange(trimmedKeyword);
     }
   };
 
@@ -226,19 +240,30 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   };
 
   /**
+   * 同步搜索输入值，兼容受控与非受控两种模式。
+   */
+  const syncSearchKeyword = (value: string) => {
+    if (onSearchChange) {
+      onSearchChange(value);
+    } else {
+      setLocalSearchKeyword(value);
+    }
+  };
+
+  /**
    * 处理热门标签点击
    */
   const handleTagClick = (tag: string) => {
-    if (isNewVersion) {
-      window.location.href = `/search?q=${encodeURIComponent(tag)}`;
-      return;
-    }
-    
-    if (onSearchChange) {
-      onSearchChange(tag);
-    }
+    syncSearchKeyword(tag);
     if (onTagClick) {
       onTagClick(tag);
+    }
+    if (onSearchSubmit) {
+      onSearchSubmit(tag);
+      return;
+    }
+    if (isNewVersion) {
+      window.location.href = `/search?q=${encodeURIComponent(tag)}`;
     }
   };
 
@@ -517,9 +542,12 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 <input
                   type="text"
                   placeholder={searchPlaceholder}
+                  value={resolvedSearchKeyword}
+                  onChange={(e) => syncSearchKeyword(e.target.value)}
+                  onFocus={onSearchFocus}
+                  onBlur={onSearchBlur}
                   onKeyPress={handleKeyPress}
                   className="search-input"
-                  id="hero-search-input"
                 />
                 {/* AI 搜索按钮 */}
                 {aiSearchEnabled && (
@@ -528,8 +556,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                     className={`ai-search-btn ${aiLoading ? 'loading' : ''}`}
                     disabled={aiLoading}
                     onClick={() => {
-                      const input = document.getElementById('hero-search-input') as HTMLInputElement;
-                      const query = input?.value?.trim() || '';
+                      const query = resolvedSearchKeyword.trim();
                       if (query) {
                         window.location.href = `/search?q=${encodeURIComponent(query)}&ai=1`;
                       }

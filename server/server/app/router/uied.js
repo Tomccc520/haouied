@@ -275,6 +275,10 @@ module.exports = app => {
   allFeature('/api/uied/aiConfig/batchConfirm', 'ai_assistant', controller.uied.aiConfig.batchConfirm);
   allFeature('/api/uied/aiConfig/chat', 'ai_assistant', controller.uied.aiConfig.chat);
   allFeature('/api/ai/chat/completions/editor', 'ai_assistant', controller.uied.aiConfig.chatCompletionsEditor);
+  allFeature('/api/uied/aiConfig/importConfig', 'ai_assistant', controller.uied.aiConfig.importConfig);
+  allFeature('/api/uied/aiConfig/saveImportConfig', 'ai_assistant', controller.uied.aiConfig.saveImportConfig);
+  allFeature('/api/uied/aiConfig/importTemplatePresets', 'ai_assistant', controller.uied.aiConfig.importTemplatePresets);
+  allFeature('/api/uied/aiConfig/saveImportTemplatePresets', 'ai_assistant', controller.uied.aiConfig.saveImportTemplatePresets);
   allFeature('/api/uied/aiConfig/featureToggle', 'ai_assistant', controller.uied.aiConfig.featureToggle);
   allFeature('/api/uied/aiConfig/saveFeatureToggle', 'ai_assistant', controller.uied.aiConfig.saveFeatureToggle);
 

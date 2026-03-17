@@ -124,6 +124,14 @@
                 >
                     生成测试数据
                 </el-button>
+                <el-button
+                    v-perms="['article:add', 'article:add/edit']"
+                    class="mb-4 ml-2"
+                    :disabled="batchWechatImportLoading"
+                    @click="openBatchWechatImportDialog"
+                >
+                    批量导入文章
+                </el-button>
             </div>
             <div class="article-summary mb-3">
                 <el-tag effect="plain">当前列表 {{ safeLists.length }} 条</el-tag>
@@ -149,6 +157,147 @@
                     待发布
                 </el-button>
             </div>
+
+            <el-dialog
+                v-model="batchWechatImportDialogVisible"
+                title="批量导入公众号文章"
+                width="860px"
+                :close-on-click-modal="!batchWechatImportLoading"
+                destroy-on-close
+            >
+                <div
+                    v-loading="batchWechatImportLoading"
+                    element-loading-text="正在批量导入文章，请稍候..."
+                >
+                    <el-form :model="batchWechatImportForm" label-width="120px">
+                        <el-form-item label="文章栏目" required>
+                            <el-select
+                                v-model="batchWechatImportForm.cid"
+                                placeholder="请选择栏目"
+                                filterable
+                                clearable
+                                style="width: 100%"
+                                :disabled="batchWechatImportLoading"
+                            >
+                                <el-option
+                                    v-for="item in optionsData.articleCate"
+                                    :key="item.id"
+                                    :label="item.name"
+                                    :value="item.id"
+                                />
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="作者" required>
+                            <el-select
+                                v-model="batchWechatImportForm.author"
+                                placeholder="请选择作者（支持输入搜索）"
+                                filterable
+                                remote
+                                clearable
+                                :remote-method="fetchBatchImportAuthorOptions"
+                                @visible-change="handleBatchImportAuthorVisibleChange"
+                                :loading="batchWechatImportAuthorLoading"
+                                style="width: 100%"
+                                :disabled="batchWechatImportLoading"
+                            >
+                                <el-option
+                                    v-for="item in batchWechatImportAuthorOptions"
+                                    :key="item.value"
+                                    :label="item.label"
+                                    :value="item.value"
+                                >
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span>{{ item.label }}</span>
+                                        <span class="text-xs text-gray-400">{{ item.userTypeName }}</span>
+                                    </div>
+                                </el-option>
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="公众号链接" required>
+                            <el-input
+                                v-model="batchWechatImportForm.urlsText"
+                                type="textarea"
+                                :rows="8"
+                                placeholder="每行一个公众号链接（https://mp.weixin.qq.com/...)"
+                                :disabled="batchWechatImportLoading"
+                            />
+                        </el-form-item>
+                        <el-form-item label="发布状态">
+                            <el-radio-group
+                                v-model="batchWechatImportForm.status"
+                                :disabled="batchWechatImportLoading"
+                            >
+                                <el-radio-button label="draft">草稿</el-radio-button>
+                                <el-radio-button label="published">发布</el-radio-button>
+                            </el-radio-group>
+                        </el-form-item>
+                        <el-form-item label="导入选项">
+                            <el-checkbox
+                                v-model="batchWechatImportForm.aiEnabled"
+                                :disabled="batchWechatImportLoading"
+                            >
+                                导入后使用 AI 润色正文
+                            </el-checkbox>
+                            <div
+                                v-if="batchWechatImportForm.aiEnabled"
+                                class="text-xs text-gray-500 mt-2"
+                            >
+                                模型与提示词请在「AI 助手管理 -> 导入配置」中统一设置。
+                            </div>
+                        </el-form-item>
+                    </el-form>
+
+                    <el-alert
+                        v-if="batchWechatImportResult"
+                        class="mt-2"
+                        type="info"
+                        :closable="false"
+                        :title="`导入结果：新增 ${batchWechatImportResult.created} 条，失败 ${batchWechatImportResult.failed} 条`"
+                    />
+                    <el-table
+                        v-if="batchWechatImportResult && batchWechatImportResult.rows.length > 0"
+                        :data="batchWechatImportResult.rows"
+                        size="small"
+                        max-height="300"
+                        class="mt-3"
+                    >
+                        <el-table-column type="index" label="#" width="56" />
+                        <el-table-column label="状态" width="88">
+                            <template #default="{ row }">
+                                <el-tag :type="row.status === 'created' ? 'success' : 'danger'" size="small">
+                                    {{ row.status === 'created' ? '成功' : '失败' }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="链接" min-width="260" show-overflow-tooltip>
+                            <template #default="{ row }">{{ row.url || '-' }}</template>
+                        </el-table-column>
+                        <el-table-column label="文章ID" width="96">
+                            <template #default="{ row }">{{ row.articleId || '-' }}</template>
+                        </el-table-column>
+                        <el-table-column label="标题" min-width="180" show-overflow-tooltip>
+                            <template #default="{ row }">{{ row.title || '-' }}</template>
+                        </el-table-column>
+                        <el-table-column label="说明" min-width="240" show-overflow-tooltip>
+                            <template #default="{ row }">{{ row.reason || '-' }}</template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <template #footer>
+                    <el-button :disabled="batchWechatImportLoading" @click="batchWechatImportDialogVisible = false">
+                        取消
+                    </el-button>
+                    <el-button
+                        type="primary"
+                        :loading="batchWechatImportLoading"
+                        :disabled="batchWechatImportLoading"
+                        @click="handleBatchWechatImportSubmit"
+                    >
+                        开始导入
+                    </el-button>
+                </template>
+            </el-dialog>
+
             <el-table size="large" stripe v-loading="pager.loading" :data="safeLists">
                 <el-table-column label="ID" prop="id" min-width="80" />
                 <el-table-column label="封面" min-width="100">
@@ -297,10 +446,12 @@ import {
     articleStatus,
     articleFrontAudit,
     articleSeedTestData,
+    articleImportWechatBatch,
     articleCateAll,
     articleTagAll,
     articleTopicAll
 } from '@/api/article'
+import { getAuthorUserOptions } from '@/api/consumer'
 import { useDictOptions } from '@/hooks/useDictOptions'
 import { usePaging } from '@/hooks/usePaging'
 import { getRoutePath } from '@/router'
@@ -331,6 +482,20 @@ interface ArticleListItem {
     topic?: string
 }
 
+interface AuthorOptionItem {
+    value: string
+    label: string
+    userTypeName: string
+}
+
+interface BatchWechatImportResultRow {
+    status: string
+    url: string
+    articleId?: number
+    title?: string
+    reason?: string
+}
+
 const queryParams = reactive({
     title: '',
     cid: '',
@@ -341,6 +506,23 @@ const queryParams = reactive({
 })
 const router = useRouter()
 const seedLoading = ref(false)
+const batchWechatImportDialogVisible = ref(false)
+const batchWechatImportLoading = ref(false)
+const batchWechatImportAuthorKeyword = ref('')
+const batchWechatImportAuthorLoading = ref(false)
+const batchWechatImportAuthorOptions = ref<AuthorOptionItem[]>([])
+const batchWechatImportResult = ref<{
+    created: number
+    failed: number
+    rows: BatchWechatImportResultRow[]
+} | null>(null)
+const batchWechatImportForm = reactive({
+    cid: '' as number | string,
+    author: '',
+    urlsText: '',
+    status: 'draft',
+    aiEnabled: false
+})
 const frontendUrl = (import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3003').replace(
     /\/$/,
     ''
@@ -395,6 +577,39 @@ const { optionsData } = useDictOptions<{
         api: articleTopicAll
     }
 })
+
+/**
+ * 拉取“批量导入文章”作者选项（支持关键词搜索）。
+ */
+const fetchBatchImportAuthorOptions = async (keyword = '') => {
+    batchWechatImportAuthorKeyword.value = String(keyword || '')
+    batchWechatImportAuthorLoading.value = true
+    try {
+        const data: any = await getAuthorUserOptions({
+            keyword: batchWechatImportAuthorKeyword.value,
+            pageSize: 30
+        })
+        batchWechatImportAuthorOptions.value = Array.isArray(data)
+            ? data.map((item: any) => ({
+                  value: String(item?.value || item?.id || ''),
+                  label: String(item?.label || ''),
+                  userTypeName: String(item?.userTypeName || '普通用户')
+              }))
+            : []
+    } catch (error) {
+        batchWechatImportAuthorOptions.value = []
+    } finally {
+        batchWechatImportAuthorLoading.value = false
+    }
+}
+
+/**
+ * 作者下拉展开时初始化数据，避免首开空列表。
+ */
+const handleBatchImportAuthorVisibleChange = (visible: boolean) => {
+    if (!visible) return
+    fetchBatchImportAuthorOptions(batchWechatImportAuthorKeyword.value)
+}
 
 /**
  * 解析文章编辑路由，优先使用动态菜单路由，缺失时使用兜底路径
@@ -550,6 +765,82 @@ const handleSeedTestData = async () => {
         feedback.msgError(error?.message || '生成测试数据失败')
     } finally {
         seedLoading.value = false
+    }
+}
+
+/**
+ * 打开“批量导入公众号文章”弹窗并重置表单状态。
+ */
+const openBatchWechatImportDialog = () => {
+    batchWechatImportDialogVisible.value = true
+    batchWechatImportResult.value = null
+    batchWechatImportForm.cid = ''
+    batchWechatImportForm.author = ''
+    batchWechatImportForm.urlsText = ''
+    batchWechatImportForm.status = 'draft'
+    batchWechatImportForm.aiEnabled = false
+    fetchBatchImportAuthorOptions('')
+}
+
+/**
+ * 规范化批量导入结果行，兼容后端返回结构差异。
+ */
+const normalizeBatchWechatImportRows = (rows: any): BatchWechatImportResultRow[] => {
+    if (!Array.isArray(rows)) return []
+    return rows.map((item: any) => ({
+        status: String(item?.status || '').trim().toLowerCase(),
+        url: String(item?.url || '').trim(),
+        articleId:
+            Number.isFinite(Number(item?.articleId)) && Number(item?.articleId) > 0
+                ? Number(item?.articleId)
+                : undefined,
+        title: String(item?.title || '').trim(),
+        reason: String(item?.reason || '').trim()
+    }))
+}
+
+/**
+ * 提交批量导入文章任务。
+ */
+const handleBatchWechatImportSubmit = async () => {
+    const cid = Number(batchWechatImportForm.cid || 0)
+    const author = String(batchWechatImportForm.author || '').trim()
+    const urlsText = String(batchWechatImportForm.urlsText || '').trim()
+    if (!Number.isInteger(cid) || cid <= 0) {
+        feedback.msgWarning('请选择文章栏目')
+        return
+    }
+    if (!author) {
+        feedback.msgWarning('请选择作者')
+        return
+    }
+    if (!urlsText) {
+        feedback.msgWarning('请至少输入一个公众号链接')
+        return
+    }
+    batchWechatImportLoading.value = true
+    try {
+        const result: any = await articleImportWechatBatch({
+            cid,
+            author,
+            urls: urlsText,
+            status: batchWechatImportForm.status,
+            aiEnabled: batchWechatImportForm.aiEnabled === true
+        })
+        const normalizedRows = normalizeBatchWechatImportRows(result?.rows || result?.data?.rows || [])
+        batchWechatImportResult.value = {
+            created: Number(result?.created || result?.data?.created || 0),
+            failed: Number(result?.failed || result?.data?.failed || 0),
+            rows: normalizedRows
+        }
+        feedback.msgSuccess(
+            `导入完成：新增 ${batchWechatImportResult.value.created} 条，失败 ${batchWechatImportResult.value.failed} 条`
+        )
+        resetPage()
+    } catch (error: any) {
+        feedback.msgError(error?.message || '批量导入文章失败')
+    } finally {
+        batchWechatImportLoading.value = false
     }
 }
 

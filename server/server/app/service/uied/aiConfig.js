@@ -11,6 +11,123 @@
 'use strict';
 
 const Service = require('egg').Service;
+const DEFAULT_ARTICLE_BATCH_IMPORT_PROMPT = `请基于以下公众号文章内容进行专业润色，并直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+原始标题：{title}
+原始简介：{intro}
+作者：{author}
+来源链接：{sourceUrl}
+原始正文：
+{content}
+
+要求：
+1. 保留原文核心事实，不编造信息；
+2. 优化结构与可读性，可适当增加小标题（h2/h3）；
+3. 输出为可直接入库的 HTML 正文；
+4. 正文建议 600-2000 字；`;
+const DEFAULT_WEBSITE_BATCH_IMPORT_PROMPT = `请为以下网站生成一篇详细的介绍内容，用于网站详情页展示。请直接返回 HTML 格式内容，不要包含 \`\`\` 代码块标记。
+
+网站名称: {websiteName}
+网站URL: {websiteUrl}
+网站描述: {websiteDescription}
+标签: {websiteTags}
+
+要求：
+1. 使用 HTML 标签格式化内容（h2, h3, p, ul, li, strong 等）
+2. 内容包含：网站简介、主要功能/特点、适用人群、使用场景
+3. 内容长度 300-600 字
+4. 语言风格专业但易读
+5. 不要包含虚假信息，基于网站名称和描述合理推断`;
+const DEFAULT_ARTICLE_IMPORT_TEMPLATE_PRESETS = [
+  {
+    id: 'article_default',
+    name: '标准润色',
+    description: '保持事实不变，增强可读性',
+    model: '',
+    promptTemplate: DEFAULT_ARTICLE_BATCH_IMPORT_PROMPT,
+    sort: 10,
+    enabled: true,
+  },
+  {
+    id: 'article_seo',
+    name: 'SEO 优化',
+    description: '增强关键词与结构化标题',
+    model: '',
+    promptTemplate: `${DEFAULT_ARTICLE_BATCH_IMPORT_PROMPT}
+
+额外要求：
+5. 在不堆砌关键词的前提下提升 SEO 友好性；
+6. 标题与段落中自然包含核心关键词。`,
+    sort: 20,
+    enabled: true,
+  },
+  {
+    id: 'article_brief',
+    name: '精简快读',
+    description: '适合快节奏阅读场景',
+    model: '',
+    promptTemplate: `请将以下公众号文章整理为“精简快读版”，并直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+标题：{title}
+简介：{intro}
+作者：{author}
+来源：{sourceUrl}
+正文：
+{content}
+
+要求：
+1. 保留核心事实，不编造信息；
+2. 结构为：导语 + 3~5 个重点小节 + 结论；
+3. 使用 h2/h3/p/ul/li 等 HTML 标签；
+4. 总字数控制在 500-1000 字。`,
+    sort: 30,
+    enabled: true,
+  },
+];
+const DEFAULT_WEBSITE_IMPORT_TEMPLATE_PRESETS = [
+  {
+    id: 'website_default',
+    name: '标准介绍',
+    description: '通用的详情页介绍结构',
+    model: '',
+    promptTemplate: DEFAULT_WEBSITE_BATCH_IMPORT_PROMPT,
+    sort: 10,
+    enabled: true,
+  },
+  {
+    id: 'website_conversion',
+    name: '转化导向',
+    description: '突出价值卖点和使用收益',
+    model: '',
+    promptTemplate: `${DEFAULT_WEBSITE_BATCH_IMPORT_PROMPT}
+
+额外要求：
+6. 强调用户收益、效率提升与典型使用价值；
+7. 结尾增加“适合人群”与“推荐理由”小节。`,
+    sort: 20,
+    enabled: true,
+  },
+  {
+    id: 'website_enterprise',
+    name: '企业评估',
+    description: '适合 B 端选型场景',
+    model: '',
+    promptTemplate: `请为以下网站生成“企业选型评估版”介绍，直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+网站名称: {websiteName}
+网站URL: {websiteUrl}
+网站描述: {websiteDescription}
+标签: {websiteTags}
+
+要求：
+1. 结构包含：产品定位、核心能力、接入与部署、适用场景、风险与限制；
+2. 使用 h2/h3/p/ul/li/table 等 HTML 标签；
+3. 语言专业客观，避免夸张表述；
+4. 正文长度 400-900 字。`,
+    sort: 30,
+    enabled: true,
+  },
+];
 
 class AiConfigService extends Service {
   /**
@@ -1114,6 +1231,214 @@ class AiConfigService extends Service {
   }
 
   /**
+   * 获取“批量导入文章/网址”AI 配置默认值
+   * @return {{
+   *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   * }}
+   */
+  getDefaultImportConfig() {
+    return {
+      articleBatchImport: {
+        enabled: true,
+        model: '',
+        promptTemplate: DEFAULT_ARTICLE_BATCH_IMPORT_PROMPT,
+      },
+      websiteBatchImport: {
+        enabled: true,
+        model: '',
+        promptTemplate: DEFAULT_WEBSITE_BATCH_IMPORT_PROMPT,
+      },
+    };
+  }
+
+  /**
+   * 规范化单个导入模块配置，兼容历史字段命名
+   * @param {Object} moduleConfig - 模块配置
+   * @param {{enabled:boolean,model:string,promptTemplate:string}} defaultConfig - 默认配置
+   * @return {{enabled:boolean,model:string,promptTemplate:string}}
+   */
+  normalizeImportModuleConfig(moduleConfig = {}, defaultConfig = {}) {
+    const source = moduleConfig && typeof moduleConfig === 'object' ? moduleConfig : {};
+    const enabled = source.enabled !== false;
+    const model = String(source.model || source.aiModel || defaultConfig.model || '').trim();
+    const promptTemplate = String(
+      source.promptTemplate
+      || source.aiPromptTemplate
+      || defaultConfig.promptTemplate
+      || ''
+    ).trim();
+    return {
+      enabled,
+      model,
+      promptTemplate: promptTemplate || String(defaultConfig.promptTemplate || '').trim(),
+    };
+  }
+
+  /**
+   * 规范化导入配置
+   * @param {Object} config - 原始配置
+   * @return {{
+   *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   * }}
+   */
+  normalizeImportConfig(config = {}) {
+    const defaults = this.getDefaultImportConfig();
+    const source = config && typeof config === 'object' ? config : {};
+    return {
+      articleBatchImport: this.normalizeImportModuleConfig(
+        source.articleBatchImport,
+        defaults.articleBatchImport
+      ),
+      websiteBatchImport: this.normalizeImportModuleConfig(
+        source.websiteBatchImport,
+        defaults.websiteBatchImport
+      ),
+    };
+  }
+
+  /**
+   * 获取“批量导入”AI 配置（AI 助手管理中心化配置）
+   * @return {Promise<{
+   *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   * }>}
+   */
+  async getImportConfig() {
+    const setting = await this.ctx.service.uied.setting.get('aiImportConfig');
+    return this.normalizeImportConfig(setting || {});
+  }
+
+  /**
+   * 保存“批量导入”AI 配置
+   * @param {Object} data - 导入配置
+   * @return {Promise<{
+   *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   * }>}
+   */
+  async saveImportConfig(data = {}) {
+    const normalized = this.normalizeImportConfig(data);
+    await this.ctx.service.uied.setting.save({
+      aiImportConfig: normalized,
+    });
+    return normalized;
+  }
+
+  /**
+   * 获取“导入模板库”默认配置
+   * @return {{article: Array<Object>, website: Array<Object>}}
+   */
+  getDefaultImportTemplatePresets() {
+    const clone = value => JSON.parse(JSON.stringify(value));
+    return {
+      article: clone(DEFAULT_ARTICLE_IMPORT_TEMPLATE_PRESETS),
+      website: clone(DEFAULT_WEBSITE_IMPORT_TEMPLATE_PRESETS),
+    };
+  }
+
+  /**
+   * 规范化单个模板项
+   * @param {Object} item 模板项
+   * @param {number} index 模板索引
+   * @param {'article'|'website'} moduleType 模块类型
+   * @param {Object} fallback 默认模板
+   * @return {{id:string,name:string,description:string,model:string,promptTemplate:string,sort:number,enabled:boolean}}
+   */
+  normalizeImportTemplatePresetItem(item = {}, index = 0, moduleType = 'article', fallback = {}) {
+    const source = item && typeof item === 'object' ? item : {};
+    const fallbackPrompt = String(fallback?.promptTemplate || '').trim();
+    const fallbackId = `${moduleType}_preset_${index + 1}`;
+    const normalizedId = String(source.id || '').trim().slice(0, 64) || fallbackId;
+    const normalizedName = String(source.name || '').trim().slice(0, 60) || `模板 ${index + 1}`;
+    const normalizedDescription = String(source.description || '').trim().slice(0, 120);
+    const normalizedModel = String(source.model || '').trim().slice(0, 120);
+    const normalizedPrompt = String(source.promptTemplate || '').trim().slice(0, 12000) || fallbackPrompt;
+    const normalizedSort = Number.isFinite(Number(source.sort))
+      ? Number(source.sort)
+      : (index + 1) * 10;
+    return {
+      id: normalizedId,
+      name: normalizedName,
+      description: normalizedDescription,
+      model: normalizedModel,
+      promptTemplate: normalizedPrompt,
+      sort: normalizedSort,
+      enabled: source.enabled !== false,
+    };
+  }
+
+  /**
+   * 规范化指定模块模板列表（去重、排序、兜底默认模板）
+   * @param {Array<Object>} list 模板列表
+   * @param {'article'|'website'} moduleType 模块类型
+   * @return {Array<Object>}
+   */
+  normalizeImportTemplatePresetList(list = [], moduleType = 'article') {
+    const defaults = this.getDefaultImportTemplatePresets()[moduleType] || [];
+    const sourceList = Array.isArray(list) ? list : [];
+    const normalizedList = sourceList.map((item, index) =>
+      this.normalizeImportTemplatePresetItem(item, index, moduleType, defaults[index] || defaults[0] || {})
+    );
+    const finalList = normalizedList.length > 0
+      ? normalizedList
+      : defaults.map((item, index) =>
+        this.normalizeImportTemplatePresetItem(item, index, moduleType, defaults[index] || defaults[0] || {})
+      );
+    const idSet = new Set();
+    finalList.forEach((item, index) => {
+      let presetId = String(item.id || '').trim();
+      if (!presetId || idSet.has(presetId)) {
+        presetId = `${moduleType}_preset_${index + 1}`;
+      }
+      idSet.add(presetId);
+      item.id = presetId;
+    });
+    return finalList
+      .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+      .map((item, index) => ({
+        ...item,
+        sort: (index + 1) * 10,
+      }));
+  }
+
+  /**
+   * 规范化导入模板库配置
+   * @param {Object} data 原始配置
+   * @return {{article: Array<Object>, website: Array<Object>}}
+   */
+  normalizeImportTemplatePresets(data = {}) {
+    const source = data && typeof data === 'object' ? data : {};
+    return {
+      article: this.normalizeImportTemplatePresetList(source.article, 'article'),
+      website: this.normalizeImportTemplatePresetList(source.website, 'website'),
+    };
+  }
+
+  /**
+   * 获取导入模板库（后台可配置）
+   * @return {Promise<{article: Array<Object>, website: Array<Object>}>}
+   */
+  async getImportTemplatePresets() {
+    const setting = await this.ctx.service.uied.setting.get('aiImportTemplatePresets');
+    return this.normalizeImportTemplatePresets(setting || {});
+  }
+
+  /**
+   * 保存导入模板库
+   * @param {Object} data 模板库配置
+   * @return {Promise<{article: Array<Object>, website: Array<Object>}>}
+   */
+  async saveImportTemplatePresets(data = {}) {
+    const normalized = this.normalizeImportTemplatePresets(data);
+    await this.ctx.service.uied.setting.save({
+      aiImportTemplatePresets: normalized,
+    });
+    return normalized;
+  }
+
+  /**
    * 获取 AI 功能开关配置
    * 从 uied_site_setting 表读取 ai_feature_toggle 配置
    * 未配置时返回默认值（全部启用）
@@ -1342,12 +1667,48 @@ class AiConfigService extends Service {
   }
 
   /**
+   * 构建网站详情生成提示词（支持批量导入时自定义模板）。
+   * 可用占位符：{websiteName} {websiteUrl} {websiteDescription} {websiteTags}
+   * @param {Object} website 网站信息
+   * @param {string[]} tags 标签列表
+   * @param {string} promptTemplateOverride 自定义提示词模板
+   * @return {string}
+   */
+  buildWebsiteDetailPrompt(website = {}, tags = [], promptTemplateOverride = '') {
+    const defaultPrompt = `请为以下网站生成一篇详细的介绍内容，用于网站详情页展示。请直接返回 HTML 格式内容，不要包含 \`\`\` 代码块标记。
+
+网站名称: {websiteName}
+网站URL: {websiteUrl}
+网站描述: {websiteDescription}
+标签: {websiteTags}
+
+要求：
+1. 使用 HTML 标签格式化内容（h2, h3, p, ul, li, strong 等）
+2. 内容包含：网站简介、主要功能/特点、适用人群、使用场景
+3. 内容长度 300-600 字
+4. 语言风格专业但易读
+5. 不要包含虚假信息，基于网站名称和描述合理推断`;
+    const template = String(promptTemplateOverride || '').trim() || defaultPrompt;
+    const safeTemplate = template.slice(0, 6000);
+    const variableMap = {
+      websiteName: String(website?.name || '').trim() || '未命名网站',
+      websiteUrl: String(website?.url || '').trim() || '',
+      websiteDescription: String(website?.description || '').trim() || '无',
+      websiteTags: Array.isArray(tags) && tags.length > 0 ? tags.join(', ') : '无',
+    };
+    return safeTemplate.replace(/\{(websiteName|websiteUrl|websiteDescription|websiteTags)\}/g, (_, key) => {
+      return String(variableMap[key] || '');
+    });
+  }
+
+  /**
    * AI 生成网站详情内容
    * 根据网站信息生成富文本 HTML 详情内容
    * @param {number} websiteId - 网站ID
+   * @param {{modelOverride?: string, promptTemplateOverride?: string}} [options] 生成参数
    * @return {Object} 包含 content 的结果
    */
-  async generateDetailContent(websiteId) {
+  async generateDetailContent(websiteId, options = {}) {
     const { ctx, app } = this;
 
     // 获取网站信息
@@ -1366,23 +1727,12 @@ class AiConfigService extends Service {
       throw new Error('没有可用的 AI 配置，请先在系统设置中配置 AI');
     }
     const requestUrl = this.resolveChatApiUrl(config.provider, config.apiUrl);
-    const requestModel = this.resolveChatModel(config.provider, config.model);
+    const modelOverride = String(options?.modelOverride || '').trim();
+    const promptTemplateOverride = String(options?.promptTemplateOverride || '').trim();
+    const requestModel = this.resolveChatModel(config.provider, modelOverride || config.model);
 
     const tags = website.tags ? (() => { try { return JSON.parse(website.tags); } catch (error) { return []; } })() : [];
-
-    const prompt = `请为以下网站生成一篇详细的介绍内容，用于网站详情页展示。请直接返回 HTML 格式内容，不要包含 \`\`\` 代码块标记。
-
-网站名称: ${website.name}
-网站URL: ${website.url}
-网站描述: ${website.description || '无'}
-标签: ${tags.join(', ') || '无'}
-
-要求：
-1. 使用 HTML 标签格式化内容（h2, h3, p, ul, li, strong 等）
-2. 内容包含：网站简介、主要功能/特点、适用人群、使用场景
-3. 内容长度 300-600 字
-4. 语言风格专业但易读
-5. 不要包含虚假信息，基于网站名称和描述合理推断`;
+    const prompt = this.buildWebsiteDetailPrompt(website, tags, promptTemplateOverride);
 
     const startTime = Date.now();
 

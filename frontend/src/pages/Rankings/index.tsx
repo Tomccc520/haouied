@@ -420,17 +420,17 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
         ) : error ? (
           <div className="rankings-page__state rankings-page__state--error">{error}</div>
         ) : (
-          <div className="rankings-page__workspace">
-            <aside className="rankings-page__control-column" aria-label="榜单筛选面板">
-              <section className="rankings-page__view-panel" aria-label="榜单内容模式切换">
-                <header className="rankings-page__view-panel-head">
+          <div className="rankings-page__workspace rankings-page__workspace--split">
+            <aside className="rankings-page__sidebar" aria-label="榜单左侧切换面板">
+              <section className="rankings-page__sidebar-section rankings-page__sidebar-section--mode">
+                <header className="rankings-page__sidebar-head">
                   <h2>
                     <span className="rankings-page__panel-icon rankings-page__panel-icon--switch" aria-hidden="true" />
-                    内容模式
+                    榜单类型
                   </h2>
-                  <p>左侧切换模式，右侧实时展示对应榜单内容。</p>
+                  <p>左侧切换，右侧即时更新榜单内容。</p>
                 </header>
-                <div className="rankings-page__view-mode-tabs">
+                <div className="rankings-page__view-mode-tabs rankings-page__view-mode-tabs--sidebar">
                   <button
                     type="button"
                     className={`rankings-page__view-mode-tab ${activeViewMode === 'metric' ? 'is-active' : ''}`}
@@ -451,16 +451,8 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
               </section>
 
               {activeViewMode === 'metric' && metricBoards.length > 0 && (
-                <section className="rankings-page__metric-panel" aria-label="数据榜单切换">
-                  <div className="rankings-page__metric-head">
-                    <div>
-                      <h2>
-                        <span className="rankings-page__panel-icon rankings-page__panel-icon--metric" aria-hidden="true" />
-                        数据榜单
-                      </h2>
-                      <p>按访问量、收藏量、点赞量快速切换，聚焦数据走势。</p>
-                    </div>
-                  </div>
+                <section className="rankings-page__sidebar-section" aria-label="数据榜单切换">
+                  <h3 className="rankings-page__sidebar-title">指标维度</h3>
                   <div className="rankings-page__metric-tabs">
                     {METRIC_TABS.map((tab) => (
                       <button
@@ -473,9 +465,12 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
                       </button>
                     ))}
                   </div>
+                  <h3 className="rankings-page__sidebar-title">统计周期</h3>
                   <div className="rankings-page__period-tabs">
                     {PERIOD_TABS.map((tab) => {
-                      const exists = metricBoards.some((board) => resolveBoardMetric(board) === activeMetric && resolveBoardPeriod(board) === tab.key);
+                      const exists = metricBoards.some(
+                        (board) => resolveBoardMetric(board) === activeMetric && resolveBoardPeriod(board) === tab.key,
+                      );
                       return (
                         <button
                           key={tab.key}
@@ -493,24 +488,16 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
               )}
 
               {activeViewMode === 'operations' && operationsBoards.length > 0 && (
-                <section className="rankings-page__ops-panel" aria-label="运营榜单切换">
-                  <header className="rankings-page__ops-head">
-                    <div>
-                      <h2>
-                        <span className="rankings-page__panel-icon rankings-page__panel-icon--ops" aria-hidden="true" />
-                        运营榜单
-                      </h2>
-                      <p>用于专题活动、编辑精选与重点内容曝光。</p>
-                    </div>
-                  </header>
-                  <div className="rankings-page__tabs">
+                <section className="rankings-page__sidebar-section" aria-label="运营榜单切换">
+                  <h3 className="rankings-page__sidebar-title">运营榜单</h3>
+                  <div className="rankings-page__sidebar-menu">
                     {operationsBoards.map((board) => {
                       const boardKey = String(board.key || board.boardKey);
                       return (
                         <button
                           key={boardKey}
                           type="button"
-                          className={`rankings-page__tab ${String(activeOpsBoard?.key || activeOpsBoard?.boardKey) === boardKey ? 'is-active' : ''}`}
+                          className={`rankings-page__sidebar-menu-item ${String(activeOpsBoard?.key || activeOpsBoard?.boardKey) === boardKey ? 'is-active' : ''}`}
                           onClick={() => setActiveOpsBoardKey(boardKey)}
                         >
                           <span className="rankings-page__tab-title">{board.title || board.boardName || boardKey}</span>
@@ -523,12 +510,15 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
               )}
             </aside>
 
-            <div className="rankings-page__board-column" aria-label="榜单内容区">
+            <main className="rankings-page__board-column rankings-page__board-column--main" aria-label="榜单内容区">
               {currentBoard ? (
                 <section className="rankings-page__board-block">
                   <header className="rankings-page__board-block-head">
                     <h2>
-                      <span className={`rankings-page__panel-icon ${activeViewMode === 'operations' ? 'rankings-page__panel-icon--ops' : 'rankings-page__panel-icon--metric'}`} aria-hidden="true" />
+                      <span
+                        className={`rankings-page__panel-icon ${activeViewMode === 'operations' ? 'rankings-page__panel-icon--ops' : 'rankings-page__panel-icon--metric'}`}
+                        aria-hidden="true"
+                      />
                       {currentBoardGroupLabel}
                     </h2>
                     <p>
@@ -540,7 +530,7 @@ const RankingsPage: React.FC<RankingsPageProps> = ({ embedded = false }) => {
               ) : (
                 <div className="rankings-page__state">暂无可展示榜单</div>
               )}
-            </div>
+            </main>
           </div>
         )}
       </div>

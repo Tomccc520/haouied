@@ -841,6 +841,23 @@ class ArticleController extends baseController {
       this.result({ data: {}, message: err.message || '导入失败', code: 300 });
     }
   }
+
+  /**
+   * 批量导入公众号文章（支持 AI 模型/提示词覆盖）
+   */
+  async importWechatBatch() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      const data = await ctx.service.article.importWechatBatch(body);
+      this.result({
+        data,
+        message: `导入完成：新增 ${Number(data?.created || 0)} 条，失败 ${Number(data?.failed || 0)} 条`,
+      });
+    } catch (err) {
+      this.result({ data: {}, message: err.message || '批量导入失败', code: 300 });
+    }
+  }
 }
 
 module.exports = ArticleController;

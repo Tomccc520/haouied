@@ -534,9 +534,29 @@ class WebsiteService extends Service {
     const normalizedCategoryIds = this.normalizeWebsiteCategoryIds(payload);
     const categoryId = normalizedCategoryIds[0] || Number.parseInt(String(payload.categoryId || 0), 10);
     const shouldFetchSeo = payload.fetchSeo !== false;
-    const shouldGenerateDetailContent = payload.generateDetailContent === true;
+    let shouldGenerateDetailContent = payload.generateDetailContent === true;
     const allowDuplicate = payload.allowDuplicate !== false;
     const publishStatus = this.normalizeWebsiteStatus(payload.status, payload.isActive, 'draft');
+    let aiModelOverride = String(payload.aiModel || '').trim();
+    let aiPromptTemplateOverride = String(payload.aiPromptTemplate || '').trim();
+
+    if (shouldGenerateDetailContent) {
+      try {
+        const importConfig = await ctx.service.uied.aiConfig.getImportConfig();
+        const websiteImportConfig = importConfig?.websiteBatchImport || {};
+        if (websiteImportConfig.enabled === false) {
+          shouldGenerateDetailContent = false;
+        }
+        if (!aiModelOverride) {
+          aiModelOverride = String(websiteImportConfig.model || '').trim();
+        }
+        if (!aiPromptTemplateOverride) {
+          aiPromptTemplateOverride = String(websiteImportConfig.promptTemplate || '').trim();
+        }
+      } catch (error) {
+        ctx.logger.warn(`[website.batchImport] 读取 AI 导入配置失败，将继续使用请求参数: ${error?.message || error}`);
+      }
+    }
 
     if (!Number.isInteger(categoryId) || categoryId <= 0) {
       throw new Error('请选择所属分类');
@@ -606,7 +626,10 @@ class WebsiteService extends Service {
         let aiDetailError = '';
         if (websiteId > 0 && shouldGenerateDetailContent) {
           try {
-            const aiResult = await ctx.service.uied.aiConfig.generateDetailContent(websiteId);
+            const aiResult = await ctx.service.uied.aiConfig.generateDetailContent(websiteId, {
+              modelOverride: aiModelOverride || undefined,
+              promptTemplateOverride: aiPromptTemplateOverride || undefined,
+            });
             const aiContent = String(aiResult?.content || '').trim();
             if (aiContent) {
               await this.edit({ id: websiteId, detailContent: aiContent });

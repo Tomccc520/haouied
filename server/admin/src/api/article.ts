@@ -161,6 +161,32 @@ export function articleImportWechat(params: { url: string }) {
     return request.post({ url: '/article/import/wechat', params })
 }
 
+/**
+ * 批量导入公众号文章（支持 AI 模型/提示词覆盖）
+ */
+export function articleImportWechatBatch(params: {
+    cid: number | string
+    author: string
+    urls: string
+    status?: 'draft' | 'published' | 'active' | string
+    tagIds?: Array<number | string> | string
+    topicId?: number | string
+    aiEnabled?: boolean
+    aiModel?: string
+    aiPromptTemplate?: string
+}) {
+    return request.post(
+        {
+            url: '/article/import/wechat/batch',
+            params,
+            timeout: 8 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
+}
+
 export function articleVisitIncr(params: { id: number }) {
     return request.post({ url: '/article/visit/incr', params })
 }

@@ -552,6 +552,12 @@
                             >
                                 导入后自动用 AI 生成详情正文
                             </el-checkbox>
+                            <div
+                                v-if="batchImportForm.generateDetailContent"
+                                class="text-xs text-tx-secondary"
+                            >
+                                模型与提示词请在「AI 助手管理 -> 导入配置」中统一设置。
+                            </div>
                         </el-space>
                     </el-form-item>
                 </el-form>

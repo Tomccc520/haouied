@@ -444,6 +444,64 @@ class AiConfigController extends baseController {
   }
 
   /**
+   * 获取批量导入 AI 配置
+   */
+  async importConfig() {
+    const { ctx } = this;
+    try {
+      const result = await ctx.service.uied.aiConfig.getImportConfig();
+      this.result({ data: result });
+    } catch (error) {
+      ctx.logger.error('获取AI导入配置失败:', error);
+      this.result({ code: 500, message: '获取导入配置失败' });
+    }
+  }
+
+  /**
+   * 保存批量导入 AI 配置
+   */
+  async saveImportConfig() {
+    const { ctx } = this;
+    try {
+      const data = ctx.request.body || {};
+      const result = await ctx.service.uied.aiConfig.saveImportConfig(data);
+      this.result({ data: result, message: '保存成功' });
+    } catch (error) {
+      ctx.logger.error('保存AI导入配置失败:', error);
+      this.result({ code: 500, message: '保存导入配置失败' });
+    }
+  }
+
+  /**
+   * 获取导入模板库
+   */
+  async importTemplatePresets() {
+    const { ctx } = this;
+    try {
+      const result = await ctx.service.uied.aiConfig.getImportTemplatePresets();
+      this.result({ data: result });
+    } catch (error) {
+      ctx.logger.error('获取AI导入模板库失败:', error);
+      this.result({ code: 500, message: '获取导入模板库失败' });
+    }
+  }
+
+  /**
+   * 保存导入模板库
+   */
+  async saveImportTemplatePresets() {
+    const { ctx } = this;
+    try {
+      const data = ctx.request.body || {};
+      const result = await ctx.service.uied.aiConfig.saveImportTemplatePresets(data);
+      this.result({ data: result, message: '保存成功' });
+    } catch (error) {
+      ctx.logger.error('保存AI导入模板库失败:', error);
+      this.result({ code: 500, message: '保存导入模板库失败' });
+    }
+  }
+
+  /**
    * 获取 AI 功能开关配置
    */
   async featureToggle() {

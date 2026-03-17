@@ -114,7 +114,354 @@
                     </el-table>
                 </el-tab-pane>
 
-                <!-- Tab 2: 批量生成 -->
+                <!-- Tab 2: 导入配置 -->
+                <el-tab-pane label="导入配置" name="import">
+                    <div v-loading="importConfigLoading" class="import-config-panel">
+                        <el-alert
+                            type="info"
+                            :closable="false"
+                            title="批量导入文章/网址的模型与提示词统一在此维护，导入弹窗只保留启用开关。"
+                        />
+
+                        <div class="import-config-toolbar mt-4">
+                            <div class="text-xs text-gray-500">
+                                支持预设模板快速套用；保存后会立即生效到“批量导入文章/网址”。
+                            </div>
+                            <div class="import-config-toolbar__actions">
+                                <el-button
+                                    :disabled="importConfigSaveLoading || importConfigLoading"
+                                    @click="handleResetAllImportConfig"
+                                >
+                                    一键恢复默认模板
+                                </el-button>
+                                <el-button
+                                    type="primary"
+                                    :loading="importConfigSaveLoading"
+                                    @click="handleSaveImportConfig"
+                                >
+                                    保存导入配置
+                                </el-button>
+                            </div>
+                        </div>
+
+                        <el-card shadow="never" class="mt-4 import-module-card">
+                            <template #header>
+                                <div class="import-module-card__header">
+                                    <div>
+                                        <div class="import-module-card__title">批量导入文章</div>
+                                        <div class="import-module-card__desc">
+                                            控制公众号文章导入后的 AI 润色策略
+                                        </div>
+                                    </div>
+                                    <el-switch
+                                        v-model="importConfigForm.articleBatchImport.enabled"
+                                        active-text="启用"
+                                        inactive-text="关闭"
+                                    />
+                                </div>
+                            </template>
+                            <div class="import-module-card__preset">
+                                <el-select
+                                    v-model="selectedArticlePresetId"
+                                    clearable
+                                    filterable
+                                    class="import-module-card__preset-select"
+                                    placeholder="选择文章模板预设"
+                                >
+                                    <el-option
+                                        v-for="item in articleImportPresetList"
+                                        :key="item.id"
+                                        :label="`${item.name} · ${item.description}`"
+                                        :value="item.id"
+                                    />
+                                </el-select>
+                                <el-button
+                                    :disabled="!selectedArticlePresetId"
+                                    @click="handleApplyImportPreset('article')"
+                                >
+                                    应用预设
+                                </el-button>
+                                <el-button @click="handleResetImportModuleToDefault('article')">
+                                    恢复默认
+                                </el-button>
+                                <el-button @click="handleCopyImportPrompt('article')">
+                                    复制提示词
+                                </el-button>
+                            </div>
+                            <el-form label-width="150px">
+                                <el-form-item label="模型名称">
+                                    <el-select
+                                        v-model="importConfigForm.articleBatchImport.model"
+                                        clearable
+                                        filterable
+                                        allow-create
+                                        default-first-option
+                                        placeholder="留空则使用默认 AI 模型"
+                                        class="w-100"
+                                    >
+                                        <el-option
+                                            v-for="item in importModelOptions"
+                                            :key="`article-model-${item.value}`"
+                                            :label="item.label"
+                                            :value="item.value"
+                                        />
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="提示词模板">
+                                    <el-input
+                                        v-model="importConfigForm.articleBatchImport.promptTemplate"
+                                        type="textarea"
+                                        :rows="8"
+                                        placeholder="请输入文章导入 AI 润色提示词模板"
+                                    />
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        可用变量：{title}、{intro}、{content}、{author}、{sourceUrl}
+                                    </div>
+                                </el-form-item>
+                            </el-form>
+                            <div class="import-preset-manage">
+                                <div class="import-preset-manage__header">
+                                    <span class="import-preset-manage__title">模板库管理</span>
+                                    <div class="import-preset-manage__actions">
+                                        <el-button size="small" @click="handleOpenImportPresetDialog('article')">
+                                            新增模板
+                                        </el-button>
+                                        <el-button
+                                            size="small"
+                                            type="primary"
+                                            :loading="importTemplatePresetsSaveLoading"
+                                            @click="handleSaveImportTemplatePresets"
+                                        >
+                                            保存模板库
+                                        </el-button>
+                                    </div>
+                                </div>
+                                <el-table :data="articleImportPresetList" size="small" border>
+                                    <el-table-column label="排序" width="72" align="center">
+                                        <template #default="{ row }">{{ row.sort }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="模板名称" min-width="140" show-overflow-tooltip>
+                                        <template #default="{ row }">{{ row.name }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="说明" min-width="180" show-overflow-tooltip>
+                                        <template #default="{ row }">{{ row.description || '-' }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="模型" min-width="180" show-overflow-tooltip>
+                                        <template #default="{ row }">{{ row.model || '默认模型' }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="84" align="center">
+                                        <template #default="{ row }">
+                                            <el-tag :type="row.enabled === false ? 'info' : 'success'" size="small">
+                                                {{ row.enabled === false ? '停用' : '启用' }}
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="230" align="center">
+                                        <template #default="{ row, $index }">
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="primary"
+                                                :disabled="$index === 0"
+                                                @click="handleMoveImportPreset('article', $index, 'up')"
+                                            >
+                                                上移
+                                            </el-button>
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="primary"
+                                                :disabled="$index === articleImportPresetList.length - 1"
+                                                @click="handleMoveImportPreset('article', $index, 'down')"
+                                            >
+                                                下移
+                                            </el-button>
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="primary"
+                                                @click="handleOpenImportPresetDialog('article', row)"
+                                            >
+                                                编辑
+                                            </el-button>
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="danger"
+                                                @click="handleDeleteImportPreset('article', row)"
+                                            >
+                                                删除
+                                            </el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </el-card>
+
+                        <el-card shadow="never" class="mt-4 import-module-card">
+                            <template #header>
+                                <div class="import-module-card__header">
+                                    <div>
+                                        <div class="import-module-card__title">批量导入网址</div>
+                                        <div class="import-module-card__desc">
+                                            控制网址导入后的 AI 详情正文生成策略
+                                        </div>
+                                    </div>
+                                    <el-switch
+                                        v-model="importConfigForm.websiteBatchImport.enabled"
+                                        active-text="启用"
+                                        inactive-text="关闭"
+                                    />
+                                </div>
+                            </template>
+                            <div class="import-module-card__preset">
+                                <el-select
+                                    v-model="selectedWebsitePresetId"
+                                    clearable
+                                    filterable
+                                    class="import-module-card__preset-select"
+                                    placeholder="选择网址模板预设"
+                                >
+                                    <el-option
+                                        v-for="item in websiteImportPresetList"
+                                        :key="item.id"
+                                        :label="`${item.name} · ${item.description}`"
+                                        :value="item.id"
+                                    />
+                                </el-select>
+                                <el-button
+                                    :disabled="!selectedWebsitePresetId"
+                                    @click="handleApplyImportPreset('website')"
+                                >
+                                    应用预设
+                                </el-button>
+                                <el-button @click="handleResetImportModuleToDefault('website')">
+                                    恢复默认
+                                </el-button>
+                                <el-button @click="handleCopyImportPrompt('website')">
+                                    复制提示词
+                                </el-button>
+                            </div>
+                            <el-form label-width="150px">
+                                <el-form-item label="模型名称">
+                                    <el-select
+                                        v-model="importConfigForm.websiteBatchImport.model"
+                                        clearable
+                                        filterable
+                                        allow-create
+                                        default-first-option
+                                        placeholder="留空则使用默认 AI 模型"
+                                        class="w-100"
+                                    >
+                                        <el-option
+                                            v-for="item in importModelOptions"
+                                            :key="`website-model-${item.value}`"
+                                            :label="item.label"
+                                            :value="item.value"
+                                        />
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="提示词模板">
+                                    <el-input
+                                        v-model="importConfigForm.websiteBatchImport.promptTemplate"
+                                        type="textarea"
+                                        :rows="8"
+                                        placeholder="请输入网址导入 AI 正文生成提示词模板"
+                                    />
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        可用变量：{websiteName}、{websiteUrl}、{websiteDescription}、{websiteTags}
+                                    </div>
+                                </el-form-item>
+                            </el-form>
+                            <div class="import-preset-manage">
+                                <div class="import-preset-manage__header">
+                                    <span class="import-preset-manage__title">模板库管理</span>
+                                    <div class="import-preset-manage__actions">
+                                        <el-button size="small" @click="handleOpenImportPresetDialog('website')">
+                                            新增模板
+                                        </el-button>
+                                        <el-button
+                                            size="small"
+                                            type="primary"
+                                            :loading="importTemplatePresetsSaveLoading"
+                                            @click="handleSaveImportTemplatePresets"
+                                        >
+                                            保存模板库
+                                        </el-button>
+                                    </div>
+                                </div>
+                                <el-table :data="websiteImportPresetList" size="small" border>
+                                    <el-table-column label="排序" width="72" align="center">
+                                        <template #default="{ row }">{{ row.sort }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="模板名称" min-width="140" show-overflow-tooltip>
+                                        <template #default="{ row }">{{ row.name }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="说明" min-width="180" show-overflow-tooltip>
+                                        <template #default="{ row }">{{ row.description || '-' }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="模型" min-width="180" show-overflow-tooltip>
+                                        <template #default="{ row }">{{ row.model || '默认模型' }}</template>
+                                    </el-table-column>
+                                    <el-table-column label="状态" width="84" align="center">
+                                        <template #default="{ row }">
+                                            <el-tag :type="row.enabled === false ? 'info' : 'success'" size="small">
+                                                {{ row.enabled === false ? '停用' : '启用' }}
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="230" align="center">
+                                        <template #default="{ row, $index }">
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="primary"
+                                                :disabled="$index === 0"
+                                                @click="handleMoveImportPreset('website', $index, 'up')"
+                                            >
+                                                上移
+                                            </el-button>
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="primary"
+                                                :disabled="$index === websiteImportPresetList.length - 1"
+                                                @click="handleMoveImportPreset('website', $index, 'down')"
+                                            >
+                                                下移
+                                            </el-button>
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="primary"
+                                                @click="handleOpenImportPresetDialog('website', row)"
+                                            >
+                                                编辑
+                                            </el-button>
+                                            <el-button
+                                                size="small"
+                                                link
+                                                type="danger"
+                                                @click="handleDeleteImportPreset('website', row)"
+                                            >
+                                                删除
+                                            </el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </el-card>
+                        <div v-if="isImportConfigChanged" class="import-config-changed">
+                            <el-alert
+                                type="warning"
+                                :closable="false"
+                                title="当前导入配置有未保存改动，请记得点击“保存导入配置”。"
+                            />
+                        </div>
+                    </div>
+                </el-tab-pane>
+
+                <!-- Tab 3: 批量生成 -->
                 <el-tab-pane label="批量生成" name="batch">
                     <!-- 步骤一：选择网站和字段 -->
                     <div v-if="!batchGenerating && batchResults.length === 0" class="batch-setup">
@@ -263,7 +610,7 @@
                     </div>
                 </el-tab-pane>
 
-                <!-- Tab 3: 使用统计 -->
+                <!-- Tab 4: 使用统计 -->
                 <el-tab-pane label="使用统计" name="stats">
                     <!-- AI 未配置时的引导提示 -->
                     <div
@@ -283,36 +630,82 @@
                     <div v-else>
                         <!-- 汇总卡片 -->
                         <el-row :gutter="16" class="mb-4">
-                            <el-col :xs="12" :sm="6">
+                            <el-col :xs="12" :sm="8" :md="6">
                                 <el-card shadow="hover" class="stats-card">
                                     <div class="stats-card-title">总调用次数</div>
                                     <div class="stats-card-value">{{ statsData.totalCalls }}</div>
                                 </el-card>
                             </el-col>
-                            <el-col :xs="12" :sm="6">
+                            <el-col :xs="12" :sm="8" :md="6">
                                 <el-card shadow="hover" class="stats-card">
                                     <div class="stats-card-title">总 Token 消耗</div>
                                     <div class="stats-card-value">{{ statsData.totalTokens }}</div>
                                 </el-card>
                             </el-col>
-                            <el-col :xs="12" :sm="6">
+                            <el-col :xs="12" :sm="8" :md="6">
                                 <el-card shadow="hover" class="stats-card">
-                                    <div class="stats-card-title">成功率</div>
+                                    <div class="stats-card-title">总成功率</div>
                                     <div class="stats-card-value">{{ statsData.successRate }}%</div>
                                 </el-card>
                             </el-col>
-                            <el-col :xs="12" :sm="6">
+                            <el-col :xs="12" :sm="8" :md="6">
+                                <el-card shadow="hover" class="stats-card">
+                                    <div class="stats-card-title">失败次数</div>
+                                    <div class="stats-card-value stats-card-value--danger">
+                                        {{ statsData.failedCalls }}
+                                    </div>
+                                </el-card>
+                            </el-col>
+                            <el-col :xs="12" :sm="8" :md="6">
                                 <el-card shadow="hover" class="stats-card">
                                     <div class="stats-card-title">今日调用</div>
                                     <div class="stats-card-value">{{ statsData.todayCalls }}</div>
                                 </el-card>
                             </el-col>
+                            <el-col :xs="12" :sm="8" :md="6">
+                                <el-card shadow="hover" class="stats-card">
+                                    <div class="stats-card-title">平均耗时(ms)</div>
+                                    <div class="stats-card-value">{{ statsData.avgDurationMs }}</div>
+                                </el-card>
+                            </el-col>
                         </el-row>
+
+                        <div class="stats-summary-line">
+                            <span>今日成功率：{{ statsData.todaySuccessRate }}%</span>
+                            <span>今日失败：{{ statsData.todayFailedCalls }}</span>
+                            <span>平均 Token/次：{{ statsData.avgTokensPerCall }}</span>
+                        </div>
+
+                        <el-card shadow="never" class="mb-4" v-if="featureStatsRows.length > 0">
+                            <template #header>
+                                <div class="stats-feature-header">
+                                    <span class="stats-feature-title">功能使用分布</span>
+                                    <span class="stats-feature-subtitle">按功能维度统计调用、成功率与 Token</span>
+                                </div>
+                            </template>
+                            <el-table :data="featureStatsRows" size="small" border>
+                                <el-table-column label="功能类型" min-width="120">
+                                    <template #default="{ row }">
+                                        <el-tag
+                                            size="small"
+                                            :type="getFeatureTypeTagType(row.featureType)"
+                                        >
+                                            {{ getFeatureTypeLabel(row.featureType) }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="调用次数" prop="calls" width="100" align="right" />
+                                <el-table-column label="成功率" width="100" align="right">
+                                    <template #default="{ row }">{{ row.successRate }}%</template>
+                                </el-table-column>
+                                <el-table-column label="Token" prop="tokens" width="110" align="right" />
+                            </el-table>
+                        </el-card>
 
                         <!-- 筛选栏 -->
                         <div class="mb-4 flex items-center gap-3 flex-wrap">
                             <el-select
-                                v-model="logFilter.feature_type"
+                                v-model="logFilter.featureType"
                                 placeholder="功能类型"
                                 clearable
                                 class="input-w-160"
@@ -323,6 +716,17 @@
                                 <el-option label="内容生成" value="generate" />
                                 <el-option label="AI 搜索" value="search" />
                                 <el-option label="批量生成" value="batch_generate" />
+                            </el-select>
+                            <el-select
+                                v-model="logFilter.responseStatus"
+                                placeholder="状态"
+                                clearable
+                                class="input-w-160"
+                                @change="handleLogFilterChange"
+                            >
+                                <el-option label="全部状态" value="" />
+                                <el-option label="成功" value="success" />
+                                <el-option label="失败" value="failed" />
                             </el-select>
                             <el-date-picker
                                 v-model="logFilter.dateRange"
@@ -340,16 +744,16 @@
                         <el-table :data="logList" v-loading="logLoading" size="large">
                             <el-table-column label="时间" width="170">
                                 <template #default="{ row }">
-                                    {{ formatTimestamp(row.create_time) }}
+                                    {{ formatTimestamp(row.createTime) }}
                                 </template>
                             </el-table-column>
                             <el-table-column label="功能类型" width="120">
                                 <template #default="{ row }">
                                     <el-tag
                                         size="small"
-                                        :type="getFeatureTypeTagType(row.feature_type)"
+                                        :type="getFeatureTypeTagType(row.featureType)"
                                     >
-                                        {{ getFeatureTypeLabel(row.feature_type) }}
+                                        {{ getFeatureTypeLabel(row.featureType) }}
                                     </el-tag>
                                 </template>
                             </el-table-column>
@@ -357,41 +761,39 @@
                                 <template #default="{ row }">
                                     <el-tag
                                         size="small"
-                                        :type="
-                                            row.response_status === 'success' ? 'success' : 'danger'
-                                        "
+                                        :type="row.responseStatus === 'success' ? 'success' : 'danger'"
                                     >
-                                        {{ row.response_status === 'success' ? '成功' : '失败' }}
+                                        {{ row.responseStatus === 'success' ? '成功' : '失败' }}
                                     </el-tag>
                                 </template>
                             </el-table-column>
                             <el-table-column
                                 label="Token"
-                                prop="tokens_used"
+                                prop="tokensUsed"
                                 width="100"
                                 align="right"
                             />
                             <el-table-column
                                 label="耗时(ms)"
-                                prop="duration_ms"
+                                prop="durationMs"
                                 width="100"
                                 align="right"
                             />
                             <el-table-column
                                 label="请求内容"
-                                prop="request_content"
+                                prop="requestContent"
                                 min-width="200"
                                 show-overflow-tooltip
                             />
                             <el-table-column
                                 label="错误信息"
-                                prop="error_message"
+                                prop="errorMessage"
                                 min-width="160"
                                 show-overflow-tooltip
                             >
                                 <template #default="{ row }">
-                                    <span v-if="row.error_message" class="text-red-500">{{
-                                        row.error_message
+                                    <span v-if="row.errorMessage" class="text-red-500">{{
+                                        row.errorMessage
                                     }}</span>
                                     <span v-else class="text-gray-300">—</span>
                                 </template>
@@ -413,7 +815,7 @@
                     </div>
                 </el-tab-pane>
 
-                <!-- Tab 4: 功能开关 -->
+                <!-- Tab 5: 功能开关 -->
                 <el-tab-pane label="功能开关" name="toggle">
                     <div v-loading="toggleLoading" class="max-w-600">
                         <el-form label-width="140px" class="toggle-form">
@@ -741,6 +1143,83 @@
                 </el-button>
             </template>
         </el-dialog>
+
+        <el-dialog
+            v-model="importPresetDialogVisible"
+            :title="importPresetDialogMode === 'create' ? '新增模板预设' : '编辑模板预设'"
+            width="680px"
+            :close-on-click-modal="false"
+            destroy-on-close
+        >
+            <el-form label-width="110px">
+                <el-form-item label="所属模块">
+                    <el-tag size="small" type="info">
+                        {{
+                            importPresetDialogModule === 'article'
+                                ? '批量导入文章'
+                                : '批量导入网址'
+                        }}
+                    </el-tag>
+                </el-form-item>
+                <el-form-item label="模板名称" required>
+                    <el-input
+                        v-model="importPresetDialogForm.name"
+                        placeholder="请输入模板名称"
+                        maxlength="60"
+                        show-word-limit
+                    />
+                </el-form-item>
+                <el-form-item label="模板说明">
+                    <el-input
+                        v-model="importPresetDialogForm.description"
+                        placeholder="请输入模板说明（可选）"
+                        maxlength="120"
+                        show-word-limit
+                    />
+                </el-form-item>
+                <el-form-item label="模型">
+                    <el-select
+                        v-model="importPresetDialogForm.model"
+                        clearable
+                        filterable
+                        allow-create
+                        default-first-option
+                        class="w-100"
+                        placeholder="留空则跟随默认模型"
+                    >
+                        <el-option
+                            v-for="item in importModelOptions"
+                            :key="`preset-model-${item.value}`"
+                            :label="item.label"
+                            :value="item.value"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="排序值">
+                    <el-input-number
+                        v-model="importPresetDialogForm.sort"
+                        :min="1"
+                        :max="9999"
+                        :step="10"
+                    />
+                </el-form-item>
+                <el-form-item label="启用状态">
+                    <el-switch v-model="importPresetDialogForm.enabled" />
+                </el-form-item>
+                <el-form-item label="提示词模板" required>
+                    <el-input
+                        v-model="importPresetDialogForm.promptTemplate"
+                        type="textarea"
+                        :rows="10"
+                        placeholder="请输入提示词模板"
+                    />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="importPresetDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="handleSubmitImportPresetDialog">保存</el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -771,6 +1250,10 @@ import {
     uiedWebsiteList,
     uiedAiUsageLogList,
     uiedAiUsageLogStats,
+    uiedAiImportConfigGet,
+    uiedAiImportConfigSave,
+    uiedAiImportTemplatePresetsGet,
+    uiedAiImportTemplatePresetsSave,
     uiedAiFeatureToggle,
     uiedAiSaveFeatureToggle
 } from '@/api/uied'
@@ -1637,12 +2120,24 @@ const statsData = reactive({
     totalCalls: 0,
     totalTokens: 0,
     successRate: 0,
-    todayCalls: 0
+    todayCalls: 0,
+    failedCalls: 0,
+    avgDurationMs: 0,
+    avgTokensPerCall: 0,
+    todaySuccessRate: 0,
+    todayFailedCalls: 0,
+    byFeature: [] as Array<{
+        featureType: string
+        calls: number
+        tokens: number
+        successRate: number
+    }>
 })
 
 /** 日志筛选条件 */
 const logFilter = reactive({
-    feature_type: '',
+    featureType: '',
+    responseStatus: '',
     dateRange: undefined as [string, string] | undefined
 })
 
@@ -1656,6 +2151,15 @@ const logPagination = reactive({
 /** 日志列表 */
 const logList = ref<any[]>([])
 const logLoading = ref(false)
+
+/**
+ * 统计数据中的“功能分布”表格数据（按调用次数倒序）
+ */
+const featureStatsRows = computed(() =>
+    (Array.isArray(statsData.byFeature) ? statsData.byFeature : [])
+        .slice()
+        .sort((a, b) => Number(b.calls || 0) - Number(a.calls || 0))
+)
 
 /** 功能类型标签映射 */
 const featureTypeMap: Record<string, string> = {
@@ -1694,17 +2198,66 @@ const formatTimestamp = (timestamp: number): string => {
     return `${y}-${m}-${d} ${h}:${min}:${s}`
 }
 
+/**
+ * 规范化日志行，兼容后端驼峰与下划线字段
+ */
+const normalizeUsageLogItem = (item: any) => ({
+    id: Number(item?.id || 0),
+    configId: Number(item?.configId ?? item?.config_id ?? 0),
+    featureType: String(item?.featureType ?? item?.feature_type ?? ''),
+    requestContent: String(item?.requestContent ?? item?.request_content ?? ''),
+    responseStatus: String(item?.responseStatus ?? item?.response_status ?? 'success'),
+    errorMessage: String(item?.errorMessage ?? item?.error_message ?? ''),
+    tokensUsed: Number(item?.tokensUsed ?? item?.tokens_used ?? 0),
+    durationMs: Number(item?.durationMs ?? item?.duration_ms ?? 0),
+    createTime: Number(item?.createTime ?? item?.create_time ?? 0)
+})
+
+/**
+ * 规范化“功能分布”统计行
+ */
+const normalizeFeatureStats = (rows: any): Array<{
+    featureType: string
+    calls: number
+    tokens: number
+    successRate: number
+}> => {
+    if (!Array.isArray(rows)) return []
+    return rows.map((item) => ({
+        featureType: String(item?.featureType ?? item?.feature_type ?? ''),
+        calls: Number(item?.calls ?? 0),
+        tokens: Number(item?.tokens ?? 0),
+        successRate: Number(item?.successRate ?? item?.success_rate ?? 0)
+    }))
+}
+
 /** 加载统计汇总数据 */
 const loadStats = async () => {
     try {
         const res = await uiedAiUsageLogStats()
         const data = res?.data || res || {}
-        statsData.totalCalls = data.totalCalls ?? 0
-        statsData.totalTokens = data.totalTokens ?? 0
-        statsData.successRate = data.successRate ?? 0
-        statsData.todayCalls = data.todayCalls ?? 0
+        statsData.totalCalls = Number(data.totalCalls ?? 0)
+        statsData.totalTokens = Number(data.totalTokens ?? 0)
+        statsData.successRate = Number(data.successRate ?? 0)
+        statsData.todayCalls = Number(data.todayCalls ?? 0)
+        statsData.failedCalls = Number(data.failedCalls ?? 0)
+        statsData.avgDurationMs = Number(data.avgDurationMs ?? 0)
+        statsData.avgTokensPerCall = Number(data.avgTokensPerCall ?? 0)
+        statsData.todaySuccessRate = Number(data.todaySuccessRate ?? 0)
+        statsData.todayFailedCalls = Number(data.todayFailedCalls ?? 0)
+        statsData.byFeature = normalizeFeatureStats(data.byFeature || Object.values(data.byType || {}))
     } catch (error) {
         console.error('获取使用统计失败:', error)
+        statsData.totalCalls = 0
+        statsData.totalTokens = 0
+        statsData.successRate = 0
+        statsData.todayCalls = 0
+        statsData.failedCalls = 0
+        statsData.avgDurationMs = 0
+        statsData.avgTokensPerCall = 0
+        statsData.todaySuccessRate = 0
+        statsData.todayFailedCalls = 0
+        statsData.byFeature = []
     }
 }
 
@@ -1713,23 +2266,32 @@ const loadLogList = async () => {
     logLoading.value = true
     try {
         const params: any = {
-            page: logPagination.page,
+            pageNo: logPagination.page,
             pageSize: logPagination.pageSize
         }
         // 按功能类型筛选
-        if (logFilter.feature_type) {
-            params.feature_type = logFilter.feature_type
+        if (logFilter.featureType) {
+            params.featureType = logFilter.featureType
+            params.feature_type = logFilter.featureType
+        }
+        // 按状态筛选
+        if (logFilter.responseStatus) {
+            params.responseStatus = logFilter.responseStatus
+            params.response_status = logFilter.responseStatus
         }
         // 按时间范围筛选
         if (logFilter.dateRange && logFilter.dateRange.length === 2) {
+            params.startDate = logFilter.dateRange[0]
+            params.endDate = logFilter.dateRange[1]
             params.start_time = logFilter.dateRange[0]
             params.end_time = logFilter.dateRange[1]
         }
 
         const res = await uiedAiUsageLogList(params)
         const data = res?.data || res || {}
-        logList.value = data?.lists || data?.list || []
-        logPagination.total = data?.count ?? data?.total ?? 0
+        const rows = data?.lists || data?.list || []
+        logList.value = (Array.isArray(rows) ? rows : []).map((item: any) => normalizeUsageLogItem(item))
+        logPagination.total = Number(data?.count ?? data?.total ?? 0)
     } catch (error) {
         console.error('获取使用日志失败:', error)
         logList.value = []
@@ -1749,6 +2311,757 @@ const handleLogFilterChange = () => {
 const handleLogPageSizeChange = () => {
     logPagination.page = 1
     loadLogList()
+}
+
+// ==================== 导入配置 ====================
+
+type ImportModuleType = 'article' | 'website'
+type PresetDialogMode = 'create' | 'edit'
+
+type AiImportModuleConfig = {
+    enabled: boolean
+    model: string
+    promptTemplate: string
+}
+
+type ImportTemplatePreset = {
+    id: string
+    name: string
+    description: string
+    model: string
+    promptTemplate: string
+    sort: number
+    enabled: boolean
+}
+
+type AiImportConfigForm = {
+    articleBatchImport: AiImportModuleConfig
+    websiteBatchImport: AiImportModuleConfig
+}
+
+const DEFAULT_ARTICLE_IMPORT_PROMPT = `请基于以下公众号文章内容进行专业润色，并直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+原始标题：{title}
+原始简介：{intro}
+作者：{author}
+来源链接：{sourceUrl}
+原始正文：
+{content}
+
+要求：
+1. 保留原文核心事实，不编造信息；
+2. 优化结构与可读性，可适当增加小标题（h2/h3）；
+3. 输出为可直接入库的 HTML 正文；
+4. 正文建议 600-2000 字；`
+const DEFAULT_WEBSITE_IMPORT_PROMPT = `请为以下网站生成一篇详细的介绍内容，用于网站详情页展示。请直接返回 HTML 格式内容，不要包含 \`\`\` 代码块标记。
+
+网站名称: {websiteName}
+网站URL: {websiteUrl}
+网站描述: {websiteDescription}
+标签: {websiteTags}
+
+要求：
+1. 使用 HTML 标签格式化内容（h2, h3, p, ul, li, strong 等）
+2. 内容包含：网站简介、主要功能/特点、适用人群、使用场景
+3. 内容长度 300-600 字
+4. 语言风格专业但易读
+5. 不要包含虚假信息，基于网站名称和描述合理推断`
+
+/**
+ * 创建默认模板库（文章/网址），用于首屏和异常兜底。
+ */
+const createDefaultImportTemplatePresets = (): Record<ImportModuleType, ImportTemplatePreset[]> => ({
+    article: [
+        {
+            id: 'article_default',
+            name: '标准润色',
+            description: '保持事实不变，增强可读性',
+            model: '',
+            promptTemplate: DEFAULT_ARTICLE_IMPORT_PROMPT,
+            sort: 10,
+            enabled: true
+        },
+        {
+            id: 'article_seo',
+            name: 'SEO 优化',
+            description: '增强关键词与结构化标题',
+            model: '',
+            promptTemplate: `${DEFAULT_ARTICLE_IMPORT_PROMPT}
+
+额外要求：
+5. 在不堆砌关键词的前提下提升 SEO 友好性；
+6. 标题与段落中自然包含核心关键词。`,
+            sort: 20,
+            enabled: true
+        },
+        {
+            id: 'article_brief',
+            name: '精简快读',
+            description: '适合快节奏阅读场景',
+            model: '',
+            promptTemplate: `请将以下公众号文章整理为“精简快读版”，并直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+标题：{title}
+简介：{intro}
+作者：{author}
+来源：{sourceUrl}
+正文：
+{content}
+
+要求：
+1. 保留核心事实，不编造信息；
+2. 结构为：导语 + 3~5 个重点小节 + 结论；
+3. 使用 h2/h3/p/ul/li 等 HTML 标签；
+4. 总字数控制在 500-1000 字。`,
+            sort: 30,
+            enabled: true
+        }
+    ],
+    website: [
+        {
+            id: 'website_default',
+            name: '标准介绍',
+            description: '通用的详情页介绍结构',
+            model: '',
+            promptTemplate: DEFAULT_WEBSITE_IMPORT_PROMPT,
+            sort: 10,
+            enabled: true
+        },
+        {
+            id: 'website_conversion',
+            name: '转化导向',
+            description: '突出价值卖点和使用收益',
+            model: '',
+            promptTemplate: `${DEFAULT_WEBSITE_IMPORT_PROMPT}
+
+额外要求：
+6. 强调用户收益、效率提升与典型使用价值；
+7. 结尾增加“适合人群”与“推荐理由”小节。`,
+            sort: 20,
+            enabled: true
+        },
+        {
+            id: 'website_enterprise',
+            name: '企业评估',
+            description: '适合 B 端选型场景',
+            model: '',
+            promptTemplate: `请为以下网站生成“企业选型评估版”介绍，直接返回 HTML 正文，不要输出 \`\`\` 代码块。
+
+网站名称: {websiteName}
+网站URL: {websiteUrl}
+网站描述: {websiteDescription}
+标签: {websiteTags}
+
+要求：
+1. 结构包含：产品定位、核心能力、接入与部署、适用场景、风险与限制；
+2. 使用 h2/h3/p/ul/li/table 等 HTML 标签；
+3. 语言专业客观，避免夸张表述；
+4. 正文长度 400-900 字。`,
+            sort: 30,
+            enabled: true
+        }
+    ]
+})
+
+/**
+ * 创建导入配置默认值，确保页面首屏与接口异常时均可稳定回退。
+ */
+const createDefaultImportConfig = (): AiImportConfigForm => ({
+    articleBatchImport: {
+        enabled: true,
+        model: '',
+        promptTemplate: DEFAULT_ARTICLE_IMPORT_PROMPT
+    },
+    websiteBatchImport: {
+        enabled: true,
+        model: '',
+        promptTemplate: DEFAULT_WEBSITE_IMPORT_PROMPT
+    }
+})
+
+const importConfigForm = reactive<AiImportConfigForm>(createDefaultImportConfig())
+const importConfigLoading = ref(false)
+const importConfigSaveLoading = ref(false)
+const importTemplatePresetsSaveLoading = ref(false)
+const selectedArticlePresetId = ref('')
+const selectedWebsitePresetId = ref('')
+const lastSavedImportConfig = ref<AiImportConfigForm>(createDefaultImportConfig())
+const articleImportPresetList = ref<ImportTemplatePreset[]>([])
+const websiteImportPresetList = ref<ImportTemplatePreset[]>([])
+
+const importPresetDialogVisible = ref(false)
+const importPresetDialogMode = ref<PresetDialogMode>('create')
+const importPresetDialogModule = ref<ImportModuleType>('article')
+const importPresetDialogEditId = ref('')
+const importPresetDialogForm = reactive<ImportTemplatePreset>({
+    id: '',
+    name: '',
+    description: '',
+    model: '',
+    promptTemplate: '',
+    sort: 10,
+    enabled: true
+})
+
+/**
+ * 导入模块可选模型：实时来自“AI 配置管理”里的模型列表。
+ */
+const importModelOptions = computed(() => {
+    const rows = Array.isArray(configList.value) ? configList.value : []
+    const dedup = new Set<string>()
+    const options: Array<{ label: string; value: string }> = []
+
+    /**
+     * 写入单个模型选项，自动去重并附带来源说明。
+     */
+    const pushModelOption = (modelName: string, providerName: string, isDefault: boolean, suffix = '主模型') => {
+        const normalizedName = String(modelName || '').trim()
+        if (!normalizedName) return
+        const dedupKey = normalizedName.toLowerCase()
+        if (dedup.has(dedupKey)) return
+        dedup.add(dedupKey)
+        options.push({
+            label: `${normalizedName}${providerName ? `（${providerName} · ${suffix}${isDefault ? ' · 默认配置' : ''}）` : ''}`,
+            value: normalizedName
+        })
+    }
+
+    rows.forEach((item: any) => {
+        const providerName = getProviderLabel(String(item?.provider || '').trim())
+        const isDefault = item?.isDefault === true || Number(item?.isDefault || 0) === 1
+        pushModelOption(String(item?.model || ''), providerName, isDefault, '主模型')
+        pushModelOption(String(item?.reasoningModel || ''), providerName, isDefault, '推理模型')
+    })
+
+    return options
+})
+
+/**
+ * 规范化单个导入模块配置，兼容后端历史字段命名。
+ */
+const normalizeImportModuleConfig = (
+    source: any,
+    fallback: AiImportModuleConfig
+): AiImportModuleConfig => ({
+    enabled: source?.enabled !== false,
+    model: String(source?.model || source?.aiModel || fallback.model || '').trim(),
+    promptTemplate: String(
+        source?.promptTemplate || source?.aiPromptTemplate || fallback.promptTemplate || ''
+    ).trim()
+})
+
+/**
+ * 深拷贝导入配置，避免引用地址导致“已保存状态”计算失真。
+ */
+const cloneImportConfig = (config: AiImportConfigForm): AiImportConfigForm =>
+    JSON.parse(JSON.stringify(config))
+
+/**
+ * 深拷贝模板列表，防止引用污染。
+ */
+const cloneImportTemplatePresetList = (list: ImportTemplatePreset[]): ImportTemplatePreset[] =>
+    JSON.parse(JSON.stringify(Array.isArray(list) ? list : []))
+
+/**
+ * 构建提交给后端的导入配置载荷（统一去空格）。
+ */
+const buildImportConfigPayload = (): AiImportConfigForm => ({
+    articleBatchImport: {
+        enabled: importConfigForm.articleBatchImport.enabled,
+        model: String(importConfigForm.articleBatchImport.model || '').trim(),
+        promptTemplate: String(importConfigForm.articleBatchImport.promptTemplate || '').trim()
+    },
+    websiteBatchImport: {
+        enabled: importConfigForm.websiteBatchImport.enabled,
+        model: String(importConfigForm.websiteBatchImport.model || '').trim(),
+        promptTemplate: String(importConfigForm.websiteBatchImport.promptTemplate || '').trim()
+    }
+})
+
+/**
+ * 同步“已保存快照”，用于判断当前配置是否有未保存改动。
+ */
+const syncLastSavedImportConfig = () => {
+    lastSavedImportConfig.value = cloneImportConfig(buildImportConfigPayload())
+}
+
+/**
+ * 判断导入配置是否发生未保存变更。
+ */
+const isImportConfigChanged = computed(() => {
+    const currentPayload = buildImportConfigPayload()
+    return JSON.stringify(currentPayload) !== JSON.stringify(lastSavedImportConfig.value)
+})
+
+/**
+ * 根据模块读取对应导入配置对象。
+ */
+const getImportModuleConfig = (module: ImportModuleType): AiImportModuleConfig =>
+    module === 'article' ? importConfigForm.articleBatchImport : importConfigForm.websiteBatchImport
+
+/**
+ * 根据模块读取默认导入配置对象。
+ */
+const getDefaultImportModuleConfig = (module: ImportModuleType): AiImportModuleConfig => {
+    const defaults = createDefaultImportConfig()
+    return module === 'article' ? defaults.articleBatchImport : defaults.websiteBatchImport
+}
+
+/**
+ * 根据模块获取模板列表引用。
+ */
+const getImportPresetListByModule = (module: ImportModuleType): ImportTemplatePreset[] =>
+    module === 'article' ? articleImportPresetList.value : websiteImportPresetList.value
+
+/**
+ * 写入模块模板列表。
+ */
+const setImportPresetListByModule = (module: ImportModuleType, list: ImportTemplatePreset[]) => {
+    const normalized = cloneImportTemplatePresetList(list)
+    if (module === 'article') {
+        articleImportPresetList.value = normalized
+        return
+    }
+    websiteImportPresetList.value = normalized
+}
+
+/**
+ * 规范化模板项，兼容后端结构与前端编辑态。
+ */
+const normalizeImportPresetItem = (
+    item: any,
+    module: ImportModuleType,
+    index: number
+): ImportTemplatePreset => {
+    const defaults = createDefaultImportTemplatePresets()[module]
+    const fallback = defaults[index] || defaults[0]
+    const fallbackId = `${module}_preset_${index + 1}`
+    return {
+        id: String(item?.id || fallback?.id || fallbackId).trim().slice(0, 64) || fallbackId,
+        name: String(item?.name || fallback?.name || `模板 ${index + 1}`).trim().slice(0, 60),
+        description: String(item?.description || fallback?.description || '')
+            .trim()
+            .slice(0, 120),
+        model: String(item?.model || fallback?.model || '').trim().slice(0, 120),
+        promptTemplate: String(item?.promptTemplate || fallback?.promptTemplate || '')
+            .trim()
+            .slice(0, 12000),
+        sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+        enabled: item?.enabled !== false
+    }
+}
+
+/**
+ * 规范化模板列表：去重、排序、重新生成 sort。
+ */
+const normalizeImportPresetList = (
+    list: any,
+    module: ImportModuleType
+): ImportTemplatePreset[] => {
+    const source = Array.isArray(list) ? list : []
+    const normalized = source.map((item, index) => normalizeImportPresetItem(item, module, index))
+    const fallback = createDefaultImportTemplatePresets()[module]
+    const baseList = normalized.length > 0 ? normalized : cloneImportTemplatePresetList(fallback)
+    const idSet = new Set<string>()
+    const deduped = baseList.map((item, index) => {
+        let nextId = String(item.id || '').trim()
+        if (!nextId || idSet.has(nextId)) {
+            nextId = `${module}_preset_${index + 1}`
+        }
+        idSet.add(nextId)
+        return { ...item, id: nextId }
+    })
+    return deduped
+        .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+        .map((item, index) => ({ ...item, sort: (index + 1) * 10 }))
+}
+
+/**
+ * 应用后端返回的模板库配置到本地状态。
+ */
+const applyImportTemplatePresets = (payload: any) => {
+    const article = normalizeImportPresetList(payload?.article, 'article')
+    const website = normalizeImportPresetList(payload?.website, 'website')
+    setImportPresetListByModule('article', article)
+    setImportPresetListByModule('website', website)
+
+    if (!article.some((item) => item.id === selectedArticlePresetId.value)) {
+        selectedArticlePresetId.value = ''
+    }
+    if (!website.some((item) => item.id === selectedWebsitePresetId.value)) {
+        selectedWebsitePresetId.value = ''
+    }
+}
+
+/**
+ * 构建模板库存储载荷。
+ */
+const buildImportTemplatePresetsPayload = () => ({
+    article: normalizeImportPresetList(articleImportPresetList.value, 'article').map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        model: item.model,
+        promptTemplate: item.promptTemplate,
+        sort: item.sort,
+        enabled: item.enabled
+    })),
+    website: normalizeImportPresetList(websiteImportPresetList.value, 'website').map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        model: item.model,
+        promptTemplate: item.promptTemplate,
+        sort: item.sort,
+        enabled: item.enabled
+    }))
+})
+
+/**
+ * 加载导入模板库（来自后端可配置项）。
+ */
+const loadImportTemplatePresets = async () => {
+    try {
+        const res = await uiedAiImportTemplatePresetsGet()
+        const data = res?.data || res || {}
+        applyImportTemplatePresets(data)
+    } catch (error) {
+        console.error('获取导入模板库失败:', error)
+        applyImportTemplatePresets({})
+        ElMessage.error('获取导入模板库失败，已回退默认模板')
+    }
+}
+
+/**
+ * 保存导入模板库（增删改排序统一提交）。
+ */
+const handleSaveImportTemplatePresets = async () => {
+    importTemplatePresetsSaveLoading.value = true
+    try {
+        const payload = buildImportTemplatePresetsPayload()
+        await uiedAiImportTemplatePresetsSave(payload)
+        applyImportTemplatePresets(payload)
+        ElMessage.success('模板库已保存')
+    } catch (error: any) {
+        console.error('保存导入模板库失败:', error)
+        ElMessage.error(error?.msg || error?.message || '保存模板库失败')
+    } finally {
+        importTemplatePresetsSaveLoading.value = false
+    }
+}
+
+/**
+ * 重置模板弹窗表单。
+ */
+const resetImportPresetDialogForm = () => {
+    importPresetDialogForm.id = ''
+    importPresetDialogForm.name = ''
+    importPresetDialogForm.description = ''
+    importPresetDialogForm.model = ''
+    importPresetDialogForm.promptTemplate = ''
+    importPresetDialogForm.sort = 10
+    importPresetDialogForm.enabled = true
+}
+
+/**
+ * 打开模板编辑弹窗（新增/编辑）。
+ */
+const handleOpenImportPresetDialog = (module: ImportModuleType, row?: ImportTemplatePreset) => {
+    importPresetDialogModule.value = module
+    if (row) {
+        importPresetDialogMode.value = 'edit'
+        importPresetDialogEditId.value = String(row.id || '')
+        importPresetDialogForm.id = String(row.id || '')
+        importPresetDialogForm.name = String(row.name || '')
+        importPresetDialogForm.description = String(row.description || '')
+        importPresetDialogForm.model = String(row.model || '')
+        importPresetDialogForm.promptTemplate = String(row.promptTemplate || '')
+        importPresetDialogForm.sort = Number(row.sort || 10)
+        importPresetDialogForm.enabled = row.enabled !== false
+    } else {
+        importPresetDialogMode.value = 'create'
+        importPresetDialogEditId.value = ''
+        resetImportPresetDialogForm()
+        const currentList = getImportPresetListByModule(module)
+        importPresetDialogForm.sort = (currentList.length + 1) * 10
+        importPresetDialogForm.enabled = true
+        const defaults = createDefaultImportTemplatePresets()[module]
+        importPresetDialogForm.promptTemplate = String(defaults[0]?.promptTemplate || '').trim()
+    }
+    importPresetDialogVisible.value = true
+}
+
+/**
+ * 提交模板弹窗（新增或编辑）。
+ */
+const handleSubmitImportPresetDialog = () => {
+    const module = importPresetDialogModule.value
+    const name = String(importPresetDialogForm.name || '').trim()
+    const promptTemplate = String(importPresetDialogForm.promptTemplate || '').trim()
+    if (!name) {
+        ElMessage.warning('请输入模板名称')
+        return
+    }
+    if (!promptTemplate) {
+        ElMessage.warning('请输入提示词模板')
+        return
+    }
+    const targetList = cloneImportTemplatePresetList(getImportPresetListByModule(module))
+    const payloadItem: ImportTemplatePreset = normalizeImportPresetItem(
+        {
+            id: importPresetDialogForm.id,
+            name,
+            description: String(importPresetDialogForm.description || '').trim(),
+            model: String(importPresetDialogForm.model || '').trim(),
+            promptTemplate,
+            sort: Number(importPresetDialogForm.sort || 10),
+            enabled: importPresetDialogForm.enabled
+        },
+        module,
+        targetList.length
+    )
+    if (importPresetDialogMode.value === 'edit') {
+        const editId = String(importPresetDialogEditId.value || '').trim()
+        const rowIndex = targetList.findIndex((item) => item.id === editId)
+        if (rowIndex < 0) {
+            ElMessage.warning('当前模板不存在，请刷新后重试')
+            return
+        }
+        targetList[rowIndex] = { ...payloadItem, id: editId || payloadItem.id }
+    } else {
+        payloadItem.id = payloadItem.id || `${module}_preset_${Date.now()}`
+        targetList.push(payloadItem)
+    }
+    const normalized = normalizeImportPresetList(targetList, module)
+    setImportPresetListByModule(module, normalized)
+    importPresetDialogVisible.value = false
+    ElMessage.success(importPresetDialogMode.value === 'create' ? '模板已新增' : '模板已更新')
+}
+
+/**
+ * 删除模板。
+ */
+const handleDeleteImportPreset = async (module: ImportModuleType, row: ImportTemplatePreset) => {
+    const currentList = getImportPresetListByModule(module)
+    if (currentList.length <= 1) {
+        ElMessage.warning('至少保留 1 个模板预设')
+        return
+    }
+    try {
+        await ElMessageBox.confirm(`确认删除模板「${row.name}」吗？`, '删除模板', {
+            type: 'warning',
+            confirmButtonText: '删除',
+            cancelButtonText: '取消'
+        })
+    } catch (error) {
+        return
+    }
+    const filtered = currentList.filter((item) => item.id !== row.id)
+    const normalized = normalizeImportPresetList(filtered, module)
+    setImportPresetListByModule(module, normalized)
+    if (module === 'article' && selectedArticlePresetId.value === row.id) {
+        selectedArticlePresetId.value = ''
+    }
+    if (module === 'website' && selectedWebsitePresetId.value === row.id) {
+        selectedWebsitePresetId.value = ''
+    }
+    ElMessage.success('模板已删除')
+}
+
+/**
+ * 调整模板顺序（上移/下移）。
+ */
+const handleMoveImportPreset = (
+    module: ImportModuleType,
+    index: number,
+    direction: 'up' | 'down'
+) => {
+    const sourceList = cloneImportTemplatePresetList(getImportPresetListByModule(module))
+    const offset = direction === 'up' ? -1 : 1
+    const targetIndex = index + offset
+    if (targetIndex < 0 || targetIndex >= sourceList.length) return
+    const current = sourceList[index]
+    sourceList[index] = sourceList[targetIndex]
+    sourceList[targetIndex] = current
+    const normalized = normalizeImportPresetList(
+        sourceList.map((item, rowIndex) => ({ ...item, sort: (rowIndex + 1) * 10 })),
+        module
+    )
+    setImportPresetListByModule(module, normalized)
+}
+
+/**
+ * 根据模块与预设 ID 查找模板预设。
+ */
+const findImportPreset = (module: ImportModuleType, presetId: string): ImportTemplatePreset | null => {
+    const list = getImportPresetListByModule(module)
+    const matched = list.find((item) => item.id === presetId)
+    return matched || null
+}
+
+/**
+ * 应用模板预设到指定模块。
+ */
+const applyImportPresetToModule = (module: ImportModuleType, preset: ImportTemplatePreset) => {
+    const targetModule = getImportModuleConfig(module)
+    targetModule.model = String(preset.model || '').trim()
+    targetModule.promptTemplate = String(preset.promptTemplate || '').trim()
+}
+
+/**
+ * 点击“应用预设”后的处理逻辑。
+ */
+const handleApplyImportPreset = (module: ImportModuleType) => {
+    const presetId = module === 'article' ? selectedArticlePresetId.value : selectedWebsitePresetId.value
+    if (!presetId) {
+        ElMessage.warning('请先选择模板预设')
+        return
+    }
+    const preset = findImportPreset(module, presetId)
+    if (!preset) {
+        ElMessage.warning('未找到对应模板预设，请重新选择')
+        return
+    }
+    applyImportPresetToModule(module, preset)
+    ElMessage.success(`已应用“${preset.name}”预设`)
+}
+
+/**
+ * 恢复指定模块为默认模板（仅重置模型与提示词，不修改开关状态）。
+ */
+const handleResetImportModuleToDefault = async (module: ImportModuleType) => {
+    try {
+        await ElMessageBox.confirm('确认恢复该模块的默认模板吗？', '恢复默认', {
+            type: 'warning',
+            confirmButtonText: '恢复',
+            cancelButtonText: '取消'
+        })
+    } catch (error) {
+        return
+    }
+    const targetModule = getImportModuleConfig(module)
+    const defaultModule = getDefaultImportModuleConfig(module)
+    targetModule.model = String(defaultModule.model || '').trim()
+    targetModule.promptTemplate = String(defaultModule.promptTemplate || '').trim()
+    if (module === 'article') selectedArticlePresetId.value = ''
+    if (module === 'website') selectedWebsitePresetId.value = ''
+    ElMessage.success('已恢复默认模板')
+}
+
+/**
+ * 一键恢复全部默认模板（仅重置模型与提示词，不修改开关状态）。
+ */
+const handleResetAllImportConfig = async () => {
+    try {
+        await ElMessageBox.confirm('确认恢复全部导入模块的默认模板吗？', '一键恢复默认', {
+            type: 'warning',
+            confirmButtonText: '恢复全部',
+            cancelButtonText: '取消'
+        })
+    } catch (error) {
+        return
+    }
+    const articleDefault = getDefaultImportModuleConfig('article')
+    importConfigForm.articleBatchImport.model = String(articleDefault.model || '').trim()
+    importConfigForm.articleBatchImport.promptTemplate = String(articleDefault.promptTemplate || '').trim()
+    const websiteDefault = getDefaultImportModuleConfig('website')
+    importConfigForm.websiteBatchImport.model = String(websiteDefault.model || '').trim()
+    importConfigForm.websiteBatchImport.promptTemplate = String(websiteDefault.promptTemplate || '').trim()
+    selectedArticlePresetId.value = ''
+    selectedWebsitePresetId.value = ''
+    ElMessage.success('全部模块已恢复默认模板')
+}
+
+/**
+ * 复制指定模块提示词到剪贴板，便于快速二次编辑。
+ */
+const handleCopyImportPrompt = async (module: ImportModuleType) => {
+    const promptTemplate = String(getImportModuleConfig(module).promptTemplate || '').trim()
+    if (!promptTemplate) {
+        ElMessage.warning('当前提示词为空，无法复制')
+        return
+    }
+    try {
+        if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(promptTemplate)
+        } else {
+            const textarea = document.createElement('textarea')
+            textarea.value = promptTemplate
+            textarea.style.position = 'fixed'
+            textarea.style.opacity = '0'
+            document.body.appendChild(textarea)
+            textarea.select()
+            document.execCommand('copy')
+            document.body.removeChild(textarea)
+        }
+        ElMessage.success('提示词已复制')
+    } catch (error) {
+        ElMessage.error('复制失败，请手动复制')
+    }
+}
+
+/**
+ * 将接口返回值写入导入配置表单，避免 reactive 对象整体替换失效。
+ */
+const applyImportConfig = (payload: any) => {
+    const defaults = createDefaultImportConfig()
+    const articleConfig = normalizeImportModuleConfig(payload?.articleBatchImport, defaults.articleBatchImport)
+    const websiteConfig = normalizeImportModuleConfig(payload?.websiteBatchImport, defaults.websiteBatchImport)
+
+    importConfigForm.articleBatchImport.enabled = articleConfig.enabled
+    importConfigForm.articleBatchImport.model = articleConfig.model
+    importConfigForm.articleBatchImport.promptTemplate =
+        articleConfig.promptTemplate || defaults.articleBatchImport.promptTemplate
+
+    importConfigForm.websiteBatchImport.enabled = websiteConfig.enabled
+    importConfigForm.websiteBatchImport.model = websiteConfig.model
+    importConfigForm.websiteBatchImport.promptTemplate =
+        websiteConfig.promptTemplate || defaults.websiteBatchImport.promptTemplate
+}
+
+/**
+ * 加载“批量导入 AI 配置”。
+ */
+const loadImportConfig = async () => {
+    importConfigLoading.value = true
+    try {
+        if (!Array.isArray(configList.value) || configList.value.length === 0) {
+            await loadConfigList()
+        }
+        const [configRes, presetRes] = await Promise.all([
+            uiedAiImportConfigGet(),
+            uiedAiImportTemplatePresetsGet()
+        ])
+        applyImportConfig(configRes?.data || configRes || {})
+        applyImportTemplatePresets(presetRes?.data || presetRes || {})
+        syncLastSavedImportConfig()
+    } catch (error) {
+        console.error('获取导入配置失败:', error)
+        applyImportConfig({})
+        applyImportTemplatePresets({})
+        syncLastSavedImportConfig()
+        ElMessage.error('获取导入配置失败，已回退默认值')
+    } finally {
+        importConfigLoading.value = false
+    }
+}
+
+/**
+ * 保存“批量导入 AI 配置”。
+ */
+const handleSaveImportConfig = async () => {
+    importConfigSaveLoading.value = true
+    try {
+        const payload = buildImportConfigPayload()
+        await uiedAiImportConfigSave(payload)
+        syncLastSavedImportConfig()
+        ElMessage.success('导入配置已保存')
+    } catch (error: any) {
+        console.error('保存导入配置失败:', error)
+        ElMessage.error(error?.msg || error?.message || '保存失败')
+    } finally {
+        importConfigSaveLoading.value = false
+    }
 }
 
 // ==================== 功能开关 ====================
@@ -1805,7 +3118,9 @@ const handleSaveToggle = async () => {
 
 /** 切换 Tab 时加载对应数据 */
 watch(activeTab, (newTab) => {
-    if (newTab === 'stats') {
+    if (newTab === 'import') {
+        loadImportConfig()
+    } else if (newTab === 'stats') {
         loadStats()
         loadLogList()
     } else if (newTab === 'toggle') {
@@ -1877,6 +3192,94 @@ onMounted(() => {
     max-width: 600px;
 }
 
+.import-config-panel {
+    max-width: 880px;
+}
+
+.import-config-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.import-config-toolbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.import-module-card {
+    border: 1px solid var(--el-border-color-light);
+}
+
+.import-module-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.import-module-card__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+    line-height: 1.2;
+}
+
+.import-module-card__desc {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #909399;
+}
+
+.import-module-card__preset {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.import-module-card__preset-select {
+    min-width: 260px;
+    flex: 1;
+}
+
+.import-config-changed {
+    margin-top: 14px;
+}
+
+.import-preset-manage {
+    margin-top: 14px;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafafa;
+}
+
+.import-preset-manage__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.import-preset-manage__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #303133;
+}
+
+.import-preset-manage__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .divider-my-12 {
     margin: 12px 0;
 }
@@ -1901,6 +3304,33 @@ onMounted(() => {
     font-size: 28px;
     font-weight: 600;
     color: #303133;
+}
+.stats-card-value--danger {
+    color: #f56c6c;
+}
+.stats-summary-line {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: #606266;
+    margin: -4px 0 14px;
+}
+.stats-feature-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.stats-feature-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #303133;
+}
+.stats-feature-subtitle {
+    font-size: 12px;
+    color: #909399;
 }
 
 /* 功能开关样式 */

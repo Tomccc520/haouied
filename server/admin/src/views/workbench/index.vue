@@ -54,31 +54,31 @@
 
                 <div class="flex flex-wrap">
                     <div class="w-1/2 md:w-1/4">
-                        <div class="leading-10">访问量(人)</div>
+                        <div class="leading-10">新增网站(个)</div>
                         <div class="text-6xl">{{ workbenchData.today.todayVisits }}</div>
                         <div class="text-tx-secondary text-xs">
-                            总访问量：{{ workbenchData.today.totalVisits }}
+                            网站总数：{{ workbenchData.today.totalVisits }}
                         </div>
                     </div>
                     <div class="w-1/2 md:w-1/4">
-                        <div class="leading-10">销售额(元)</div>
+                        <div class="leading-10">新增文章(篇)</div>
                         <div class="text-6xl">{{ workbenchData.today.todaySales }}</div>
                         <div class="text-tx-secondary text-xs">
-                            总销售额：{{ workbenchData.today.totalSales }}
+                            文章总数：{{ workbenchData.today.totalSales }}
                         </div>
                     </div>
                     <div class="w-1/2 md:w-1/4">
-                        <div class="leading-10">订单量(笔)</div>
+                        <div class="leading-10">新增评论(条)</div>
                         <div class="text-6xl">{{ workbenchData.today.todayOrder }}</div>
                         <div class="text-tx-secondary text-xs">
-                            总订单量：{{ workbenchData.today.totalOrder }}
+                            评论总数：{{ workbenchData.today.totalOrder }}
                         </div>
                     </div>
                     <div class="w-1/2 md:w-1/4">
-                        <div class="leading-10">新增用户</div>
+                        <div class="leading-10">后台登录(次)</div>
                         <div class="text-6xl">{{ workbenchData.today.todayUsers }}</div>
                         <div class="text-tx-secondary text-xs">
-                            总访用户：{{ workbenchData.today.totalUsers }}
+                            累计登录：{{ workbenchData.today.totalUsers }}
                         </div>
                     </div>
                 </div>
@@ -106,7 +106,7 @@
         <div class="md:flex">
             <el-card class="flex-1 !border-none md:mr-4 mb-4" shadow="never">
                 <template #header>
-                    <span>访问量趋势图</span>
+                    <span>后台登录趋势（近15天）</span>
                 </template>
                 <div>
                     <v-charts
@@ -207,7 +207,17 @@ const workbenchData: any = reactive({
             actionText: '打开服务文档'
         }
     ],
-    today: {}, // 今日数据
+    today: {
+        time: '--',
+        todayVisits: 0,
+        totalVisits: 0,
+        todaySales: 0,
+        totalSales: 0,
+        todayOrder: 0,
+        totalOrder: 0,
+        todayUsers: 0,
+        totalUsers: 0
+    }, // 今日数据
     menu: [
         {
             name: '管理员',
@@ -262,7 +272,7 @@ const workbenchData: any = reactive({
             type: 'value'
         },
         legend: {
-            data: ['访问量']
+            data: ['登录次数']
         },
         itemStyle: {
             // 点的颜色。
@@ -273,7 +283,7 @@ const workbenchData: any = reactive({
         },
         series: [
             {
-                name: '访问量',
+                name: '登录次数',
                 data: [0],
                 type: 'line',
                 smooth: true
@@ -295,16 +305,19 @@ const getData = async () => {
             ...(res.version?.channel || {})
         }
     }
-    workbenchData.today = res.today
-    workbenchData.visitor = res.visitor
+    workbenchData.today = {
+        ...workbenchData.today,
+        ...(res.today || {})
+    }
+    workbenchData.visitor = res.visitor || { date: [], list: [] }
 
     // 清空echarts 数据
     workbenchData.visitorOption.xAxis.data = []
     workbenchData.visitorOption.series[0].data = []
 
     // 写入从后台拿来的数据
-    workbenchData.visitorOption.xAxis.data = res.visitor.date
-    workbenchData.visitorOption.series[0].data = res.visitor.list
+    workbenchData.visitorOption.xAxis.data = Array.isArray(res?.visitor?.date) ? res.visitor.date : []
+    workbenchData.visitorOption.series[0].data = Array.isArray(res?.visitor?.list) ? res.visitor.list : []
 }
 
 getData()

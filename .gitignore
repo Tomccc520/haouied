@@ -62,3 +62,6 @@ server/server/typings/
 
 # 本地数据库备份（按时间戳导出）
 uied_nav_prod_*.sql
+uied_ainav_*.sql
+uied_nav_mysql56_compatible_*.sql
+*_mysql_data_*.sql

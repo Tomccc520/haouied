@@ -71,6 +71,23 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.7',
+    date: '2026-03-17',
+    title: '正式版1.0.7：批量导入文章/网址支持 AI 模型与提示词配置',
+    changes: [
+      { type: 'feature', scope: 'frontend', text: '【文章管理】文章列表新增“批量导入文章”弹窗：支持批量导入公众号链接、选择栏目与作者、设置草稿/发布状态，并展示逐条导入结果明细' },
+      { type: 'feature', scope: 'fullstack', text: '【文章导入】新增 /api/article/import/wechat/batch 批量接口：支持每行一个公众号链接入库，返回新增/失败统计与逐条失败原因' },
+      { type: 'feature', scope: 'fullstack', text: '【文章导入】批量导入支持 AI 润色正文的“模型覆盖 + 提示词覆盖”，默认模板可直接使用，支持占位变量 {title}/{intro}/{content}/{author}/{sourceUrl}' },
+      { type: 'feature', scope: 'frontend', text: '【网址管理】批量导入网址弹窗新增 AI 模型与 AI 提示词配置：当开启“导入后自动生成详情正文”时可按任务覆盖默认模型与生成提示词' },
+      { type: 'feature', scope: 'backend', text: '【网址导入】批量导入调用 AI 详情生成时新增 modelOverride/promptTemplateOverride 参数透传，后端详情生成器支持占位变量模板渲染' },
+      { type: 'improve', scope: 'frontend', text: '【导入反馈】文章与网址批量导入统一提供“导入完成”成功提醒，含新增/失败统计，降低“是否成功保存”的不确定感' },
+      { type: 'improve', scope: 'frontend', text: '【搜索页】重构搜索输入交互：Hero 搜索框改为受控输入，新增提交/聚焦/失焦回调，搜索历史与搜索建议下拉统一贴合搜索框展示，避免“输入区与下拉区割裂”' },
+      { type: 'improve', scope: 'frontend', text: '【搜索页】优化搜索逻辑：来源筛选同步 URL 参数（source），刷新后可保持筛选状态；仅切换来源时不重复触发后端搜索请求，降低无效请求' },
+      { type: 'improve', scope: 'frontend', text: '【搜索页】新增“来源分布快捷筛选”标签组，并重构搜索头部视觉层级（弱化玻璃态、提升信息可读性）' },
+      { type: 'feature', scope: 'fullstack', text: '【交付文档】新增《1.0.7客户安装部署指引》：提供宝塔原生/容器两种部署路径、Nginx 反代模板、上线自检命令与常见故障速查，降低客户安装门槛' },
+    ]
+  },
+  {
     version: '1.0.6',
     date: '2026-03-10',
     title: '正式版1.0.6：首页新增“最新网站更新”滚动模块',

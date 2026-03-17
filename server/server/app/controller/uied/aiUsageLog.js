@@ -21,11 +21,18 @@ class AiUsageLogController extends baseController {
   async list() {
     const { ctx } = this;
     try {
-      const { pageNo = 1, pageSize = 20, featureType, startDate, endDate } = ctx.query;
+      const query = ctx.query || {};
+      const pageNo = query.pageNo ?? query.page ?? 1;
+      const pageSize = query.pageSize ?? query.page_size ?? 20;
+      const featureType = query.featureType ?? query.feature_type ?? '';
+      const responseStatus = query.responseStatus ?? query.response_status ?? '';
+      const startDate = query.startDate ?? query.start_time ?? '';
+      const endDate = query.endDate ?? query.end_time ?? '';
       const result = await ctx.service.uied.aiUsageLog.list({
         page: parseInt(pageNo),
         pageSize: parseInt(pageSize),
         featureType,
+        responseStatus,
         startDate,
         endDate,
       });

@@ -148,6 +148,8 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
   const [since, setSince] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [activeDayGroupKey, setActiveDayGroupKey] = useState<string>('');
+  const dayGroupRefMap = useRef<Record<string, HTMLElement | null>>({});
 
   const pageKicker = String(
     displayConfig?.pageKicker || frontendConfig.homepageConfig.dailyNewPageKicker || 'Daily Fresh',
@@ -236,6 +238,15 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
   }, [fetchDailyNewList]);
 
   /**
+   * 切换统计天数并重置当前分组选择，保持左右分栏交互一致。
+   * @param nextDays 目标天数
+   */
+  const handleChangeDays = useCallback((nextDays: number) => {
+    setDays(nextDays);
+    setActiveDayGroupKey('');
+  }, []);
+
+  /**
    * 上报网站点击，失败时静默处理，不阻断页面跳转。
    */
   const reportWebsiteClick = useCallback((websiteId: string) => {
@@ -265,23 +276,6 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
   };
 
   /**
-   * 强制查看详情。
-   */
-  const handleOpenDetail = (item: DailyNewWebsiteItem, event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const detailUrl = generateWebsiteUrl(permalinkConfig, {
-      id: item.id,
-      slug: item.slug,
-    });
-    if (pageGlobal.detailPageNewWindow) {
-      window.open(detailUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    navigate(detailUrl);
-  };
-
-  /**
    * 直接访问外站。
    */
   const handleDirectVisit = (item: DailyNewWebsiteItem, event: React.MouseEvent) => {
@@ -306,6 +300,45 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
 
   const dayGroups = useMemo(() => buildDayGroups(items), [items]);
 
+  /**
+   * 同步默认选中的日期分组，用于左侧导航高亮。
+   */
+  useEffect(() => {
+    if (!dayGroups.length) {
+      setActiveDayGroupKey('');
+      return;
+    }
+    setActiveDayGroupKey((prev) => {
+      if (prev && dayGroups.some((group) => group.key === prev)) return prev;
+      return dayGroups[0].key;
+    });
+  }, [dayGroups]);
+
+  /**
+   * 注册日期分组节点，供左侧快速定位滚动使用。
+   * @param groupKey 分组键
+   * @param node DOM 节点
+   */
+  const registerDayGroupNode = useCallback((groupKey: string, node: HTMLElement | null) => {
+    if (!groupKey) return;
+    dayGroupRefMap.current[groupKey] = node;
+  }, []);
+
+  /**
+   * 从左侧导航跳转到对应日期分组。
+   * @param groupKey 分组键
+   */
+  const handleJumpToDayGroup = useCallback((groupKey: string) => {
+    if (!groupKey) return;
+    setActiveDayGroupKey(groupKey);
+    const targetNode = dayGroupRefMap.current[groupKey];
+    if (!targetNode) return;
+    targetNode.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }, []);
+
   return (
     <div className={`daily-new-page daily-new-page--layout-${detailLayoutWidthMode} ${embedded ? 'daily-new-page--embedded' : ''}`.trim()}>
       {!embedded && (
@@ -322,22 +355,12 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
           <h1>{pageTitle}</h1>
           <p>{pageDescription}</p>
           <div className="daily-new-page__hero-actions">
-            <div className="daily-new-page__toolbar-group">
-              <span className="daily-new-page__toolbar-label">时间范围</span>
-              {dayOptions.map((option) => (
-                <button
-                  key={option.value}
-                  className={`daily-new-page__day-btn ${days === option.value ? 'is-active' : ''}`}
-                  onClick={() => setDays(option.value)}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <Link className="daily-new-page__back-link" to="/">
-              返回首页
-            </Link>
+            <span className="daily-new-page__hero-tip">左侧切换时间范围，右侧查看上新详情</span>
+            {!embedded && (
+              <Link className="daily-new-page__back-link" to="/">
+                返回首页
+              </Link>
+            )}
           </div>
         </div>
         <div className="daily-new-page__hero-stats">
@@ -363,112 +386,158 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
       )}
 
       <section className="daily-new-page__content">
-        <div className="daily-new-page__meta">
-          <span>共 {total} 个新网址</span>
-          <span>·</span>
-          <span>{dayOptions.find((item) => item.value === days)?.label || `近${days}天`}</span>
-          <span>·</span>
-          <span>数据源：网址管理最新发布时间</span>
-          <span>·</span>
-          <span>统计起点 {since ? since.slice(0, 10) : '--'}</span>
-        </div>
-
-        {error && <div className="daily-new-page__error">{error}</div>}
-
-        {!loading && items.length === 0 && !error && (
-          <div className="daily-new-page__empty">
-            <h3>暂无上新内容</h3>
-            <p>当前时间范围内暂未收录新网址，可切换到近 7 天再试。</p>
-          </div>
-        )}
-
-        <div className="daily-new-page__timeline">
-          {dayGroups.map((group) => (
-            <section key={group.key} className="daily-new-page__day-group">
-              <header className="daily-new-page__day-header">
-                <h2>{group.label}</h2>
-                <span>{group.items.length} 个</span>
-              </header>
-              <div className="daily-new-page__entry-list">
-                {group.items.map((item) => {
-                  const date = resolveItemDate(item);
-                  const statusLabel = getEntryStatusLabel(item);
-                  const showTags = [ item.category, ...(item.tags || []).slice(0, 3) ].filter(Boolean);
-                  return (
-                    <article
-                      key={`${group.key}-${item.id}-${item.latestAt || item.updatedAt || item.createdAt || ''}`}
-                      className="daily-new-page__entry"
-                      onClick={() => handleWebsiteClick(item)}
-                    >
-                      <div className="daily-new-page__entry-time">
-                        <span>{formatItemTime(date)}</span>
-                        <span className="daily-new-page__entry-release">新上线</span>
-                      </div>
-                      <div className="daily-new-page__entry-main">
-                        <div className="daily-new-page__entry-title-row">
-                          <WebsiteFavicon
-                            iconUrl={item.iconUrl}
-                            websiteUrl={item.url}
-                            name={item.name}
-                            size={40}
-                          />
-                          <h3>{item.name}</h3>
-                          {statusLabel && (
-                            <span className="daily-new-page__entry-status">{statusLabel}</span>
-                          )}
-                        </div>
-                        <p>{item.description || '暂无描述'}</p>
-                        {showTags.length > 0 && (
-                          <div className="daily-new-page__entry-tags">
-                            {showTags.map((tag, tagIndex) => (
-                              <span
-                                key={`${item.id}-tag-${tagIndex}`}
-                                className="daily-new-page__entry-tag"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="daily-new-page__entry-actions">
-                        <button
-                          type="button"
-                          className="daily-new-page__action-btn"
-                          onClick={(event) => handleOpenDetail(item, event)}
-                        >
-                          详情
-                        </button>
-                        <button
-                          type="button"
-                          className="daily-new-page__action-btn daily-new-page__action-btn--primary"
-                          onClick={(event) => handleDirectVisit(item, event)}
-                        >
-                          访问
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
+        <div className="daily-new-page__workspace">
+          <aside className="daily-new-page__sidebar" aria-label="每日上新筛选导航">
+            <section className="daily-new-page__sidebar-section">
+              <h2>时间范围</h2>
+              <p>按运营节奏快速切换收录窗口。</p>
+              <div className="daily-new-page__toolbar-group">
+                {dayOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    className={`daily-new-page__day-btn ${days === option.value ? 'is-active' : ''}`}
+                    onClick={() => handleChangeDays(option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
             </section>
-          ))}
+
+            <section className="daily-new-page__sidebar-section">
+              <h2>日期导航</h2>
+              <p>点击左侧日期，右侧快速定位当天上新列表。</p>
+              <div className="daily-new-page__day-nav">
+                {dayGroups.map((group) => (
+                  <button
+                    key={`nav-${group.key}`}
+                    type="button"
+                    className={`daily-new-page__day-nav-btn ${activeDayGroupKey === group.key ? 'is-active' : ''}`}
+                    onClick={() => handleJumpToDayGroup(group.key)}
+                  >
+                    <span>{group.label}</span>
+                    <strong>{group.items.length}</strong>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </aside>
+
+          <main className="daily-new-page__main" aria-label="每日上新内容区">
+            <div className="daily-new-page__meta">
+              <span>共 {total} 个新网址</span>
+              <span>·</span>
+              <span>{dayOptions.find((item) => item.value === days)?.label || `近${days}天`}</span>
+              <span>·</span>
+              <span>数据源：网址管理最新发布时间</span>
+              <span>·</span>
+              <span>统计起点 {since ? since.slice(0, 10) : '--'}</span>
+            </div>
+
+            {error && <div className="daily-new-page__error">{error}</div>}
+
+            {!loading && items.length === 0 && !error && (
+              <div className="daily-new-page__empty">
+                <h3>暂无上新内容</h3>
+                <p>当前时间范围内暂未收录新网址，可切换到近 7 天再试。</p>
+              </div>
+            )}
+
+            <div className="daily-new-page__timeline">
+              {dayGroups.map((group) => (
+                <section
+                  key={group.key}
+                  className="daily-new-page__day-group"
+                  ref={(node) => registerDayGroupNode(group.key, node)}
+                >
+                  <header className="daily-new-page__day-header">
+                    <h2>{group.label}</h2>
+                    <span>{group.items.length} 个</span>
+                  </header>
+                  <div className="daily-new-page__entry-list">
+                    {group.items.map((item) => {
+                      const date = resolveItemDate(item);
+                      const statusLabel = getEntryStatusLabel(item);
+                      const showTags = (item.tags || []).slice(0, 2).filter(Boolean);
+                      const categoryLabel = String(item.category || '').trim() || '未分类';
+                      const publishText = date
+                        ? date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                        : '--';
+                      return (
+                        <article
+                          key={`${group.key}-${item.id}-${item.latestAt || item.updatedAt || item.createdAt || ''}`}
+                          className="daily-new-page__entry"
+                          onClick={() => handleWebsiteClick(item)}
+                        >
+                          <div className="daily-new-page__entry-time">
+                            <span>{formatItemTime(date)}</span>
+                            <span className="daily-new-page__entry-release">新上线</span>
+                          </div>
+                          <div className="daily-new-page__entry-main">
+                            <div className="daily-new-page__entry-title-row">
+                              <WebsiteFavicon
+                                iconUrl={item.iconUrl}
+                                websiteUrl={item.url}
+                                name={item.name}
+                                size={40}
+                              />
+                              <h3>{item.name}</h3>
+                              {statusLabel && (
+                                <span className="daily-new-page__entry-status">{statusLabel}</span>
+                              )}
+                            </div>
+                            <p>{item.description || '暂无描述'}</p>
+                            <div className="daily-new-page__entry-meta">
+                              <span>{categoryLabel}</span>
+                              <span>更新于 {publishText}</span>
+                            </div>
+                            {showTags.length > 0 && (
+                              <div className="daily-new-page__entry-tags">
+                                {showTags.map((tag, tagIndex) => (
+                                  <span
+                                    key={`${item.id}-tag-${tagIndex}`}
+                                    className="daily-new-page__entry-tag"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="daily-new-page__entry-actions">
+                            <button
+                              type="button"
+                              className="daily-new-page__action-btn daily-new-page__action-btn--primary"
+                              onClick={(event) => handleDirectVisit(item, event)}
+                            >
+                              访问原站
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            {loading && (
+              <div className="daily-new-page__loading">
+                <span className="daily-new-page__loading-dot" />
+                {items.length > 0 ? '正在加载更多上新...' : '正在同步最新上线产品...'}
+              </div>
+            )}
+
+            {!loading && hasMore && (
+              <div className="daily-new-page__load-more">
+                <button type="button" onClick={() => fetchDailyNewList(page + 1, true)}>
+                  查看更多
+                </button>
+              </div>
+            )}
+          </main>
         </div>
-
-        {loading && (
-          <div className="daily-new-page__loading">
-            <span className="daily-new-page__loading-dot" />
-            {items.length > 0 ? '正在加载更多上新...' : '正在同步最新上线产品...'}
-          </div>
-        )}
-
-        {!loading && hasMore && (
-          <div className="daily-new-page__load-more">
-            <button type="button" onClick={() => fetchDailyNewList(page + 1, true)}>
-              查看更多
-            </button>
-          </div>
-        )}
       </section>
     </div>
   );

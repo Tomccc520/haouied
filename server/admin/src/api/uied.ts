@@ -683,6 +683,28 @@ export function uiedAiUsageLogStats() {
     return request.get({ url: '/uied/aiUsageLog/stats' })
 }
 
+// ==================== AI 导入配置 ====================
+
+// 获取批量导入 AI 配置（文章/网址）
+export function uiedAiImportConfigGet() {
+    return request.get({ url: '/uied/aiConfig/importConfig' })
+}
+
+// 保存批量导入 AI 配置（文章/网址）
+export function uiedAiImportConfigSave(params: any) {
+    return request.post({ url: '/uied/aiConfig/saveImportConfig', params })
+}
+
+// 获取导入模板库（文章/网址预设）
+export function uiedAiImportTemplatePresetsGet() {
+    return request.get({ url: '/uied/aiConfig/importTemplatePresets' })
+}
+
+// 保存导入模板库（文章/网址预设）
+export function uiedAiImportTemplatePresetsSave(params: any) {
+    return request.post({ url: '/uied/aiConfig/saveImportTemplatePresets', params })
+}
+
 // ==================== AI 功能开关 ====================
 
 // 获取 AI 功能开关
