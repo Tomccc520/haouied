@@ -12,7 +12,7 @@ export interface SearchParams {
   keyword: string;
   page?: number;
   pageSize?: number;
-  type?: 'all' | 'website' | 'category' | 'tag';
+  type?: 'all' | 'website' | 'article' | 'category' | 'tag';
 }
 
 export interface AdvancedSearchParams {
@@ -90,7 +90,7 @@ export const searchService = {
    */
   getSuggestions: async (keyword: string): Promise<any> => {
     const response = await api.get('/search/suggestions', { params: { keyword } });
-    return unwrapApiResponse<any>(response.data, { websites: [], categories: [] });
+    return unwrapApiResponse<any>(response.data, { websites: [], categories: [], articles: [] });
   },
 
   /**

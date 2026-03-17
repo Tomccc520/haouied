@@ -1272,6 +1272,30 @@
                         </el-form-item>
                         <el-form-item>
                             <template #label
+                                ><span>搜索网站</span
+                                ><el-tooltip content="开启后，关键词搜索会检索网址数据" placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-switch
+                                v-model="searchData.websiteSearchEnabled"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label
+                                ><span>搜索文章</span
+                                ><el-tooltip content="开启后，关键词搜索会同时检索文章数据" placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-switch
+                                v-model="searchData.articleSearchEnabled"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label
                                 ><span>搜索防抖延迟</span
                                 ><el-tooltip
                                     content="用户停止输入后多少毫秒触发搜索，避免频繁请求"
@@ -2352,6 +2376,8 @@ const searchData = reactive({
     enabled: true,
     placeholder: '搜索网站名称...',
     debounceDelay: 300,
+    websiteSearchEnabled: true,
+    articleSearchEnabled: true,
     aiSearchEnabled: true,
     aiSearchBtnText: 'AI 搜索',
     highlightKeyword: true,

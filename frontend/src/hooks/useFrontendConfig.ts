@@ -158,6 +158,8 @@ interface SearchConfig {
   enabled: boolean;
   placeholder: string;
   debounceDelay: number;
+  websiteSearchEnabled: boolean;
+  articleSearchEnabled: boolean;
   aiSearchEnabled: boolean;
   aiSearchBtnText: string;
   highlightKeyword: boolean;
@@ -317,6 +319,8 @@ const defaultSearchConfig: SearchConfig = {
   enabled: true,
   placeholder: '搜索网站名称...',
   debounceDelay: 300,
+  websiteSearchEnabled: true,
+  articleSearchEnabled: true,
   aiSearchEnabled: true,
   aiSearchBtnText: 'AI 搜索',
   highlightKeyword: true,

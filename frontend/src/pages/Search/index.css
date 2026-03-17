@@ -384,6 +384,116 @@
   }
 }
 
+/* 文章搜索结果卡片（与工具卡片共用网格） */
+.search-article-card {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  min-height: 252px;
+}
+
+.search-article-card__cover {
+  width: 100%;
+  height: 120px;
+  background: #f3f4f6;
+}
+
+.search-article-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.search-article-card__cover--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 22px;
+}
+
+.search-article-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.search-article-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.search-article-card__badge {
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 999px;
+  color: #111827;
+  background: #f3f4f6;
+}
+
+.search-article-card__date,
+.search-article-card__category {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.search-article-card__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #111827;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-article-card__desc {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .search-article-card {
+    min-height: 210px;
+  }
+
+  .search-article-card__cover {
+    height: 96px;
+  }
+
+  .search-article-card__content {
+    padding: 10px;
+  }
+
+  .search-article-card__title {
+    font-size: 14px;
+  }
+
+  .search-article-card__desc {
+    font-size: 12px;
+    -webkit-line-clamp: 2;
+  }
+}
+
 /* 搜索结果卡片 */
 .search-result-card {
   background: var(--neutral-0);

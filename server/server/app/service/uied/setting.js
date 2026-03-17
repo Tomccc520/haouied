@@ -927,6 +927,8 @@ class SettingService extends Service {
       enabled: true,
       placeholder: '搜索网站名称...',
       debounceDelay: 300,
+      websiteSearchEnabled: true,
+      articleSearchEnabled: true,
       aiSearchEnabled: true,
       aiSearchBtnText: 'AI 搜索',
       highlightKeyword: true,
@@ -934,6 +936,11 @@ class SettingService extends Service {
     };
     const merged = { ...defaults, ...(config || {}) };
     const searchEnabled = merged.enabled !== false;
+    const websiteSearchEnabled = merged.websiteSearchEnabled !== false;
+    const articleSearchEnabled = merged.articleSearchEnabled !== false;
+    const contentSearchFallback = websiteSearchEnabled || articleSearchEnabled
+      ? { website: websiteSearchEnabled, article: articleSearchEnabled }
+      : { website: true, article: false };
     return {
       ...merged,
       enabled: searchEnabled,
@@ -941,6 +948,8 @@ class SettingService extends Service {
       debounceDelay: Number.isFinite(Number(merged.debounceDelay))
         ? Math.max(100, Math.min(2000, Number(merged.debounceDelay)))
         : defaults.debounceDelay,
+      websiteSearchEnabled: searchEnabled ? contentSearchFallback.website : false,
+      articleSearchEnabled: searchEnabled ? contentSearchFallback.article : false,
       aiSearchEnabled: searchEnabled && merged.aiSearchEnabled !== false,
       aiSearchBtnText: String(merged.aiSearchBtnText || defaults.aiSearchBtnText).trim() || defaults.aiSearchBtnText,
       highlightKeyword: merged.highlightKeyword !== false,
@@ -1859,6 +1868,8 @@ class SettingService extends Service {
       enabled: true,
       placeholder: '搜索网站名称...',
       debounceDelay: 300,
+      websiteSearchEnabled: true,
+      articleSearchEnabled: true,
       aiSearchEnabled: true,
       aiSearchBtnText: 'AI 搜索',
       highlightKeyword: true,

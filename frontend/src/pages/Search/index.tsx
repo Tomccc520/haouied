@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import HeroBanner from '../../components/HeroBanner';
 import AdBanner from '../../components/AdBanner';
@@ -56,6 +56,7 @@ const SEMANTIC_SYNONYM_MAP: Record<string, string[]> = {
 // 搜索结果接口
 interface SearchResult {
   id: string;
+  articleId?: number;
   name: string;
   description: string;
   url: string;
@@ -69,21 +70,29 @@ interface SearchResult {
   isFeatured?: boolean;
   source?: string;
   isAiResult?: boolean;
+  contentType?: 'website' | 'article';
+  publishedAt?: number;
 }
 
 interface BackendSearchItem {
   id?: string | number;
+  articleId?: string | number;
   name?: string;
+  title?: string;
   description?: string;
+  excerpt?: string;
   url?: string;
   slug?: string;
   iconUrl?: string;
+  coverImage?: string;
   category?: { name?: string } | string;
   tags?: string[] | string;
   weightTags?: string[] | string;
   isNew?: boolean;
   isHot?: boolean;
   isFeatured?: boolean;
+  contentType?: 'website' | 'article' | string;
+  publishedAt?: number | string;
 }
 
 /**
@@ -103,6 +112,33 @@ const normalizeCategoryFilterKey = (value: unknown): string => {
  */
 const normalizeTagFilterKey = (value: unknown): string => {
   return normalizeText(value).replace(/\s+/g, '-');
+};
+
+/**
+ * 解析文章详情页路径，兼容 slug / id 两种路由参数。
+ */
+const resolveArticlePath = (item: BackendSearchItem): string => {
+  const slug = String(item.slug || '').trim();
+  const articleId = Number(item.articleId ?? item.id ?? 0);
+  const identifier = slug || (articleId > 0 ? String(articleId) : String(item.id || '').trim());
+  if (!identifier) return '/articles';
+  return `/article/${encodeURIComponent(identifier)}`;
+};
+
+/**
+ * 统一格式化搜索结果时间字段，文章结果用于展示发布时间。
+ */
+const formatSearchResultDate = (value: unknown): string => {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return '';
+  const timestamp = parsed > 10_000_000_000 ? parsed : parsed * 1000;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
 };
 
 /**
@@ -324,26 +360,46 @@ const mapBackendSearchItem = (
   source: string,
   isAiResult: boolean = false
 ): SearchResult => {
+  const contentType = String(item.contentType || '').trim().toLowerCase() === 'article' ? 'article' : 'website';
   const normalizedId = item.id !== undefined && item.id !== null ? String(item.id) : '';
+  const rawArticleIdText = String(item.articleId ?? item.id ?? '').trim();
+  const normalizedArticleIdText = rawArticleIdText.replace(/^article-/i, '').trim();
+  const articleIdBase = normalizedArticleIdText || normalizedId.replace(/^article-/i, '').trim() || '0';
+  const articleIdValue = Number(articleIdBase || 0);
   const categoryName = typeof item.category === 'string'
     ? item.category
     : item.category?.name || '';
+  const articleName = String(item.title || item.name || '').trim();
+  const websiteName = String(item.name || item.title || '').trim();
+  const articleDescription = String(item.excerpt || item.description || '').trim();
+  const websiteDescription = String(item.description || item.excerpt || '').trim();
+  const articlePath = resolveArticlePath(item);
+  const normalizedPublishedAt = Number(item.publishedAt || 0);
 
   return {
-    id: normalizedId,
-    name: item.name || '',
-    description: item.description || '',
-    url: item.url || '',
+    id: contentType === 'article'
+      ? (`article-${articleIdBase}`)
+      : normalizedId,
+    articleId: Number.isFinite(articleIdValue) ? articleIdValue : 0,
+    name: contentType === 'article' ? articleName : websiteName,
+    description: contentType === 'article' ? articleDescription : websiteDescription,
+    url: contentType === 'article'
+      ? (String(item.url || '').trim() || articlePath)
+      : String(item.url || '').trim(),
     slug: item.slug,
-    iconUrl: item.iconUrl,
+    iconUrl: contentType === 'article'
+      ? (item.coverImage || item.iconUrl || '')
+      : item.iconUrl,
     category: categoryName,
-    tags: normalizeTags(item.tags),
-    weightTags: normalizeWeightTags(item.weightTags),
-    isNew: Boolean(item.isNew),
-    isHot: Boolean(item.isHot),
-    isFeatured: Boolean(item.isFeatured),
+    tags: contentType === 'article' ? [] : normalizeTags(item.tags),
+    weightTags: contentType === 'article' ? [] : normalizeWeightTags(item.weightTags),
+    isNew: contentType === 'article' ? false : Boolean(item.isNew),
+    isHot: contentType === 'article' ? false : Boolean(item.isHot),
+    isFeatured: contentType === 'article' ? false : Boolean(item.isFeatured),
     source,
     isAiResult,
+    contentType,
+    publishedAt: Number.isFinite(normalizedPublishedAt) ? normalizedPublishedAt : 0,
   };
 };
 
@@ -650,7 +706,7 @@ const SearchPage: React.FC = () => {
   const aiSearchEnabled = searchEnabled && searchConfig?.aiSearchEnabled !== false;
   const resultPageSize = Math.max(40, normalizeResultPageSize(searchConfig?.resultsPerPage));
   const suggestionDebounceDelay = normalizeDebounceDelay(searchConfig?.debounceDelay);
-  const searchInputPlaceholder = String(searchConfig?.placeholder || '').trim() || '搜索网站名称、描述、标签...';
+  const searchInputPlaceholder = String(searchConfig?.placeholder || '').trim() || '搜索网站或文章...';
   const aiSearchButtonText = String(searchConfig?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索';
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
 
@@ -816,8 +872,16 @@ const SearchPage: React.FC = () => {
       const categorySuggestions = Array.isArray(response?.categories)
         ? response.categories.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
         : [];
+      const articleSuggestions = Array.isArray(response?.articles)
+        ? response.articles.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
+        : [];
       const localSuggestions = buildLocalSuggestions(query, 8);
-      const merged = Array.from(new Set([ ...websiteSuggestions, ...categorySuggestions, ...localSuggestions ]))
+      const merged = Array.from(new Set([
+        ...websiteSuggestions,
+        ...categorySuggestions,
+        ...articleSuggestions,
+        ...localSuggestions,
+      ]))
         .filter(item => item !== query)
         .slice(0, 8);
       setSuggestions(merged);
@@ -2424,28 +2488,61 @@ const SearchPage: React.FC = () => {
           ) : !showThinking && searchResults.length > 0 ? (
             <>
               {searchResults.map((result) => (
-                <ToolCard
-                  key={result.id}
-                  tool={{
-                    id: result.id,
-                    name: result.name,
-                    description: result.description,
-                    url: result.url,
-                    icon: result.iconUrl || '',
-                    category: result.category || '',
-                    tags: result.tags,
-                    weightTags: result.weightTags || [],
-                    isNew: result.isNew,
-                    isHot: result.isHot,
-                    isFeatured: result.isFeatured,
-                  }}
-                  onClick={() => handleWebsiteClick(result)}
-                  showDirectArrow={showDirectArrow}
-                  onDirectVisit={handleDirectVisit}
-                  arrowLabel={arrowLabel}
-                  arrowIsExternal={arrowIsExternal}
-                  directArrowNewWindow={directArrowNewWindow}
-                />
+                result.contentType === 'article' ? (
+                  <Link
+                    key={`${result.contentType}-${result.id}`}
+                    to={result.url || '/articles'}
+                    className="search-article-card"
+                  >
+                    {result.iconUrl ? (
+                      <div className="search-article-card__cover">
+                        <img src={result.iconUrl} alt={result.name} loading="lazy" />
+                      </div>
+                    ) : (
+                      <div className="search-article-card__cover search-article-card__cover--placeholder">
+                        <span>{String(result.name || '文').slice(0, 1)}</span>
+                      </div>
+                    )}
+                    <div className="search-article-card__content">
+                      <div className="search-article-card__meta">
+                        <span className="search-article-card__badge">文章</span>
+                        {formatSearchResultDate(result.publishedAt) && (
+                          <span className="search-article-card__date">
+                            {formatSearchResultDate(result.publishedAt)}
+                          </span>
+                        )}
+                        {result.category && (
+                          <span className="search-article-card__category">{result.category}</span>
+                        )}
+                      </div>
+                      <h3 className="search-article-card__title" title={result.name}>{result.name}</h3>
+                      <p className="search-article-card__desc">{result.description || '暂无摘要'}</p>
+                    </div>
+                  </Link>
+                ) : (
+                  <ToolCard
+                    key={`${result.contentType || 'website'}-${result.id}`}
+                    tool={{
+                      id: result.id,
+                      name: result.name,
+                      description: result.description,
+                      url: result.url,
+                      icon: result.iconUrl || '',
+                      category: result.category || '',
+                      tags: result.tags,
+                      weightTags: result.weightTags || [],
+                      isNew: result.isNew,
+                      isHot: result.isHot,
+                      isFeatured: result.isFeatured,
+                    }}
+                    onClick={() => handleWebsiteClick(result)}
+                    showDirectArrow={showDirectArrow}
+                    onDirectVisit={handleDirectVisit}
+                    arrowLabel={arrowLabel}
+                    arrowIsExternal={arrowIsExternal}
+                    directArrowNewWindow={directArrowNewWindow}
+                  />
+                )
               ))}
             </>
           ) : !showThinking && !isLoading ? (

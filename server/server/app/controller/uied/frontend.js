@@ -845,102 +845,56 @@ class FrontendController extends Controller {
     }
 
     try {
-      const pattern = `%${query}%`;
-      const exactPattern = query;
-      const prefixPattern = `${query}%`;
-      const whereSql = categoryId > 0
-        ? ` AND (
-          w.category_id = ?
-          OR EXISTS (
-            SELECT 1
-            FROM uied_website_category uwc
-            WHERE uwc.website_id = w.id
-              AND uwc.is_delete = 0
-              AND uwc.category_id = ?
-          )
-        )`
-        : '';
+      const startTime = Date.now();
 
       /**
-       * AI 搜索兜底为关键词检索时，仍按相关性优先排序，提升结果可用性。
+       * 复用统一搜索服务，避免 AI 搜索和普通搜索出现字段兼容与排序差异。
        */
-      const relevanceOrderSql = `
-        (
-          (CASE WHEN w.name = ? THEN 900 ELSE 0 END)
-          + (CASE WHEN w.name LIKE ? THEN 620 ELSE 0 END)
-          + (CASE WHEN w.name LIKE ? THEN 380 ELSE 0 END)
-          + (CASE WHEN w.tags LIKE ? THEN 280 ELSE 0 END)
-          + (CASE WHEN w.description LIKE ? THEN 150 ELSE 0 END)
-          + (CASE WHEN w.url LIKE ? THEN 110 ELSE 0 END)
-        ) DESC
-      `;
-
-      const whereReplacements = categoryId > 0
-        ? [ pattern, pattern, pattern, pattern, categoryId, categoryId ]
-        : [ pattern, pattern, pattern, pattern ];
-      const relevanceReplacements = [
-        exactPattern,
-        prefixPattern,
-        pattern,
-        pattern,
-        pattern,
-        pattern,
-      ];
-      const replacements = [ ...whereReplacements, ...relevanceReplacements, limit ];
-      const rows = await ctx.app.model.query(
-        `
-        SELECT w.id, w.name, w.slug, w.description, w.url, w.icon_url AS iconUrl, w.tags,
-               w.is_hot AS isHot, w.is_featured AS isFeatured, w.is_new AS isNew,
-               c.name AS category
-        FROM uied_website w
-        LEFT JOIN uied_category c ON c.id = w.category_id
-        WHERE w.is_delete = 0
-          AND (
-            w.name LIKE ?
-            OR w.description LIKE ?
-            OR w.tags LIKE ?
-            OR w.url LIKE ?
-          )
-          ${whereSql}
-        ORDER BY
-          ${relevanceOrderSql},
-          w.is_pinned DESC,
-          w.is_hot DESC,
-          w.is_featured DESC,
-          w.click_count DESC,
-          w.id DESC
-        LIMIT ?
-        `,
-        { replacements, type: ctx.app.Sequelize.QueryTypes.SELECT }
-      );
-
-      const results = (Array.isArray(rows) ? rows : []).map(item => {
-        const tagBundle = this.parseWebsiteTagBundle(item?.tags);
-        return {
-          id: String(item?.id || ''),
-          name: String(item?.name || ''),
-          slug: String(item?.slug || ''),
-          description: String(item?.description || ''),
-          url: String(item?.url || ''),
-          iconUrl: String(item?.iconUrl || ''),
-          category: String(item?.category || ''),
-          tags: tagBundle.tags,
-          weightTags: tagBundle.weightTags,
-          isHot: Number(item?.isHot || 0) === 1,
-          isFeatured: Number(item?.isFeatured || 0) === 1,
-          isNew: Number(item?.isNew || 0) === 1,
-        };
+      const searchResult = await ctx.service.uied.search.advancedSearch({
+        keyword: query,
+        categoryId: categoryId > 0 ? categoryId : undefined,
+        sortBy: 'hot',
+        page: 1,
+        pageSize: limit,
       });
+      const results = Array.isArray(searchResult?.lists) ? searchResult.lists : [];
+
+      // 记录 AI 搜索日志，便于后台“AI 助手管理”统计分析
+      try {
+        await ctx.service.uied.aiUsageLog.add({
+          configId: 0,
+          featureType: 'search',
+          requestContent: `AI搜索: ${query}`,
+          responseStatus: 'success',
+          tokensUsed: 0,
+          durationMs: Date.now() - startTime,
+        });
+      } catch (logError) {
+        ctx.logger.warn('[uied.frontend.aiSearch] 记录 AI 搜索日志失败: %s', logError?.message || logError);
+      }
 
       ctx.body = {
         results,
         mode: 'keyword',
-        reason: '当前为关键词匹配结果',
+        reason: '当前为关键词语义增强匹配结果',
         message: `找到 ${results.length} 个结果`,
-        reasoning: '已按名称、描述、标签和网址进行关键词匹配排序',
+        reasoning: '已按关键词相关性、站点权重与热度综合排序',
       };
     } catch (error) {
       ctx.logger.error('AI搜索失败（关键词兜底）:', error);
+      try {
+        await ctx.service.uied.aiUsageLog.add({
+          configId: 0,
+          featureType: 'search',
+          requestContent: `AI搜索: ${query}`,
+          responseStatus: 'failed',
+          errorMessage: error.message || 'AI 搜索失败',
+          tokensUsed: 0,
+          durationMs: 0,
+        });
+      } catch (logError) {
+        ctx.logger.warn('[uied.frontend.aiSearch] 记录 AI 搜索失败日志异常: %s', logError?.message || logError);
+      }
       ctx.status = 500;
       ctx.body = { error: error.message || 'AI搜索失败' };
     }
@@ -2533,6 +2487,20 @@ class FrontendController extends Controller {
         };
         return;
       }
+      const enableWebsiteSearch = searchConfig.websiteSearchEnabled !== false;
+      const enableArticleSearch = searchConfig.articleSearchEnabled === true;
+      if (!enableWebsiteSearch && !enableArticleSearch) {
+        ctx.body = {
+          lists: [],
+          categories: [],
+          tags: [],
+          total: 0,
+          pageNo: 1,
+          pageSize: 20,
+          message: '搜索范围未启用，请在后台搜索配置中开启网站或文章检索',
+        };
+        return;
+      }
 
       const { keyword, page = 1, pageSize = 20, type = 'all' } = ctx.query;
 
@@ -2552,6 +2520,8 @@ class FrontendController extends Controller {
         page: Number(page),
         pageSize: Number(pageSize),
         type,
+        enableWebsiteSearch,
+        enableArticleSearch,
       });
 
       ctx.body = data;
@@ -2603,12 +2573,15 @@ class FrontendController extends Controller {
       const rawSearchConfig = await ctx.service.uied.setting.get('searchConfig');
       const searchConfig = ctx.service.uied.setting.normalizeSearchConfig(rawSearchConfig || {});
       if (searchConfig.enabled === false) {
-        ctx.body = { websites: [], categories: [] };
+        ctx.body = { websites: [], categories: [], articles: [] };
         return;
       }
 
       const { keyword } = ctx.query;
-      const data = await ctx.service.uied.search.getSuggestions(keyword);
+      const data = await ctx.service.uied.search.getSuggestions(keyword, {
+        enableWebsiteSearch: searchConfig.websiteSearchEnabled !== false,
+        enableArticleSearch: searchConfig.articleSearchEnabled === true,
+      });
       ctx.body = data;
     } catch (e) {
       ctx.logger.error('获取搜索建议失败:', e);

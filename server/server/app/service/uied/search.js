@@ -300,13 +300,199 @@ class SearchService extends Service {
       isFeatured: Number(row?.isFeatured || 0) === 1,
       clickCount: Number(row?.clickCount || 0),
       relevanceScore: Number(row?.relevanceScore || 0),
+      contentType: 'website',
+    };
+  }
+
+  /**
+   * 读取文章表字段并做短时缓存，兼容“文章模块未启用”或历史字段差异场景。
+   * @return {Promise<Set<string>>} 字段名集合，表不存在时返回空集合
+   */
+  async getArticleColumnSet() {
+    const cacheKey = '__uiedArticleColumnCache';
+    const now = Date.now();
+    const cacheTtl = 60 * 1000;
+    const cache = this.app[cacheKey];
+    if (cache && now - Number(cache.timestamp || 0) < cacheTtl && cache.columns instanceof Set) {
+      return cache.columns;
+    }
+
+    try {
+      const rows = await this.app.model.query('SHOW COLUMNS FROM uied_article', {
+        type: this.app.Sequelize.QueryTypes.SELECT,
+      });
+      const columns = new Set(
+        (Array.isArray(rows) ? rows : [])
+          .map(item => String(item?.Field || item?.field || '').trim())
+          .filter(Boolean)
+      );
+      this.app[cacheKey] = { timestamp: now, columns };
+      return columns;
+    } catch (error) {
+      this.ctx.logger.warn('[uied.search] 读取 uied_article 字段失败，已跳过文章检索: %s', error?.message || error);
+      return new Set();
+    }
+  }
+
+  /**
+   * 构建文章关键词检索条件（标题/摘要/正文/分类/slug）。
+   * @param {{searchType:string, pattern:string, columns:Set<string>}} options 条件参数
+   * @return {{sql:string, params:any[]}} where 片段与绑定参数
+   */
+  buildArticleKeywordWhere(options) {
+    const { searchType, pattern, columns } = options;
+    if (!(searchType === 'all' || searchType === 'article')) {
+      return { sql: '', params: [] };
+    }
+    const keywordColumns = [ 'title', 'excerpt', 'content', 'category', 'slug' ]
+      .filter(column => columns.has(column));
+    if (keywordColumns.length === 0) {
+      return { sql: '', params: [] };
+    }
+    return {
+      sql: `AND (${keywordColumns.map(column => `a.${column} LIKE ?`).join(' OR ')})`,
+      params: keywordColumns.map(() => pattern),
+    };
+  }
+
+  /**
+   * 构建文章相关性评分 SQL，保证标题命中优先级高于摘要/正文。
+   * @param {{keywordText:string, columns:Set<string>}} options 条件参数
+   * @return {{selectSql:string, params:any[]}} 评分片段与绑定参数
+   */
+  buildArticleRelevanceSql(options) {
+    const { keywordText, columns } = options;
+    const keyword = String(keywordText || '').trim();
+    if (!keyword) {
+      return { selectSql: '0 AS relevanceScore', params: [] };
+    }
+
+    const exactPattern = keyword;
+    const prefixPattern = `${keyword}%`;
+    const containsPattern = `%${keyword}%`;
+    const scoreParts = [];
+    const params = [];
+
+    /**
+     * 为文章字段追加 exact/prefix/contains 三段评分逻辑。
+     */
+    const appendColumnScore = (column, exactWeight, prefixWeight, containsWeight) => {
+      if (!columns.has(column)) return;
+      scoreParts.push(`(CASE WHEN a.${column} = ? THEN ${exactWeight} ELSE 0 END)`);
+      params.push(exactPattern);
+      scoreParts.push(`(CASE WHEN a.${column} LIKE ? THEN ${prefixWeight} ELSE 0 END)`);
+      params.push(prefixPattern);
+      scoreParts.push(`(CASE WHEN a.${column} LIKE ? THEN ${containsWeight} ELSE 0 END)`);
+      params.push(containsPattern);
+    };
+
+    appendColumnScore('title', 920, 640, 400);
+    appendColumnScore('excerpt', 280, 190, 130);
+    appendColumnScore('category', 180, 120, 90);
+    appendColumnScore('slug', 120, 86, 62);
+    appendColumnScore('content', 90, 60, 40);
+
+    if (columns.has('status')) scoreParts.push('(CASE WHEN a.status = \'published\' THEN 24 ELSE 0 END)');
+    if (columns.has('published_at')) scoreParts.push('(CASE WHEN a.published_at > 0 THEN 18 ELSE 0 END)');
+
+    if (scoreParts.length === 0) {
+      return { selectSql: '0 AS relevanceScore', params: [] };
+    }
+    return {
+      selectSql: `(${scoreParts.join(' + ')}) AS relevanceScore`,
+      params,
+    };
+  }
+
+  /**
+   * 构建文章排序 SQL，兼容不同历史字段（published_at/create_time/view_count）。
+   * @param {Set<string>} columns 字段集合
+   * @param {'default'|'new'|'name'} mode 排序模式
+   * @return {string} ORDER BY 片段
+   */
+  buildArticleOrderBySql(columns, mode = 'default') {
+    if (mode === 'name' && columns.has('title')) {
+      return 'a.title ASC, a.id DESC';
+    }
+    if (mode === 'new') {
+      if (columns.has('published_at')) return 'a.published_at DESC, a.id DESC';
+      if (columns.has('create_time')) return 'a.create_time DESC, a.id DESC';
+      return 'a.id DESC';
+    }
+
+    const orderParts = [];
+    if (columns.has('view_count')) orderParts.push('a.view_count DESC');
+    if (columns.has('published_at')) orderParts.push('a.published_at DESC');
+    if (columns.has('create_time')) orderParts.push('a.create_time DESC');
+    orderParts.push('a.id DESC');
+    return orderParts.join(', ');
+  }
+
+  /**
+   * 构建文章 SELECT 片段，统一映射到搜索结果结构。
+   * @param {Set<string>} columns 字段集合
+   * @param {string} relevanceSelectSql 相关性评分 SELECT 片段
+   * @return {{selectSql:string}} 查询片段
+   */
+  buildArticleSelectSql(columns, relevanceSelectSql = '0 AS relevanceScore') {
+    const pickText = (column, alias) => (columns.has(column) ? `a.${column} AS ${alias}` : `'' AS ${alias}`);
+    const pickNumber = (column, alias) => (columns.has(column) ? `a.${column} AS ${alias}` : `0 AS ${alias}`);
+
+    return {
+      selectSql: `
+        SELECT
+          a.id,
+          ${pickText('title', 'title')},
+          ${pickText('slug', 'slug')},
+          ${pickText('excerpt', 'excerpt')},
+          ${pickText('cover_image', 'coverImage')},
+          ${pickText('category', 'category')},
+          ${pickNumber('view_count', 'viewCount')},
+          ${pickNumber('published_at', 'publishedAt')},
+          ${pickNumber('create_time', 'createTime')},
+          ${relevanceSelectSql}
+        FROM uied_article a
+      `,
+    };
+  }
+
+  /**
+   * 统一映射文章搜索结果字段，输出与前端搜索页兼容的结构。
+   * @param {object} row 原始数据库行
+   * @return {object} 前端可直接消费的结果对象
+   */
+  mapArticleSearchRow(row) {
+    const rawId = Number(row?.id || 0);
+    const articleId = Number.isFinite(rawId) && rawId > 0 ? rawId : 0;
+    const slug = String(row?.slug || '').trim();
+    return {
+      id: articleId > 0 ? `article-${articleId}` : `article-${slug || '0'}`,
+      articleId,
+      name: String(row?.title || ''),
+      title: String(row?.title || ''),
+      slug,
+      description: String(row?.excerpt || ''),
+      excerpt: String(row?.excerpt || ''),
+      url: `/article/${encodeURIComponent(slug || String(articleId || '0'))}`,
+      iconUrl: String(row?.coverImage || ''),
+      coverImage: String(row?.coverImage || ''),
+      category: String(row?.category || ''),
+      tags: [],
+      weightTags: [],
+      isNew: false,
+      isHot: false,
+      isFeatured: false,
+      viewCount: Number(row?.viewCount || 0),
+      publishedAt: Number(row?.publishedAt || row?.createTime || 0),
+      relevanceScore: Number(row?.relevanceScore || 0),
+      contentType: 'article',
     };
   }
 
   /**
    * 全站搜索
    */
-  async globalSearch({ keyword, page, pageSize, type }) {
+  async globalSearch({ keyword, page, pageSize, type, enableWebsiteSearch = true, enableArticleSearch = true }) {
     const { app } = this;
     const safePage = Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1;
     const safePageSize = Number.isFinite(Number(pageSize)) ? Math.max(1, Math.min(100, Number(pageSize))) : 20;
@@ -314,22 +500,29 @@ class SearchService extends Service {
     const keywordText = String(keyword || '').trim();
     const pattern = `%${keywordText}%`;
     const searchType = String(type || 'all').trim().toLowerCase();
-    const websiteColumns = await this.getWebsiteColumnSet();
-    const relevanceMeta = this.buildWebsiteRelevanceSql({
-      keywordText,
-      columns: websiteColumns,
-    });
-    const keywordWhere = this.buildWebsiteKeywordWhere({
-      searchType,
-      pattern,
-      columns: websiteColumns,
-    });
-    const websiteWhereSql = keywordWhere.sql;
-    const websiteWhereParams = keywordWhere.params;
+    const canSearchWebsite = enableWebsiteSearch && (searchType === 'all' || searchType === 'website' || searchType === 'tag');
+    const canSearchArticle = enableArticleSearch && (searchType === 'all' || searchType === 'article');
+    const canSearchCategory = enableWebsiteSearch && (searchType === 'all' || searchType === 'category');
 
-    let total = 0;
+    let websiteTotal = 0;
+    let articleTotal = 0;
     let websiteRows = [];
-    if (searchType === 'all' || searchType === 'website' || searchType === 'tag') {
+    let articleRows = [];
+
+    if (canSearchWebsite) {
+      const websiteColumns = await this.getWebsiteColumnSet();
+      const websiteRelevanceMeta = this.buildWebsiteRelevanceSql({
+        keywordText,
+        columns: websiteColumns,
+      });
+      const websiteKeywordWhere = this.buildWebsiteKeywordWhere({
+        searchType,
+        pattern,
+        columns: websiteColumns,
+      });
+      const websiteWhereSql = websiteKeywordWhere.sql;
+      const websiteWhereParams = websiteKeywordWhere.params;
+
       const [ totalRow ] = await app.model.query(
         `
         SELECT COUNT(1) AS total
@@ -342,9 +535,13 @@ class SearchService extends Service {
           type: app.Sequelize.QueryTypes.SELECT,
         }
       );
-      total = Number(totalRow?.total || 0);
+      websiteTotal = Number(totalRow?.total || 0);
 
-      const { selectSql, joinSql } = this.buildWebsiteSelectSql(websiteColumns, relevanceMeta.selectSql);
+      const candidateLimit = searchType === 'all'
+        ? Math.min(200, Math.max(40, safePageSize * 2 + offset))
+        : safePageSize;
+      const candidateOffset = searchType === 'all' ? 0 : offset;
+      const { selectSql, joinSql } = this.buildWebsiteSelectSql(websiteColumns, websiteRelevanceMeta.selectSql);
       const orderBySql = `relevanceScore DESC, ${this.buildWebsiteOrderBySql(websiteColumns, 'default')}`;
       websiteRows = await app.model.query(
         `
@@ -357,14 +554,76 @@ class SearchService extends Service {
         OFFSET ?
         `,
         {
-          replacements: [ ...relevanceMeta.params, ...websiteWhereParams, safePageSize, offset ],
+          replacements: [ ...websiteRelevanceMeta.params, ...websiteWhereParams, candidateLimit, candidateOffset ],
           type: app.Sequelize.QueryTypes.SELECT,
         }
       );
     }
 
+    if (canSearchArticle) {
+      const articleColumns = await this.getArticleColumnSet();
+      if (articleColumns.size > 0) {
+        const articleRelevanceMeta = this.buildArticleRelevanceSql({
+          keywordText,
+          columns: articleColumns,
+        });
+        const articleKeywordWhere = this.buildArticleKeywordWhere({
+          searchType,
+          pattern,
+          columns: articleColumns,
+        });
+        if (!articleKeywordWhere.sql) {
+          articleTotal = 0;
+          articleRows = [];
+        } else {
+          const articleWhereParts = [];
+          if (articleColumns.has('is_delete')) articleWhereParts.push('a.is_delete = 0');
+          if (articleColumns.has('status')) articleWhereParts.push('a.status = \'published\'');
+          if (articleKeywordWhere.sql) {
+            articleWhereParts.push(articleKeywordWhere.sql.replace(/^AND\s+/i, ''));
+          }
+          const articleWhereSql = articleWhereParts.length > 0
+            ? articleWhereParts.join(' AND ')
+            : '1 = 1';
+
+          const [ articleTotalRow ] = await app.model.query(
+            `
+            SELECT COUNT(1) AS total
+            FROM uied_article a
+            WHERE ${articleWhereSql}
+            `,
+            {
+              replacements: [ ...articleKeywordWhere.params ],
+              type: app.Sequelize.QueryTypes.SELECT,
+            }
+          );
+          articleTotal = Number(articleTotalRow?.total || 0);
+
+          const candidateLimit = searchType === 'all'
+            ? Math.min(200, Math.max(40, safePageSize * 2 + offset))
+            : safePageSize;
+          const candidateOffset = searchType === 'all' ? 0 : offset;
+          const { selectSql } = this.buildArticleSelectSql(articleColumns, articleRelevanceMeta.selectSql);
+          const orderBySql = `relevanceScore DESC, ${this.buildArticleOrderBySql(articleColumns, 'default')}`;
+          articleRows = await app.model.query(
+            `
+            ${selectSql}
+            WHERE ${articleWhereSql}
+            ORDER BY ${orderBySql}
+            LIMIT ?
+            OFFSET ?
+            `,
+            {
+              replacements: [ ...articleRelevanceMeta.params, ...articleKeywordWhere.params, candidateLimit, candidateOffset ],
+              type: app.Sequelize.QueryTypes.SELECT,
+            }
+          );
+        }
+      }
+    }
+
     let categories = [];
-    if (searchType === 'all' || searchType === 'category') {
+    if (canSearchCategory) {
       categories = await app.model.query(
         `
         SELECT
@@ -389,10 +648,29 @@ class SearchService extends Service {
       );
     }
 
+    const mappedWebsiteRows = (Array.isArray(websiteRows) ? websiteRows : [])
+      .map(row => this.mapWebsiteSearchRow(row));
+    const mappedArticleRows = (Array.isArray(articleRows) ? articleRows : [])
+      .map(row => this.mapArticleSearchRow(row));
+    const mergedRows = [ ...mappedWebsiteRows, ...mappedArticleRows ]
+      .sort((left, right) => {
+        const scoreDiff = Number(right?.relevanceScore || 0) - Number(left?.relevanceScore || 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        return String(left?.name || '').localeCompare(String(right?.name || ''), 'zh-Hans-CN');
+      });
+    const pagedRows = searchType === 'all'
+      ? mergedRows.slice(offset, offset + safePageSize)
+      : mergedRows;
+    const total = searchType === 'website'
+      ? websiteTotal
+      : searchType === 'article'
+        ? articleTotal
+        : (websiteTotal + articleTotal);
+
     await this.recordSearchHistory(keywordText);
 
     return {
-      lists: (Array.isArray(websiteRows) ? websiteRows : []).map(row => this.mapWebsiteSearchRow(row)),
+      lists: pagedRows,
       categories: Array.isArray(categories) ? categories : [],
       tags: [],
       total,
@@ -511,50 +789,89 @@ class SearchService extends Service {
   /**
    * 获取搜索建议
    */
-  async getSuggestions(keyword) {
+  async getSuggestions(keyword, options = {}) {
     const { app } = this;
+    const { enableWebsiteSearch = true, enableArticleSearch = true } = options || {};
 
     if (!keyword || keyword.length < 2) {
-      return { websites: [], categories: [] };
+      return { websites: [], categories: [], articles: [] };
     }
 
-    const websiteColumns = await this.getWebsiteColumnSet();
     const pattern = `%${String(keyword || '').trim()}%`;
-    const suggestionOrderBy = this.buildWebsiteOrderBySql(websiteColumns, 'default').replace(/w\./g, '');
-    const websites = await app.model.query(
-      `
-      SELECT id, name
-      FROM uied_website
-      WHERE is_delete = 0
-        AND name LIKE ?
-      ORDER BY ${suggestionOrderBy}
-      LIMIT 8
-      `,
-      {
-        replacements: [ pattern ],
-        type: app.Sequelize.QueryTypes.SELECT,
-      }
-    );
+    let websites = [];
+    let categories = [];
+    let articles = [];
 
-    const categories = await app.model.query(
-      `
-      SELECT id, name
-      FROM uied_category
-      WHERE is_delete = 0
-        AND is_show = 1
-        AND name LIKE ?
-      ORDER BY sort ASC, id ASC
-      LIMIT 5
-      `,
-      {
-        replacements: [ pattern ],
-        type: app.Sequelize.QueryTypes.SELECT,
+    if (enableWebsiteSearch) {
+      const websiteColumns = await this.getWebsiteColumnSet();
+      const suggestionOrderBy = this.buildWebsiteOrderBySql(websiteColumns, 'default').replace(/w\./g, '');
+      websites = await app.model.query(
+        `
+        SELECT id, name
+        FROM uied_website
+        WHERE is_delete = 0
+          AND name LIKE ?
+        ORDER BY ${suggestionOrderBy}
+        LIMIT 8
+        `,
+        {
+          replacements: [ pattern ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+
+      categories = await app.model.query(
+        `
+        SELECT id, name
+        FROM uied_category
+        WHERE is_delete = 0
+          AND is_show = 1
+          AND name LIKE ?
+        ORDER BY sort ASC, id ASC
+        LIMIT 5
+        `,
+        {
+          replacements: [ pattern ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+    }
+
+    if (enableArticleSearch) {
+      const articleColumns = await this.getArticleColumnSet();
+      if (articleColumns.size > 0 && articleColumns.has('title')) {
+        const articleWhereParts = [ 'title LIKE ?' ];
+        if (articleColumns.has('is_delete')) articleWhereParts.unshift('is_delete = 0');
+        if (articleColumns.has('status')) articleWhereParts.unshift('status = \'published\'');
+        const articleOrderBy = this.buildArticleOrderBySql(articleColumns, 'default').replace(/a\./g, '');
+        articles = await app.model.query(
+          `
+          SELECT
+            id,
+            title AS name,
+            ${articleColumns.has('slug') ? 'slug' : "'' AS slug"}
+          FROM uied_article
+          WHERE ${articleWhereParts.join(' AND ')}
+          ORDER BY ${articleOrderBy}
+          LIMIT 5
+          `,
+          {
+            replacements: [ pattern ],
+            type: app.Sequelize.QueryTypes.SELECT,
+          }
+        );
       }
-    );
+    }
 
     return {
       websites: (Array.isArray(websites) ? websites : []).map(w => ({ id: w.id, name: w.name, type: 'website' })),
       categories: (Array.isArray(categories) ? categories : []).map(c => ({ id: c.id, name: c.name, type: 'category' })),
+      articles: (Array.isArray(articles) ? articles : []).map(item => ({
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        type: 'article',
+      })),
     };
   }
 
