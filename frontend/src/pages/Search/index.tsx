@@ -2073,73 +2073,338 @@ const SearchPage: React.FC = () => {
       </div>
 
       <div className="search-content">
-        {/* 搜索统计和筛选 */}
-        <div className="search-header">
-          <div className="search-stats-info">
-            {!searchEnabled ? (
-              <>
-                <h2>站内搜索已关闭</h2>
-                <p>请在后台「站点设置 - 搜索配置」中开启后使用。</p>
-              </>
-            ) : searchQuery ? (
-              <>
-                <h2>"{searchQuery}" 的搜索结果</h2>
-                <p>
-                  {isAiMode && <span className="ai-badge-inline">AI</span>}
-                  找到 <strong>{totalResults}</strong> 个相关资源
-                </p>
-              </>
-            ) : (
-              <>
-                <h2>热门推荐</h2>
-                <p>为您精选 <strong>{totalResults}</strong> 个优质资源</p>
-              </>
-            )}
-          </div>
-          
-          <div className="search-actions">
-            {/* AI 搜索按钮 */}
-            {aiSearchEnabled && (
-              <button
-                className={`ai-search-toggle ${showAiSidebar ? 'active' : ''}`}
-                onClick={() => setShowAiSidebar(!showAiSidebar)}
-                title="AI 智能搜索"
-              >
-                <span className="ai-toggle-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect width="18" height="10" x="3" y="11" rx="2"/>
-                    <circle cx="12" cy="5" r="2"/>
-                    <path d="M12 7v4"/>
-                    <line x1="8" x2="8" y1="16" y2="16"/>
-                    <line x1="16" x2="16" y1="16" y2="16"/>
-                  </svg>
-                </span>
-                <span className="ai-toggle-text">{aiSearchButtonText}</span>
-              </button>
-            )}
+        {/* 搜索状态聚合区：标题、模式、筛选入口、AI提示统一放在同一个卡片内 */}
+        <div className="search-unified-panel">
+          <div className="search-header">
+            <div className="search-stats-info">
+              {!searchEnabled ? (
+                <>
+                  <h2>站内搜索已关闭</h2>
+                  <p>请在后台「站点设置 - 搜索配置」中开启后使用。</p>
+                </>
+              ) : searchQuery ? (
+                <>
+                  <h2>"{searchQuery}" 的搜索结果</h2>
+                  <p>
+                    {isAiMode && <span className="ai-badge-inline">AI</span>}
+                    找到 <strong>{totalResults}</strong> 个相关资源
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2>热门推荐</h2>
+                  <p>为您精选 <strong>{totalResults}</strong> 个优质资源</p>
+                </>
+              )}
+            </div>
 
-            {searchQuery && (
-              <div className="search-mode-switch">
+            <div className="search-actions">
+              {/* AI 搜索按钮 */}
+              {aiSearchEnabled && (
                 <button
-                  type="button"
-                  className={`search-mode-btn ${!isAiMode ? 'active' : ''}`}
-                  onClick={() => handleSearchModeSwitch('keyword')}
+                  className={`ai-search-toggle ${showAiSidebar ? 'active' : ''}`}
+                  onClick={() => setShowAiSidebar(!showAiSidebar)}
+                  title="AI 智能搜索"
                 >
-                  关键词
+                  <span className="ai-toggle-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="18" height="10" x="3" y="11" rx="2"/>
+                      <circle cx="12" cy="5" r="2"/>
+                      <path d="M12 7v4"/>
+                      <line x1="8" x2="8" y1="16" y2="16"/>
+                      <line x1="16" x2="16" y1="16" y2="16"/>
+                    </svg>
+                  </span>
+                  <span className="ai-toggle-text">{aiSearchButtonText}</span>
                 </button>
-                {aiSearchEnabled && (
+              )}
+
+              {searchQuery && (
+                <div className="search-mode-switch">
                   <button
                     type="button"
-                    className={`search-mode-btn ${isAiMode ? 'active' : ''}`}
-                    onClick={() => handleSearchModeSwitch('ai')}
+                    className={`search-mode-btn ${!isAiMode ? 'active' : ''}`}
+                    onClick={() => handleSearchModeSwitch('keyword')}
                   >
-                    AI 语义
+                    关键词
                   </button>
-                )}
-              </div>
-            )}
-            
+                  {aiSearchEnabled && (
+                    <button
+                      type="button"
+                      className={`search-mode-btn ${isAiMode ? 'active' : ''}`}
+                      onClick={() => handleSearchModeSwitch('ai')}
+                    >
+                      AI 语义
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {searchQuery && (
+                <div className="search-filter-anchor" ref={filterPopoverRef}>
+                  <div className="search-result-toolbar">
+                    <button
+                      type="button"
+                      className={`search-filter-icon-btn ${showResultFilters ? 'active' : ''}`}
+                      onClick={() => setShowResultFilters(prev => !prev)}
+                      title="筛选"
+                      aria-label="筛选"
+                      aria-expanded={showResultFilters}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                      </svg>
+                      {activeFilterCount > 0 && <strong>{activeFilterCount}</strong>}
+                    </button>
+                  </div>
+
+                  {showResultFilters && (
+                    <div className="search-filter-popover">
+                      <div className="search-filter-popover__head">
+                        <span className="search-filter-popover__title">筛选</span>
+                        <div className="search-filter-popover__head-actions">
+                          {hasActiveSearchFilter && (
+                            <button
+                              type="button"
+                              className="search-clear-filters-btn"
+                              onClick={handleResetSearchFilters}
+                            >
+                              清空筛选
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="search-filter-popover__collapse"
+                            onClick={() => setShowResultFilters(false)}
+                          >
+                            收起
+                          </button>
+                        </div>
+                      </div>
+
+                      {hasActiveSearchFilter && (
+                        <div className="search-filter-popover__active">
+                          {sourceFilter !== 'all' && (
+                            <button
+                              type="button"
+                              className="search-active-filter-chip"
+                              onClick={() => handleSourceChange('all')}
+                            >
+                              <span>来源：{activeSourceFilterLabel}</span>
+                              <strong>×</strong>
+                            </button>
+                          )}
+                          {categoryFilter !== 'all' && (
+                            <button
+                              type="button"
+                              className="search-active-filter-chip"
+                              onClick={() => handleCategoryChange('all')}
+                            >
+                              <span>分类：{activeCategoryFilterLabel}</span>
+                              <strong>×</strong>
+                            </button>
+                          )}
+                          {tagFilter !== 'all' && (
+                            <button
+                              type="button"
+                              className="search-active-filter-chip"
+                              onClick={() => handleTagFilterChange('all')}
+                            >
+                              <span>标签：{activeTagFilterLabel}</span>
+                              <strong>×</strong>
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="search-result-filters">
+                        <div className="search-result-filter-group">
+                          <div className="search-filter-block__head">
+                            <span className="search-result-filter-group__label">来源</span>
+                          </div>
+                          <div className="search-source-overview">
+                            <button
+                              type="button"
+                              className={`search-source-chip ${sourceFilter === 'all' ? 'active' : ''}`}
+                              onClick={() => handleSourceChange('all')}
+                            >
+                              <span>全部来源</span>
+                              <strong>{allResults.length}</strong>
+                            </button>
+                            {sourceBreakdown.map((sourceItem) => (
+                              <button
+                                key={sourceItem.value}
+                                type="button"
+                                className={`search-source-chip ${sourceFilter === sourceItem.value ? 'active' : ''}`}
+                                onClick={() => handleSourceChange(sourceItem.value)}
+                              >
+                                <span>{sourceItem.label}</span>
+                                <strong>{sourceItem.count}</strong>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {categoryBreakdown.length > 0 && (
+                          <div className="search-result-filter-group">
+                            <div className="search-filter-block__head">
+                              <span className="search-result-filter-group__label">分类</span>
+                              <div className="search-filter-block__actions">
+                                {categoryFilter !== 'all' && (
+                                  <button
+                                    type="button"
+                                    className="search-filter-action-btn"
+                                    onClick={() => handleCategoryChange('all')}
+                                  >
+                                    清除
+                                  </button>
+                                )}
+                                {categoryBreakdown.length > CATEGORY_CHIP_COLLAPSE_COUNT && (
+                                  <button
+                                    type="button"
+                                    className="search-filter-action-btn"
+                                    onClick={() => setCategoryExpanded(prev => !prev)}
+                                  >
+                                    {categoryExpanded
+                                      ? '收起'
+                                      : `更多 ${Math.max(0, categoryBreakdown.length - visibleCategoryBreakdown.length)}`}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="search-category-overview__chips">
+                              <button
+                                type="button"
+                                className={`search-category-chip ${categoryFilter === 'all' ? 'active' : ''}`}
+                                onClick={() => handleCategoryChange('all')}
+                              >
+                                <span>全部分类</span>
+                                <strong>{sourceFilteredResults.length}</strong>
+                              </button>
+                              {visibleCategoryBreakdown.map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  className={`search-category-chip ${categoryFilter === item.key ? 'active' : ''}`}
+                                  onClick={() => handleCategoryChange(item.key)}
+                                >
+                                  <span>{item.label}</span>
+                                  <strong>{item.count}</strong>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {tagBreakdown.length > 0 && (
+                          <div className="search-result-filter-group">
+                            <div className="search-filter-block__head">
+                              <span className="search-result-filter-group__label">标签</span>
+                              <div className="search-filter-block__actions">
+                                {tagFilter !== 'all' && (
+                                  <button
+                                    type="button"
+                                    className="search-filter-action-btn"
+                                    onClick={() => handleTagFilterChange('all')}
+                                  >
+                                    清除
+                                  </button>
+                                )}
+                                {tagBreakdown.length > TAG_CHIP_COLLAPSE_COUNT && (
+                                  <button
+                                    type="button"
+                                    className="search-filter-action-btn"
+                                    onClick={() => setTagExpanded(prev => !prev)}
+                                  >
+                                    {tagExpanded
+                                      ? '收起'
+                                      : `更多 ${Math.max(0, tagBreakdown.length - visibleTagBreakdown.length)}`}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="search-tag-overview__chips">
+                              <button
+                                type="button"
+                                className={`search-tag-chip ${tagFilter === 'all' ? 'active' : ''}`}
+                                onClick={() => handleTagFilterChange('all')}
+                              >
+                                <span>全部标签</span>
+                                <strong>{categoryFilteredResults.length}</strong>
+                              </button>
+                              {visibleTagBreakdown.map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  className={`search-tag-chip ${tagFilter === item.key ? 'active' : ''}`}
+                                  onClick={() => handleTagFilterChange(item.key)}
+                                >
+                                  <span>{item.label}</span>
+                                  <strong>{item.count}</strong>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
+          {!showThinking && searchQuery && (
+            <div className="search-unified-panel__meta">
+              {isAiMode ? (
+                <span className="search-unified-panel__hint">{aiMessage || 'AI 正在整理语义结果'}</span>
+              ) : aiSearchEnabled ? (
+                <span className="search-unified-panel__hint">
+                  {aiEnhancing
+                    ? 'AI 正在补充更多高相关结果...'
+                    : aiEnhancedCount > 0
+                      ? `AI 已补充 ${aiEnhancedCount} 条相关结果`
+                      : '已完成关键词搜索，可切换 AI 搜索获得语义推荐'}
+                </span>
+              ) : null}
+            </div>
+          )}
+
+          {!showThinking && aiExpandedKeywords.length > 0 && searchQuery && (
+            <div className="search-unified-panel__tags">
+              <span className="search-unified-panel__label">扩展词</span>
+              <div className="search-semantic-tags">
+                {aiExpandedKeywords.map((keyword, index) => (
+                  <button
+                    key={`${keyword}-${index}`}
+                    type="button"
+                    className="search-semantic-tag"
+                    onClick={() => handleTagClick(keyword)}
+                  >
+                    {keyword}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!showThinking && aiRewriteSuggestions.length > 0 && searchQuery && aiSearchEnabled && (
+            <div className="search-unified-panel__tags">
+              <span className="search-unified-panel__label">改写推荐</span>
+              <div className="search-ai-rewrite-tags">
+                {aiRewriteSuggestions.map((keyword, index) => (
+                  <button
+                    key={`${keyword}-${index}`}
+                    type="button"
+                    className="search-ai-rewrite-tag"
+                    onClick={() => handleAiRewriteSearch(keyword)}
+                  >
+                    {keyword}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* AI 思考过程动画 - Framer Motion 版本 */}
@@ -2149,280 +2414,8 @@ const SearchPage: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* AI 搜索结果提示 */}
-        {isAiMode && aiMessage && !showThinking && (
-          <div className="ai-search-info">
-            <span className="ai-message">{aiMessage}</span>
-          </div>
-        )}
-
-        {/* 普通搜索的 AI 增强提示 */}
-        {!isAiMode && searchQuery && aiSearchEnabled && !showThinking && (
-          <div className={`search-enhance-info ${aiEnhancing ? 'loading' : ''}`}>
-            <span className="enhance-dot"></span>
-            <span className="enhance-text">
-              {aiEnhancing
-                ? 'AI 正在补充更多高相关结果...'
-                : aiEnhancedCount > 0
-                  ? `AI 已补充 ${aiEnhancedCount} 条相关结果`
-                  : '已完成关键词搜索，可切换 AI 搜索获得语义推荐'}
-            </span>
-          </div>
-        )}
-
-        {aiExpandedKeywords.length > 0 && searchQuery && !showThinking && (
-          <div className="search-semantic-info">
-            <span className="search-semantic-label">AI 扩展词</span>
-            <div className="search-semantic-tags">
-              {aiExpandedKeywords.map((keyword, index) => (
-                <button
-                  key={`${keyword}-${index}`}
-                  type="button"
-                  className="search-semantic-tag"
-                  onClick={() => handleTagClick(keyword)}
-                >
-                  {keyword}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {aiRewriteSuggestions.length > 0 && searchQuery && aiSearchEnabled && !showThinking && (
-          <div className="search-ai-rewrite-info">
-            <div className="search-ai-rewrite-head">
-              <span className="search-ai-rewrite-title">AI 改写推荐</span>
-              <span className="search-ai-rewrite-tip">点击后自动切换 AI 语义搜索</span>
-            </div>
-            <div className="search-ai-rewrite-tags">
-              {aiRewriteSuggestions.map((keyword, index) => (
-                <button
-                  key={`${keyword}-${index}`}
-                  type="button"
-                  className="search-ai-rewrite-tag"
-                  onClick={() => handleAiRewriteSearch(keyword)}
-                >
-                  {keyword}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 搜索结果 */}
         <div className="search-results">
-          {searchQuery && (
-            <div className="search-filter-anchor" ref={filterPopoverRef}>
-              <div className="search-result-toolbar">
-                <button
-                  type="button"
-                  className={`search-filter-icon-btn ${showResultFilters ? 'active' : ''}`}
-                  onClick={() => setShowResultFilters(prev => !prev)}
-                  title="筛选"
-                  aria-label="筛选"
-                  aria-expanded={showResultFilters}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                  {activeFilterCount > 0 && <strong>{activeFilterCount}</strong>}
-                </button>
-              </div>
-
-              {showResultFilters && (
-                <div className="search-filter-popover">
-                  <div className="search-filter-popover__head">
-                    <span className="search-filter-popover__title">筛选</span>
-                    <div className="search-filter-popover__head-actions">
-                      {hasActiveSearchFilter && (
-                        <button
-                          type="button"
-                          className="search-clear-filters-btn"
-                          onClick={handleResetSearchFilters}
-                        >
-                          清空筛选
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="search-filter-popover__collapse"
-                        onClick={() => setShowResultFilters(false)}
-                      >
-                        收起
-                      </button>
-                    </div>
-                  </div>
-
-                  {hasActiveSearchFilter && (
-                    <div className="search-filter-popover__active">
-                      {sourceFilter !== 'all' && (
-                        <button
-                          type="button"
-                          className="search-active-filter-chip"
-                          onClick={() => handleSourceChange('all')}
-                        >
-                          <span>来源：{activeSourceFilterLabel}</span>
-                          <strong>×</strong>
-                        </button>
-                      )}
-                      {categoryFilter !== 'all' && (
-                        <button
-                          type="button"
-                          className="search-active-filter-chip"
-                          onClick={() => handleCategoryChange('all')}
-                        >
-                          <span>分类：{activeCategoryFilterLabel}</span>
-                          <strong>×</strong>
-                        </button>
-                      )}
-                      {tagFilter !== 'all' && (
-                        <button
-                          type="button"
-                          className="search-active-filter-chip"
-                          onClick={() => handleTagFilterChange('all')}
-                        >
-                          <span>标签：{activeTagFilterLabel}</span>
-                          <strong>×</strong>
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="search-result-filters">
-                    <div className="search-result-filter-group">
-                      <div className="search-filter-block__head">
-                        <span className="search-result-filter-group__label">来源</span>
-                      </div>
-                      <div className="search-source-overview">
-                        <button
-                          type="button"
-                          className={`search-source-chip ${sourceFilter === 'all' ? 'active' : ''}`}
-                          onClick={() => handleSourceChange('all')}
-                        >
-                          <span>全部来源</span>
-                          <strong>{allResults.length}</strong>
-                        </button>
-                        {sourceBreakdown.map((sourceItem) => (
-                          <button
-                            key={sourceItem.value}
-                            type="button"
-                            className={`search-source-chip ${sourceFilter === sourceItem.value ? 'active' : ''}`}
-                            onClick={() => handleSourceChange(sourceItem.value)}
-                          >
-                            <span>{sourceItem.label}</span>
-                            <strong>{sourceItem.count}</strong>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {categoryBreakdown.length > 0 && (
-                      <div className="search-result-filter-group">
-                        <div className="search-filter-block__head">
-                          <span className="search-result-filter-group__label">分类</span>
-                          <div className="search-filter-block__actions">
-                            {categoryFilter !== 'all' && (
-                              <button
-                                type="button"
-                                className="search-filter-action-btn"
-                                onClick={() => handleCategoryChange('all')}
-                              >
-                                清除
-                              </button>
-                            )}
-                            {categoryBreakdown.length > CATEGORY_CHIP_COLLAPSE_COUNT && (
-                              <button
-                                type="button"
-                                className="search-filter-action-btn"
-                                onClick={() => setCategoryExpanded(prev => !prev)}
-                              >
-                                {categoryExpanded
-                                  ? '收起'
-                                  : `更多 ${Math.max(0, categoryBreakdown.length - visibleCategoryBreakdown.length)}`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="search-category-overview__chips">
-                          <button
-                            type="button"
-                            className={`search-category-chip ${categoryFilter === 'all' ? 'active' : ''}`}
-                            onClick={() => handleCategoryChange('all')}
-                          >
-                            <span>全部分类</span>
-                            <strong>{sourceFilteredResults.length}</strong>
-                          </button>
-                          {visibleCategoryBreakdown.map((item) => (
-                            <button
-                              key={item.key}
-                              type="button"
-                              className={`search-category-chip ${categoryFilter === item.key ? 'active' : ''}`}
-                              onClick={() => handleCategoryChange(item.key)}
-                            >
-                              <span>{item.label}</span>
-                              <strong>{item.count}</strong>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {tagBreakdown.length > 0 && (
-                      <div className="search-result-filter-group">
-                        <div className="search-filter-block__head">
-                          <span className="search-result-filter-group__label">标签</span>
-                          <div className="search-filter-block__actions">
-                            {tagFilter !== 'all' && (
-                              <button
-                                type="button"
-                                className="search-filter-action-btn"
-                                onClick={() => handleTagFilterChange('all')}
-                              >
-                                清除
-                              </button>
-                            )}
-                            {tagBreakdown.length > TAG_CHIP_COLLAPSE_COUNT && (
-                              <button
-                                type="button"
-                                className="search-filter-action-btn"
-                                onClick={() => setTagExpanded(prev => !prev)}
-                              >
-                                {tagExpanded
-                                  ? '收起'
-                                  : `更多 ${Math.max(0, tagBreakdown.length - visibleTagBreakdown.length)}`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="search-tag-overview__chips">
-                          <button
-                            type="button"
-                            className={`search-tag-chip ${tagFilter === 'all' ? 'active' : ''}`}
-                            onClick={() => handleTagFilterChange('all')}
-                          >
-                            <span>全部标签</span>
-                            <strong>{categoryFilteredResults.length}</strong>
-                          </button>
-                          {visibleTagBreakdown.map((item) => (
-                            <button
-                              key={item.key}
-                              type="button"
-                              className={`search-tag-chip ${tagFilter === item.key ? 'active' : ''}`}
-                              onClick={() => handleTagFilterChange(item.key)}
-                            >
-                              <span>{item.label}</span>
-                              <strong>{item.count}</strong>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {isLoading && currentPage === 1 && !showThinking ? (
             <div className="search-loading">
               <div className="loading"></div>

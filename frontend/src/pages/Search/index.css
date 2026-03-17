@@ -1312,7 +1312,7 @@
   min-width: 1rem;
   height: 1rem;
   border-radius: 999px;
-  background: var(--primary-500);
+  background: var(--neutral-900);
   color: #fff;
   font-size: 0.625rem;
   line-height: 1rem;
@@ -1322,9 +1322,9 @@
 
 .search-filter-icon-btn:hover,
 .search-filter-icon-btn.active {
-  border-color: var(--primary-500);
-  color: var(--primary-700);
-  background: color-mix(in srgb, var(--primary-50) 66%, #fff 34%);
+  border-color: var(--neutral-800);
+  color: var(--neutral-900);
+  background: var(--neutral-100);
 }
 
 .search-filter-popover {
@@ -1335,10 +1335,10 @@
   max-height: min(70vh, 560px);
   overflow: auto;
   z-index: 32;
-  border: 1px solid var(--neutral-200);
+  border: 1px solid var(--neutral-300);
   border-radius: 0.875rem;
   background: #fff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
   padding: 0.625rem 0.75rem 0.75rem;
 }
 
@@ -1353,7 +1353,7 @@
 .search-filter-popover__title {
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--neutral-700);
+  color: var(--neutral-800);
 }
 
 .search-filter-popover__head-actions {
@@ -1376,8 +1376,9 @@
 }
 
 .search-filter-popover__collapse:hover {
-  border-color: var(--primary-500);
-  color: var(--primary-700);
+  border-color: var(--neutral-500);
+  color: var(--neutral-800);
+  background: var(--neutral-100);
 }
 
 .search-filter-popover__active {
@@ -1397,9 +1398,9 @@
 }
 
 .search-result-filter-group {
-  border: 1px solid color-mix(in srgb, var(--neutral-200) 88%, transparent 12%);
+  border: 1px solid var(--neutral-200);
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--neutral-0) 94%, var(--neutral-100) 6%);
+  background: #fff;
   padding: 0.52rem 0.6rem;
 }
 
@@ -1408,7 +1409,7 @@
   align-items: center;
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--neutral-600);
+  color: var(--neutral-700);
 }
 
 .search-source-overview {
@@ -1422,7 +1423,7 @@
   height: 1.75rem;
   padding: 0 0.62rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--primary-500) 26%, var(--neutral-300) 74%);
+  border: 1px solid var(--neutral-300);
   background: #fff;
   color: var(--neutral-700);
   display: inline-flex;
@@ -1435,13 +1436,14 @@
 }
 
 .search-active-filter-chip strong {
-  color: var(--primary-700);
+  color: var(--neutral-500);
   font-weight: 700;
 }
 
 .search-active-filter-chip:hover {
-  border-color: var(--primary-500);
-  color: var(--primary-700);
+  border-color: var(--neutral-500);
+  color: var(--neutral-900);
+  background: var(--neutral-100);
 }
 
 .search-clear-filters-btn {
@@ -1458,8 +1460,9 @@
 }
 
 .search-clear-filters-btn:hover {
-  border-color: color-mix(in srgb, #ef4444 45%, var(--neutral-300) 55%);
-  color: #dc2626;
+  border-color: var(--neutral-500);
+  color: var(--neutral-800);
+  background: var(--neutral-100);
 }
 
 .search-filter-block__head {
@@ -1495,16 +1498,17 @@
 }
 
 .search-filter-action-btn:hover {
-  border-color: var(--primary-500);
-  color: var(--primary-700);
+  border-color: var(--neutral-500);
+  color: var(--neutral-800);
+  background: var(--neutral-100);
 }
 
 .search-category-overview {
   margin: -0.1rem 0 0.875rem;
   padding: 0.625rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--neutral-200) 82%, transparent 18%);
+  border: 1px solid var(--neutral-200);
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--neutral-0) 92%, var(--neutral-100) 8%);
+  background: #fff;
 }
 
 .search-category-overview__label {
@@ -1513,7 +1517,7 @@
   margin-bottom: 0.45rem;
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--neutral-600);
+  color: var(--neutral-700);
 }
 
 .search-category-overview__chips {
@@ -1528,7 +1532,7 @@
   border-radius: 999px;
   border: 1px solid var(--neutral-300);
   background: #fff;
-  color: var(--neutral-600);
+  color: var(--neutral-700);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1543,22 +1547,23 @@
 }
 
 .search-category-chip:hover {
-  border-color: color-mix(in srgb, var(--primary-500) 36%, var(--neutral-300) 64%);
-  color: var(--primary-700);
+  border-color: var(--neutral-500);
+  color: var(--neutral-900);
+  background: var(--neutral-100);
 }
 
 .search-category-chip.active {
-  border-color: var(--primary-500);
-  color: var(--primary-700);
-  background: color-mix(in srgb, var(--primary-50) 72%, #fff 28%);
+  border-color: var(--neutral-900);
+  color: #fff;
+  background: var(--neutral-900);
 }
 
 .search-tag-overview {
   margin: -0.1rem 0 0.875rem;
   padding: 0.625rem 0.75rem;
-  border: 1px solid color-mix(in srgb, #14b8a6 18%, var(--neutral-200) 82%);
+  border: 1px solid var(--neutral-200);
   border-radius: 0.75rem;
-  background: color-mix(in srgb, #ecfeff 26%, #fff 74%);
+  background: #fff;
 }
 
 .search-tag-overview__label {
@@ -1567,7 +1572,7 @@
   margin-bottom: 0.45rem;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #0f766e;
+  color: var(--neutral-700);
 }
 
 .search-tag-overview__chips {
@@ -1580,9 +1585,9 @@
   height: 1.85rem;
   padding: 0 0.7rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, #14b8a6 22%, var(--neutral-300) 78%);
+  border: 1px solid var(--neutral-300);
   background: #fff;
-  color: #0f766e;
+  color: var(--neutral-700);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1597,14 +1602,15 @@
 }
 
 .search-tag-chip:hover {
-  border-color: #0d9488;
-  color: #0f766e;
+  border-color: var(--neutral-500);
+  color: var(--neutral-900);
+  background: var(--neutral-100);
 }
 
 .search-tag-chip.active {
-  border-color: #0d9488;
-  color: #0f766e;
-  background: color-mix(in srgb, #ccfbf1 72%, #fff 28%);
+  border-color: var(--neutral-900);
+  color: #fff;
+  background: var(--neutral-900);
 }
 
 .search-source-chip {
@@ -1613,7 +1619,7 @@
   border-radius: 999px;
   border: 1px solid var(--neutral-300);
   background: #fff;
-  color: var(--neutral-600);
+  color: var(--neutral-700);
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -1628,14 +1634,21 @@
 }
 
 .search-source-chip:hover {
-  border-color: color-mix(in srgb, var(--primary-500) 36%, var(--neutral-300) 64%);
-  color: var(--primary-700);
+  border-color: var(--neutral-500);
+  color: var(--neutral-900);
+  background: var(--neutral-100);
 }
 
 .search-source-chip.active {
-  border-color: var(--primary-500);
-  color: var(--primary-700);
-  background: color-mix(in srgb, var(--primary-50) 72%, #fff 28%);
+  border-color: var(--neutral-900);
+  color: #fff;
+  background: var(--neutral-900);
+}
+
+.search-category-chip.active strong,
+.search-tag-chip.active strong,
+.search-source-chip.active strong {
+  color: currentColor;
 }
 
 @keyframes searchEnhancePulse {
@@ -1984,4 +1997,122 @@
 .search-mode-btn.active {
   color: var(--primary-700);
   background: color-mix(in srgb, var(--primary-500) 14%, #fff 86%);
+}
+
+/* ==================== 搜索状态聚合卡片（简化信息层级） ==================== */
+.search-unified-panel {
+  margin-bottom: 0.9rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--neutral-200);
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.search-unified-panel .search-header {
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 0.85rem;
+}
+
+.search-unified-panel .search-actions {
+  justify-content: flex-end;
+}
+
+.search-unified-panel .search-stats-info strong {
+  color: var(--neutral-900);
+}
+
+.search-unified-panel__meta {
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--neutral-200);
+}
+
+.search-unified-panel__hint {
+  font-size: 0.8125rem;
+  color: var(--neutral-600);
+  line-height: 1.6;
+}
+
+.search-unified-panel__tags {
+  margin-top: 0.55rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.search-unified-panel__label {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--neutral-600);
+}
+
+.search-unified-panel .search-semantic-tags,
+.search-unified-panel .search-ai-rewrite-tags {
+  flex: 1;
+}
+
+.search-filter-anchor {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.search-result-toolbar {
+  align-items: center;
+}
+
+/* 统一筛选与推荐标签为中性色，降低视觉噪音 */
+.search-semantic-tag,
+.search-ai-rewrite-tag {
+  border-color: var(--neutral-300);
+  color: var(--neutral-700);
+  background: #fff;
+}
+
+.search-semantic-tag:hover,
+.search-ai-rewrite-tag:hover {
+  border-color: var(--neutral-500);
+  color: var(--neutral-900);
+  background: var(--neutral-100);
+}
+
+.search-mode-btn:hover {
+  color: var(--neutral-800);
+}
+
+.search-mode-btn.active {
+  color: var(--neutral-900);
+  background: var(--neutral-100);
+}
+
+@media (max-width: 768px) {
+  .search-unified-panel {
+    padding: 0.875rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .search-unified-panel .search-header {
+    gap: 0.7rem;
+  }
+
+  .search-unified-panel__meta {
+    margin-top: 0.55rem;
+    padding-top: 0.5rem;
+  }
+
+  .search-unified-panel__hint {
+    font-size: 0.75rem;
+  }
+
+  .search-unified-panel__tags {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
 }
