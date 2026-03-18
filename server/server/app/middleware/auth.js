@@ -334,6 +334,9 @@ module.exports = options => {
       'uied:contribution:featured:save': [ 'user:edit', 'uied:setting:save' ],
       'uied:contribution:featured:del': [ 'user:edit', 'uied:setting:save' ],
       // 商业版：交付初始化向导复用站点设置权限
+      'uied:delivery:profile:list': [ 'uied:setting:get' ],
+      'uied:delivery:profile:manage:list': [ 'uied:setting:get' ],
+      'uied:delivery:profile:save': [ 'uied:setting:save' ],
       'uied:delivery:init:preview': [ 'uied:setting:get' ],
       'uied:delivery:init:execute': [ 'uied:setting:save' ],
       'uied:delivery:package:export': [ 'uied:setting:get' ],

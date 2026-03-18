@@ -14,6 +14,51 @@ const baseController = require('../baseController');
 
 class DeliveryInitController extends baseController {
   /**
+   * 获取交付模板目录（供后台模板卡片选择）
+   */
+  async profileList() {
+    const { ctx } = this;
+    try {
+      const data = await ctx.service.uied.deliveryInit.getProfileList();
+      this.result({ data });
+    } catch (error) {
+      ctx.logger.error('获取交付模板目录失败:', error);
+      this.result({ code: 500, message: error.message || '获取交付模板目录失败' });
+    }
+  }
+
+  /**
+   * 获取交付模板目录管理数据（包含禁用模板）
+   */
+  async profileManageList() {
+    const { ctx } = this;
+    try {
+      const data = await ctx.service.uied.deliveryInit.getProfileManageList();
+      this.result({ data });
+    } catch (error) {
+      ctx.logger.error('获取交付模板目录管理数据失败:', error);
+      this.result({ code: 500, message: error.message || '获取模板目录管理数据失败' });
+    }
+  }
+
+  /**
+   * 保存交付模板目录配置
+   */
+  async profileSave() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      const data = await ctx.service.uied.deliveryInit.saveProfileCatalog(
+        Array.isArray(body.list) ? body.list : []
+      );
+      this.result({ data, message: '模板目录保存成功' });
+    } catch (error) {
+      ctx.logger.error('保存交付模板目录失败:', error);
+      this.result({ code: 500, message: error.message || '保存模板目录失败' });
+    }
+  }
+
+  /**
    * 获取交付初始化预览（不落库）
    */
   async preview() {

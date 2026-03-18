@@ -266,6 +266,21 @@ export function uiedSettingAuthConfigUpdate(params: any) {
     return request.post({ url: '/uied/setting/auth-config/update', params })
 }
 
+// 获取交付初始化模板目录
+export function uiedDeliveryProfileList() {
+    return request.get({ url: '/uied/delivery/profile/list' })
+}
+
+// 获取交付初始化模板目录管理数据
+export function uiedDeliveryProfileManageList() {
+    return request.get({ url: '/uied/delivery/profile/manage/list' })
+}
+
+// 保存交付初始化模板目录
+export function uiedDeliveryProfileSave(params: any) {
+    return request.post({ url: '/uied/delivery/profile/save', params })
+}
+
 // 交付初始化预览（不落库）
 export function uiedDeliveryInitPreview(params?: any) {
     return request.get({ url: '/uied/delivery/init/preview', params })

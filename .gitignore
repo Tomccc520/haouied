@@ -47,6 +47,7 @@ coverage/
 /docs/*
 !/docs/API/
 !/docs/API/**
+!/docs/*-install-test.md
 /docs/API/reports/*.json
 
 # 开发工具脚本

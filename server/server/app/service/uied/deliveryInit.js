@@ -11,6 +11,7 @@
 'use strict';
 
 const Service = require('egg').Service;
+const DELIVERY_PROFILE_CATALOG_SETTING_KEY = 'deliveryProfileCatalog';
 
 class DeliveryInitService extends Service {
   /**
@@ -59,13 +60,165 @@ class DeliveryInitService extends Service {
   }
 
   /**
+   * 深拷贝对象（用于模板基座的安全复制）
+   */
+  deepClone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  /**
+   * 规范化模板键（仅允许小写字母、数字、下划线、中划线）
+   */
+  normalizeProfileKey(value, fallback = '') {
+    const text = this.toText(value, fallback).toLowerCase();
+    return text.replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+  }
+
+  /**
+   * 获取交付初始化模板基座目录（内置模板）
+   */
+  getBaseProfileCatalog() {
+    return [
+      {
+        key: 'commercial_default',
+        baseProfile: 'commercial_default',
+        builtin: true,
+        name: '商业交付默认模板',
+        description: '通用商业导航模板，适合标准售卖交付。',
+        recommendedEdition: 'pro',
+        sort: 10,
+        enabled: true,
+      },
+      {
+        key: 'ai_navigation',
+        baseProfile: 'ai_navigation',
+        builtin: true,
+        name: 'AI 导航模板',
+        description: '偏 AI 工具聚合场景，强调 AI 搜索与效率工具。',
+        recommendedEdition: 'pro',
+        sort: 20,
+        enabled: true,
+      },
+      {
+        key: 'design_navigation',
+        baseProfile: 'design_navigation',
+        builtin: true,
+        name: '设计导航模板',
+        description: '偏 UI/UX 与灵感素材场景，强化设计分类与标签。',
+        recommendedEdition: 'pro',
+        sort: 30,
+        enabled: true,
+      },
+      {
+        key: 'tools_navigation',
+        baseProfile: 'tools_navigation',
+        builtin: true,
+        name: '工具导航模板',
+        description: '偏效率与开发工具场景，适合通用工具站售卖。',
+        recommendedEdition: 'free',
+        sort: 40,
+        enabled: true,
+      },
+    ];
+  }
+
+  /**
+   * 兼容保留：获取模板目录（默认返回内置基座）
+   */
+  getProfileCatalog() {
+    return this.getBaseProfileCatalog();
+  }
+
+  /**
+   * 规范化单个模板条目（支持自定义模板项）
+   */
+  normalizeProfileCatalogItem(item = {}, index = 0, baseMap = new Map(), baseKeySet = new Set()) {
+    const key = this.normalizeProfileKey(item?.key, '');
+    if (!key) return null;
+    const baseItem = baseMap.get(key) || null;
+    const fallbackSort = baseItem ? this.toInt(baseItem.sort, (index + 1) * 10, 0, 9999) : (index + 1) * 10;
+    const fallbackEnabled = baseItem ? this.parseBoolean(baseItem.enabled, true) : true;
+    const fallbackBaseProfile = baseItem ? baseItem.key : 'commercial_default';
+    const normalizedBaseProfile = this.normalizeProfileKey(item?.baseProfile, fallbackBaseProfile);
+    const baseProfile = baseKeySet.has(normalizedBaseProfile) ? normalizedBaseProfile : fallbackBaseProfile;
+    return {
+      key,
+      name: this.toText(item?.name, baseItem?.name || key),
+      description: this.toText(item?.description, baseItem?.description || ''),
+      recommendedEdition: this.ctx.service.uied.licenseCenter.normalizeEdition(
+        item?.recommendedEdition || baseItem?.recommendedEdition || 'pro'
+      ),
+      sort: this.toInt(item?.sort, fallbackSort, 0, 9999),
+      enabled: this.parseBoolean(item?.enabled, fallbackEnabled),
+      baseProfile,
+      builtin: Boolean(baseItem),
+    };
+  }
+
+  /**
+   * 规范化模板目录配置（支持新增/删除/编辑/排序）
+   */
+  normalizeProfileCatalogConfig(config = []) {
+    const baseCatalog = this.getBaseProfileCatalog();
+    const baseMap = new Map(baseCatalog.map(item => [ item.key, item ]));
+    const baseKeySet = new Set(baseCatalog.map(item => item.key));
+    const sourceList = Array.isArray(config) ? config : [];
+    const usedKeySet = new Set();
+    const normalized = [];
+
+    sourceList.forEach((item, index) => {
+      const next = this.normalizeProfileCatalogItem(item, index, baseMap, baseKeySet);
+      if (!next) return;
+      if (usedKeySet.has(next.key)) return;
+      usedKeySet.add(next.key);
+      normalized.push(next);
+    });
+
+    if (!normalized.length) {
+      return baseCatalog.map((item, index) => ({
+        ...this.normalizeProfileCatalogItem(item, index, baseMap, baseKeySet),
+      }));
+    }
+    return normalized.sort((a, b) => a.sort - b.sort);
+  }
+
+  /**
+   * 解析模板键（兼容历史别名）
+   */
+  async resolveProfile(profileKey = '') {
+    const text = this.normalizeProfileKey(profileKey, 'commercial_default') || 'commercial_default';
+    const aliasMap = {
+      default: 'commercial_default',
+      commercial: 'commercial_default',
+      ai: 'ai_navigation',
+      design: 'design_navigation',
+      tools: 'tools_navigation',
+      toolkit: 'tools_navigation',
+    };
+    const normalizedKey = this.normalizeProfileKey(aliasMap[text] || text, 'commercial_default')
+      || 'commercial_default';
+    const catalog = await this.getProfileManageList();
+    const matched = catalog.find(item => item.key === normalizedKey);
+    if (matched) {
+      return { ...matched };
+    }
+    // 兼容：历史请求可能直接传内置模板键
+    const baseCatalog = this.getBaseProfileCatalog();
+    const baseMatched = baseCatalog.find(item => item.key === normalizedKey);
+    if (baseMatched) return { ...baseMatched };
+    const enabledList = catalog.filter(item => item.enabled !== false);
+    const fallback = enabledList[0] || catalog[0] || baseCatalog[0];
+    return { ...fallback };
+  }
+
+  /**
    * 规范化向导执行参数
    */
   normalizeOptions(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
     const edition = this.ctx.service.uied.licenseCenter.normalizeEdition(source.edition || 'pro');
     return {
-      profile: this.toText(source.profile, 'commercial_default'),
+      profile: this.normalizeProfileKey(source.profile, 'commercial_default') || 'commercial_default',
       edition,
       brandName: this.toText(source.brandName, 'UIED 商业导航系统'),
       brandDomain: this.toText(source.brandDomain, ''),
@@ -91,9 +244,9 @@ class DeliveryInitService extends Service {
   }
 
   /**
-   * 获取预置的商业版初始化模板
+   * 获取“商业默认模板”基座
    */
-  getPreset(options) {
+  buildDefaultPreset(options) {
     const year = new Date().getFullYear();
     const agreementBase = options.brandDomain || 'https://example.com';
     const siteName = options.brandName || 'UIED 商业导航系统';
@@ -307,6 +460,145 @@ class DeliveryInitService extends Service {
         },
       ],
     };
+  }
+
+  /**
+   * 构建 AI 导航模板
+   */
+  buildAiNavigationPreset(options) {
+    const preset = this.deepClone(this.buildDefaultPreset(options));
+    const siteName = options.brandName || 'UIED AI导航';
+    preset.siteInfo.siteName = siteName;
+    preset.siteInfo.siteTitle = `${siteName} - 精选 AI 工具与资源`;
+    preset.siteInfo.siteDescription = '聚合 AI 写作、绘图、视频、办公、开发等高质量工具，适合 AI 主题导航站交付。';
+    preset.siteInfo.siteKeywords = 'AI导航,AI工具,AI写作,AI绘图,AI视频,效率工具';
+    preset.settings.homepageConfig.hotRecommendationsTitle = 'AI 热门推荐';
+    preset.settings.searchConfig.placeholder = '搜索 AI 工具、模型、场景关键词';
+    preset.settings.articleConfig.homeSectionTitle = 'AI 运营文章';
+    preset.websiteCategories = [
+      { name: 'AI 写作', slug: 'ai-writing', icon: 'Edit', color: '#7c3aed', description: '文案、翻译与内容生成', sort: 10 },
+      { name: 'AI 绘图', slug: 'ai-image', icon: 'Picture', color: '#0ea5e9', description: '图像生成与视觉设计', sort: 20 },
+      { name: 'AI 视频', slug: 'ai-video', icon: 'VideoCamera', color: '#f97316', description: '视频生成与剪辑增强', sort: 30 },
+      { name: 'AI 办公', slug: 'ai-office', icon: 'Briefcase', color: '#16a34a', description: '文档、表格与协作提效', sort: 40 },
+      { name: 'AI 编程', slug: 'ai-coding', icon: 'Code', color: '#2563eb', description: '代码生成、审查与测试', sort: 50 },
+    ];
+    preset.websiteTags = [
+      { name: 'GPT', slug: 'gpt', color: '#7c3aed', description: 'GPT 生态能力', sort: 10 },
+      { name: '绘图', slug: 'draw', color: '#0ea5e9', description: '图像与视觉能力', sort: 20 },
+      { name: '视频', slug: 'video', color: '#f97316', description: '视频与多媒体能力', sort: 30 },
+      { name: '开源', slug: 'open-source', color: '#059669', description: '开源可私有部署', sort: 40 },
+      { name: '官方', slug: 'official', color: '#1677ff', description: '官方来源与一手入口', sort: 50 },
+    ];
+    return preset;
+  }
+
+  /**
+   * 构建设计导航模板
+   */
+  buildDesignNavigationPreset(options) {
+    const preset = this.deepClone(this.buildDefaultPreset(options));
+    const siteName = options.brandName || 'UIED 设计导航';
+    preset.siteInfo.siteName = siteName;
+    preset.siteInfo.siteTitle = `${siteName} - UI/UX 资源与灵感平台`;
+    preset.siteInfo.siteDescription = '聚合 UI/UX 设计、字体、图标、动效与灵感资源，适合设计主题导航站交付。';
+    preset.siteInfo.siteKeywords = '设计导航,UI设计,UX设计,字体,图标,灵感素材';
+    preset.settings.homepageConfig.hotRecommendationsTitle = '设计精选推荐';
+    preset.settings.searchConfig.placeholder = '搜索设计工具、字体、图标、灵感关键词';
+    preset.settings.articleConfig.homeSectionTitle = '设计实践文章';
+    preset.websiteCategories = [
+      { name: 'UI 设计', slug: 'ui-design', icon: 'Grid', color: '#1677ff', description: '界面设计与组件资源', sort: 10 },
+      { name: 'UX 研究', slug: 'ux-research', icon: 'DataAnalysis', color: '#7c3aed', description: '用户研究与体验方法', sort: 20 },
+      { name: '字体图标', slug: 'font-icon', icon: 'CollectionTag', color: '#f59e0b', description: '字体、图标与字形库', sort: 30 },
+      { name: '动效交互', slug: 'motion-interaction', icon: 'VideoPlay', color: '#0ea5e9', description: '动效、交互动线与案例', sort: 40 },
+      { name: '灵感素材', slug: 'inspiration', icon: 'MagicStick', color: '#ef4444', description: '案例、版式与视觉灵感', sort: 50 },
+    ];
+    preset.websiteTags = [
+      { name: 'Figma', slug: 'figma', color: '#1677ff', description: 'Figma 生态资源', sort: 10 },
+      { name: 'UI 套件', slug: 'ui-kit', color: '#7c3aed', description: '组件库与设计套件', sort: 20 },
+      { name: '字体', slug: 'font', color: '#f59e0b', description: '字体与字形资源', sort: 30 },
+      { name: '图标', slug: 'icon', color: '#0ea5e9', description: '图标库与插画素材', sort: 40 },
+      { name: '灵感', slug: 'inspiration', color: '#ef4444', description: '灵感与案例集合', sort: 50 },
+    ];
+    return preset;
+  }
+
+  /**
+   * 构建工具导航模板
+   */
+  buildToolsNavigationPreset(options) {
+    const preset = this.deepClone(this.buildDefaultPreset(options));
+    const siteName = options.brandName || 'UIED 工具导航';
+    preset.siteInfo.siteName = siteName;
+    preset.siteInfo.siteTitle = `${siteName} - 效率与开发工具合集`;
+    preset.siteInfo.siteDescription = '聚合办公、开发、协作、运维与自动化工具，适合通用工具站售卖交付。';
+    preset.siteInfo.siteKeywords = '工具导航,效率工具,开发工具,协作工具,自动化';
+    preset.settings.homepageConfig.hotRecommendationsTitle = '工具热门推荐';
+    preset.settings.searchConfig.placeholder = '搜索办公、开发、协作、自动化工具';
+    preset.settings.articleConfig.homeSectionTitle = '工具评测与教程';
+    preset.websiteCategories = [
+      { name: '办公效率', slug: 'office-productivity', icon: 'Briefcase', color: '#16a34a', description: '文档、表格与协作办公', sort: 10 },
+      { name: '开发工具', slug: 'dev-tools', icon: 'Code', color: '#2563eb', description: '开发调试与工程效率', sort: 20 },
+      { name: '站长运维', slug: 'ops-tools', icon: 'Monitor', color: '#0ea5e9', description: '部署、监控与运维工具', sort: 30 },
+      { name: '自动化', slug: 'automation', icon: 'Cpu', color: '#7c3aed', description: '自动化流程与任务编排', sort: 40 },
+      { name: '实用工具', slug: 'utility-tools', icon: 'Tools', color: '#f97316', description: '转换、压缩、处理工具', sort: 50 },
+    ];
+    preset.websiteTags = [
+      { name: '免费', slug: 'free', color: '#16a34a', description: '可免费使用或试用', sort: 10 },
+      { name: '开源', slug: 'open-source', color: '#059669', description: '开源可自部署', sort: 20 },
+      { name: '在线', slug: 'web-tool', color: '#0ea5e9', description: '无需安装即可使用', sort: 30 },
+      { name: '桌面端', slug: 'desktop', color: '#2563eb', description: '桌面客户端工具', sort: 40 },
+      { name: '团队协作', slug: 'teamwork', color: '#7c3aed', description: '多人协作与流程工具', sort: 50 },
+    ];
+    return preset;
+  }
+
+  /**
+   * 根据模板键构建预置模板
+   */
+  getPreset(options, profileMeta = null) {
+    const baseProfileKey = this.normalizeProfileKey(
+      profileMeta?.baseProfile || profileMeta?.key || options?.profile,
+      'commercial_default'
+    ) || 'commercial_default';
+    if (baseProfileKey === 'ai_navigation') {
+      return this.buildAiNavigationPreset(options);
+    }
+    if (baseProfileKey === 'design_navigation') {
+      return this.buildDesignNavigationPreset(options);
+    }
+    if (baseProfileKey === 'tools_navigation') {
+      return this.buildToolsNavigationPreset(options);
+    }
+    return this.buildDefaultPreset(options);
+  }
+
+  /**
+   * 获取交付模板目录管理数据（含禁用模板）
+   */
+  async getProfileManageList() {
+    const config = await this.ctx.service.uied.setting.get(DELIVERY_PROFILE_CATALOG_SETTING_KEY);
+    return this.normalizeProfileCatalogConfig(config);
+  }
+
+  /**
+   * 保存交付模板目录配置
+   */
+  async saveProfileCatalog(config = []) {
+    const normalized = this.normalizeProfileCatalogConfig(config);
+    await this.ctx.service.uied.setting.save({
+      [DELIVERY_PROFILE_CATALOG_SETTING_KEY]: normalized,
+    });
+    return normalized;
+  }
+
+  /**
+   * 获取交付模板目录（仅返回启用模板，避免误选停用模板）
+   */
+  async getProfileList() {
+    const list = await this.getProfileManageList();
+    const enabledList = list.filter(item => item.enabled !== false);
+    if (enabledList.length > 0) return enabledList;
+    return list.length > 0 ? [ list[0] ] : this.getBaseProfileCatalog().slice(0, 1);
   }
 
   /**
@@ -1000,9 +1292,11 @@ class DeliveryInitService extends Service {
    */
   async preview(input = {}) {
     const options = this.normalizeOptions(input);
-    const preset = this.getPreset(options);
+    const profileMeta = await this.resolveProfile(options.profile);
+    const preset = this.getPreset(options, profileMeta);
     return {
       profile: options.profile,
+      profileName: profileMeta.name,
       edition: options.edition,
       modules: {
         siteSettings: options.includeSiteSettings,
@@ -1037,7 +1331,8 @@ class DeliveryInitService extends Service {
    */
   async execute(input = {}) {
     const options = this.normalizeOptions(input);
-    const preset = this.getPreset(options);
+    const profileMeta = await this.resolveProfile(options.profile);
+    const preset = this.getPreset(options, profileMeta);
     const summary = {
       siteSettings: { saved: false },
       websiteCategories: { created: 0, updated: 0 },
@@ -1146,6 +1441,7 @@ class DeliveryInitService extends Service {
 
     return {
       profile: options.profile,
+      profileName: profileMeta.name,
       edition: options.edition,
       summary,
     };
