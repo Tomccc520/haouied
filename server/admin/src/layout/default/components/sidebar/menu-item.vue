@@ -13,7 +13,16 @@
                 </template>
             </el-menu-item>
         </app-link>
-        <el-sub-menu v-else :index="routePath" :popper-class="popperClass">
+        <el-sub-menu
+            v-else
+            :index="routePath"
+            :popper-class="subMenuPopperClass"
+            :teleported="enableHoverFlyout"
+            :popper-append-to-body="enableHoverFlyout"
+            :show-timeout="subMenuShowTimeout"
+            :hide-timeout="subMenuHideTimeout"
+            :popper-offset="8"
+        >
             <template #title>
                 <icon
                     class="menu-item-icon"
@@ -103,6 +112,34 @@ const hasShowChild = computed(() => {
 const menuDepth = computed(() => Math.max(1, Number(props.depth || 1)))
 const nextDepth = computed(() => menuDepth.value + 1)
 
+/**
+ * 启用悬浮弹层菜单：
+ * - 一级分类保持原交互（点击展开）
+ * - 二级及以下改为悬浮弹层，避免三级菜单被侧栏遮挡
+ */
+const enableHoverFlyout = computed(() => menuDepth.value >= 2)
+
+/**
+ * 计算子菜单弹层类名，便于区分普通子菜单与悬浮子菜单样式。
+ */
+const subMenuPopperClass = computed(() => {
+    const classNames = [String(props.popperClass || '').trim()]
+    if (enableHoverFlyout.value) {
+        classNames.push('menu-flyout-popper')
+    }
+    return classNames.filter(Boolean).join(' ')
+})
+
+/**
+ * 统一子菜单弹层出现延迟：悬浮菜单使用更快的响应，降低操作阻力。
+ */
+const subMenuShowTimeout = computed(() => (enableHoverFlyout.value ? 80 : 300))
+
+/**
+ * 统一子菜单弹层隐藏延迟：略微延后，避免鼠标移动时误收起。
+ */
+const subMenuHideTimeout = computed(() => (enableHoverFlyout.value ? 120 : 300))
+
 const routeMeta = computed(() => {
     return props.route.meta
 })
@@ -164,5 +201,17 @@ const queryStr = computed<string>(() => {
     .menu-item-icon {
         color: var(--admin-sidebar-icon-active-color);
     }
+}
+
+:deep(.menu-flyout-popper.el-menu--popup) {
+    min-width: 210px;
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+}
+
+:deep(.menu-flyout-popper.el-menu--popup .el-menu-item),
+:deep(.menu-flyout-popper.el-menu--popup .el-sub-menu__title) {
+    margin-left: 0;
 }
 </style>

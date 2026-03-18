@@ -87,6 +87,11 @@ interface MenuCategoryDefinition {
     icon: string
 }
 
+interface MenuCategoryRule {
+    key: string
+    keywords: string[]
+}
+
 /**
  * 解析菜单节点完整路径：兼容相对路径与外链路径。
  * @param path 当前节点路径
@@ -113,27 +118,276 @@ const isMenuNodeMatched = (item: RouteRecordRaw, keyword: string) => {
 }
 
 /**
- * 读取菜单节点用于分组识别的文本（标题 + 路径）。
+ * 读取菜单节点用于分组识别的文本（标题 + 路径 + 权限标识）。
  * @param item 菜单节点
  */
 const getRouteGroupText = (item: RouteRecordRaw) => {
     const title = String(item?.meta?.title || '').toLowerCase()
     const path = String(item?.path || '').toLowerCase()
-    return `${title} ${path}`.trim()
+    const perms = String(item?.meta?.perms || '').toLowerCase()
+    return `${title} ${path} ${perms}`.trim()
 }
 
 /**
- * 根据菜单节点标题与路径做一级分组归类。
- * @param item 一级菜单节点
+ * 一级菜单分组定义：按业务域拆分，控制每组信息密度，避免导航拥挤。
  */
 const MENU_CATEGORY_DEFINITIONS: MenuCategoryDefinition[] = [
     { key: 'workspace', label: '工作中心', icon: 'el-icon-HomeFilled' },
-    { key: 'content', label: '内容生产', icon: 'el-icon-Document' },
-    { key: 'growth', label: '运营增长', icon: 'el-icon-DataLine' },
-    { key: 'commercial', label: '商业交付', icon: 'el-icon-Suitcase' },
-    { key: 'system', label: '系统工具', icon: 'el-icon-Setting' }
+    { key: 'website', label: '网址管理', icon: 'el-icon-Link' },
+    { key: 'article', label: '文章管理', icon: 'el-icon-Reading' },
+    { key: 'frontend', label: '前端配置', icon: 'el-icon-Monitor' },
+    { key: 'operation', label: '运营增长', icon: 'el-icon-DataAnalysis' },
+    { key: 'seo', label: 'SEO管理', icon: 'el-icon-DataLine' },
+    { key: 'ai', label: 'AI助手', icon: 'el-icon-MagicStick' },
+    { key: 'license', label: '商业授权', icon: 'el-icon-Key' },
+    { key: 'delivery', label: '交付中心', icon: 'el-icon-Suitcase' },
+    { key: 'data', label: '数据中心', icon: 'el-icon-TrendCharts' },
+    { key: 'system', label: '系统管理', icon: 'el-icon-Setting' }
 ]
-const MENU_SECOND_LEVEL_DEFAULT_ICON = 'el-icon-Menu'
+
+/**
+ * 菜单分组命中规则：按顺序匹配，命中后立即归类。
+ */
+const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
+    { key: 'workspace', keywords: ['工作台', 'workbench', '/workbench'] },
+    {
+        key: 'ai',
+        keywords: ['ai助手', 'ai配置', 'ai模型', 'aiconfig', '/ai', '/uied/aiconfig', 'uied:ai:']
+    },
+    {
+        key: 'seo',
+        keywords: [
+            'seo',
+            'sitemap',
+            'robots',
+            '重定向',
+            '失效',
+            '站长',
+            '/seo',
+            'uied:seo:'
+        ]
+    },
+    {
+        key: 'license',
+        keywords: ['商业授权', '许可证', 'license', '授权', '/license', 'uied:license:']
+    },
+    {
+        key: 'delivery',
+        keywords: ['交付', '安装向导', 'delivery', 'install', '/delivery', '/install']
+    },
+    {
+        key: 'website',
+        keywords: [
+            '网址',
+            '网站',
+            '分类',
+            '标签',
+            '页面',
+            '/website',
+            '/category',
+            '/tag',
+            '/page',
+            'uied:website:',
+            'uied:category:',
+            'uied:tag:',
+            'uied:page:'
+        ]
+    },
+    {
+        key: 'frontend',
+        keywords: [
+            '前端配置',
+            '导航菜单',
+            '素材中心',
+            '图标库',
+            '社交媒体',
+            '页脚',
+            '友情链接',
+            '/navmenu',
+            '/social',
+            '/footer',
+            '/friend',
+            '/svg',
+            '/material',
+            'uied:navmenu:',
+            'uied:social:',
+            'uied:footer:',
+            'uied:friend:',
+            'uied:svg:'
+        ]
+    },
+    {
+        key: 'article',
+        keywords: [
+            '文章',
+            '评论',
+            'wordpress',
+            '/article',
+            '/comment',
+            '/wordpress',
+            'uied:article:',
+            'uied:comment:'
+        ]
+    },
+    {
+        key: 'operation',
+        keywords: [
+            '运营',
+            '热门',
+            '推荐',
+            '榜单',
+            '热榜',
+            '投稿',
+            '专题',
+            'banner',
+            'daily',
+            'rank',
+            'contribution',
+            'slot',
+            '/hot',
+            '/banner',
+            '/rank',
+            '/topic',
+            '/contribution',
+            '/submission',
+            '/daily',
+            'uied:rank',
+            'uied:banner',
+            'uied:hot',
+            'uied:topic',
+            'uied:contribution:'
+        ]
+    },
+    {
+        key: 'data',
+        keywords: [
+            '统计',
+            '日志',
+            '数据',
+            'monitor',
+            'operationlog',
+            '/statistics',
+            '/operation-log',
+            'uied:statistics:',
+            'uied:log:'
+        ]
+    }
+]
+const MENU_SECOND_LEVEL_GROUP_ICON: Record<string, string> = {
+    workspace: 'el-icon-HomeFilled',
+    website: 'el-icon-Link',
+    article: 'el-icon-Reading',
+    frontend: 'el-icon-Monitor',
+    operation: 'el-icon-DataAnalysis',
+    seo: 'el-icon-DataLine',
+    ai: 'el-icon-MagicStick',
+    license: 'el-icon-Key',
+    delivery: 'el-icon-Suitcase',
+    data: 'el-icon-TrendCharts',
+    system: 'el-icon-Setting'
+}
+const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
+    工作台: 'el-icon-HomeFilled',
+    网站管理: 'el-icon-Link',
+    网址管理: 'el-icon-Link',
+    分类管理: 'el-icon-Files',
+    标签管理: 'el-icon-Collection',
+    页面管理: 'el-icon-Document',
+    文章管理: 'el-icon-Reading',
+    评论管理: 'el-icon-ChatDotRound',
+    前端配置: 'el-icon-Monitor',
+    SEO中心: 'el-icon-DataLine',
+    SEO设置: 'el-icon-DataLine',
+    榜单系统: 'el-icon-Histogram',
+    热门推荐: 'el-icon-Star',
+    专题工厂: 'el-icon-Management',
+    投稿管理: 'el-icon-EditPen',
+    导航菜单: 'el-icon-Menu',
+    商业授权: 'el-icon-Key',
+    交付中心: 'el-icon-Suitcase',
+    安装向导: 'el-icon-Tools',
+    系统设置: 'el-icon-Setting',
+    站点设置: 'el-icon-Setting',
+    内容中心配置: 'el-icon-DataAnalysis',
+    AI助手管理: 'el-icon-MagicStick',
+    AI配置管理: 'el-icon-MagicStick',
+    许可证中心: 'el-icon-Key',
+    交付初始化: 'el-icon-Suitcase',
+    权限管理: 'el-icon-Lock',
+    角色管理: 'el-icon-UserFilled',
+    菜单管理: 'el-icon-Menu',
+    素材中心: 'el-icon-PictureFilled',
+    友情链接: 'el-icon-Link',
+    社交媒体: 'el-icon-Share',
+    页脚配置: 'el-icon-Document',
+    内容投稿: 'el-icon-EditPen'
+}
+
+/**
+ * 二级菜单排序权重：同组内按业务优先级固定排序，避免每次刷新顺序变化。
+ */
+const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
+    'workspace:工作台': 10,
+
+    'website:网站管理': 10,
+    'website:网址管理': 10,
+    'website:分类管理': 20,
+    'website:标签管理': 30,
+    'website:页面管理': 40,
+
+    'article:文章管理': 10,
+    'article:评论管理': 20,
+    'article:文章分类': 30,
+    'article:文章标签': 40,
+    'article:文章专题': 50,
+
+    'frontend:前端配置': 10,
+    'frontend:导航菜单': 20,
+    'frontend:素材中心': 30,
+    'frontend:社交媒体': 40,
+    'frontend:页脚配置': 50,
+    'frontend:友情链接': 60,
+
+    'operation:热门推荐': 10,
+    'operation:内容中心配置': 15,
+    'operation:榜单系统': 30,
+    'operation:专题工厂': 40,
+    'operation:投稿管理': 50,
+    'operation:商业位体系': 60,
+    'operation:数据统计': 70,
+
+    'seo:SEO中心': 10,
+    'seo:SEO设置': 20,
+
+    'ai:AI助手管理': 10,
+    'ai:AI配置管理': 20,
+    'ai:AI配置': 30,
+    'ai:AI助手': 40,
+
+    'license:商业授权': 10,
+    'license:许可证中心': 20,
+
+    'delivery:交付中心': 10,
+    'delivery:交付初始化': 20,
+    'delivery:安装向导': 30,
+
+    'data:数据统计': 10,
+    'data:操作日志': 20,
+
+    'system:系统设置': 10,
+    'system:权限管理': 20,
+    'system:角色管理': 30,
+    'system:菜单管理': 40,
+    'system:管理员': 50
+}
+
+/**
+ * 判断文本是否包含任一关键字（已统一为小写匹配）。
+ * @param source 待匹配文本
+ * @param keywords 关键字列表
+ */
+const hasAnyKeyword = (source: string, keywords: string[]) =>
+    keywords.some((keyword) => source.includes(String(keyword || '').toLowerCase()))
 
 /**
  * 读取路由元数据并确保为对象，避免直接修改原始响应式对象。
@@ -152,7 +406,7 @@ const getRouteMetaRecord = (item: RouteRecordRaw): Record<string, any> => {
 const cloneRouteForMenu = (item: RouteRecordRaw, depth = 1): RouteRecordRaw => {
     const metaRecord = getRouteMetaRecord(item)
     if (depth >= 2 && !String(metaRecord.icon || '').trim()) {
-        metaRecord.icon = MENU_SECOND_LEVEL_DEFAULT_ICON
+        metaRecord.icon = 'el-icon-Menu'
     }
 
     const nextChildren = Array.isArray(item.children)
@@ -169,59 +423,61 @@ const cloneRouteForMenu = (item: RouteRecordRaw, depth = 1): RouteRecordRaw => {
 }
 
 /**
- * 根据菜单节点标题与路径进行业务归类。
+ * 根据菜单节点标题与路径进行业务归类（细分版）。
  * @param item 一级菜单节点
  */
 const classifyTopLevelRoute = (item: RouteRecordRaw): string => {
     const text = getRouteGroupText(item)
-
-    if (text.includes('工作台') || text.includes('workbench')) {
-        return 'workspace'
+    for (const rule of MENU_CATEGORY_RULES) {
+        if (hasAnyKeyword(text, rule.keywords)) {
+            return rule.key
+        }
     }
 
-    if (
-        text.includes('运营') ||
-        text.includes('banner') ||
-        text.includes('专题') ||
-        text.includes('榜单') ||
-        text.includes('热榜') ||
-        text.includes('推荐') ||
-        text.includes('seo') ||
-        text.includes('推送') ||
-        text.includes('sitemap') ||
-        text.includes('robots') ||
-        text.includes('重定向') ||
-        text.includes('检测') ||
-        text.includes('站长')
-    ) {
-        return 'growth'
-    }
+    return 'system'
+}
 
-    if (
-        text.includes('商业') ||
-        text.includes('license') ||
-        text.includes('授权') ||
-        text.includes('交付') ||
-        text.includes('install')
-    ) {
-        return 'commercial'
+/**
+ * 根据二级菜单标题与分组选择对应图标。
+ * @param title 二级菜单标题
+ * @param groupKey 一级分组键
+ */
+const resolveSecondLevelIcon = (title: string, groupKey: string): string => {
+    const rawTitle = String(title || '').trim()
+    if (rawTitle && MENU_SECOND_LEVEL_ICON_ALIAS[rawTitle]) {
+        return MENU_SECOND_LEVEL_ICON_ALIAS[rawTitle]
     }
+    return MENU_SECOND_LEVEL_GROUP_ICON[groupKey] || 'el-icon-Menu'
+}
 
-    if (
-        text.includes('系统') ||
-        text.includes('权限') ||
-        text.includes('角色') ||
-        text.includes('菜单') ||
-        text.includes('配置') ||
-        text.includes('setting') ||
-        text.includes('admin') ||
-        text.includes('monitor') ||
-        text.includes('日志')
-    ) {
-        return 'system'
+/**
+ * 计算二级菜单排序权重：先按业务映射，再按标题兜底稳定排序。
+ * @param item 二级菜单节点
+ * @param groupKey 一级分组键
+ */
+const resolveSecondLevelSortOrder = (item: RouteRecordRaw, groupKey: string): number => {
+    const title = String(item?.meta?.title || '').trim()
+    const groupTitleKey = `${groupKey}:${title}`
+    if (MENU_SECOND_LEVEL_ORDER_ALIAS[groupTitleKey] !== undefined) {
+        return MENU_SECOND_LEVEL_ORDER_ALIAS[groupTitleKey]
     }
+    return 9999
+}
 
-    return 'content'
+/**
+ * 对同一一级分组下的二级菜单进行稳定排序。
+ * @param list 二级菜单列表
+ * @param groupKey 一级分组键
+ */
+const sortSecondLevelRoutes = (list: RouteRecordRaw[], groupKey: string): RouteRecordRaw[] => {
+    return [...list].sort((a, b) => {
+        const aOrder = resolveSecondLevelSortOrder(a, groupKey)
+        const bOrder = resolveSecondLevelSortOrder(b, groupKey)
+        if (aOrder !== bOrder) return aOrder - bOrder
+        const aTitle = String(a?.meta?.title || '')
+        const bTitle = String(b?.meta?.title || '')
+        return aTitle.localeCompare(bTitle, 'zh-Hans-CN')
+    })
 }
 
 /**
@@ -247,7 +503,7 @@ const filterMenuTree = (list: RouteRecordRaw[] = [], keyword: string): RouteReco
 }
 
 /**
- * 构建结构化菜单：先按业务分类生成一级目录，再挂载原菜单为二级/三级。
+ * 构建结构化菜单：按业务分类生成一级目录，二级保留模块，三级保留功能入口。
  * @param list 原始菜单
  */
 const buildStructuredRoutes = (list: RouteRecordRaw[] = []): RouteRecordRaw[] => {
@@ -272,9 +528,38 @@ const buildStructuredRoutes = (list: RouteRecordRaw[] = []): RouteRecordRaw[] =>
             const bucket = rootBuckets.get(groupKey)
             if (!bucket) return
             const children = Array.isArray(bucket.children) ? bucket.children : []
-            children.push(cloneRouteForMenu(item, 2))
+            const groupNode = cloneRouteForMenu(item, 2)
+            const groupNodeMeta = getRouteMetaRecord(groupNode)
+            groupNodeMeta.icon = resolveSecondLevelIcon(String(groupNodeMeta.title || ''), groupKey)
+            const normalizedGroupNode = {
+                ...groupNode,
+                meta: groupNodeMeta
+            } as RouteRecordRaw
+
+            const seenPathSet = new Set(children.map((row: any) => String(row?.path || '').trim()))
+            const path = String(normalizedGroupNode?.path || '').trim()
+            if (path && !seenPathSet.has(path)) {
+                seenPathSet.add(path)
+                children.push(normalizedGroupNode)
+            } else if (!path) {
+                const fallbackPath = resolveMenuNodePath(String(item.path || ''), '')
+                if (!fallbackPath || seenPathSet.has(fallbackPath)) return
+                normalizedGroupNode.path = fallbackPath
+                seenPathSet.add(fallbackPath)
+                children.push(normalizedGroupNode)
+            }
+
             bucket.children = children
         })
+
+    MENU_CATEGORY_DEFINITIONS.forEach((definition) => {
+        const bucket = rootBuckets.get(definition.key)
+        if (!bucket || !Array.isArray(bucket.children)) return
+        bucket.children = sortSecondLevelRoutes(
+            bucket.children as RouteRecordRaw[],
+            definition.key
+        )
+    })
 
     return MENU_CATEGORY_DEFINITIONS
         .map((definition) => rootBuckets.get(definition.key))
