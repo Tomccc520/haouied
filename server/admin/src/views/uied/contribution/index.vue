@@ -511,7 +511,7 @@
                                 String(featureDeniedState.edition || 'free').toUpperCase()
                             }}
                         </div>
-                        <div>请到「许可证中心 / 功能开关」升级或开启后再使用。</div>
+                        <div>请到「商业授权」菜单升级后再使用。</div>
                     </div>
                 </template>
             </el-result>

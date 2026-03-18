@@ -1,0 +1,272 @@
+/**
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026.3.18
+ */
+
+.install-page {
+  min-height: 100vh;
+  padding: 32px 16px 48px;
+  background: linear-gradient(180deg, #f7f8fa 0%, #f2f4f8 100%);
+  box-sizing: border-box;
+}
+
+.install-page__container {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.install-page__header {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 24px 20px;
+  border-radius: 14px;
+  border: 1px solid #e6e9ee;
+  background: #ffffff;
+}
+
+.install-page__header h1 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.install-page__header p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.install-page__refresh-btn {
+  position: absolute;
+  right: 20px;
+  top: 24px;
+  border: 1px solid #d0d7e2;
+  background: #fff;
+  color: #1f2937;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.install-page__refresh-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.install-alert {
+  border-radius: 10px;
+  margin-bottom: 14px;
+  padding: 11px 14px;
+  font-size: 14px;
+}
+
+.install-alert--error {
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  background: #fff1f2;
+}
+
+.install-alert--success {
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.install-card {
+  margin-bottom: 16px;
+  padding: 18px 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #e6e9ee;
+  background: #ffffff;
+}
+
+.install-card h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  color: #111827;
+}
+
+.install-empty {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.install-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.install-status-item {
+  border: 1px solid #e8ecf2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #fdfefe;
+}
+
+.install-status-item .label {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.install-status-item .value {
+  color: #111827;
+  font-weight: 600;
+}
+
+.install-status-item .value.is-ok {
+  color: #15803d;
+}
+
+.install-status-item .value.is-pending {
+  color: #c2410c;
+}
+
+.install-env-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.install-env-list {
+  display: grid;
+  gap: 10px;
+}
+
+.install-env-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafbfd;
+}
+
+.install-env-item .row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.install-env-item .row-sub {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.install-env-item.status-pass {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.install-env-item.status-warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.install-env-item.status-fail {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.install-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.install-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.install-form-grid label.is-full {
+  grid-column: 1 / -1;
+}
+
+.install-form-grid input,
+.install-form-grid textarea {
+  width: 100%;
+  border: 1px solid #d1d7e0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  box-sizing: border-box;
+  font-size: 14px;
+  color: #111827;
+  background: #fff;
+  outline: none;
+}
+
+.install-form-grid input:focus,
+.install-form-grid textarea:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12);
+}
+
+.install-form-footer {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.install-page__submit-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  color: #ffffff;
+  background: #111827;
+  cursor: pointer;
+}
+
+.install-page__submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.install-form-footer .tip {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+@media (max-width: 760px) {
+  .install-page {
+    padding: 18px 12px 30px;
+  }
+
+  .install-page__header {
+    padding: 18px 16px 60px;
+  }
+
+  .install-page__refresh-btn {
+    top: auto;
+    right: 16px;
+    bottom: 14px;
+  }
+
+  .install-status-grid,
+  .install-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .install-form-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

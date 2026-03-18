@@ -28,6 +28,7 @@ import HotArticlesPage from './pages/HotArticles';
 import WebsiteComparePage from './pages/WebsiteCompare';
 import NotFoundPage from './pages/NotFound';
 import WebsiteDetail from './pages/WebsiteDetail';
+import InstallPage from './pages/Install';
 import Layout from './components/layout/Layout';
 import DynamicPage from './components/DynamicPage';
 import { FIXED_DYNAMIC_ROUTES, ROOT_NAV_SLUG, isFixedDynamicNavSlug } from './config/navModel';
@@ -83,11 +84,13 @@ const LegacyContentHubRedirect: React.FC<{ tab: 'hot' | 'rankings' | 'daily-hot'
   return <Navigate to={`/p/hot${query ? `?${query}` : ''}`} replace />;
 };
 
-function App() {
+/**
+ * 前台主业务路由（站点首页、搜索、详情等）
+ */
+const MainRouteTree: React.FC = () => {
   return (
     <SiteProvider>
       <UserProvider>
-        <Router>
         <Layout>
           <Routes>
             {/* 固定页面路由 - 统一走动态页模型 */}
@@ -123,13 +126,13 @@ function App() {
             <Route path="/website/:idOrSlug" element={<WebsiteDetail />} />
             <Route path="/vs/:leftIdOrSlug/:rightIdOrSlug" element={<WebsiteComparePage />} />
             <Route path="/vs/:pair" element={<WebsiteComparePage />} />
-            
+
             {/* @pro-feature-start: articles */}
             <Route path="/articles" element={<ArticleList />} />
             <Route path="/article/:slug" element={<ArticleDetail />} />
             <Route path="/articles/:slug" element={<ArticleDetail />} />
             {/* @pro-feature-end: articles */}
-            
+
             <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/submit" element={<SubmitPage />} />
@@ -143,17 +146,37 @@ function App() {
             <Route path="/rankings" element={<LegacyContentHubRedirect tab="rankings" />} />
             <Route path="/p/hot" element={<HotArticlesPage />} />
             <Route path="/hot" element={<HotArticlesPage />} />
-            
+
             {/* 动态页面路由 - 后台新建的页面通过 /p/xxx 访问 */}
             <Route path="/p/:slug" element={<DynamicPageRoute />} />
-            
+
             {/* 404页面 - 必须放在最后 */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Layout>
-      </Router>
       </UserProvider>
     </SiteProvider>
+  );
+};
+
+/**
+ * 应用路由分发器：
+ * /install 走独立安装向导，不加载主布局和站点上下文，避免未安装环境下的依赖干扰。
+ */
+const AppRouteSwitch: React.FC = () => {
+  const location = useLocation();
+  const isInstallRoute = location.pathname === '/install' || location.pathname.startsWith('/install/');
+  if (isInstallRoute) {
+    return <InstallPage />;
+  }
+  return <MainRouteTree />;
+};
+
+function App() {
+  return (
+    <Router>
+      <AppRouteSwitch />
+    </Router>
   );
 }
 

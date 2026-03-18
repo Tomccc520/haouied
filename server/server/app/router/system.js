@@ -16,6 +16,10 @@ module.exports = app => {
   router.all('/api/system/menu/route', controller.system.menusRoute);
   router.all('/api/common/index/console', controller.system.console);
   router.all('/api/common/index/config', controller.system.configInfo);
+  // 安装向导（免登录）
+  router.all('/api/install/status', controller.system.install.status);
+  router.all('/api/install/env-check', controller.system.install.envCheck);
+  router.all('/api/install/initialize', controller.system.install.initialize);
 
   // 部门管理
   router.all('/api/system/dept/list', controller.system.dept.deptList);

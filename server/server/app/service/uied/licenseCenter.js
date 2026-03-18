@@ -17,6 +17,7 @@ const { dbTablePrefix = 'la_' } = require('../../extend/config');
 const LICENSE_INFO_KEY = 'license_center_info';
 const FEATURE_OVERRIDE_KEY = 'license_feature_overrides';
 const COMMERCIAL_MODE_KEY = 'commercial_mode_config';
+const LICENSE_DOMAIN_BINDINGS_KEY = 'license_runtime_domains';
 const LICENSE_SIGN_VERSION = 'v1';
 const USER_TABLE = `${dbTablePrefix}user`;
 const MENU_TABLE = `${dbTablePrefix}system_auth_menu`;
@@ -138,6 +139,159 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 归一化域名文本（支持 host、URL、带端口地址）
+   */
+  normalizeDomain(input = '') {
+    const raw = String(input || '').trim().toLowerCase();
+    if (!raw) return '';
+    let value = raw.replace(/^https?:\/\//, '');
+    value = value.replace(/^wss?:\/\//, '');
+    if (value.includes('@')) value = value.split('@').pop();
+    value = value.split('/')[0].split('?')[0].split('#')[0];
+    if (value.startsWith('[') && value.includes(']')) {
+      value = value.slice(1, value.indexOf(']'));
+    } else {
+      const parts = value.split(':');
+      if (parts.length === 2 && /^\d+$/.test(parts[1])) {
+        value = parts[0];
+      }
+    }
+    return value.replace(/\.$/, '').trim();
+  }
+
+  /**
+   * 判断运行域名是否应忽略授权校验（本地开发场景）
+   */
+  isBypassDomain(domain = '') {
+    const host = this.normalizeDomain(domain);
+    if (!host) return true;
+    if ([ 'localhost', '127.0.0.1', '::1' ].includes(host)) return true;
+    if (host.endsWith('.local')) return true;
+    if (/^10\.\d+\.\d+\.\d+$/.test(host)) return true;
+    if (/^192\.168\.\d+\.\d+$/.test(host)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host)) return true;
+    return false;
+  }
+
+  /**
+   * 获取当前请求域名（优先反向代理头）
+   */
+  getRuntimeDomain() {
+    const { ctx } = this;
+    const host = String(
+      ctx.get('x-forwarded-host')
+      || ctx.get('host')
+      || ctx.request.host
+      || ''
+    ).split(',')[0].trim();
+    return this.normalizeDomain(host);
+  }
+
+  /**
+   * 读取“运行期已绑定域名”缓存
+   */
+  async getRuntimeDomainBindings() {
+    const raw = await this.ctx.service.uied.setting.get(LICENSE_DOMAIN_BINDINGS_KEY);
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const list = Array.isArray(source.domains)
+      ? source.domains
+      : (Array.isArray(raw) ? raw : []);
+    const domains = Array.from(new Set(
+      list.map(item => this.normalizeDomain(item)).filter(Boolean)
+    ));
+    return {
+      domains,
+      updatedAt: Number(source.updatedAt || 0) || 0,
+    };
+  }
+
+  /**
+   * 保存“运行期已绑定域名”缓存
+   */
+  async saveRuntimeDomainBindings(domains = []) {
+    const normalizedDomains = Array.from(new Set(
+      this.toStringList(domains).map(item => this.normalizeDomain(item)).filter(Boolean)
+    ));
+    await this.ctx.service.uied.setting.save({
+      [LICENSE_DOMAIN_BINDINGS_KEY]: {
+        domains: normalizedDomains,
+        updatedAt: Math.floor(Date.now() / 1000),
+      },
+    });
+    return normalizedDomains;
+  }
+
+  /**
+   * 解析并应用域名授权策略（按商业模式开关决定是否强制）
+   */
+  async resolveDomainAuthorization(licenseInfo = {}, commercialMode = {}, options = {}) {
+    const runtimeDomain = this.getRuntimeDomain();
+    const enforceEnabled = commercialMode?.enforceDomainBinding === true;
+    const baseIsActive = options?.baseIsActive === true;
+    const domainLimit = Math.max(1, Number.parseInt(String(licenseInfo?.domainLimit || 1), 10) || 1);
+    const manualWhitelist = Array.from(new Set(
+      this.toStringList(licenseInfo?.domainWhitelist)
+        .map(item => this.normalizeDomain(item))
+        .filter(Boolean)
+    ));
+    const whitelistSet = new Set(manualWhitelist);
+    const bindingState = await this.getRuntimeDomainBindings();
+    const runtimeBindings = bindingState.domains.filter(item => !whitelistSet.has(item));
+    let registeredDomains = Array.from(new Set([ ...manualWhitelist, ...runtimeBindings ]));
+
+    /**
+     * 默认值：不开启时始终放行，只展示已配置域名信息。
+     */
+    const result = {
+      domainEnforceEnabled: enforceEnabled,
+      runtimeDomain,
+      domainLimit,
+      domainUsedCount: registeredDomains.length,
+      domainRemainingCount: Math.max(0, domainLimit - registeredDomains.length),
+      isDomainAuthorized: true,
+      domainReason: 'not_enforced',
+      registeredDomains,
+    };
+
+    if (!enforceEnabled) return result;
+    if (!baseIsActive) {
+      result.domainReason = 'license_inactive';
+      return result;
+    }
+    if (this.isBypassDomain(runtimeDomain)) {
+      result.domainReason = 'runtime_domain_bypass';
+      return result;
+    }
+    if (!runtimeDomain) {
+      result.domainReason = 'runtime_domain_empty';
+      return result;
+    }
+
+    if (registeredDomains.includes(runtimeDomain)) {
+      result.domainReason = 'already_bound';
+      return result;
+    }
+
+    if (registeredDomains.length >= domainLimit) {
+      result.isDomainAuthorized = false;
+      result.domainReason = 'domain_limit_exceeded';
+      return result;
+    }
+
+    /**
+     * 新域名在额度内首次访问时自动登记，保证“域名数限制”可落地。
+     */
+    const nextRuntimeBindings = Array.from(new Set([ ...runtimeBindings, runtimeDomain ]));
+    await this.saveRuntimeDomainBindings(nextRuntimeBindings);
+    registeredDomains = Array.from(new Set([ ...manualWhitelist, ...nextRuntimeBindings ]));
+    result.domainUsedCount = registeredDomains.length;
+    result.domainRemainingCount = Math.max(0, domainLimit - registeredDomains.length);
+    result.domainReason = 'auto_bound';
+    result.registeredDomains = registeredDomains;
+    return result;
+  }
+
+  /**
    * 规范化商业版模式配置
    */
   normalizeCommercialMode(payload = {}) {
@@ -145,6 +299,7 @@ class LicenseCenterService extends Service {
     return {
       strictLegacyRoutes: this.parseBoolean(source.strictLegacyRoutes, false),
       enforceLicenseSignature: this.parseBoolean(source.enforceLicenseSignature, false),
+      enforceDomainBinding: this.parseBoolean(source.enforceDomainBinding, false),
       updatedAt: Number(source.updatedAt || 0) || Math.floor(Date.now() / 1000),
     };
   }
@@ -306,9 +461,13 @@ class LicenseCenterService extends Service {
     const isSignatureValid = this.verifyLicenseSignature(normalized);
     const signatureBlocked = signatureRequired && !isSignatureValid;
     const isExpired = normalized.expiresAt > 0 && normalized.expiresAt < now;
-    const isActive = rawStatus === 'active' && !isExpired && !signatureBlocked;
+    const baseIsActive = rawStatus === 'active' && !isExpired && !signatureBlocked;
+    const domainAuth = await this.resolveDomainAuthorization(normalized, mode, { baseIsActive });
+    const isActive = baseIsActive && (!domainAuth.domainEnforceEnabled || domainAuth.isDomainAuthorized);
     const effectiveEdition = isActive ? normalized.edition : 'free';
-    const status = signatureBlocked ? 'invalid_signature' : rawStatus;
+    const status = signatureBlocked
+      ? 'invalid_signature'
+      : (!domainAuth.isDomainAuthorized && domainAuth.domainEnforceEnabled ? 'domain_limit_exceeded' : rawStatus);
     return {
       ...normalized,
       rawStatus,
@@ -318,6 +477,13 @@ class LicenseCenterService extends Service {
       effectiveEdition,
       isSignatureValid,
       signatureRequired,
+      domainEnforceEnabled: domainAuth.domainEnforceEnabled,
+      isDomainAuthorized: domainAuth.isDomainAuthorized,
+      domainReason: domainAuth.domainReason,
+      runtimeDomain: domainAuth.runtimeDomain,
+      domainUsedCount: domainAuth.domainUsedCount,
+      domainRemainingCount: domainAuth.domainRemainingCount,
+      registeredDomains: domainAuth.registeredDomains,
       now,
     };
   }
@@ -498,6 +664,24 @@ class LicenseCenterService extends Service {
         : '许可证签名强校验未开启',
     });
     checks.push({
+      key: 'license_domain_enforce',
+      status: commercialMode.enforceDomainBinding ? 'pass' : 'warn',
+      message: commercialMode.enforceDomainBinding
+        ? '域名绑定数量限制已开启'
+        : '域名绑定数量限制未开启',
+    });
+    checks.push({
+      key: 'license_domain_authorized',
+      status: commercialMode.enforceDomainBinding
+        ? (licenseInfo.isDomainAuthorized ? 'pass' : 'fail')
+        : 'warn',
+      message: commercialMode.enforceDomainBinding
+        ? (licenseInfo.isDomainAuthorized
+          ? `当前域名已授权（${licenseInfo.runtimeDomain || 'unknown'}）`
+          : `当前域名未授权（${licenseInfo.runtimeDomain || 'unknown'}）`)
+        : '未开启域名授权校验',
+    });
+    checks.push({
       key: 'article_module_enabled',
       status: normalizedArticleConfig.enabled ? 'pass' : 'warn',
       message: normalizedArticleConfig.enabled
@@ -538,6 +722,13 @@ class LicenseCenterService extends Service {
         isSignatureValid: licenseInfo.isSignatureValid,
         signatureRequired: licenseInfo.signatureRequired,
         expiresAt: licenseInfo.expiresAt,
+        domainEnforceEnabled: licenseInfo.domainEnforceEnabled,
+        isDomainAuthorized: licenseInfo.isDomainAuthorized,
+        runtimeDomain: licenseInfo.runtimeDomain,
+        domainLimit: licenseInfo.domainLimit,
+        domainUsedCount: licenseInfo.domainUsedCount,
+        domainRemainingCount: licenseInfo.domainRemainingCount,
+        registeredDomains: licenseInfo.registeredDomains,
         updatedAt: licenseInfo.updatedAt,
       },
       commercialMode,

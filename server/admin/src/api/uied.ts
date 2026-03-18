@@ -311,6 +311,11 @@ export function uiedCommercialModeSave(params: any) {
     return request.post({ url: '/uied/commercial/mode/save', params })
 }
 
+// 获取商业版总览
+export function uiedCommercialOverview() {
+    return request.get({ url: '/uied/commercial/overview' })
+}
+
 // 获取文章公开配置
 export function uiedArticleConfig() {
     return request.get({ url: '/uied/setting/articleConfig' })

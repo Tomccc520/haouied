@@ -131,6 +131,9 @@ const rsa = {
   notLoginUri: [
     'system:login', // 登录接口
     'system:login:captcha', // 登录验证码
+    'install:status', // 安装向导状态
+    'install:env-check', // 安装向导环境检测
+    'install:initialize', // 安装向导初始化执行
     'common:index:config', // 配置接口
     // 前端兼容接口 - 免登录（支持通配符 * 匹配）
     'pages', // GET /api/pages
