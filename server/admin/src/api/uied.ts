@@ -221,6 +221,113 @@ export function uiedSettingSave(params: any) {
     return request.post({ url: '/uied/setting/save', params })
 }
 
+// ==================== SEO 中心 ====================
+
+// 获取 SEO 中心总览
+export function uiedSeoCenterOverview() {
+    return request.get({ url: '/uied/setting/get/seoCenter/overview' })
+}
+
+// 获取 SEO 中心配置
+export function uiedSeoCenterConfigGet() {
+    return request.get({ url: '/uied/setting/get/seoCenter/config' })
+}
+
+// 保存 SEO 中心配置
+export function uiedSeoCenterConfigSave(params: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/config', params })
+}
+
+// 预览 robots.txt
+export function uiedSeoCenterRobotsPreview(params?: any) {
+    return request.get({ url: '/uied/setting/get/seoCenter/robots/preview', params })
+}
+
+// 预览基础 sitemap.xml
+export function uiedSeoCenterSitemapBasicPreview(params?: any) {
+    return request.get({ url: '/uied/setting/get/seoCenter/sitemap/basic/preview', params })
+}
+
+// 预览进阶 sitemap 索引
+export function uiedSeoCenterSitemapAdvancedPreview(params?: any) {
+    return request.get({ url: '/uied/setting/get/seoCenter/sitemap/advanced/preview', params })
+}
+
+// 预览进阶 sitemap 子文件
+export function uiedSeoCenterSitemapAdvancedFilePreview(params: any) {
+    return request.get({ url: '/uied/setting/get/seoCenter/sitemap/advanced/file', params })
+}
+
+// 获取 404 日志
+export function uiedSeoCenterLogs404() {
+    return request.get({ url: '/uied/setting/get/seoCenter/logs/404' })
+}
+
+// 获取失效 URL 日志
+export function uiedSeoCenterLogsInvalid() {
+    return request.get({ url: '/uied/setting/get/seoCenter/logs/invalid' })
+}
+
+// 获取进阶链接检测日志
+export function uiedSeoCenterLogsLinkDetector() {
+    return request.get({ url: '/uied/setting/get/seoCenter/logs/link-detector' })
+}
+
+// 获取图片优化日志
+export function uiedSeoCenterLogsImageOptimization() {
+    return request.get({ url: '/uied/setting/get/seoCenter/logs/image-optimization' })
+}
+
+// 获取站长推送日志
+export function uiedSeoCenterLogsPush() {
+    return request.get({ url: '/uied/setting/get/seoCenter/logs/push' })
+}
+
+// 获取自动任务日志
+export function uiedSeoCenterLogsAutoTask() {
+    return request.get({ url: '/uied/setting/get/seoCenter/logs/auto-task' })
+}
+
+// 获取自动任务状态
+export function uiedSeoCenterAutoTaskStatus() {
+    return request.get({ url: '/uied/setting/get/seoCenter/auto-task/status' })
+}
+
+// 清空日志
+export function uiedSeoCenterLogsClear(params: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/logs/clear', params })
+}
+
+// 执行失效 URL 扫描
+export function uiedSeoCenterScanInvalid(params?: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/scan/invalid', params })
+}
+
+// 执行进阶链接检测
+export function uiedSeoCenterScanLinkDetector(params?: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/scan/link-detector', params })
+}
+
+// 执行图片优化检测
+export function uiedSeoCenterScanImageOptimization(params?: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/scan/image-optimization', params })
+}
+
+// 获取内部链接建议
+export function uiedSeoCenterInternalLinks(params?: any) {
+    return request.get({ url: '/uied/setting/get/seoCenter/internal-links', params })
+}
+
+// 执行站长平台推送
+export function uiedSeoCenterPushPlatform(params: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/push/platform', params })
+}
+
+// 执行自动任务
+export function uiedSeoCenterAutoTaskRun(params?: any) {
+    return request.post({ url: '/uied/setting/save/seoCenter/auto-task/run', params })
+}
+
 // 获取站点信息
 export function uiedSiteInfo() {
     return request.get({ url: '/uied/setting/siteInfo' })

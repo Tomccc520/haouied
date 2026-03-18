@@ -83,18 +83,54 @@
         upsertCanonical(currentUrl);
       }
 
-      fetch('/api/site-info?_t=' + Date.now(), { cache: 'no-store' })
-        .then(function(response) {
-          if (!response || !response.ok) return null;
-          return response.json();
-        })
-        .then(function(payload) {
-          if (!payload) return;
-          var data = payload && typeof payload === 'object' && payload.data ? payload.data : payload;
-          applySeo(data);
-        })
-        .catch(function() {
-          // 静默降级：保留构建时默认 SEO，避免阻断页面加载。
+      function applyWebmasterVerification(config) {
+        var source = config && typeof config === 'object' ? config : {};
+        var map = [
+          { field: 'baidu', name: 'baidu-site-verification' },
+          { field: 'google', name: 'google-site-verification' },
+          { field: 'bing', name: 'msvalidate.01' },
+          { field: 'sogou', name: 'sogou_site_verification' },
+          { field: 'so360', name: '360-site-verification' }
+        ];
+        map.forEach(function(item) {
+          var code = String(source[item.field] || '').trim();
+          if (!code) return;
+          upsertMeta('name', item.name, code);
+        });
+      }
+
+      function fetchJson(url) {
+        return fetch(url, { cache: 'no-store' })
+          .then(function(response) {
+            if (!response || !response.ok) return null;
+            return response.json();
+          })
+          .catch(function() {
+            return null;
+          });
+      }
+
+      Promise.all([
+        fetchJson('/api/site-info?_t=' + Date.now()),
+        fetchJson('/api/seo/public-config?_t=' + Date.now())
+      ])
+        .then(function(results) {
+          var siteInfoPayload = results && results[0];
+          var seoConfigPayload = results && results[1];
+
+          if (siteInfoPayload) {
+            var siteData = siteInfoPayload && typeof siteInfoPayload === 'object' && siteInfoPayload.data
+              ? siteInfoPayload.data
+              : siteInfoPayload;
+            applySeo(siteData);
+          }
+
+          if (seoConfigPayload) {
+            var seoData = seoConfigPayload && typeof seoConfigPayload === 'object' && seoConfigPayload.data
+              ? seoConfigPayload.data
+              : seoConfigPayload;
+            applyWebmasterVerification(seoData && seoData.webmasterVerification);
+          }
         });
     })();
     </script>

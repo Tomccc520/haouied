@@ -115,6 +115,28 @@ module.exports = app => {
   router.all('/api/uied/setting/saveArticleConfig', controller.uied.setting.saveArticleConfig);
   router.all('/api/uied/setting/articleTopicsConfig', controller.uied.setting.articleTopicsConfig);
   router.all('/api/uied/setting/saveArticleTopicsConfig', controller.uied.setting.saveArticleTopicsConfig);
+  // ==================== SEO 中心 ====================
+  router.all('/api/uied/setting/get/seoCenter/overview', controller.uied.seoCenter.overview);
+  router.all('/api/uied/setting/get/seoCenter/config', controller.uied.seoCenter.configGet);
+  router.all('/api/uied/setting/get/seoCenter/robots/preview', controller.uied.seoCenter.robotsPreview);
+  router.all('/api/uied/setting/get/seoCenter/sitemap/basic/preview', controller.uied.seoCenter.sitemapBasicPreview);
+  router.all('/api/uied/setting/get/seoCenter/sitemap/advanced/preview', controller.uied.seoCenter.sitemapAdvancedPreview);
+  router.all('/api/uied/setting/get/seoCenter/sitemap/advanced/file', controller.uied.seoCenter.sitemapAdvancedFilePreview);
+  router.all('/api/uied/setting/get/seoCenter/logs/404', controller.uied.seoCenter.logs404);
+  router.all('/api/uied/setting/get/seoCenter/logs/invalid', controller.uied.seoCenter.logsInvalid);
+  router.all('/api/uied/setting/get/seoCenter/logs/link-detector', controller.uied.seoCenter.logsLinkDetector);
+  router.all('/api/uied/setting/get/seoCenter/logs/image-optimization', controller.uied.seoCenter.logsImageOptimization);
+  router.all('/api/uied/setting/get/seoCenter/logs/push', controller.uied.seoCenter.logsPush);
+  router.all('/api/uied/setting/get/seoCenter/logs/auto-task', controller.uied.seoCenter.logsAutoTask);
+  router.all('/api/uied/setting/get/seoCenter/auto-task/status', controller.uied.seoCenter.autoTaskStatus);
+  router.all('/api/uied/setting/get/seoCenter/internal-links', controller.uied.seoCenter.internalLinks);
+  router.all('/api/uied/setting/save/seoCenter/config', controller.uied.seoCenter.configSave);
+  router.all('/api/uied/setting/save/seoCenter/logs/clear', controller.uied.seoCenter.logsClear);
+  router.all('/api/uied/setting/save/seoCenter/scan/invalid', controller.uied.seoCenter.scanInvalid);
+  router.all('/api/uied/setting/save/seoCenter/scan/link-detector', controller.uied.seoCenter.scanLinkDetector);
+  router.all('/api/uied/setting/save/seoCenter/scan/image-optimization', controller.uied.seoCenter.scanImageOptimization);
+  router.all('/api/uied/setting/save/seoCenter/push/platform', controller.uied.seoCenter.pushPlatform);
+  router.all('/api/uied/setting/save/seoCenter/auto-task/run', controller.uied.seoCenter.autoTaskRun);
   // 注册/登录配置
   router.all('/api/uied/setting/auth-config', controller.uied.setting.getAuthConfig);
   router.all('/api/uied/setting/auth-config/update', controller.uied.setting.updateAuthConfig);

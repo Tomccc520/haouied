@@ -1467,6 +1467,146 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取公开 SEO 配置（前端运行时可直接消费）
+   * GET /api/seo/public-config
+   */
+  async seoPublicConfig() {
+    const { ctx } = this;
+
+    try {
+      this.setNoCacheHeaders();
+      const config = await ctx.service.uied.seoCenter.getConfigCached();
+      ctx.body = ctx.service.uied.seoCenter.buildPublicConfig(config);
+    } catch (error) {
+      ctx.logger.error('获取公开 SEO 配置失败:', error);
+      // 公开配置接口采用“降级可用”策略，避免前台因单点失败中断。
+      ctx.body = ctx.service.uied.seoCenter.buildPublicConfig({});
+    }
+  }
+
+  /**
+   * 前端上报 404 访问日志
+   * POST /api/seo/report-404
+   */
+  async seoReport404() {
+    const { ctx } = this;
+    const payload = ctx.request.body || {};
+
+    try {
+      const path = String(payload?.path || ctx.query?.path || '').trim() || '/';
+      const entry = await ctx.service.uied.seoCenter.record404Log({
+        path,
+        referer: String(payload?.referer || ctx.get('referer') || '').trim(),
+        userAgent: String(payload?.userAgent || ctx.get('user-agent') || '').trim(),
+        source: String(payload?.source || 'frontend').trim() || 'frontend',
+        ip: String(ctx.ip || '').trim(),
+      });
+      ctx.body = {
+        success: true,
+        id: String(entry?.id || ''),
+      };
+    } catch (error) {
+      ctx.logger.error('上报 404 日志失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '上报 404 日志失败' };
+    }
+  }
+
+  /**
+   * 输出 robots.txt（文本）
+   * GET /robots.txt
+   */
+  async robotsTxt() {
+    const { ctx } = this;
+    const siteOrigin = String(ctx.query?.siteOrigin || '').trim();
+    try {
+      this.setNoCacheHeaders();
+      const text = await ctx.service.uied.seoCenter.buildRobotsTxt({ siteOrigin });
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = text;
+    } catch (error) {
+      ctx.logger.error('生成 robots.txt 失败:', error);
+      ctx.status = 500;
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'robots.txt generate failed';
+    }
+  }
+
+  /**
+   * 输出基础 sitemap.xml（XML）
+   * GET /sitemap.xml
+   */
+  async sitemapXml() {
+    const { ctx } = this;
+    const siteOrigin = String(ctx.query?.siteOrigin || '').trim();
+    try {
+      this.setNoCacheHeaders();
+      const xml = await ctx.service.uied.seoCenter.buildBasicSitemapXml({ siteOrigin });
+      ctx.type = 'application/xml; charset=utf-8';
+      ctx.body = xml;
+    } catch (error) {
+      ctx.logger.error('生成 sitemap.xml 失败:', error);
+      ctx.status = 500;
+      ctx.type = 'application/xml; charset=utf-8';
+      ctx.body = '<?xml version="1.0" encoding="UTF-8"?><error>generate sitemap failed</error>';
+    }
+  }
+
+  /**
+   * 输出进阶 sitemap 索引（XML）
+   * GET /sitemap-advanced.xml
+   */
+  async sitemapAdvancedXml() {
+    const { ctx } = this;
+    const siteOrigin = String(ctx.query?.siteOrigin || '').trim();
+    try {
+      this.setNoCacheHeaders();
+      const bundle = await ctx.service.uied.seoCenter.buildAdvancedSitemapBundle({ siteOrigin });
+      ctx.type = 'application/xml; charset=utf-8';
+      ctx.body = bundle.indexXml;
+    } catch (error) {
+      ctx.logger.error('生成进阶 sitemap 索引失败:', error);
+      ctx.status = 500;
+      ctx.type = 'application/xml; charset=utf-8';
+      ctx.body = '<?xml version="1.0" encoding="UTF-8"?><error>generate advanced sitemap failed</error>';
+    }
+  }
+
+  /**
+   * 输出进阶 sitemap 子文件（XML）
+   * GET /sitemap-advanced/:fileName
+   */
+  async sitemapAdvancedFile() {
+    const { ctx } = this;
+    const fileName = String(ctx.params?.fileName || '').trim();
+    const siteOrigin = String(ctx.query?.siteOrigin || '').trim();
+    try {
+      if (!/^[a-z0-9._-]+\.xml$/i.test(fileName)) {
+        ctx.status = 400;
+        ctx.type = 'application/xml; charset=utf-8';
+        ctx.body = '<?xml version="1.0" encoding="UTF-8"?><error>invalid file name</error>';
+        return;
+      }
+      this.setNoCacheHeaders();
+      const bundle = await ctx.service.uied.seoCenter.buildAdvancedSitemapBundle({ siteOrigin });
+      const xml = bundle.files[fileName];
+      if (!xml) {
+        ctx.status = 404;
+        ctx.type = 'application/xml; charset=utf-8';
+        ctx.body = '<?xml version="1.0" encoding="UTF-8"?><error>sitemap file not found</error>';
+        return;
+      }
+      ctx.type = 'application/xml; charset=utf-8';
+      ctx.body = xml;
+    } catch (error) {
+      ctx.logger.error('读取进阶 sitemap 子文件失败:', error);
+      ctx.status = 500;
+      ctx.type = 'application/xml; charset=utf-8';
+      ctx.body = '<?xml version="1.0" encoding="UTF-8"?><error>read advanced sitemap failed</error>';
+    }
+  }
+
+  /**
    * 获取 SEO 预渲染路由清单（构建阶段使用）。
    * GET /api/seo/prerender-manifest
    */

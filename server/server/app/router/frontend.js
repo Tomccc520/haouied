@@ -63,6 +63,16 @@ module.exports = app => {
    */
   const delLegacy = (path, action) => router.delete(path, legacyRouteGuard, frontendNormalize, action);
 
+  // ==================== SEO 公开文件（原始文本，禁止包裹成 JSON） ====================
+  // GET /robots.txt
+  router.get('/robots.txt', controller.uied.frontend.robotsTxt);
+  // GET /sitemap.xml
+  router.get('/sitemap.xml', controller.uied.frontend.sitemapXml);
+  // GET /sitemap-advanced.xml
+  router.get('/sitemap-advanced.xml', controller.uied.frontend.sitemapAdvancedXml);
+  // GET /sitemap-advanced/:fileName
+  router.get('/sitemap-advanced/:fileName', controller.uied.frontend.sitemapAdvancedFile);
+
   // ==================== 页面相关 ====================
   // GET /api/pages - 获取所有页面
   get('/api/pages', controller.uied.frontend.pages);
@@ -237,6 +247,10 @@ module.exports = app => {
 
   // GET /api/site-info - 获取站点信息
   get('/api/site-info', controller.uied.frontend.siteInfo);
+  // GET /api/seo/public-config - 获取公开 SEO 配置（TDK 模板/站长验证/链接改写策略）
+  get('/api/seo/public-config', controller.uied.frontend.seoPublicConfig);
+  // POST /api/seo/report-404 - 前端上报 404 访问记录
+  post('/api/seo/report-404', controller.uied.frontend.seoReport404);
   // GET /api/seo/prerender-manifest - 获取 SEO 预渲染路由清单
   get('/api/seo/prerender-manifest', controller.uied.frontend.seoPrerenderManifest);
 

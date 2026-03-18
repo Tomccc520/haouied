@@ -184,6 +184,14 @@ const rsa = {
     'social-media', // GET /api/social-media
     'banners', // GET /api/banners
     'site-info', // GET /api/site-info
+    'seo:public-config', // GET /api/seo/public-config
+    'seo:prerender-manifest', // GET /api/seo/prerender-manifest
+    'seo:report-404', // POST /api/seo/report-404
+    'robots.txt', // GET /robots.txt
+    'sitemap.xml', // GET /sitemap.xml
+    'sitemap-advanced.xml', // GET /sitemap-advanced.xml
+    'sitemap-advanced', // GET /sitemap-advanced/:fileName
+    'sitemap-advanced:*', // GET /sitemap-advanced/:fileName
     'daily-hot', // GET /api/daily-hot
     'daily-hot:platforms', // GET /api/daily-hot/platforms
     'daily-new:config', // GET /api/daily-new/config

@@ -71,6 +71,20 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.8',
+    date: '2026-03-18',
+    title: '正式版1.0.8：SEO中心（配置化 + 检测 + 推送）首版上线',
+    changes: [
+      { type: 'feature', scope: 'backend', text: '【SEO中心】新增后端服务 `seoCenter`：支持 TDK 模板、图片优化、链接改写、404监测、失效URL检测、基础/进阶 Sitemap、Robots 规则、站长验证、重定向、内部链接建议与进阶链接检测' },
+      { type: 'feature', scope: 'backend', text: '【SEO公开文件】新增可直接访问的 `GET /robots.txt`、`GET /sitemap.xml`、`GET /sitemap-advanced.xml`、`GET /sitemap-advanced/:fileName`，并同步加入免登录白名单' },
+      { type: 'feature', scope: 'backend', text: '【站长推送】新增百度/Bing/IndexNow 推送能力：支持按平台推送 URL 列表并记录推送日志（成功条数、样例 URL、响应结果）' },
+      { type: 'feature', scope: 'backend', text: '【监测链路】新增 `seo_rewrite` 中间件：支持链接改写重定向规则与 404 日志自动记录，便于后续做异常页面追踪' },
+      { type: 'feature', scope: 'frontend', text: '【后台管理】新增“SEO中心”页面（基础配置/重定向规则/检测与日志/站长推送四标签），支持在线预览 robots 与 sitemap，执行扫描与清空日志' },
+      { type: 'feature', scope: 'backend', text: '【后台接口】新增 `/api/uied/setting/get|save/seoCenter/*` 统一接口组，复用站点设置权限体系（`uied:setting:get/save`）降低角色改造成本' },
+      { type: 'feature', scope: 'backend', text: '【菜单补丁】新增 SQL 补丁 `patch_2026_0318_seo_center_menu.sql`：在“网站设置 -> 基础配置”下新增“SEO中心”菜单并自动补齐管理员角色授权' },
+    ]
+  },
+  {
     version: '1.0.7',
     date: '2026-03-17',
     title: '正式版1.0.7：批量导入文章/网址支持 AI 模型与提示词配置',
