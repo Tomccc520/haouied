@@ -81,6 +81,12 @@ const menuKeyword = ref('')
 const activeMenu = computed<string>(() => route.meta?.activeMenu || route.path)
 const themeClass = computed(() => `theme-${props.theme}`)
 
+interface MenuCategoryDefinition {
+    key: string
+    label: string
+    icon: string
+}
+
 /**
  * 解析菜单节点完整路径：兼容相对路径与外链路径。
  * @param path 当前节点路径
@@ -107,6 +113,118 @@ const isMenuNodeMatched = (item: RouteRecordRaw, keyword: string) => {
 }
 
 /**
+ * 读取菜单节点用于分组识别的文本（标题 + 路径）。
+ * @param item 菜单节点
+ */
+const getRouteGroupText = (item: RouteRecordRaw) => {
+    const title = String(item?.meta?.title || '').toLowerCase()
+    const path = String(item?.path || '').toLowerCase()
+    return `${title} ${path}`.trim()
+}
+
+/**
+ * 根据菜单节点标题与路径做一级分组归类。
+ * @param item 一级菜单节点
+ */
+const MENU_CATEGORY_DEFINITIONS: MenuCategoryDefinition[] = [
+    { key: 'workspace', label: '工作中心', icon: 'el-icon-HomeFilled' },
+    { key: 'content', label: '内容生产', icon: 'el-icon-Document' },
+    { key: 'growth', label: '运营增长', icon: 'el-icon-DataLine' },
+    { key: 'commercial', label: '商业交付', icon: 'el-icon-Suitcase' },
+    { key: 'system', label: '系统工具', icon: 'el-icon-Setting' }
+]
+const MENU_SECOND_LEVEL_DEFAULT_ICON = 'el-icon-Menu'
+
+/**
+ * 读取路由元数据并确保为对象，避免直接修改原始响应式对象。
+ * @param item 路由节点
+ */
+const getRouteMetaRecord = (item: RouteRecordRaw): Record<string, any> => {
+    const rawMeta = item?.meta as Record<string, any> | undefined
+    return rawMeta && typeof rawMeta === 'object' ? { ...rawMeta } : {}
+}
+
+/**
+ * 深拷贝菜单路由节点，并补齐二级图标默认值，统一视觉风格。
+ * @param item 路由节点
+ * @param depth 当前树深度（分组根节点为1）
+ */
+const cloneRouteForMenu = (item: RouteRecordRaw, depth = 1): RouteRecordRaw => {
+    const metaRecord = getRouteMetaRecord(item)
+    if (depth >= 2 && !String(metaRecord.icon || '').trim()) {
+        metaRecord.icon = MENU_SECOND_LEVEL_DEFAULT_ICON
+    }
+
+    const nextChildren = Array.isArray(item.children)
+        ? (item.children as RouteRecordRaw[])
+            .filter((child) => !child?.meta?.hidden)
+            .map((child) => cloneRouteForMenu(child, depth + 1))
+        : []
+
+    return {
+        ...item,
+        meta: metaRecord,
+        children: nextChildren
+    } as RouteRecordRaw
+}
+
+/**
+ * 根据菜单节点标题与路径进行业务归类。
+ * @param item 一级菜单节点
+ */
+const classifyTopLevelRoute = (item: RouteRecordRaw): string => {
+    const text = getRouteGroupText(item)
+
+    if (text.includes('工作台') || text.includes('workbench')) {
+        return 'workspace'
+    }
+
+    if (
+        text.includes('运营') ||
+        text.includes('banner') ||
+        text.includes('专题') ||
+        text.includes('榜单') ||
+        text.includes('热榜') ||
+        text.includes('推荐') ||
+        text.includes('seo') ||
+        text.includes('推送') ||
+        text.includes('sitemap') ||
+        text.includes('robots') ||
+        text.includes('重定向') ||
+        text.includes('检测') ||
+        text.includes('站长')
+    ) {
+        return 'growth'
+    }
+
+    if (
+        text.includes('商业') ||
+        text.includes('license') ||
+        text.includes('授权') ||
+        text.includes('交付') ||
+        text.includes('install')
+    ) {
+        return 'commercial'
+    }
+
+    if (
+        text.includes('系统') ||
+        text.includes('权限') ||
+        text.includes('角色') ||
+        text.includes('菜单') ||
+        text.includes('配置') ||
+        text.includes('setting') ||
+        text.includes('admin') ||
+        text.includes('monitor') ||
+        text.includes('日志')
+    ) {
+        return 'system'
+    }
+
+    return 'content'
+}
+
+/**
  * 递归过滤菜单树：父节点命中或子节点命中时保留
  * @param list 原菜单列表
  * @param keyword 搜索关键词
@@ -129,19 +247,56 @@ const filterMenuTree = (list: RouteRecordRaw[] = [], keyword: string): RouteReco
 }
 
 /**
- * 展示菜单（未搜索时显示全部，搜索时显示过滤后的树）
+ * 构建结构化菜单：先按业务分类生成一级目录，再挂载原菜单为二级/三级。
+ * @param list 原始菜单
+ */
+const buildStructuredRoutes = (list: RouteRecordRaw[] = []): RouteRecordRaw[] => {
+    const rootBuckets = new Map<string, RouteRecordRaw>()
+
+    MENU_CATEGORY_DEFINITIONS.forEach((definition, index) => {
+        rootBuckets.set(definition.key, {
+            path: `/menu-group-${definition.key}`,
+            name: `menu_group_${definition.key}_${index}`,
+            meta: {
+                title: definition.label,
+                icon: definition.icon
+            },
+            children: []
+        } as RouteRecordRaw)
+    })
+
+    list
+        .filter((item) => item && !item.meta?.hidden)
+        .forEach((item) => {
+            const groupKey = classifyTopLevelRoute(item)
+            const bucket = rootBuckets.get(groupKey)
+            if (!bucket) return
+            const children = Array.isArray(bucket.children) ? bucket.children : []
+            children.push(cloneRouteForMenu(item, 2))
+            bucket.children = children
+        })
+
+    return MENU_CATEGORY_DEFINITIONS
+        .map((definition) => rootBuckets.get(definition.key))
+        .filter((item): item is RouteRecordRaw => Boolean(item))
+        .filter((item) => Array.isArray(item.children) && item.children.length > 0)
+}
+
+/**
+ * 展示菜单（先结构化分组，再按关键词过滤）
  */
 const displayRoutes = computed<RouteRecordRaw[]>(() => {
     const routeList = (props.routes || []) as RouteRecordRaw[]
+    const structuredRoutes = buildStructuredRoutes(routeList)
     const keyword = String(menuKeyword.value || '').trim()
-    return filterMenuTree(routeList, keyword)
+    return filterMenuTree(structuredRoutes, keyword)
 })
 
 /**
  * 计算可见叶子菜单数量，用于顶部状态展示。
  * @param list 当前菜单树
  */
-const countVisibleLeafMenus = (list: RouteRecordRaw[] = []): number => {
+function countVisibleLeafMenus(list: RouteRecordRaw[] = []): number {
     return list.reduce((count, item) => {
         if (!item || item.meta?.hidden) return count
         const children = Array.isArray(item.children)
