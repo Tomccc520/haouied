@@ -14,7 +14,6 @@ import api from '../../services/api';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { getFullImageUrl } from '../../utils/urlUtils';
 import SEO from '../../components/SEO';
-import DetailMediaCarousel from '../../components/DetailMediaCarousel';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { usePublicSettings } from '../../hooks/usePublicSettings';
 import ArticleComments from './ArticleComments';
@@ -46,6 +45,22 @@ const extractImageUrlsFromHtml = (html: string): string[] => {
     result = regex.exec(content);
   }
   return matches;
+};
+
+/**
+ * 归一化图片地址（仅保留 origin + path），用于灯箱索引匹配。
+ */
+const normalizeImageCompareUrl = (value: string): string => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const fullUrl = getFullImageUrl(text) || text;
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://localhost';
+    const url = new URL(fullUrl, base);
+    return `${url.origin}${url.pathname}`;
+  } catch (error) {
+    return fullUrl.split('?')[0].split('#')[0];
+  }
 };
 
 interface DetailActionRailIconProps {
@@ -251,6 +266,8 @@ const ArticleDetail: React.FC = () => {
   const [sidebarHotWebsitesLoading, setSidebarHotWebsitesLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<ArticleDetailTabKey>('intro');
   const [likeCount, setLikeCount] = useState(0);
+  const [imageLightboxOpen, setImageLightboxOpen] = useState(false);
+  const [imageLightboxIndex, setImageLightboxIndex] = useState(0);
   const commentsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -411,6 +428,10 @@ const ArticleDetail: React.FC = () => {
       new Set(rows.map((item) => String(item || '').trim()).filter(Boolean))
     );
   }, [article]);
+  const articleGalleryComparableUrls = useMemo(
+    () => articleGalleryImages.map((item) => normalizeImageCompareUrl(item)),
+    [articleGalleryImages]
+  );
   const latestArticlesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'latest_articles');
   const hotWebsitesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'hot_websites');
   const articleTagsModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'article_tags');
@@ -493,6 +514,84 @@ const ArticleDetail: React.FC = () => {
     };
     fetchSidebarHotWebsites();
   }, [detailSidebarEnabled, hotWebsitesModuleEnabled, detailSidebarHotWebsitesCount]);
+
+  /**
+   * 切换文章时关闭灯箱并重置索引，避免旧状态串场。
+   */
+  useEffect(() => {
+    setImageLightboxOpen(false);
+    setImageLightboxIndex(0);
+  }, [article?.id]);
+
+  /**
+   * 灯箱打开时支持 ESC/方向键操作，提升阅读体验。
+   */
+  useEffect(() => {
+    if (!imageLightboxOpen || articleGalleryImages.length === 0) return;
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setImageLightboxOpen(false);
+        return;
+      }
+      if (articleGalleryImages.length <= 1) return;
+      if (event.key === 'ArrowLeft') {
+        setImageLightboxIndex((prev) => (prev - 1 + articleGalleryImages.length) % articleGalleryImages.length);
+      } else if (event.key === 'ArrowRight') {
+        setImageLightboxIndex((prev) => (prev + 1) % articleGalleryImages.length);
+      }
+    };
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  }, [imageLightboxOpen, articleGalleryImages.length]);
+
+  /**
+   * 根据点击图片定位灯箱索引并打开预览。
+   */
+  const openImageLightboxByUrl = (imageUrl: string) => {
+    if (articleGalleryImages.length === 0) return;
+    const normalized = normalizeImageCompareUrl(imageUrl);
+    let matchedIndex = articleGalleryComparableUrls.findIndex((item) => item === normalized);
+    if (matchedIndex < 0) {
+      matchedIndex = articleGalleryImages.findIndex((item) => item === getFullImageUrl(imageUrl));
+    }
+    setImageLightboxIndex(matchedIndex >= 0 ? matchedIndex : 0);
+    setImageLightboxOpen(true);
+  };
+
+  /**
+   * 正文图片点击委托：仅拦截 img 点击，其他内容保持默认交互。
+   */
+  const handleArticleContentClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const imageElement = target.closest('img');
+    if (!(imageElement instanceof HTMLImageElement)) return;
+    const src = String(
+      imageElement.getAttribute('src')
+      || imageElement.currentSrc
+      || imageElement.src
+      || ''
+    ).trim();
+    if (!src) return;
+    event.preventDefault();
+    openImageLightboxByUrl(src);
+  };
+
+  /**
+   * 灯箱上一张切换。
+   */
+  const handleLightboxPrev = () => {
+    if (articleGalleryImages.length <= 1) return;
+    setImageLightboxIndex((prev) => (prev - 1 + articleGalleryImages.length) % articleGalleryImages.length);
+  };
+
+  /**
+   * 灯箱下一张切换。
+   */
+  const handleLightboxNext = () => {
+    if (articleGalleryImages.length <= 1) return;
+    setImageLightboxIndex((prev) => (prev + 1) % articleGalleryImages.length);
+  };
 
   if (loading) return <div className="detail-loading"><div className="spinner" /></div>;
   
@@ -713,20 +812,11 @@ const ArticleDetail: React.FC = () => {
                 <div className="detail-panel">
                   {activeTab === 'intro' && (
                     <div>
-                      {articleGalleryImages.length > 0 && (
-                        <div className="detail-media-carousel-wrap">
-                          <DetailMediaCarousel
-                            images={articleGalleryImages}
-                            title={article.title}
-                            label="文章图集"
-                            badges={[ 'Gallery' ]}
-                          />
-                        </div>
-                      )}
                       {/* 正文区域 */}
                       <div className="detail-content-wrapper">
                         <div
-                          className="detail-content typography"
+                          className="detail-content detail-content--interactive typography"
+                          onClick={handleArticleContentClick}
                           dangerouslySetInnerHTML={{ __html: article.content }}
                         />
                       </div>
@@ -812,6 +902,38 @@ const ArticleDetail: React.FC = () => {
           )}
         </div>
       </div>
+      {imageLightboxOpen && articleGalleryImages.length > 0 && (
+        <div className="article-image-lightbox" role="dialog" aria-modal="true" onClick={() => setImageLightboxOpen(false)}>
+          <div className="article-image-lightbox__dialog" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="article-image-lightbox__close"
+              aria-label="关闭图片预览"
+              onClick={() => setImageLightboxOpen(false)}
+            >
+              ×
+            </button>
+            <img
+              src={articleGalleryImages[imageLightboxIndex]}
+              alt={`${article.title} 图片 ${imageLightboxIndex + 1}`}
+              className="article-image-lightbox__image"
+            />
+            {articleGalleryImages.length > 1 && (
+              <div className="article-image-lightbox__nav">
+                <button type="button" className="article-image-lightbox__nav-btn" onClick={handleLightboxPrev}>
+                  上一张
+                </button>
+                <span className="article-image-lightbox__counter">
+                  {imageLightboxIndex + 1} / {articleGalleryImages.length}
+                </span>
+                <button type="button" className="article-image-lightbox__nav-btn" onClick={handleLightboxNext}>
+                  下一张
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </article>
   );
 };
