@@ -144,6 +144,54 @@
                             </div>
                         </div>
 
+                        <el-card shadow="never" class="mt-4 import-network-card">
+                            <template #header>
+                                <div class="import-module-card__header">
+                                    <div>
+                                        <div class="import-module-card__title">导入网络容错</div>
+                                        <div class="import-module-card__desc">
+                                            处理公众号导入与正文图片转存时的证书链兼容
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <el-form label-width="150px">
+                                <el-form-item label="证书容错开关">
+                                    <el-switch
+                                        v-model="importConfigForm.network.allowInsecureTls"
+                                        active-text="开启"
+                                        inactive-text="关闭"
+                                    />
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        开启后，当遇到证书链错误时会对“白名单域名”自动降级重试。
+                                    </div>
+                                </el-form-item>
+                                <el-form-item label="容错域名白名单">
+                                    <el-select
+                                        v-model="importConfigForm.network.insecureDomains"
+                                        multiple
+                                        filterable
+                                        allow-create
+                                        default-first-option
+                                        collapse-tags
+                                        collapse-tags-tooltip
+                                        class="w-100"
+                                        placeholder="输入域名并回车（如 mp.weixin.qq.com）"
+                                    >
+                                        <el-option
+                                            v-for="item in importInsecureDomainSuggestions"
+                                            :key="item"
+                                            :label="item"
+                                            :value="item"
+                                        />
+                                    </el-select>
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        仅支持域名，不需要填写协议；支持子域名匹配。
+                                    </div>
+                                </el-form-item>
+                            </el-form>
+                        </el-card>
+
                         <el-card shadow="never" class="mt-4 import-module-card">
                             <template #header>
                                 <div class="import-module-card__header">
@@ -2324,6 +2372,11 @@ type AiImportModuleConfig = {
     promptTemplate: string
 }
 
+type AiImportNetworkConfig = {
+    allowInsecureTls: boolean
+    insecureDomains: string[]
+}
+
 type ImportTemplatePreset = {
     id: string
     name: string
@@ -2337,7 +2390,16 @@ type ImportTemplatePreset = {
 type AiImportConfigForm = {
     articleBatchImport: AiImportModuleConfig
     websiteBatchImport: AiImportModuleConfig
+    network: AiImportNetworkConfig
 }
+
+const DEFAULT_IMPORT_INSECURE_DOMAINS = [
+    'mp.weixin.qq.com',
+    'weixin.qq.com',
+    'mmbiz.qpic.cn',
+    'mmbiz.qlogo.cn',
+    'res.wx.qq.com'
+]
 
 const DEFAULT_ARTICLE_IMPORT_PROMPT = `请基于以下公众号文章内容进行专业润色，并直接返回 HTML 正文，不要输出 \`\`\` 代码块。
 
@@ -2476,6 +2538,10 @@ const createDefaultImportConfig = (): AiImportConfigForm => ({
         enabled: true,
         model: '',
         promptTemplate: DEFAULT_WEBSITE_IMPORT_PROMPT
+    },
+    network: {
+        allowInsecureTls: true,
+        insecureDomains: [...DEFAULT_IMPORT_INSECURE_DOMAINS]
     }
 })
 
@@ -2488,6 +2554,7 @@ const selectedWebsitePresetId = ref('')
 const lastSavedImportConfig = ref<AiImportConfigForm>(createDefaultImportConfig())
 const articleImportPresetList = ref<ImportTemplatePreset[]>([])
 const websiteImportPresetList = ref<ImportTemplatePreset[]>([])
+const importInsecureDomainSuggestions = [...DEFAULT_IMPORT_INSECURE_DOMAINS]
 
 const importPresetDialogVisible = ref(false)
 const importPresetDialogMode = ref<PresetDialogMode>('create')
@@ -2551,6 +2618,39 @@ const normalizeImportModuleConfig = (
 })
 
 /**
+ * 规范化导入网络域名白名单，兼容数组/文本输入。
+ */
+const normalizeInsecureDomainList = (source: any, fallback: string[] = []): string[] => {
+    const rawList = Array.isArray(source) ? source : String(source || '').split(/[\n,;\s]+/)
+    const list = rawList
+        .map((item: any) => String(item || '').trim().toLowerCase())
+        .filter(Boolean)
+        .map((item) => item.replace(/^https?:\/\//, ''))
+        .map((item) => item.replace(/\/+$/, ''))
+        .filter((item) => /^[a-z0-9.-]+$/.test(item))
+    const merged = list.length
+        ? list
+        : (Array.isArray(fallback)
+              ? fallback.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean)
+              : [])
+    return Array.from(new Set(merged))
+}
+
+/**
+ * 规范化导入网络配置（证书容错开关 + 域名白名单）。
+ */
+const normalizeImportNetworkConfig = (
+    source: any,
+    fallback: AiImportNetworkConfig
+): AiImportNetworkConfig => ({
+    allowInsecureTls:
+        source?.allowInsecureTls !== undefined
+            ? Boolean(source?.allowInsecureTls)
+            : Boolean(fallback.allowInsecureTls),
+    insecureDomains: normalizeInsecureDomainList(source?.insecureDomains, fallback.insecureDomains)
+})
+
+/**
  * 深拷贝导入配置，避免引用地址导致“已保存状态”计算失真。
  */
 const cloneImportConfig = (config: AiImportConfigForm): AiImportConfigForm =>
@@ -2575,6 +2675,13 @@ const buildImportConfigPayload = (): AiImportConfigForm => ({
         enabled: importConfigForm.websiteBatchImport.enabled,
         model: String(importConfigForm.websiteBatchImport.model || '').trim(),
         promptTemplate: String(importConfigForm.websiteBatchImport.promptTemplate || '').trim()
+    },
+    network: {
+        allowInsecureTls: importConfigForm.network.allowInsecureTls === true,
+        insecureDomains: normalizeInsecureDomainList(
+            importConfigForm.network.insecureDomains,
+            DEFAULT_IMPORT_INSECURE_DOMAINS
+        )
     }
 })
 
@@ -3007,6 +3114,10 @@ const applyImportConfig = (payload: any) => {
     const defaults = createDefaultImportConfig()
     const articleConfig = normalizeImportModuleConfig(payload?.articleBatchImport, defaults.articleBatchImport)
     const websiteConfig = normalizeImportModuleConfig(payload?.websiteBatchImport, defaults.websiteBatchImport)
+    const networkConfig = normalizeImportNetworkConfig(
+        payload?.network || payload?.remoteImageTransfer,
+        defaults.network
+    )
 
     importConfigForm.articleBatchImport.enabled = articleConfig.enabled
     importConfigForm.articleBatchImport.model = articleConfig.model
@@ -3017,6 +3128,9 @@ const applyImportConfig = (payload: any) => {
     importConfigForm.websiteBatchImport.model = websiteConfig.model
     importConfigForm.websiteBatchImport.promptTemplate =
         websiteConfig.promptTemplate || defaults.websiteBatchImport.promptTemplate
+
+    importConfigForm.network.allowInsecureTls = networkConfig.allowInsecureTls
+    importConfigForm.network.insecureDomains = [...networkConfig.insecureDomains]
 }
 
 /**
@@ -3212,6 +3326,10 @@ onMounted(() => {
 }
 
 .import-module-card {
+    border: 1px solid var(--el-border-color-light);
+}
+
+.import-network-card {
     border: 1px solid var(--el-border-color-light);
 }
 

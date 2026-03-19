@@ -363,6 +363,117 @@ class AlbumService extends Service {
   }
 
   /**
+   * 规范化域名白名单（支持数组/逗号文本/换行文本）
+   * @param {Array<string>|string} input - 原始域名配置
+   * @param {Array<string>} fallback - 默认值
+   * @return {Array<string>}
+   */
+  normalizeInsecureDomainList(input, fallback = []) {
+    const source = Array.isArray(input)
+      ? input
+      : String(input || '').split(/[\n,;\s]+/);
+    const list = source
+      .map(item => String(item || '').trim().toLowerCase())
+      .filter(Boolean)
+      .map(item => item.replace(/^https?:\/\//, ''))
+      .map(item => item.replace(/\/+$/, ''))
+      .filter(item => /^[a-z0-9.-]+$/.test(item));
+    const merged = list.length
+      ? list
+      : (Array.isArray(fallback) ? fallback.map(item => String(item || '').trim().toLowerCase()).filter(Boolean) : []);
+    return Array.from(new Set(merged));
+  }
+
+  /**
+   * 判断错误是否为证书链相关错误
+   * @param {Error} error - 捕获到的错误对象
+   * @return {boolean}
+   */
+  isTlsIssuerError(error) {
+    const message = String(error && error.message ? error.message : '').toLowerCase();
+    const code = String(error && error.code ? error.code : '').toUpperCase();
+    return (
+      message.includes('unable to get local issuer certificate')
+      || message.includes('self-signed certificate')
+      || message.includes('unable to verify the first certificate')
+      || code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'
+      || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
+      || code === 'SELF_SIGNED_CERT_IN_CHAIN'
+      || code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+    );
+  }
+
+  /**
+   * 判断域名是否命中证书容错白名单（支持子域名）
+   * @param {string} host - 当前请求域名
+   * @param {Array<string>} whitelist - 白名单
+   * @return {boolean}
+   */
+  matchInsecureTlsHost(host = '', whitelist = []) {
+    const normalizedHost = String(host || '').trim().toLowerCase();
+    if (!normalizedHost) return false;
+    const domains = Array.isArray(whitelist) ? whitelist : [];
+    return domains.some(domain => {
+      const normalizedDomain = String(domain || '').trim().toLowerCase();
+      if (!normalizedDomain) return false;
+      return normalizedHost === normalizedDomain || normalizedHost.endsWith(`.${normalizedDomain}`);
+    });
+  }
+
+  /**
+   * 读取“远程抓取/图片转存”证书容错配置
+   * 优先级：环境变量 > AI 助手导入配置 > 后端静态配置
+   * @return {Promise<{allowInsecureTls:boolean,insecureDomains:Array<string>,maxBytes:number}>}
+   */
+  async getRemoteImageTransferConfig() {
+    const { ctx } = this;
+    const fileConfig = this.config.remoteImageTransfer || {};
+    let allowInsecureTls = Boolean(fileConfig.allowInsecureTls);
+    let insecureDomains = this.normalizeInsecureDomainList(fileConfig.insecureDomains, []);
+    let maxBytes = Number(fileConfig.maxBytes || 10 * 1024 * 1024);
+
+    try {
+      const importConfig = await ctx.service.uied.aiConfig.getImportConfig();
+      const networkConfig = importConfig?.network || importConfig?.remoteImageTransfer || {};
+      if (Object.prototype.hasOwnProperty.call(networkConfig, 'allowInsecureTls')) {
+        allowInsecureTls = Boolean(networkConfig.allowInsecureTls);
+      }
+      insecureDomains = this.normalizeInsecureDomainList(
+        networkConfig.insecureDomains,
+        insecureDomains
+      );
+    } catch (error) {
+      ctx.logger.warn(`[album.getRemoteImageTransferConfig] 读取 AI 导入网络配置失败: ${error?.message || error}`);
+    }
+
+    if (process.env.UIED_REMOTE_ALLOW_INSECURE_TLS !== undefined) {
+      const raw = String(process.env.UIED_REMOTE_ALLOW_INSECURE_TLS || '').trim().toLowerCase();
+      allowInsecureTls = raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+    }
+    if (process.env.UIED_REMOTE_INSECURE_DOMAINS) {
+      insecureDomains = this.normalizeInsecureDomainList(
+        process.env.UIED_REMOTE_INSECURE_DOMAINS,
+        insecureDomains
+      );
+    }
+    if (process.env.UIED_REMOTE_MAX_BYTES) {
+      const envMaxBytes = Number(process.env.UIED_REMOTE_MAX_BYTES || 0);
+      if (Number.isFinite(envMaxBytes) && envMaxBytes > 0) {
+        maxBytes = envMaxBytes;
+      }
+    }
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0) {
+      maxBytes = 10 * 1024 * 1024;
+    }
+
+    return {
+      allowInsecureTls,
+      insecureDomains,
+      maxBytes,
+    };
+  }
+
+  /**
    * 判断是否为图片链接
    */
   isImageContentType(contentType = '') {
@@ -409,26 +520,63 @@ class AlbumService extends Service {
   /**
    * 下载远程图片为 Buffer
    */
-  async fetchRemoteImageBuffer(remoteUrl) {
+  async fetchRemoteImageBuffer(remoteUrl, options = {}) {
     const { ctx } = this;
     const requestUrl = this.normalizeRemoteUrl(remoteUrl);
     if (!requestUrl || !/^https?:\/\//i.test(requestUrl)) {
       throw new Error('仅支持 http/https 图片地址');
     }
 
-    const transferConfig = this.config.remoteImageTransfer || {};
-    const allowInsecureTls = Boolean(transferConfig.allowInsecureTls);
-    const response = await ctx.curl(requestUrl, {
-      method: 'GET',
-      timeout: 20000,
-      followRedirect: true,
-      maxRedirects: 3,
-      rejectUnauthorized: !allowInsecureTls,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; UIED-Nav/1.0; +https://fsuied.com)',
-        Accept: 'image/*,*/*;q=0.8',
-      },
-    });
+    const transferConfig = options.transferConfig || await this.getRemoteImageTransferConfig();
+    const allowInsecureTlsForCurrentHost = () => {
+      try {
+        const parsed = new URL(requestUrl);
+        const host = String(parsed.hostname || '').trim().toLowerCase();
+        const allow = Boolean(transferConfig.allowInsecureTls);
+        const whitelist = Array.isArray(transferConfig.insecureDomains) ? transferConfig.insecureDomains : [];
+        return allow && this.matchInsecureTlsHost(host, whitelist);
+      } catch (error) {
+        return false;
+      }
+    };
+
+    /**
+     * 执行单次远程图片下载请求
+     * @param {boolean} rejectUnauthorized - 是否严格校验证书
+     */
+    const curlOnce = async (rejectUnauthorized = true) => {
+      return await ctx.curl(requestUrl, {
+        method: 'GET',
+        timeout: 20000,
+        followRedirect: true,
+        maxRedirects: 3,
+        rejectUnauthorized,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; UIED-Nav/1.0; +https://fsuied.com)',
+          Accept: 'image/*,*/*;q=0.8',
+        },
+      });
+    };
+
+    let response = null;
+    let lastError = null;
+    try {
+      response = await curlOnce(true);
+    } catch (error) {
+      lastError = error;
+    }
+    if (lastError && this.isTlsIssuerError(lastError) && allowInsecureTlsForCurrentHost()) {
+      ctx.logger.warn(`album.fetchRemoteImageBuffer retry insecure tls: url=${requestUrl}`);
+      try {
+        response = await curlOnce(false);
+        lastError = null;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError) {
+      throw lastError;
+    }
     if (Number(response.status || 0) >= 400) {
       throw new Error(`下载失败(${response.status})`);
     }
@@ -456,9 +604,9 @@ class AlbumService extends Service {
   /**
    * 将远程图片保存到本地素材库
    */
-  async saveRemoteImageToAlbum(remoteUrl, cid = 0) {
+  async saveRemoteImageToAlbum(remoteUrl, cid = 0, options = {}) {
     const { ctx } = this;
-    const { buffer, contentType, finalUrl } = await this.fetchRemoteImageBuffer(remoteUrl);
+    const { buffer, contentType, finalUrl } = await this.fetchRemoteImageBuffer(remoteUrl, options);
     const ext = this.resolveImageExt(contentType, finalUrl);
     const targetDir = `/public/uploads/image/${dayjs().format('YYYY-MM-DD')}`;
     const dir = path.join(this.config.baseDir, 'app', targetDir);
@@ -507,10 +655,11 @@ class AlbumService extends Service {
 
     const maps = [];
     const failed = [];
+    const transferConfig = await this.getRemoteImageTransferConfig();
     for (let i = 0; i < candidates.length; i += 1) {
       const remoteUrl = candidates[i];
       try {
-        const item = await this.saveRemoteImageToAlbum(remoteUrl, cid);
+        const item = await this.saveRemoteImageToAlbum(remoteUrl, cid, { transferConfig });
         maps.push({
           from: item.from,
           to: item.to,

@@ -128,6 +128,13 @@ const DEFAULT_WEBSITE_IMPORT_TEMPLATE_PRESETS = [
     enabled: true,
   },
 ];
+const DEFAULT_IMPORT_INSECURE_DOMAINS = [
+  'mp.weixin.qq.com',
+  'weixin.qq.com',
+  'mmbiz.qpic.cn',
+  'mmbiz.qlogo.cn',
+  'res.wx.qq.com',
+];
 
 class AiConfigService extends Service {
   /**
@@ -1234,7 +1241,8 @@ class AiConfigService extends Service {
    * 获取“批量导入文章/网址”AI 配置默认值
    * @return {{
    *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
-   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  network: {allowInsecureTls: boolean, insecureDomains: Array<string>}
    * }}
    */
   getDefaultImportConfig() {
@@ -1249,6 +1257,52 @@ class AiConfigService extends Service {
         model: '',
         promptTemplate: DEFAULT_WEBSITE_BATCH_IMPORT_PROMPT,
       },
+      network: {
+        allowInsecureTls: true,
+        insecureDomains: [ ...DEFAULT_IMPORT_INSECURE_DOMAINS ],
+      },
+    };
+  }
+
+  /**
+   * 规范化域名白名单（支持数组/逗号文本/换行文本）
+   * @param {Array<string>|string} input - 原始输入
+   * @param {Array<string>} fallback - 默认值
+   * @return {Array<string>}
+   */
+  normalizeInsecureDomainList(input, fallback = []) {
+    const source = Array.isArray(input) ? input : String(input || '')
+      .split(/[\n,;\s]+/);
+    const list = source
+      .map(item => String(item || '').trim().toLowerCase())
+      .filter(Boolean)
+      .map(item => item.replace(/^https?:\/\//, ''))
+      .map(item => item.replace(/\/+$/, ''))
+      .filter(item => /^[a-z0-9.-]+$/.test(item));
+    const merged = list.length
+      ? list
+      : (Array.isArray(fallback) ? fallback.map(item => String(item || '').trim().toLowerCase()).filter(Boolean) : []);
+    return Array.from(new Set(merged));
+  }
+
+  /**
+   * 规范化导入网络配置（证书容错）
+   * @param {Object} networkConfig - 原始网络配置
+   * @param {{allowInsecureTls:boolean,insecureDomains:Array<string>}} defaultConfig - 默认配置
+   * @return {{allowInsecureTls:boolean,insecureDomains:Array<string>}}
+   */
+  normalizeImportNetworkConfig(networkConfig = {}, defaultConfig = {}) {
+    const source = networkConfig && typeof networkConfig === 'object' ? networkConfig : {};
+    const allowInsecureTls = source.allowInsecureTls !== undefined
+      ? Boolean(source.allowInsecureTls)
+      : Boolean(defaultConfig.allowInsecureTls);
+    const insecureDomains = this.normalizeInsecureDomainList(
+      source.insecureDomains,
+      defaultConfig.insecureDomains || []
+    );
+    return {
+      allowInsecureTls,
+      insecureDomains,
     };
   }
 
@@ -1280,12 +1334,16 @@ class AiConfigService extends Service {
    * @param {Object} config - 原始配置
    * @return {{
    *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
-   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  network: {allowInsecureTls: boolean, insecureDomains: Array<string>}
    * }}
    */
   normalizeImportConfig(config = {}) {
     const defaults = this.getDefaultImportConfig();
     const source = config && typeof config === 'object' ? config : {};
+    const networkSource = source.network && typeof source.network === 'object'
+      ? source.network
+      : (source.remoteImageTransfer && typeof source.remoteImageTransfer === 'object' ? source.remoteImageTransfer : {});
     return {
       articleBatchImport: this.normalizeImportModuleConfig(
         source.articleBatchImport,
@@ -1295,6 +1353,10 @@ class AiConfigService extends Service {
         source.websiteBatchImport,
         defaults.websiteBatchImport
       ),
+      network: this.normalizeImportNetworkConfig(
+        networkSource,
+        defaults.network
+      ),
     };
   }
 
@@ -1302,7 +1364,8 @@ class AiConfigService extends Service {
    * 获取“批量导入”AI 配置（AI 助手管理中心化配置）
    * @return {Promise<{
    *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
-   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  network: {allowInsecureTls: boolean, insecureDomains: Array<string>}
    * }>}
    */
   async getImportConfig() {
@@ -1315,7 +1378,8 @@ class AiConfigService extends Service {
    * @param {Object} data - 导入配置
    * @return {Promise<{
    *  articleBatchImport: {enabled: boolean, model: string, promptTemplate: string},
-   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string}
+   *  websiteBatchImport: {enabled: boolean, model: string, promptTemplate: string},
+   *  network: {allowInsecureTls: boolean, insecureDomains: Array<string>}
    * }>}
    */
   async saveImportConfig(data = {}) {
