@@ -177,6 +177,8 @@ export interface DetailPageConfig {
   tagSource?: 'website' | 'category' | 'manual';
   manualTags?: string | string[];
   categoryTitle?: string;
+  sidebarSticky?: boolean;
+  sidebarTopOffset?: number;
   sidebarLinksNewWindow?: boolean;
   sidebarAdSlotKey?: string;
   sidebarModules?: Array<{
@@ -470,6 +472,8 @@ export const DEFAULT_DETAIL_PAGE: DetailPageConfig = {
   tagSource: 'website',
   manualTags: '',
   categoryTitle: '相关分类',
+  sidebarSticky: true,
+  sidebarTopOffset: 16,
   sidebarLinksNewWindow: false,
   sidebarAdSlotKey: 'website_detail_sidebar',
   detailTopAdSlotKey: 'detail_top',
@@ -795,6 +799,10 @@ export const publicSettingService = {
     } = mergedWithLegacy;
     return {
       ...(cleanConfig as DetailPageConfig),
+      sidebarSticky: merged.sidebarSticky !== false,
+      sidebarTopOffset: Number.isFinite(Number(merged.sidebarTopOffset))
+        ? Math.max(0, Math.min(240, Number(merged.sidebarTopOffset)))
+        : 16,
       sharingEnabled: sharingEnabled !== false,
       sidebarAdSlotKey: String(merged.sidebarAdSlotKey || '').trim() || 'website_detail_sidebar',
       detailTopAdSlotKey: String(merged.detailTopAdSlotKey || '').trim() || 'detail_top',

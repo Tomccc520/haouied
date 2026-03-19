@@ -156,6 +156,11 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         path: '/settings/detail-page-config',
         redirect: '/system-setting/base-config/detail-page-config'
     },
+    // 侧边栏配置（统一入口）
+    {
+        path: '/settings/sidebar-config',
+        redirect: '/system-setting/base-config/sidebar-config'
+    },
     // 热门文章配置（兼容旧入口）
     {
         path: '/settings/hot-articles-config',

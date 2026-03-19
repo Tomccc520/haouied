@@ -51,6 +51,8 @@ interface SidebarConfig {
   tagSource: 'website' | 'category' | 'manual';
   manualTags?: string | string[];
   categoryTitle: string;
+  sidebarSticky?: boolean;
+  sidebarTopOffset?: number;
   sidebarLinksNewWindow?: boolean;
   sidebarAdSlotKey?: string;
   sidebarModules?: SidebarModule[];
@@ -177,6 +179,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     tagSource: 'website',
     manualTags: '',
     categoryTitle: '相关分类',
+    sidebarSticky: true,
+    sidebarTopOffset: 16,
     sidebarLinksNewWindow: false,
     sidebarAdSlotKey: 'website_detail_sidebar',
   });
@@ -398,6 +402,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const relatedSectionLoading = loading || dynamicRelatedLoading;
   const sidebarLinkTarget = config.sidebarLinksNewWindow ? '_blank' : undefined;
   const sidebarLinkRel = config.sidebarLinksNewWindow ? 'noopener noreferrer' : undefined;
+  const sidebarStickyEnabled = config.sidebarSticky !== false;
+  const sidebarTopOffset = Number.isFinite(Number(config.sidebarTopOffset))
+    ? Math.max(0, Math.min(240, Number(config.sidebarTopOffset)))
+    : 16;
 
   /**
    * 渲染单个侧边栏模块
@@ -610,7 +618,12 @@ const Sidebar: React.FC<SidebarProps> = ({
       ];
 
   return (
-    <aside className="website-detail-sidebar">
+    <aside
+      className={`website-detail-sidebar ${sidebarStickyEnabled ? 'is-sticky' : 'is-static'}`}
+      style={sidebarStickyEnabled
+        ? ({ '--website-detail-sidebar-offset': `${sidebarTopOffset}px` } as React.CSSProperties)
+        : undefined}
+    >
       {enabledModules.map(module => renderModule(module.key))}
     </aside>
   );

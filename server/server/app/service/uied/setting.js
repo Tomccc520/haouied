@@ -1308,6 +1308,8 @@ class SettingService extends Service {
     const defaults = {
       seoCanonicalEnabled: true,
       seoNoindexEnabled: false,
+      sidebarSticky: true,
+      sidebarTopOffset: 16,
       shareChannels: [
         { key: 'wechat', name: '微信', enabled: true, icon: 'wechat', sort: 1 },
         { key: 'weibo', name: '微博', enabled: true, icon: 'weibo', sort: 2 },
@@ -1398,6 +1400,10 @@ class SettingService extends Service {
     };
     return {
       ...restConfig,
+      sidebarSticky: merged.sidebarSticky !== false,
+      sidebarTopOffset: Number.isFinite(Number(merged.sidebarTopOffset))
+        ? Math.max(0, Math.min(240, Number(merged.sidebarTopOffset)))
+        : 16,
       sidebarAdSlotKey: normalizeSlotKey(merged.sidebarAdSlotKey, 'website_detail_sidebar'),
       detailTopAdSlotKey: normalizeSlotKey(merged.detailTopAdSlotKey, 'detail_top'),
       detailInlineAdSlotKey: normalizeSlotKey(merged.detailInlineAdSlotKey, 'detail_inline'),
@@ -1913,6 +1919,8 @@ class SettingService extends Service {
       tagSource: 'website',
       manualTags: '',
       categoryTitle: '相关分类',
+      sidebarSticky: true,
+      sidebarTopOffset: 16,
       sidebarLinksNewWindow: false,
       sidebarAdSlotKey: 'website_detail_sidebar',
       detailTopAdSlotKey: 'detail_top',

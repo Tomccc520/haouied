@@ -9,8 +9,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { AxiosError } from 'axios';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation } from 'swiper/modules';
 import api from '../../services/api';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { useUser } from '../../contexts/UserContext';
@@ -30,8 +28,7 @@ import publicSettingService, { DEFAULT_DETAIL_PAGE } from '../../services/public
 import useCache from '../../hooks/useCache';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import DetailCommercialSlot from './DetailCommercialSlot';
-import 'swiper/css';
-import 'swiper/css/navigation';
+import DetailMediaCarousel from '../../components/DetailMediaCarousel';
 import './index.css';
 
 /**
@@ -189,6 +186,8 @@ interface DetailPageConfig {
   tagSource?: 'website' | 'category' | 'manual';
   manualTags?: string | string[];
   categoryTitle?: string;
+  sidebarSticky?: boolean;
+  sidebarTopOffset?: number;
   sidebarLinksNewWindow?: boolean;
   sidebarAdSlotKey?: string;
   detailTopAdSlotKey?: string;
@@ -1144,6 +1143,29 @@ const WebsiteDetailPage: React.FC = () => {
     return Array.from(new Set(list.filter(Boolean)));
   })();
   const heroPreviewImage = previewImageCandidates[previewFallbackIndex] || '';
+  /**
+   * 详情头部幻灯片数据：统一主预览图与截图缩略图，附带灯箱索引映射。
+   */
+  const heroCarouselSlides = (() => {
+    const rows: Array<{ src: string; lightboxIndex: number }> = [];
+    if (heroPreviewImage) {
+      rows.push({ src: heroPreviewImage, lightboxIndex: -1 });
+    }
+    heroGalleryScreenshots.forEach((item, index) => {
+      const src = getFullImageUrl(item);
+      if (!src) return;
+      rows.push({ src, lightboxIndex: index });
+    });
+    const uniqueRows: Array<{ src: string; lightboxIndex: number }> = [];
+    const used = new Set<string>();
+    rows.forEach((item) => {
+      if (used.has(item.src)) return;
+      used.add(item.src);
+      uniqueRows.push(item);
+    });
+    return uniqueRows;
+  })();
+  const heroCarouselImages = heroCarouselSlides.map((item) => item.src);
   const currentCompareIdentifier = website.slug || website.id;
   const healthStatusLabel = formatHealthStatusLabel(websiteHealth, websiteHealthLoading);
   const httpStatusCodeLabel = formatHttpStatusCodeLabel(websiteHealth?.http?.statusCode, websiteHealthLoading);
@@ -1306,6 +1328,23 @@ const WebsiteDetailPage: React.FC = () => {
       }
       return current + 1;
     });
+  };
+
+  /**
+   * 点击详情头部幻灯片主图时，按映射打开对应灯箱内容。
+   */
+  const handleHeroCarouselMainClick = (slideIndex: number) => {
+    const target = heroCarouselSlides[slideIndex];
+    if (!target) return;
+    openLightbox(target.lightboxIndex);
+  };
+
+  /**
+   * 幻灯片主图加载失败：仅首图触发候选回退，避免缩略图误触发全局回退。
+   */
+  const handleHeroCarouselImageError = (slideIndex: number) => {
+    if (slideIndex !== 0) return;
+    handlePreviewImageError();
   };
 
   return (
@@ -1534,72 +1573,17 @@ const WebsiteDetailPage: React.FC = () => {
                   <div className="detail-hero__right">
                     <div className="detail-hero__preview-card">
                       <div className="detail-hero__preview-glow" aria-hidden="true" />
-                      <button
-                        type="button"
-                        className="article-banner-frame detail-hero__frame"
-                        onClick={() => openLightbox(-1)}
-                        aria-label={`查看 ${website.name} 缩略图大图`}
-                      >
-                        <div className="article-banner-toolbar">
-                          <div className="article-banner-dots" aria-hidden="true">
-                            <span />
-                            <span />
-                            <span />
-                          </div>
-                          <div className="article-banner-domain" aria-label="预览标识">网站预览</div>
-                          <div className="article-banner-badges">
-                            <span className="article-banner-badge">Preview</span>
-                            {!website.thumbnail && (
-                              <span className="article-banner-badge article-banner-badge--muted">
-                                自动截图
-                              </span>
-                            )}
-                            {screenshots.length > 0 && (
-                              <span className="article-banner-badge article-banner-badge--muted">
-                                {screenshots.length} 张截图
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="article-banner-viewport detail-hero__viewport">
-                          <img
-                            src={heroPreviewImage}
-                            alt={`${website.name} 预览`}
-                            loading="lazy"
-                            onError={handlePreviewImageError}
-                          />
-                        </div>
-                      </button>
-
-                      {heroGalleryScreenshots.length > 0 && (
-                        <div className="detail-hero__thumb-slider">
-                          <Swiper
-                            modules={[Navigation]}
-                            navigation
-                            spaceBetween={10}
-                            slidesPerView={3.2}
-                            breakpoints={{
-                              768: { slidesPerView: 3.2 },
-                              1024: { slidesPerView: 4.2 }
-                            }}
-                            className="detail-hero__swiper"
-                          >
-                            {heroGalleryScreenshots.map((url, index) => (
-                              <SwiperSlide key={`${url}-${index}`}>
-                                <button
-                                  type="button"
-                                  className="detail-hero__thumb"
-                                  onClick={() => openLightbox(index)}
-                                  aria-label={`查看截图 ${index + 1}`}
-                                >
-                                  <img src={getFullImageUrl(url)} alt={`截图 ${index + 1}`} loading="lazy" />
-                                  <span className="detail-hero__thumb-index">{index + 1}</span>
-                                </button>
-                              </SwiperSlide>
-                            ))}
-                          </Swiper>
-                        </div>
-                      )}
+                      <DetailMediaCarousel
+                        images={heroCarouselImages}
+                        title={website.name}
+                        label="网站预览"
+                        badges={[
+                          'Preview',
+                          ...(website.thumbnail ? [] : [ '自动截图' ]),
+                        ]}
+                        onMainClick={handleHeroCarouselMainClick}
+                        onMainImageError={handleHeroCarouselImageError}
+                      />
                     </div>
                   </div>
                 )}

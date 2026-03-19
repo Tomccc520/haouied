@@ -12,7 +12,9 @@ import { getArticleDetail, getArticles, recordArticleView } from '../../services
 import { ArticleDetail as ArticleDetailType } from '../../types/article';
 import api from '../../services/api';
 import { unwrapApiResponse } from '../../utils/apiResponse';
+import { getFullImageUrl } from '../../utils/urlUtils';
 import SEO from '../../components/SEO';
+import DetailMediaCarousel from '../../components/DetailMediaCarousel';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { usePublicSettings } from '../../hooks/usePublicSettings';
 import ArticleComments from './ArticleComments';
@@ -28,6 +30,109 @@ const formatDate = (value: string | number | null): string => {
     day: 'numeric',
   });
 };
+
+/**
+ * 从文章 HTML 正文中提取图片地址列表。
+ */
+const extractImageUrlsFromHtml = (html: string): string[] => {
+  const content = String(html || '');
+  if (!content) return [];
+  const matches: string[] = [];
+  const regex = /<img[^>]+src\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let result = regex.exec(content);
+  while (result) {
+    const src = String(result[1] || '').trim();
+    if (src) matches.push(src);
+    result = regex.exec(content);
+  }
+  return matches;
+};
+
+interface DetailActionRailIconProps {
+  className?: string;
+}
+
+/**
+ * 文章详情操作栏：评论图标
+ */
+const DetailRailCommentIcon: React.FC<DetailActionRailIconProps> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * 文章详情操作栏：点赞图标
+ */
+const DetailRailLikeIcon: React.FC<DetailActionRailIconProps> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path d="M7 10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M15 10V5.8c0-1-.8-1.8-1.8-1.8a2 2 0 0 0-1.8 1.1L9 10H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h9.2a2 2 0 0 0 1.9-1.4L18 12.5a2 2 0 0 0-1.9-2.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * 文章详情操作栏：热度图标
+ */
+const DetailRailTrendingIcon: React.FC<DetailActionRailIconProps> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path d="M3 17l6-6 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 7h7v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * 文章详情操作栏：关联网址图标
+ */
+const DetailRailLinkIcon: React.FC<DetailActionRailIconProps> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * 文章详情操作栏：分享图标
+ */
+const DetailRailShareIcon: React.FC<DetailActionRailIconProps> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path d="M18 8a3 3 0 1 0-2.8-4h-.4A3 3 0 0 0 12 8h6zM6 14a3 3 0 1 0-2.8-4h-.4A3 3 0 0 0 0 14h6zM18 24a3 3 0 1 0-2.8-4h-.4A3 3 0 0 0 12 24h6z" stroke="currentColor" strokeWidth="0" />
+    <path d="M8.6 12.6l6.8 3.8M15.4 7.6l-6.8 3.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="2" />
+    <circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    <circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="2" />
+  </svg>
+);
 
 /**
  * 规范化文章详情宽度模式，兼容后台配置异常值
@@ -290,6 +395,22 @@ const ArticleDetail: React.FC = () => {
   const detailSidebarModules = normalizeArticleSidebarModules(articleSetting?.detailSidebarModules);
   const detailSidebarLinkTarget = detailSidebarLinksNewWindow ? '_blank' : undefined;
   const detailSidebarLinkRel = detailSidebarLinksNewWindow ? 'noopener noreferrer' : undefined;
+  /**
+   * 文章图集：封面图 + 正文图片（去重后用于幻灯片展示）。
+   */
+  const articleGalleryImages = useMemo(() => {
+    if (!article) return [];
+    const rows: string[] = [];
+    if (article.coverImage) {
+      rows.push(getFullImageUrl(article.coverImage));
+    }
+    extractImageUrlsFromHtml(String(article.content || '')).forEach((url) => {
+      rows.push(getFullImageUrl(url));
+    });
+    return Array.from(
+      new Set(rows.map((item) => String(item || '').trim()).filter(Boolean))
+    );
+  }, [article]);
   const latestArticlesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'latest_articles');
   const hotWebsitesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'hot_websites');
   const articleTagsModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'article_tags');
@@ -384,6 +505,95 @@ const ArticleDetail: React.FC = () => {
     );
   }
 
+  /**
+   * 渲染文章详情侧栏模块（按后台排序与启用状态输出）
+   */
+  const renderSidebarModules = () => {
+    return detailSidebarModules.filter(module => module.enabled).map(module => {
+      if (module.key === 'latest_articles') {
+        return (
+          <section key={module.key} className="article-sidebar-section">
+            <h3 className="article-sidebar-title">{detailSidebarLatestArticlesTitle}</h3>
+            {sidebarLatestArticlesLoading ? (
+              <div className="article-sidebar-empty">加载中...</div>
+            ) : sidebarLatestArticles.length > 0 ? (
+              <div className="article-sidebar-list">
+                {sidebarLatestArticles.map(item => (
+                  <Link
+                    key={`latest-${item.id}`}
+                    to={`/article/${item.slug || item.id}`}
+                    className="article-sidebar-card"
+                    target={detailSidebarLinkTarget}
+                    rel={detailSidebarLinkRel}
+                  >
+                    <div className="article-sidebar-card__title">{item.title}</div>
+                    <div className="article-sidebar-card__meta">{formatDate(item.publishedAt)}</div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="article-sidebar-empty">暂无最新文章</div>
+            )}
+          </section>
+        );
+      }
+      if (module.key === 'hot_websites') {
+        return (
+          <section key={module.key} className="article-sidebar-section">
+            <h3 className="article-sidebar-title">{detailSidebarHotWebsitesTitle}</h3>
+            {sidebarHotWebsitesLoading ? (
+              <div className="article-sidebar-empty">加载中...</div>
+            ) : sidebarHotWebsites.length > 0 ? (
+              <div className="article-sidebar-list">
+                {sidebarHotWebsites.map(site => (
+                  <Link
+                    key={`hot-${site.id}`}
+                    to={`/website/${site.slug || site.id}`}
+                    className="article-sidebar-card"
+                    target={detailSidebarLinkTarget}
+                    rel={detailSidebarLinkRel}
+                  >
+                    <div className="article-sidebar-card__title">{site.name}</div>
+                    {site.description && (
+                      <div className="article-sidebar-card__desc">{site.description}</div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="article-sidebar-empty">暂无热门网址</div>
+            )}
+          </section>
+        );
+      }
+      if (module.key === 'article_tags') {
+        return (
+          <section key={module.key} className="article-sidebar-section">
+            <h3 className="article-sidebar-title">{detailSidebarTagsTitle}</h3>
+            {article.tags.length > 0 ? (
+              <div className="article-sidebar-tags">
+                {article.tags.map(tag => (
+                  <Link
+                    key={`tag-${tag.id}`}
+                    to={`/articles?tag=${tag.slug}`}
+                    className="article-sidebar-tag"
+                    target={detailSidebarLinkTarget}
+                    rel={detailSidebarLinkRel}
+                  >
+                    # {tag.name}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="article-sidebar-empty">暂无标签</div>
+            )}
+          </section>
+        );
+      }
+      return null;
+    });
+  };
+
   return (
     <article
       className={`article-detail-page article-detail-page--layout-${detailLayoutWidthMode} article-detail-page--header-${detailHeaderAlign} ${shouldRenderSidebar ? 'article-detail-page--has-sidebar' : ''}`}
@@ -451,27 +661,37 @@ const ArticleDetail: React.FC = () => {
               <aside className="detail-action-rail">
                 <button type="button" className="detail-action-pill" onClick={handleFocusComments}>
                   <span className="detail-action-pill__count">0</span>
-                  <span className="detail-action-pill__glyph">评</span>
+                  <span className="detail-action-pill__glyph" aria-hidden="true">
+                    <DetailRailCommentIcon className="detail-action-pill__icon" />
+                  </span>
                   <span className="detail-action-pill__label">点评</span>
                 </button>
                 <button type="button" className="detail-action-pill" onClick={handleToggleLike}>
                   <span className="detail-action-pill__count">{likeCount}</span>
-                  <span className="detail-action-pill__glyph">赞</span>
+                  <span className="detail-action-pill__glyph" aria-hidden="true">
+                    <DetailRailLikeIcon className="detail-action-pill__icon" />
+                  </span>
                   <span className="detail-action-pill__label">点赞</span>
                 </button>
                 <button type="button" className="detail-action-pill detail-action-pill--hot">
                   <span className="detail-action-pill__count">{article.viewCount}</span>
-                  <span className="detail-action-pill__glyph">热</span>
+                  <span className="detail-action-pill__glyph" aria-hidden="true">
+                    <DetailRailTrendingIcon className="detail-action-pill__icon" />
+                  </span>
                   <span className="detail-action-pill__label">热度</span>
                 </button>
                 <button type="button" className="detail-action-pill" onClick={() => setActiveTab('related')}>
                   <span className="detail-action-pill__count">{relatedWebsites.length}</span>
-                  <span className="detail-action-pill__glyph">链</span>
+                  <span className="detail-action-pill__glyph" aria-hidden="true">
+                    <DetailRailLinkIcon className="detail-action-pill__icon" />
+                  </span>
                   <span className="detail-action-pill__label">关联网址</span>
                 </button>
                 <button type="button" className="detail-action-pill" onClick={handleCopyArticleLink}>
                   <span className="detail-action-pill__count">1</span>
-                  <span className="detail-action-pill__glyph">享</span>
+                  <span className="detail-action-pill__glyph" aria-hidden="true">
+                    <DetailRailShareIcon className="detail-action-pill__icon" />
+                  </span>
                   <span className="detail-action-pill__label">分享</span>
                 </button>
               </aside>
@@ -493,11 +713,15 @@ const ArticleDetail: React.FC = () => {
                 <div className="detail-panel">
                   {activeTab === 'intro' && (
                     <div>
-                      {/* 封面图 */}
-                      {article.coverImage && (
-                        <figure className="detail-cover">
-                          <img src={article.coverImage} alt={article.title} />
-                        </figure>
+                      {articleGalleryImages.length > 0 && (
+                        <div className="detail-media-carousel-wrap">
+                          <DetailMediaCarousel
+                            images={articleGalleryImages}
+                            title={article.title}
+                            label="文章图集"
+                            badges={[ 'Gallery' ]}
+                          />
+                        </div>
                       )}
                       {/* 正文区域 */}
                       <div className="detail-content-wrapper">
@@ -578,95 +802,12 @@ const ArticleDetail: React.FC = () => {
               </section>
             )}
           </div>
-
           {shouldRenderSidebar && (
             <aside
               className={`article-detail-sidebar ${detailSidebarSticky ? 'is-sticky' : ''}`}
               style={detailSidebarSticky ? { top: `calc(var(--header-height) + ${detailSidebarTopOffset}px)` } : undefined}
             >
-              {detailSidebarModules.filter(module => module.enabled).map(module => {
-                if (module.key === 'latest_articles') {
-                  return (
-                    <section key={module.key} className="article-sidebar-section">
-                      <h3 className="article-sidebar-title">{detailSidebarLatestArticlesTitle}</h3>
-                      {sidebarLatestArticlesLoading ? (
-                        <div className="article-sidebar-empty">加载中...</div>
-                      ) : sidebarLatestArticles.length > 0 ? (
-                        <div className="article-sidebar-list">
-                          {sidebarLatestArticles.map(item => (
-                            <Link
-                              key={`latest-${item.id}`}
-                              to={`/article/${item.slug || item.id}`}
-                              className="article-sidebar-card"
-                              target={detailSidebarLinkTarget}
-                              rel={detailSidebarLinkRel}
-                            >
-                              <div className="article-sidebar-card__title">{item.title}</div>
-                              <div className="article-sidebar-card__meta">{formatDate(item.publishedAt)}</div>
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="article-sidebar-empty">暂无最新文章</div>
-                      )}
-                    </section>
-                  );
-                }
-                if (module.key === 'hot_websites') {
-                  return (
-                    <section key={module.key} className="article-sidebar-section">
-                      <h3 className="article-sidebar-title">{detailSidebarHotWebsitesTitle}</h3>
-                      {sidebarHotWebsitesLoading ? (
-                        <div className="article-sidebar-empty">加载中...</div>
-                      ) : sidebarHotWebsites.length > 0 ? (
-                        <div className="article-sidebar-list">
-                          {sidebarHotWebsites.map(site => (
-                            <Link
-                              key={`hot-${site.id}`}
-                              to={`/website/${site.slug || site.id}`}
-                              className="article-sidebar-card"
-                              target={detailSidebarLinkTarget}
-                              rel={detailSidebarLinkRel}
-                            >
-                              <div className="article-sidebar-card__title">{site.name}</div>
-                              {site.description && (
-                                <div className="article-sidebar-card__desc">{site.description}</div>
-                              )}
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="article-sidebar-empty">暂无热门网址</div>
-                      )}
-                    </section>
-                  );
-                }
-                if (module.key === 'article_tags') {
-                  return (
-                    <section key={module.key} className="article-sidebar-section">
-                      <h3 className="article-sidebar-title">{detailSidebarTagsTitle}</h3>
-                      {article.tags.length > 0 ? (
-                        <div className="article-sidebar-tags">
-                          {article.tags.map(tag => (
-                            <Link
-                              key={`tag-${tag.id}`}
-                              to={`/articles?tag=${tag.slug}`}
-                              className="article-sidebar-tag"
-                              target={detailSidebarLinkTarget}
-                              rel={detailSidebarLinkRel}
-                            >
-                              # {tag.name}
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="article-sidebar-empty">暂无标签</div>
-                      )}
-                    </section>
-                  );
-                }
-                return null;
-              })}
+              {renderSidebarModules()}
             </aside>
           )}
         </div>

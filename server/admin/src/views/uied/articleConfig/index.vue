@@ -70,8 +70,8 @@
                         <el-radio-button label="left">左对齐</el-radio-button>
                     </el-radio-group>
                 </el-form-item>
-                <el-divider content-position="left">详情页侧栏配置</el-divider>
-                <el-form-item label="启用详情侧栏">
+                <el-divider content-position="left">侧边栏配置</el-divider>
+                <el-form-item label="启用侧栏">
                     <el-switch v-model="articleConfig.detailSidebarEnabled" />
                 </el-form-item>
                 <el-form-item label="侧栏吸顶">
@@ -92,7 +92,7 @@
                     />
                     <span class="ml-2 text-xs text-[#909399]">px</span>
                 </el-form-item>
-                <el-form-item label="侧栏链接新窗口打开">
+                <el-form-item label="链接新开窗口">
                     <el-switch
                         v-model="articleConfig.detailSidebarLinksNewWindow"
                         :disabled="!articleConfig.detailSidebarEnabled"
@@ -129,7 +129,7 @@
                         :disabled="!articleConfig.detailSidebarEnabled"
                     />
                 </el-form-item>
-                <el-form-item label="标签模块标题">
+                <el-form-item label="标签标题">
                     <el-input
                         v-model="articleConfig.detailSidebarTagsTitle"
                         :disabled="!articleConfig.detailSidebarEnabled"

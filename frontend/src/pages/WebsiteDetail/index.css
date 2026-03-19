@@ -2234,11 +2234,18 @@
 .website-detail-sidebar {
   flex-shrink: 0;
   width: 320px;
-  position: sticky;
-  top: calc(var(--header-height) + 18px);
   animation: fadeInUp 0.4s ease-out 0.1s both;
   margin-top: 0;
   padding-top: 36px;
+}
+
+.website-detail-sidebar.is-sticky {
+  position: sticky;
+  top: calc(var(--header-height) + var(--website-detail-sidebar-offset, 18px));
+}
+
+.website-detail-sidebar.is-static {
+  position: static;
 }
 
 /* 复用原有的侧边栏内部样式 */

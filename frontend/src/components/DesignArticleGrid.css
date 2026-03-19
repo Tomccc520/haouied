@@ -233,9 +233,9 @@
 /* 文章网格布局 - 响应式设计 */
 .article-grid {
   display: grid;
-  gap: 1.5rem;
-  /* 桌面端：4列网格，显示8篇文章刚好两行，卡片更宽，展示效果更好 */
-  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  /* 桌面端恢复 6 列，避免卡片过大 */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 /* 包装器样式 */
@@ -247,23 +247,29 @@
 /* 大屏幕优化 */
 @media (min-width: 1440px) {
   .article-grid {
-    gap: 1.75rem; /* 增加间距 */
+    gap: 1.125rem;
   }
 }
 
 /* 超大屏幕优化 */
 @media (min-width: 1920px) {
   .article-grid {
-    gap: 2rem; /* 进一步增加间距 */
-    /* 超大屏幕保持4列，但卡片会更大气 */
+    gap: 1.25rem;
+  }
+}
+
+/* 大平板/小桌面 */
+@media (max-width: 1400px) {
+  .article-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
 /* 平板端：3列网格 */
 @media (max-width: 1024px) {
   .article-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.875rem;
   }
 }
 
@@ -357,9 +363,9 @@
   border: none;
   box-shadow: none;
   /* 增加内边距 */
-  padding: 0.75rem;
+  padding: 0.625rem;
   height: auto; /* 改为自动高度 */
-  min-height: 12.5rem; /* 设置最小高度而不是固定高度 */
+  min-height: 10.75rem; /* 缩小卡片视觉高度 */
   transition: all 0.3s ease;
 }
 

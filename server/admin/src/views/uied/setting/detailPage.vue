@@ -103,17 +103,33 @@
                 <!-- 详情侧边栏 -->
                 <div v-show="activeSectionTab === 'sidebarOps'" class="setting-section-panel">
                     <div id="detail-page-config-section-sidebar-ops">
-                        <el-divider content-position="left">详情页侧栏内容配置</el-divider>
+                        <el-divider content-position="left">侧边栏配置</el-divider>
                     </div>
                     <p class="section-desc">
-                        面向运营配置：控制详情页侧栏展示内容、顺序与推广位，无需技术介入即可调整。
+                        面向运营配置：统一“启用侧栏 / 侧栏吸顶 / 吸顶偏移 / 链接新开窗口 / 模块顺序”交互，减少客户理解成本。
                     </p>
 
-                    <el-form-item label="启用侧边栏">
+                    <el-form-item label="启用侧栏">
                         <el-switch v-model="config.enabled" />
                         <span class="form-tip"
                             >关闭后前端详情页右侧栏整体隐藏（移动端底部推荐也将受影响）。</span
                         >
+                    </el-form-item>
+
+                    <el-form-item label="侧栏吸顶">
+                        <el-switch v-model="config.sidebarSticky" :disabled="!config.enabled" />
+                        <span class="form-tip">开启后侧栏会随页面滚动固定在可视区域。</span>
+                    </el-form-item>
+
+                    <el-form-item label="吸顶偏移">
+                        <el-input-number
+                            v-model="config.sidebarTopOffset"
+                            :min="0"
+                            :max="240"
+                            :disabled="!config.enabled || !config.sidebarSticky"
+                        />
+                        <span class="ml-2 text-xs text-[#909399]">px</span>
+                        <span class="form-tip">控制吸顶侧栏与顶部导航之间的间距。</span>
                     </el-form-item>
 
                     <el-alert
@@ -259,7 +275,7 @@
                         <span class="form-tip">侧边栏分类区块标题文案。</span>
                     </el-form-item>
 
-                    <el-form-item label="侧栏链接新窗口打开">
+                    <el-form-item label="链接新开窗口">
                         <el-switch
                             v-model="config.sidebarLinksNewWindow"
                             :disabled="!config.enabled"
@@ -868,6 +884,8 @@ const defaultConfig = {
     tagSource: 'website',
     manualTags: '',
     categoryTitle: '相关分类',
+    sidebarSticky: true,
+    sidebarTopOffset: 16,
     sidebarLinksNewWindow: false,
     sidebarAdSlotKey: 'website_detail_sidebar',
     detailTopAdSlotKey: 'detail_top',

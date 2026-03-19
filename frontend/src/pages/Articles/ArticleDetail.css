@@ -5,10 +5,23 @@
 
 .article-detail-page {
   --article-detail-max-width: 880px;
+  --article-detail-layout-max-width: var(--container-width);
   background-color: var(--bg-card);
-  min-height: 100vh;
-  padding-bottom: 5rem;
+  min-height: calc(100vh - var(--header-height));
+  padding: var(--spacing-5) var(--container-padding) var(--spacing-10);
   position: relative;
+}
+
+.article-detail-page--layout-contained {
+  --article-detail-layout-max-width: var(--container-width);
+}
+
+.article-detail-page--layout-wide {
+  --article-detail-layout-max-width: var(--container-width);
+}
+
+.article-detail-page--layout-fluid {
+  --article-detail-layout-max-width: var(--container-width);
 }
 
 .detail-reading-progress {
@@ -40,40 +53,40 @@
 }
 
 .detail-container {
-  width: min(100%, calc(var(--article-detail-max-width) + 32px));
-  max-width: var(--article-detail-max-width);
+  width: 100%;
+  max-width: var(--article-detail-layout-max-width);
   margin: 0 auto;
-  padding: var(--spacing-10) var(--spacing-6);
+  padding: var(--spacing-8) 0 0;
   position: relative;
   z-index: 1;
 }
 
 .detail-container--with-sidebar {
-  width: min(100%, calc(var(--article-detail-max-width) + 420px));
+  width: 100%;
 }
 
 .article-detail-page--layout-contained .detail-container {
-  max-width: var(--article-detail-max-width);
+  max-width: var(--article-detail-layout-max-width);
 }
 
 .article-detail-page--layout-wide .detail-container {
-  max-width: min(calc(var(--article-detail-max-width) + 160px), 1180px);
+  max-width: var(--article-detail-layout-max-width);
 }
 
 .article-detail-page--layout-fluid .detail-container {
-  max-width: min(calc(var(--article-detail-max-width) + 320px), 1360px);
+  max-width: var(--article-detail-layout-max-width);
 }
 
 .article-detail-page--has-sidebar.article-detail-page--layout-contained .detail-container {
-  max-width: min(calc(var(--article-detail-max-width) + 380px), 1260px);
+  max-width: var(--article-detail-layout-max-width);
 }
 
 .article-detail-page--has-sidebar.article-detail-page--layout-wide .detail-container {
-  max-width: min(calc(var(--article-detail-max-width) + 460px), 1420px);
+  max-width: var(--article-detail-layout-max-width);
 }
 
 .article-detail-page--has-sidebar.article-detail-page--layout-fluid .detail-container {
-  max-width: min(calc(var(--article-detail-max-width) + 560px), 1600px);
+  max-width: var(--article-detail-layout-max-width);
 }
 
 .article-detail-layout {
@@ -82,13 +95,21 @@
 
 .article-detail-layout--with-sidebar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, var(--article-detail-max-width)) 320px;
+  justify-content: center;
   gap: 24px;
   align-items: start;
 }
 
 .article-detail-main {
   min-width: 0;
+  width: 100%;
+  max-width: var(--article-detail-max-width);
+  margin: 0 auto;
+}
+
+.article-detail-layout--with-sidebar .article-detail-main {
+  margin: 0;
 }
 
 .detail-product-layout {
@@ -111,7 +132,7 @@
   border: 1px solid #e5e7eb;
   background: #ffffff;
   border-radius: 14px;
-  min-height: 66px;
+  min-height: 70px;
   padding: 8px 6px;
   display: flex;
   flex-direction: column;
@@ -143,16 +164,21 @@
 }
 
 .detail-action-pill__glyph {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   background: #f3f4f6;
   color: #111827;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 0;
+}
+
+.detail-action-pill__icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
 }
 
 .detail-action-pill__label {
@@ -286,6 +312,7 @@
 
 .article-detail-sidebar.is-sticky {
   position: sticky;
+  z-index: 2;
 }
 
 .article-sidebar-section {
@@ -544,6 +571,10 @@
   display: block;
 }
 
+.detail-media-carousel-wrap {
+  margin: 0 0 1.4rem;
+}
+
 /* Content Typography */
 .detail-content {
   font-size: var(--text-lg);
@@ -735,18 +766,17 @@
   }
   
   .detail-container {
-    padding: 24px 16px;
-    width: calc(100% - 12px);
+    padding: 20px 0 0;
+    width: 100%;
     max-width: 100%;
   }
 
   .detail-container--with-sidebar {
-    width: calc(100% - 12px);
+    width: 100%;
   }
 
   .article-detail-layout--with-sidebar {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    display: block;
   }
 
   .detail-product-layout {
