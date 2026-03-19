@@ -22,14 +22,17 @@
                 </el-form-item>
                 <el-form-item label="父级分类">
                     <el-select
-                        class="w-[200px]"
+                        class="w-[260px]"
                         v-model="queryParams.parentId"
+                        filterable
+                        default-first-option
                         clearable
-                        placeholder="全部"
+                        placeholder="输入名称筛选父级分类"
+                        no-data-text="无匹配分类"
                     >
                         <el-option label="顶级分类" :value="0" />
                         <el-option
-                            v-for="item in topCategories"
+                            v-for="item in queryParentOptions"
                             :key="item.id"
                             :label="item.pathLabel || item.name"
                             :value="item.id"
@@ -493,6 +496,18 @@ const availableParentOptions = computed(() => {
     const blocked = collectDescendantIds(currentId)
     blocked.add(currentId)
     return allCategories.value.filter((item) => !blocked.has(item.id))
+})
+
+/**
+ * 查询区父级分类可选项：
+ * 使用全量层级路径，便于按“父/子分类名”快速过滤定位。
+ */
+const queryParentOptions = computed(() => {
+    return [ ...allCategories.value ].sort((a, b) => {
+        const aLabel = String(a.pathLabel || a.name || '')
+        const bLabel = String(b.pathLabel || b.name || '')
+        return aLabel.localeCompare(bLabel, 'zh-Hans-CN')
+    })
 })
 
 // 编辑相关

@@ -85,6 +85,22 @@ class CategoryService extends Service {
   }
 
   /**
+   * 拼装父级分类筛选 SQL（兼容顶级分类历史数据：NULL / 0）。
+   * @param {string} whereClause - 当前 where 子句
+   * @param {Array<any>} replacements - SQL 参数数组
+   * @param {number|string|null|undefined} parentId - 父级分类 ID
+   * @return {string}
+   */
+  appendParentFilterWhere(whereClause, replacements, parentId) {
+    const normalizedParentId = this.normalizeParentId(parentId);
+    if (!normalizedParentId) {
+      return `${whereClause} AND (c.parent_id IS NULL OR c.parent_id = 0)`;
+    }
+    replacements.push(normalizedParentId);
+    return `${whereClause} AND c.parent_id = ?`;
+  }
+
+  /**
    * 获取分类列表（分页）
    * @param {Object} params - 查询参数
    */
@@ -102,8 +118,7 @@ class CategoryService extends Service {
     }
 
     if (parentId !== undefined && parentId !== '') {
-      whereClause += ' AND c.parent_id = ?';
-      replacements.push(parentId);
+      whereClause = this.appendParentFilterWhere(whereClause, replacements, parentId);
     }
 
     // 获取总数
