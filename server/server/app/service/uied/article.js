@@ -798,6 +798,141 @@ class ArticleService extends Service {
   }
 
   /**
+   * 批量移动文章分类与标签。
+   * @param {Array<number|string>|string} ids 文章ID列表
+   * @param {Object} payload 批量参数
+   * @param {boolean} payload.applyCategory 是否应用分类变更
+   * @param {number|string} payload.categoryId 目标分类ID
+   * @param {string} payload.category 目标分类名称（兜底）
+   * @param {boolean} payload.applyTagIds 是否应用标签变更
+   * @param {Array<number|string>|string} payload.tagIds 目标标签ID列表（全量覆盖）
+   * @return {Promise<{updated:number,categoryUpdated:number,tagUpdated:number}>} 更新结果
+   */
+  async batchMove(ids, payload = {}) {
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const idList = this.parsePositiveIntList(ids);
+    if (idList.length === 0) {
+      throw new Error('请选择要操作的文章');
+    }
+
+    const applyCategory = payload.applyCategory === true;
+    const applyTagIds = payload.applyTagIds === true;
+    const articleCategoryColumn = await this.getArticleCategoryColumn();
+    let categoryUpdated = 0;
+    let tagUpdated = 0;
+
+    if (applyCategory) {
+      const categoryId = this.parsePositiveInt(payload.categoryId ?? payload.cid, 0);
+      let categoryName = String(payload.category || '').trim();
+      if (categoryId > 0) {
+        const [ categoryRow ] = await app.model.query(
+          'SELECT name FROM uied_article_category WHERE id = ? AND is_delete = 0',
+          { replacements: [ categoryId ], type: app.Sequelize.QueryTypes.SELECT }
+        );
+        categoryName = String(categoryRow?.name || '').trim();
+      }
+      if (!categoryName) {
+        throw new Error('请选择有效的目标分类');
+      }
+
+      if (articleCategoryColumn) {
+        await app.model.query(
+          `UPDATE uied_article
+           SET category = ?, \`${articleCategoryColumn}\` = ?, update_time = ?
+           WHERE id IN (?) AND is_delete = 0`,
+          {
+            replacements: [ categoryName, categoryId || null, now, idList ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+      } else {
+        await app.model.query(
+          `UPDATE uied_article
+           SET category = ?, update_time = ?
+           WHERE id IN (?) AND is_delete = 0`,
+          {
+            replacements: [ categoryName, now, idList ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+      }
+      categoryUpdated = idList.length;
+    }
+
+    if (applyTagIds) {
+      const tagIds = this.parsePositiveIntList(payload.tagIds);
+      for (const articleId of idList) {
+        // 使用统一标签服务做“全量覆盖”，保证关系表与后台行为一致
+        await this.ctx.service.uied.articleTag.setArticleTags(articleId, tagIds);
+      }
+      tagUpdated = idList.length;
+    }
+
+    return {
+      updated: idList.length,
+      categoryUpdated,
+      tagUpdated,
+    };
+  }
+
+  /**
+   * 一键清空文章回收站（支持按当前筛选条件清理）。
+   * @param {Object} params 筛选参数
+   * @return {Promise<{deleted:number}>} 清理结果
+   */
+  async clearRecycle(params = {}) {
+    const { app } = this;
+    const whereParts = [ 'is_delete = 1' ];
+    const replacements = [];
+
+    const status = String(params.status || '').trim().toLowerCase();
+    if (status === 'published' || status === 'draft') {
+      whereParts.push('status = ?');
+      replacements.push(status);
+    }
+
+    const keyword = String(params.keyword || '').trim();
+    if (keyword) {
+      whereParts.push('(title LIKE ? OR content LIKE ? OR excerpt LIKE ?)');
+      const likeKeyword = `%${keyword}%`;
+      replacements.push(likeKeyword, likeKeyword, likeKeyword);
+    }
+
+    const categoryId = this.parsePositiveInt(params.categoryId ?? params.cid, 0);
+    const category = String(params.category || '').trim();
+    if (categoryId > 0) {
+      const articleCategoryColumn = await this.getArticleCategoryColumn();
+      if (articleCategoryColumn) {
+        whereParts.push(`\`${articleCategoryColumn}\` = ?`);
+        replacements.push(categoryId);
+      } else {
+        const fallbackCategoryName = await this.getCategoryNameById(categoryId);
+        if (!fallbackCategoryName) {
+          return { deleted: 0 };
+        }
+        whereParts.push('category = ?');
+        replacements.push(fallbackCategoryName);
+      }
+    } else if (category) {
+      whereParts.push('category = ?');
+      replacements.push(category);
+    }
+
+    const rows = await app.model.query(
+      `SELECT id FROM uied_article WHERE ${whereParts.join(' AND ')}`,
+      { replacements, type: app.Sequelize.QueryTypes.SELECT }
+    );
+    const idList = this.parsePositiveIntList((Array.isArray(rows) ? rows : []).map(item => item?.id));
+    if (idList.length === 0) {
+      return { deleted: 0 };
+    }
+
+    await this.realDelete(idList);
+    return { deleted: idList.length };
+  }
+
+  /**
    * 获取公开文章列表（前端）
    */
   async publicList(params = {}) {

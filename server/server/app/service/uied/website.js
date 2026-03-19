@@ -1562,6 +1562,199 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 批量移动网站分类与标签。
+   * @param {Object} payload 批量参数
+   * @param {Array<number|string>} payload.ids 网站ID列表
+   * @param {boolean} payload.applyCategory 是否应用分类变更
+   * @param {number|string} payload.categoryId 主分类ID
+   * @param {Array<number|string>|string} payload.categoryIds 分类ID列表
+   * @param {boolean} payload.applyTags 是否应用标签变更
+   * @param {Array<string>|string} payload.tags 目标标签（普通标签）
+   * @param {Array<number|string>|string} payload.tagIds 目标标签ID（从网站标签库取名称）
+   * @return {Promise<{updated:number,categoryUpdated:number,tagUpdated:number}>} 更新结果
+   */
+  async batchMove(payload = {}) {
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const websiteIds = Array.from(
+      new Set(
+        (Array.isArray(payload.ids) ? payload.ids : [])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    if (websiteIds.length === 0) {
+      throw new Error('请选择要操作的网站');
+    }
+
+    const applyCategory = payload.applyCategory === true;
+    const applyTags = payload.applyTags === true;
+    let categoryUpdated = 0;
+    let tagUpdated = 0;
+
+    if (applyCategory) {
+      const normalizedCategoryIds = this.normalizeWebsiteCategoryIds(payload);
+      const primaryCategoryId = normalizedCategoryIds[0] || 0;
+      if (!Number.isInteger(primaryCategoryId) || primaryCategoryId <= 0) {
+        throw new Error('请选择有效的目标分类');
+      }
+
+      await app.model.query(
+        'UPDATE uied_website SET category_id = ?, update_time = ? WHERE id IN (?) AND is_delete = 0',
+        {
+          replacements: [ primaryCategoryId, now, websiteIds ],
+          type: app.Sequelize.QueryTypes.UPDATE,
+        }
+      );
+      for (const websiteId of websiteIds) {
+        await this.saveWebsiteCategoryRelations(websiteId, normalizedCategoryIds, now);
+      }
+      categoryUpdated = websiteIds.length;
+    }
+
+    if (applyTags) {
+      let nextTags = this.parseStringList(payload.tags);
+      const tagIds = this.parseCategoryIdList(payload.tagIds);
+      if (nextTags.length === 0 && tagIds.length > 0) {
+        const tagRows = await app.model.query(
+          'SELECT name FROM uied_website_tag WHERE id IN (?) AND is_delete = 0',
+          { replacements: [ tagIds ], type: app.Sequelize.QueryTypes.SELECT }
+        );
+        nextTags = Array.from(
+          new Set(
+            (Array.isArray(tagRows) ? tagRows : [])
+              .map(item => String(item?.name || '').trim())
+              .filter(Boolean)
+          )
+        );
+      }
+      const websiteRows = await app.model.query(
+        'SELECT id, tags FROM uied_website WHERE id IN (?) AND is_delete = 0',
+        { replacements: [ websiteIds ], type: app.Sequelize.QueryTypes.SELECT }
+      );
+      for (const row of Array.isArray(websiteRows) ? websiteRows : []) {
+        const websiteId = Number.parseInt(String(row?.id || 0), 10);
+        if (!Number.isInteger(websiteId) || websiteId <= 0) continue;
+        const currentBundle = this.parseWebsiteTagBundle(row?.tags);
+        const nextStoredTags = this.buildStoredWebsiteTags(nextTags, currentBundle.weightTags);
+        await app.model.query(
+          'UPDATE uied_website SET tags = ?, update_time = ? WHERE id = ?',
+          {
+            replacements: [ JSON.stringify(nextStoredTags), now, websiteId ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+      }
+      tagUpdated = websiteIds.length;
+    }
+
+    return {
+      updated: websiteIds.length,
+      categoryUpdated,
+      tagUpdated,
+    };
+  }
+
+  /**
+   * 一键清空网站回收站（支持按筛选条件清理）。
+   * @param {Object} params 筛选参数
+   * @return {Promise<{deleted:number}>} 清理结果
+   */
+  async clearRecycle(params = {}) {
+    const { app } = this;
+    let whereClause = 'w.is_delete = 1';
+    const replacements = [];
+
+    const categoryIdList = Array.from(
+      new Set([
+        ...this.parseCategoryIdList(params.categoryId),
+        ...this.parseCategoryIdList(params.categoryIds),
+      ])
+    );
+    if (categoryIdList.length > 0) {
+      let effectiveCategoryIds = [ ...categoryIdList ];
+      const includeChildren = params.includeChildren === true
+        || params.includeChildren === 'true'
+        || params.includeChildren === '1';
+      if (includeChildren) {
+        const childRows = await app.model.query(
+          'SELECT id FROM uied_category WHERE parent_id IN (?) AND is_delete = 0',
+          {
+            replacements: [ categoryIdList ],
+            type: app.Sequelize.QueryTypes.SELECT,
+          }
+        );
+        const childIds = (Array.isArray(childRows) ? childRows : [])
+          .map(item => Number.parseInt(String(item?.id || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0);
+        effectiveCategoryIds = Array.from(new Set([ ...effectiveCategoryIds, ...childIds ]));
+      }
+      const placeholders = effectiveCategoryIds.map(() => '?').join(',');
+      whereClause += ` AND (
+        w.category_id IN (${placeholders})
+        OR EXISTS (
+          SELECT 1
+          FROM uied_website_category uwc
+          WHERE uwc.website_id = w.id
+            AND uwc.is_delete = 0
+            AND uwc.category_id IN (${placeholders})
+        )
+      )`;
+      replacements.push(...effectiveCategoryIds, ...effectiveCategoryIds);
+    }
+
+    const keyword = String(params.keyword || '').trim();
+    if (keyword) {
+      whereClause += ' AND (w.name LIKE ? OR w.description LIKE ? OR w.url LIKE ? OR w.slug LIKE ? OR w.tags LIKE ?)';
+      const likeKeyword = `%${keyword}%`;
+      replacements.push(likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword);
+    }
+
+    const parsedStatusList = (() => {
+      const normalizedStatusList = this.parseStringList(params.statusList).map(item => item.toLowerCase());
+      if (normalizedStatusList.length > 0) {
+        return Array.from(new Set(normalizedStatusList));
+      }
+      return Array.from(new Set(this.parseStringList(params.status).map(item => item.toLowerCase())));
+    })();
+    if (parsedStatusList.length > 0) {
+      const includesPublished = parsedStatusList.some(item => item === 'active' || item === 'normal');
+      const exactStatuses = parsedStatusList.filter(item => item !== 'active' && item !== 'normal');
+      const statusClauses = [];
+      if (includesPublished) {
+        statusClauses.push("(w.status IN ('active', 'normal') OR w.status IS NULL OR w.status = '')");
+      }
+      if (exactStatuses.length > 0) {
+        statusClauses.push(`w.status IN (${exactStatuses.map(() => '?').join(',')})`);
+        replacements.push(...exactStatuses);
+      }
+      if (statusClauses.length > 0) {
+        whereClause += ` AND (${statusClauses.join(' OR ')})`;
+      }
+    }
+
+    const rows = await app.model.query(
+      `SELECT w.id
+       FROM uied_website w
+       WHERE ${whereClause}`,
+      { replacements, type: app.Sequelize.QueryTypes.SELECT }
+    );
+    const websiteIds = Array.from(
+      new Set(
+        (Array.isArray(rows) ? rows : [])
+          .map(item => Number.parseInt(String(item?.id || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    if (websiteIds.length === 0) {
+      return { deleted: 0 };
+    }
+
+    await this.batchRealDelete(websiteIds);
+    return { deleted: websiteIds.length };
+  }
+
+  /**
    * 增加点击次数
    */
   async incrementClick(id) {

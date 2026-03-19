@@ -115,6 +115,11 @@ export function uiedWebsiteBatchWeightTags(params: any) {
     return request.post({ url: '/uied/website/batchWeightTags', params })
 }
 
+// 批量移动网站分类/标签
+export function uiedWebsiteBatchMove(params: any) {
+    return request.post({ url: '/uied/website/batchMove', params })
+}
+
 // 删除网站
 export function uiedWebsiteDelete(params: any) {
     return request.post({ url: '/uied/website/del', params })
@@ -145,6 +150,11 @@ export function uiedWebsiteBatchRealDelete(params: any) {
     return request.post({ url: '/uied/website/batchRealDelete', params })
 }
 
+// 一键清空网站回收站（支持筛选条件）
+export function uiedWebsiteRecycleClear(params?: any) {
+    return request.post({ url: '/uied/website/recycle/clear', params: params || {} })
+}
+
 // 网站点击统计
 export function uiedWebsiteClick(params: any) {
     return request.post({ url: '/uied/website/click', params })
@@ -153,6 +163,11 @@ export function uiedWebsiteClick(params: any) {
 // 网站搜索
 export function uiedWebsiteSearch(params?: any) {
     return request.get({ url: '/uied/website/search', params })
+}
+
+// 网站标签（全部）
+export function uiedWebsiteTagAll() {
+    return request.get({ url: '/uied/websiteTag/all' })
 }
 
 // 刷新/获取网站预览截图（前台公开接口，后台编辑页复用）
@@ -721,6 +736,16 @@ export function uiedArticleCategoryDelete(params: any) {
 // 文章批量状态更新
 export function uiedArticleBatchStatus(params: any) {
     return request.post({ url: '/uied/article/batchStatus', params })
+}
+
+// 文章批量移动分类/标签
+export function uiedArticleBatchMove(params: any) {
+    return request.post({ url: '/uied/article/batchMove', params })
+}
+
+// 一键清空文章回收站（支持筛选条件）
+export function uiedArticleRecycleClear(params?: any) {
+    return request.post({ url: '/uied/article/recycle/clear', params: params || {} })
 }
 
 // ==================== 评论管理 ====================

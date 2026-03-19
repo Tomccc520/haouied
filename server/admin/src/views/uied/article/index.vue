@@ -17,12 +17,6 @@
                         <el-option label="已发布" value="published" />
                     </el-select>
                 </el-form-item>
-                <el-form-item label="数据范围">
-                    <el-select v-model="queryParams.recycleBin" placeholder="全部" @change="handleQuery">
-                        <el-option label="正常数据" :value="0" />
-                        <el-option label="回收站" :value="1" />
-                    </el-select>
-                </el-form-item>
                 <el-form-item label="分类">
                     <el-select v-model="queryParams.category" placeholder="全部" clearable>
                         <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
@@ -51,6 +45,14 @@
                         >
                             批量删除
                         </el-button>
+                        <el-button
+                            type="warning"
+                            plain
+                            :disabled="!selectedIds.length"
+                            @click="openBatchMoveDialog"
+                        >
+                            批量移动分类/标签
+                        </el-button>
                     </template>
                     <template v-else>
                         <el-button
@@ -67,29 +69,49 @@
                         >
                             彻底删除
                         </el-button>
+                        <el-button
+                            type="danger"
+                            plain
+                            :disabled="loading || total <= 0"
+                            @click="handleClearRecycle"
+                        >
+                            一键清空回收站
+                        </el-button>
                     </template>
                 </div>
                 <div class="flex items-center gap-2">
                     <el-tag v-if="isRecycleBinMode" type="warning" effect="plain">
                         回收站 {{ total }} 条
                     </el-tag>
-                    <el-button
-                        v-if="!isRecycleBinMode"
-                        type="warning"
-                        plain
-                        @click="switchRecycleBinMode(1)"
-                    >
-                        进入回收站
-                    </el-button>
-                    <el-button
-                        v-else
-                        type="primary"
-                        plain
-                        @click="switchRecycleBinMode(0)"
-                    >
-                        返回正常数据
-                    </el-button>
                 </div>
+            </div>
+            <div class="article-quick-filters mt-3">
+                <span class="article-quick-filters__label">快捷筛选</span>
+                <el-button size="small" :type="isArticleQuickFilterActive('all') ? 'primary' : undefined" @click="applyArticleQuickFilter('all')">
+                    全部
+                </el-button>
+                <el-button size="small" :type="isArticleQuickFilterActive('published') ? 'success' : undefined" :plain="!isArticleQuickFilterActive('published')" @click="applyArticleQuickFilter('published')">
+                    已发布
+                </el-button>
+                <el-button size="small" :type="isArticleQuickFilterActive('draft') ? 'info' : undefined" :plain="!isArticleQuickFilterActive('draft')" @click="applyArticleQuickFilter('draft')">
+                    草稿
+                </el-button>
+                <el-button size="small" :type="isArticleQuickFilterActive('recycle') ? 'warning' : undefined" :plain="!isArticleQuickFilterActive('recycle')" @click="applyArticleQuickFilter('recycle')">
+                    回收站
+                </el-button>
+                <template v-if="isRecycleBinMode">
+                    <span class="article-quick-filters__label article-quick-filters__label--type">回收类型</span>
+                    <el-select
+                        v-model="recycleTypeFilter"
+                        size="small"
+                        class="article-quick-filters__type-select"
+                        @change="handleRecycleTypeChange"
+                    >
+                        <el-option label="全部类型" value="all" />
+                        <el-option label="已发布" value="published" />
+                        <el-option label="草稿" value="draft" />
+                    </el-select>
+                </template>
             </div>
         </el-card>
 
@@ -259,6 +281,66 @@
                 >
             </template>
         </el-dialog>
+
+        <el-dialog
+            v-model="batchMoveDialogVisible"
+            title="批量移动文章分类/标签"
+            width="620px"
+            destroy-on-close
+        >
+            <el-alert
+                type="info"
+                :closable="false"
+                :title="`当前已选择 ${selectedIds.length} 篇文章`"
+            />
+            <el-form class="mt-4" :model="batchMoveForm" label-width="130px">
+                <el-form-item label="更新分类">
+                    <el-switch v-model="batchMoveForm.applyCategory" />
+                    <el-select
+                        v-model="batchMoveForm.categoryId"
+                        class="ml-3 w-[320px]"
+                        filterable
+                        clearable
+                        placeholder="选择目标分类"
+                        :disabled="!batchMoveForm.applyCategory || batchMoveLoading"
+                    >
+                        <el-option
+                            v-for="item in articleCategoryOptions"
+                            :key="item.id"
+                            :label="item.name"
+                            :value="item.id"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="更新标签">
+                    <el-switch v-model="batchMoveForm.applyTagIds" />
+                    <el-select
+                        v-model="batchMoveForm.tagIds"
+                        class="ml-3 w-[320px]"
+                        multiple
+                        filterable
+                        clearable
+                        collapse-tags
+                        collapse-tags-tooltip
+                        placeholder="选择目标标签（留空则清空标签）"
+                        :disabled="!batchMoveForm.applyTagIds || batchMoveLoading"
+                    >
+                        <el-option
+                            v-for="item in articleTagOptions"
+                            :key="item.id"
+                            :label="item.name"
+                            :value="item.id"
+                        />
+                    </el-select>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button :disabled="batchMoveLoading" @click="batchMoveDialogVisible = false">取消</el-button>
+                <el-button type="primary" :loading="batchMoveLoading" @click="handleBatchMoveSubmit">
+                    确认批量移动
+                </el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -284,6 +366,9 @@ const tableData = ref<any[]>([])
 const total = ref(0)
 const selectedIds = ref<number[]>([])
 const categories = ref<string[]>([])
+const recycleTypeFilter = ref<'all' | 'published' | 'draft'>('all')
+const articleCategoryOptions = ref<Array<{ id: number; name: string }>>([])
+const articleTagOptions = ref<Array<{ id: number; name: string }>>([])
 const websiteSearchLoading = ref(false)
 const websiteOptions = ref<
     Array<{
@@ -298,7 +383,15 @@ const websiteOptions = ref<
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增文章')
 const submitLoading = ref(false)
+const batchMoveDialogVisible = ref(false)
+const batchMoveLoading = ref(false)
 const formRef = ref()
+const batchMoveForm = reactive({
+    applyCategory: true,
+    categoryId: '' as number | string,
+    applyTagIds: false,
+    tagIds: [] as number[]
+})
 
 // 表单数据
 const formData = reactive({
@@ -363,16 +456,52 @@ const handleReset = () => {
     queryParams.status = ''
     queryParams.category = ''
     queryParams.recycleBin = 0
+    recycleTypeFilter.value = 'all'
+    handleQuery()
+}
+
+type ArticleQuickFilterKey = 'all' | 'published' | 'draft' | 'recycle'
+
+/**
+ * 应用文章快捷筛选（全部/已发布/草稿/回收站）。
+ * @param key 快捷筛选键
+ */
+const applyArticleQuickFilter = (key: ArticleQuickFilterKey) => {
+    if (key === 'published') {
+        queryParams.recycleBin = 0
+        queryParams.status = 'published'
+        recycleTypeFilter.value = 'all'
+    } else if (key === 'draft') {
+        queryParams.recycleBin = 0
+        queryParams.status = 'draft'
+        recycleTypeFilter.value = 'all'
+    } else if (key === 'recycle') {
+        queryParams.recycleBin = 1
+        queryParams.status = ''
+        recycleTypeFilter.value = 'all'
+    } else {
+        queryParams.recycleBin = 0
+        queryParams.status = ''
+        recycleTypeFilter.value = 'all'
+    }
     handleQuery()
 }
 
 /**
- * 切换列表数据范围（正常/回收站）。
- * @param mode 0=正常数据，1=回收站
+ * 判断当前快捷筛选是否处于激活态。
+ * @param key 快捷筛选键
  */
-const switchRecycleBinMode = (mode: 0 | 1) => {
-    queryParams.recycleBin = mode
-    handleQuery()
+const isArticleQuickFilterActive = (key: ArticleQuickFilterKey) => {
+    if (key === 'published') {
+        return Number(queryParams.recycleBin || 0) === 0 && queryParams.status === 'published'
+    }
+    if (key === 'draft') {
+        return Number(queryParams.recycleBin || 0) === 0 && queryParams.status === 'draft'
+    }
+    if (key === 'recycle') {
+        return Number(queryParams.recycleBin || 0) === 1
+    }
+    return Number(queryParams.recycleBin || 0) === 0 && !queryParams.status
 }
 
 // 选择变化
@@ -584,6 +713,138 @@ const handleBatchRealDelete = async () => {
     }
 }
 
+/**
+ * 回收站类型筛选：按已发布/草稿过滤回收站数据。
+ * @param value 类型值
+ */
+const handleRecycleTypeChange = (value: 'all' | 'published' | 'draft') => {
+    if (!isRecycleBinMode.value) return
+    queryParams.status = value === 'all' ? '' : value
+    handleQuery()
+}
+
+/**
+ * 一键清空回收站（按当前筛选条件生效）。
+ */
+const handleClearRecycle = async () => {
+    if (!isRecycleBinMode.value) return
+    await ElMessageBox.confirm(
+        `确认彻底删除当前筛选条件下的回收站文章吗？预计共 ${total.value} 条，此操作不可恢复。`,
+        '危险操作确认',
+        { type: 'warning' }
+    )
+    try {
+        const result = await request.post({
+            url: '/uied/article/recycle/clear',
+            params: {
+                keyword: queryParams.keyword,
+                category: queryParams.category,
+                status: queryParams.status
+            }
+        })
+        const deleted = Number(result?.deleted || result?.data?.deleted || 0)
+        ElMessage.success(`清空完成：已删除 ${deleted} 篇文章`)
+        selectedIds.value = []
+        getList()
+    } catch (error: any) {
+        ElMessage.error(error?.msg || error?.message || '清空回收站失败')
+    }
+}
+
+/**
+ * 获取文章分类选项（批量移动用）
+ */
+const getArticleCategoryOptions = async () => {
+    try {
+        const res = await request.get({ url: '/uied/articleCategory/all' })
+        articleCategoryOptions.value = Array.isArray(res)
+            ? res
+                  .map((item: any) => ({
+                      id: Number(item?.id || 0),
+                      name: String(item?.name || '').trim()
+                  }))
+                  .filter((item: any) => item.id > 0 && item.name)
+            : []
+    } catch (error) {
+        articleCategoryOptions.value = []
+    }
+}
+
+/**
+ * 获取文章标签选项（批量移动用）
+ */
+const getArticleTagOptions = async () => {
+    try {
+        const res = await request.get({ url: '/uied/articleTag/all' })
+        articleTagOptions.value = Array.isArray(res)
+            ? res
+                  .map((item: any) => ({
+                      id: Number(item?.id || 0),
+                      name: String(item?.name || '').trim()
+                  }))
+                  .filter((item: any) => item.id > 0 && item.name)
+            : []
+    } catch (error) {
+        articleTagOptions.value = []
+    }
+}
+
+/**
+ * 打开批量移动弹窗并加载分类/标签选项。
+ */
+const openBatchMoveDialog = async () => {
+    if (selectedIds.value.length === 0) {
+        ElMessage.warning('请先选择要处理的文章')
+        return
+    }
+    batchMoveForm.applyCategory = true
+    batchMoveForm.categoryId = ''
+    batchMoveForm.applyTagIds = false
+    batchMoveForm.tagIds = []
+    batchMoveDialogVisible.value = true
+    await Promise.all([getArticleCategoryOptions(), getArticleTagOptions()])
+}
+
+/**
+ * 提交文章批量移动（分类/标签）。
+ */
+const handleBatchMoveSubmit = async () => {
+    if (selectedIds.value.length === 0) {
+        ElMessage.warning('请先选择要处理的文章')
+        return
+    }
+    if (!batchMoveForm.applyCategory && !batchMoveForm.applyTagIds) {
+        ElMessage.warning('请至少开启一个批量项（分类或标签）')
+        return
+    }
+    if (batchMoveForm.applyCategory && !batchMoveForm.categoryId) {
+        ElMessage.warning('请选择目标分类')
+        return
+    }
+    batchMoveLoading.value = true
+    try {
+        const result = await request.post({
+            url: '/uied/article/batchMove',
+            params: {
+                ids: selectedIds.value,
+                applyCategory: batchMoveForm.applyCategory,
+                categoryId: batchMoveForm.categoryId || 0,
+                applyTagIds: batchMoveForm.applyTagIds,
+                tagIds: batchMoveForm.applyTagIds ? batchMoveForm.tagIds : undefined
+            }
+        })
+        const updated = Number(result?.updated || result?.data?.updated || selectedIds.value.length)
+        ElMessage.success(`批量移动完成，已处理 ${updated} 篇文章`)
+        batchMoveDialogVisible.value = false
+        selectedIds.value = []
+        getList()
+    } catch (error: any) {
+        ElMessage.error(error?.msg || error?.message || '批量移动失败')
+    } finally {
+        batchMoveLoading.value = false
+    }
+}
+
 // 格式化时间
 const formatTime = (timestamp: number) => {
     if (!timestamp) return '-'
@@ -595,12 +856,34 @@ onMounted(() => {
     getList()
     getCategories()
     searchWebsiteOptions('')
+    getArticleCategoryOptions()
+    getArticleTagOptions()
 })
 </script>
 
 <style scoped>
 .article-container {
     padding: 20px;
+}
+
+.article-quick-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.article-quick-filters__label {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.article-quick-filters__label--type {
+    margin-left: 8px;
+}
+
+.article-quick-filters__type-select {
+    width: 160px;
 }
 
 .article-related-site-option {

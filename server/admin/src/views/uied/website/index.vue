@@ -70,17 +70,6 @@
                         <el-option label="异常" value="failed" />
                     </el-select>
                 </el-form-item>
-                <el-form-item label="数据范围">
-                    <el-select
-                        class="w-[140px]"
-                        v-model="queryParams.recycleBin"
-                        placeholder="正常数据"
-                        @change="resetPage"
-                    >
-                        <el-option label="正常数据" :value="0" />
-                        <el-option label="回收站" :value="1" />
-                    </el-select>
-                </el-form-item>
                 <el-form-item label="标记筛选">
                     <el-select
                         class="w-[220px]"
@@ -181,6 +170,14 @@
                         >
                             批量权重标签
                         </el-button>
+                        <el-button
+                            type="warning"
+                            plain
+                            :disabled="!selectedIds.length || batchMoveLoading"
+                            @click="openBatchMoveDialog"
+                        >
+                            批量移动分类/标签
+                        </el-button>
                     </template>
                     <template v-else>
                         <el-button
@@ -197,6 +194,14 @@
                         >
                             彻底删除
                         </el-button>
+                        <el-button
+                            type="danger"
+                            plain
+                            :disabled="pager.loading || Number(pager.count || 0) <= 0"
+                            @click="handleClearRecycle"
+                        >
+                            一键清空回收站
+                        </el-button>
                     </template>
                 </div>
                 <div class="text-gray-400">
@@ -204,25 +209,56 @@
                         <el-tag type="warning" effect="plain">回收站 {{ pager.count }} 个网站</el-tag>
                     </template>
                     <template v-else>共 {{ pager.count }} 个网站</template>
-                    <el-button
-                        v-if="!isRecycleBinMode"
-                        type="warning"
-                        plain
-                        class="ml-2"
-                        @click="switchRecycleBinMode(1)"
-                    >
-                        进入回收站
-                    </el-button>
-                    <el-button
-                        v-else
-                        type="primary"
-                        plain
-                        class="ml-2"
-                        @click="switchRecycleBinMode(0)"
-                    >
-                        返回正常数据
-                    </el-button>
                 </div>
+            </div>
+            <div class="website-quick-filters mb-3">
+                <span class="website-quick-filters__label">快捷筛选</span>
+                <el-button
+                    size="small"
+                    :type="isWebsiteQuickFilterActive('all') ? 'primary' : undefined"
+                    @click="applyWebsiteQuickFilter('all')"
+                >
+                    全部
+                </el-button>
+                <el-button
+                    size="small"
+                    :type="isWebsiteQuickFilterActive('published') ? 'success' : undefined"
+                    :plain="!isWebsiteQuickFilterActive('published')"
+                    @click="applyWebsiteQuickFilter('published')"
+                >
+                    已发布
+                </el-button>
+                <el-button
+                    size="small"
+                    :type="isWebsiteQuickFilterActive('draft') ? 'info' : undefined"
+                    :plain="!isWebsiteQuickFilterActive('draft')"
+                    @click="applyWebsiteQuickFilter('draft')"
+                >
+                    草稿
+                </el-button>
+                <el-button
+                    size="small"
+                    :type="isWebsiteQuickFilterActive('recycle') ? 'warning' : undefined"
+                    :plain="!isWebsiteQuickFilterActive('recycle')"
+                    @click="applyWebsiteQuickFilter('recycle')"
+                >
+                    回收站
+                </el-button>
+                <template v-if="isRecycleBinMode">
+                    <span class="website-quick-filters__label website-quick-filters__label--type">回收类型</span>
+                    <el-select
+                        v-model="recycleTypeFilter"
+                        size="small"
+                        class="website-quick-filters__type-select"
+                        @change="handleRecycleTypeChange"
+                    >
+                        <el-option label="全部类型" value="all" />
+                        <el-option label="已发布" value="active" />
+                        <el-option label="草稿" value="draft" />
+                        <el-option label="隐藏" value="disabled" />
+                        <el-option label="待审核" value="unchecked" />
+                    </el-select>
+                </template>
             </div>
             <el-table
                 size="large"
@@ -821,6 +857,71 @@
                 </el-button>
             </template>
         </el-dialog>
+
+        <el-dialog
+            v-model="batchMoveDialogVisible"
+            title="批量移动网站分类/标签"
+            width="700px"
+            destroy-on-close
+        >
+            <el-alert
+                type="info"
+                :closable="false"
+                :title="`当前已选择 ${selectedIds.length} 个网站`"
+            />
+            <el-form class="mt-4" :model="batchMoveForm" label-width="130px">
+                <el-form-item label="更新分类">
+                    <el-switch v-model="batchMoveForm.applyCategory" />
+                    <el-select
+                        v-model="batchMoveForm.categoryIds"
+                        class="ml-3 w-[420px]"
+                        multiple
+                        filterable
+                        clearable
+                        collapse-tags
+                        collapse-tags-tooltip
+                        placeholder="选择目标分类（第一项为主分类）"
+                        :disabled="!batchMoveForm.applyCategory || batchMoveLoading"
+                    >
+                        <el-option
+                            v-for="item in categoryOptions"
+                            :key="item.id"
+                            :label="item.pathLabelWithSlug || item.pathLabel || item.label"
+                            :value="item.id"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="更新标签">
+                    <el-switch v-model="batchMoveForm.applyTags" />
+                    <el-select
+                        v-model="batchMoveForm.tagNames"
+                        class="ml-3 w-[420px]"
+                        multiple
+                        filterable
+                        allow-create
+                        default-first-option
+                        clearable
+                        collapse-tags
+                        collapse-tags-tooltip
+                        placeholder="选择或输入标签（留空表示清空普通标签）"
+                        :disabled="!batchMoveForm.applyTags || batchMoveLoading"
+                    >
+                        <el-option
+                            v-for="item in websiteTagOptions"
+                            :key="item.id"
+                            :label="item.name"
+                            :value="item.name"
+                        />
+                    </el-select>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button :disabled="batchMoveLoading" @click="batchMoveDialogVisible = false">取消</el-button>
+                <el-button type="primary" :loading="batchMoveLoading" @click="handleBatchMoveSubmit">
+                    确认批量移动
+                </el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -837,8 +938,11 @@ import {
     uiedWebsiteBatchImport,
     uiedWebsiteBatchGenerateDetailContent,
     uiedWebsiteBatchWeightTags,
+    uiedWebsiteBatchMove,
+    uiedWebsiteRecycleClear,
     uiedWebsiteClick,
-    uiedCategoryAll
+    uiedCategoryAll,
+    uiedWebsiteTagAll
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
@@ -1072,12 +1176,23 @@ const batchWeightTagForm = reactive({
     operation: 'add',
     weightTags: [] as string[]
 })
+const batchMoveDialogVisible = ref(false)
+const batchMoveLoading = ref(false)
+const batchMoveForm = reactive({
+    applyCategory: true,
+    categoryIds: [] as number[],
+    applyTags: false,
+    tagNames: [] as string[]
+})
+const recycleTypeFilter = ref<'all' | 'active' | 'draft' | 'disabled' | 'unchecked'>('all')
+const websiteTagOptions = ref<Array<{ id: number; name: string }>>([])
 const runningBatchTaskLeaveMessage = '当前有批量任务执行中，离开页面后可能无法及时看到结果，确定继续离开吗？'
 const hasRunningBatchTask = computed(
     () =>
         batchImportLoading.value ||
         batchGenerateDetailLoading.value ||
-        batchWeightTagLoading.value
+        batchWeightTagLoading.value ||
+        batchMoveLoading.value
 )
 
 /**
@@ -1103,11 +1218,70 @@ const { pager, getLists, resetPage, resetParams } = usePaging({
 const isRecycleBinMode = computed(() => Number(queryParams.recycleBin || 0) === 1)
 
 /**
- * 切换网站列表的数据范围（正常/回收站）并刷新列表。
- * @param mode 0=正常数据，1=回收站
+ * 网站列表快捷筛选键。
  */
-const switchRecycleBinMode = (mode: 0 | 1) => {
-    queryParams.recycleBin = mode
+type WebsiteQuickFilterKey = 'all' | 'published' | 'draft' | 'recycle'
+
+/**
+ * 应用网站快捷筛选（全部/已发布/草稿/回收站）。
+ * @param key 快捷筛选键
+ */
+const applyWebsiteQuickFilter = (key: WebsiteQuickFilterKey) => {
+    if (key === 'published') {
+        queryParams.recycleBin = 0
+        queryParams.statusList = ['active']
+        recycleTypeFilter.value = 'all'
+    } else if (key === 'draft') {
+        queryParams.recycleBin = 0
+        queryParams.statusList = ['draft']
+        recycleTypeFilter.value = 'all'
+    } else if (key === 'recycle') {
+        queryParams.recycleBin = 1
+        queryParams.statusList = []
+        recycleTypeFilter.value = 'all'
+    } else {
+        queryParams.recycleBin = 0
+        queryParams.statusList = []
+        recycleTypeFilter.value = 'all'
+    }
+    resetPage()
+}
+
+/**
+ * 判断网站快捷筛选按钮是否激活。
+ * @param key 快捷筛选键
+ */
+const isWebsiteQuickFilterActive = (key: WebsiteQuickFilterKey) => {
+    if (key === 'recycle') {
+        return Number(queryParams.recycleBin || 0) === 1
+    }
+    if (Number(queryParams.recycleBin || 0) === 1) {
+        return false
+    }
+    if (key === 'published') {
+        return (
+            Array.isArray(queryParams.statusList) &&
+            queryParams.statusList.length === 1 &&
+            queryParams.statusList[0] === 'active'
+        )
+    }
+    if (key === 'draft') {
+        return (
+            Array.isArray(queryParams.statusList) &&
+            queryParams.statusList.length === 1 &&
+            queryParams.statusList[0] === 'draft'
+        )
+    }
+    return Array.isArray(queryParams.statusList) && queryParams.statusList.length === 0
+}
+
+/**
+ * 回收站类型筛选：仅在回收站视图下按状态过滤。
+ * @param value 回收类型
+ */
+const handleRecycleTypeChange = (value: 'all' | 'active' | 'draft' | 'disabled' | 'unchecked') => {
+    if (!isRecycleBinMode.value) return
+    queryParams.statusList = value === 'all' ? [] : [value]
     resetPage()
 }
 
@@ -1398,6 +1572,25 @@ const getCategoryList = async () => {
         categoryList.value = res || []
     } catch (error) {
         console.error('获取分类列表失败:', error)
+    }
+}
+
+/**
+ * 获取网站标签列表（批量移动标签时使用）。
+ */
+const getWebsiteTagOptions = async () => {
+    try {
+        const res = await uiedWebsiteTagAll()
+        websiteTagOptions.value = Array.isArray(res)
+            ? res
+                  .map((item: any) => ({
+                      id: Number(item?.id || 0),
+                      name: String(item?.name || '').trim()
+                  }))
+                  .filter((item: any) => item.id > 0 && item.name)
+            : []
+    } catch (error) {
+        websiteTagOptions.value = []
     }
 }
 
@@ -1808,6 +2001,89 @@ const handleBatchWeightTagSubmit = async () => {
 }
 
 /**
+ * 打开批量移动弹窗，并按需加载标签候选。
+ */
+const openBatchMoveDialog = async () => {
+    if (!selectedIds.value.length) {
+        feedback.msgWarning('请先选择要处理的网站')
+        return
+    }
+    batchMoveForm.applyCategory = true
+    batchMoveForm.categoryIds = []
+    batchMoveForm.applyTags = false
+    batchMoveForm.tagNames = []
+    batchMoveDialogVisible.value = true
+    if (!websiteTagOptions.value.length) {
+        await getWebsiteTagOptions()
+    }
+}
+
+/**
+ * 提交网站批量移动（分类 + 普通标签）。
+ */
+const handleBatchMoveSubmit = async () => {
+    if (!selectedIds.value.length) {
+        feedback.msgWarning('请先选择要处理的网站')
+        return
+    }
+    if (!batchMoveForm.applyCategory && !batchMoveForm.applyTags) {
+        feedback.msgWarning('请至少开启一个批量项（分类或标签）')
+        return
+    }
+    const normalizedCategoryIds = normalizeCategoryIdSelection(batchMoveForm.categoryIds)
+    if (batchMoveForm.applyCategory && normalizedCategoryIds.length === 0) {
+        feedback.msgWarning('请选择目标分类')
+        return
+    }
+    batchMoveLoading.value = true
+    try {
+        const result = await uiedWebsiteBatchMove({
+            ids: selectedIds.value,
+            applyCategory: batchMoveForm.applyCategory,
+            categoryId: normalizedCategoryIds[0] || 0,
+            categoryIds: normalizedCategoryIds,
+            applyTags: batchMoveForm.applyTags,
+            tags: batchMoveForm.applyTags ? batchMoveForm.tagNames : undefined
+        })
+        const payload = result?.data?.data || result?.data || result || {}
+        const updated = Number(payload?.updated || selectedIds.value.length)
+        feedback.msgSuccess(`批量移动完成：已处理 ${updated} 个网站`)
+        batchMoveDialogVisible.value = false
+        selectedIds.value = []
+        getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '批量移动失败')
+    } finally {
+        batchMoveLoading.value = false
+    }
+}
+
+/**
+ * 一键清空网站回收站（按当前筛选条件执行）。
+ */
+const handleClearRecycle = async () => {
+    if (!isRecycleBinMode.value) return
+    await feedback.confirm(
+        `确认彻底删除当前筛选条件下的回收站网站吗？预计共 ${Number(pager.count || 0)} 条，此操作不可恢复。`
+    )
+    try {
+        const result = await uiedWebsiteRecycleClear({
+            keyword: queryParams.keyword,
+            categoryId: queryParams.categoryId,
+            includeChildren: queryParams.includeChildren ? 1 : 0,
+            statusList: Array.isArray(queryParams.statusList) ? queryParams.statusList : []
+        })
+        const payload = result?.data?.data || result?.data || result || {}
+        const deleted = Number(payload?.deleted || 0)
+        feedback.msgSuccess(`清空完成：已删除 ${deleted} 个网站`)
+        selectedIds.value = []
+        getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.msg || error?.message || '清空回收站失败')
+    }
+}
+
+/**
  * 页面关闭前拦截：批量任务进行中时给出浏览器原生二次确认。
  */
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1905,6 +2181,7 @@ onBeforeRouteLeave(async () => {
 
 onMounted(() => {
     getCategoryList()
+    getWebsiteTagOptions()
     window.addEventListener('beforeunload', handleBeforeUnload)
 })
 
@@ -1921,3 +2198,13 @@ onUnmounted(() => {
 
 getLists()
 </script>
+
+<style scoped>
+.website-quick-filters__label--type {
+    margin-left: 8px;
+}
+
+.website-quick-filters__type-select {
+    width: 170px;
+}
+</style>

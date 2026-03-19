@@ -250,6 +250,42 @@ class WebsiteController extends baseController {
   }
 
   /**
+   * 批量移动网站分类与标签
+   */
+  async batchMove() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const result = await ctx.service.uied.website.batchMove(payload);
+      this.result({
+        data: result,
+        message: '批量移动成功',
+      });
+    } catch (error) {
+      ctx.logger.error('批量移动网站失败:', error);
+      this.result({ code: 500, message: String(error?.message || '批量移动失败') });
+    }
+  }
+
+  /**
+   * 一键清空网站回收站（支持筛选条件）
+   */
+  async clearRecycle() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const result = await ctx.service.uied.website.clearRecycle(payload);
+      this.result({
+        data: result,
+        message: `已清空 ${Number(result?.deleted || 0)} 个网站`,
+      });
+    } catch (error) {
+      ctx.logger.error('清空网站回收站失败:', error);
+      this.result({ code: 500, message: String(error?.message || '清空回收站失败') });
+    }
+  }
+
+  /**
    * 删除网站
    */
   async del() {

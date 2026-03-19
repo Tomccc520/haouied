@@ -246,6 +246,58 @@ class ArticleController extends Controller {
   }
 
   /**
+   * 批量移动文章分类与标签
+   * POST /api/uied/article/batchMove
+   */
+  async batchMove() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    const ids = body.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      ctx.body = { code: 400, msg: '请选择要操作的文章' };
+      return;
+    }
+
+    try {
+      const result = await ctx.service.uied.article.batchMove(ids, body);
+      ctx.body = {
+        code: 200,
+        msg: '批量移动成功',
+        data: result,
+      };
+    } catch (error) {
+      ctx.logger.error('批量移动文章失败:', error);
+      ctx.body = {
+        code: 500,
+        msg: error.message || '批量移动失败',
+      };
+    }
+  }
+
+  /**
+   * 一键清空文章回收站（支持筛选条件）
+   * POST /api/uied/article/recycle/clear
+   */
+  async clearRecycle() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    try {
+      const result = await ctx.service.uied.article.clearRecycle(body);
+      ctx.body = {
+        code: 200,
+        msg: `已清空 ${Number(result?.deleted || 0)} 篇文章`,
+        data: result,
+      };
+    } catch (error) {
+      ctx.logger.error('清空文章回收站失败:', error);
+      ctx.body = {
+        code: 500,
+        msg: error.message || '清空回收站失败',
+      };
+    }
+  }
+
+  /**
    * 获取文章分类列表
    * GET /api/uied/article/categories
    */
