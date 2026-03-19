@@ -105,56 +105,94 @@
         </el-card>
         <el-card class="!border-none mt-4" shadow="never">
             <div>
-                <el-button
-                    v-perms="['article:add', 'article:add/edit']"
-                    type="primary"
-                    class="mb-4"
-                    @click="handleCreate"
-                >
-                    <template #icon>
-                        <icon name="el-icon-Plus" />
-                    </template>
-                    发布文章
-                </el-button>
-                <el-button
-                    v-perms="['article:add', 'article:add/edit']"
-                    class="mb-4 ml-2"
-                    :loading="seedLoading"
-                    @click="handleSeedTestData"
-                >
-                    生成测试数据
-                </el-button>
-                <el-button
-                    v-perms="['article:add', 'article:add/edit']"
-                    class="mb-4 ml-2"
-                    :disabled="batchWechatImportLoading"
-                    @click="openBatchWechatImportDialog"
-                >
-                    批量导入文章
-                </el-button>
+                <template v-if="!isRecycleBinMode">
+                    <el-button
+                        v-perms="['article:add', 'article:add/edit']"
+                        type="primary"
+                        class="mb-4"
+                        @click="handleCreate"
+                    >
+                        <template #icon>
+                            <icon name="el-icon-Plus" />
+                        </template>
+                        发布文章
+                    </el-button>
+                    <el-button
+                        v-perms="['article:add', 'article:add/edit']"
+                        class="mb-4 ml-2"
+                        :disabled="batchWechatImportLoading"
+                        @click="openBatchWechatImportDialog"
+                    >
+                        批量导入文章
+                    </el-button>
+                    <el-button
+                        v-perms="['article:edit', 'article:add/edit']"
+                        class="mb-4 ml-2"
+                        :disabled="selectedIds.length === 0"
+                        @click="openBatchEditDialog"
+                    >
+                        批量编辑
+                    </el-button>
+                    <el-button
+                        v-perms="['article:edit']"
+                        class="mb-4 ml-2"
+                        @click="openRecyclePolicyDialog"
+                    >
+                        回收策略
+                    </el-button>
+                </template>
             </div>
             <div class="article-summary mb-3">
                 <el-tag effect="plain">当前列表 {{ safeLists.length }} 条</el-tag>
-                <el-tag type="warning" effect="plain">待审核 {{ pageAuditPendingCount }} 条</el-tag>
-                <el-tag type="success" effect="plain">已发布 {{ pagePublishedCount }} 条</el-tag>
-                <el-tag type="info" effect="plain">待发布 {{ pageDraftCount }} 条</el-tag>
+                <template v-if="!isRecycleBinMode">
+                    <el-tag type="warning" effect="plain">待审核 {{ pageAuditPendingCount }} 条</el-tag>
+                    <el-tag type="success" effect="plain">已发布 {{ pagePublishedCount }} 条</el-tag>
+                    <el-tag type="info" effect="plain">待发布 {{ pageDraftCount }} 条</el-tag>
+                </template>
+                <template v-else>
+                    <el-tag type="warning" effect="plain">回收站 {{ safeLists.length }} 条</el-tag>
+                </template>
             </div>
             <div class="article-quick-filters mb-3">
                 <span class="article-quick-filters__label">快捷筛选</span>
-                <el-button size="small" @click="applyQuickFilter('all')">全部</el-button>
                 <el-button
                     size="small"
-                    type="warning"
-                    plain
+                    :type="isQuickFilterActive('all') ? 'primary' : undefined"
+                    @click="applyQuickFilter('all')"
+                >
+                    全部
+                </el-button>
+                <el-button
+                    size="small"
+                    :type="isQuickFilterActive('pendingReview') ? 'warning' : undefined"
+                    :plain="!isQuickFilterActive('pendingReview')"
                     @click="applyQuickFilter('pendingReview')"
                 >
                     待审核
                 </el-button>
-                <el-button size="small" type="success" plain @click="applyQuickFilter('published')">
+                <el-button
+                    size="small"
+                    :type="isQuickFilterActive('published') ? 'success' : undefined"
+                    :plain="!isQuickFilterActive('published')"
+                    @click="applyQuickFilter('published')"
+                >
                     已发布
                 </el-button>
-                <el-button size="small" type="info" plain @click="applyQuickFilter('draft')">
+                <el-button
+                    size="small"
+                    :type="isQuickFilterActive('draft') ? 'info' : undefined"
+                    :plain="!isQuickFilterActive('draft')"
+                    @click="applyQuickFilter('draft')"
+                >
                     待发布
+                </el-button>
+                <el-button
+                    size="small"
+                    :type="isQuickFilterActive('recycle') ? 'warning' : undefined"
+                    :plain="!isQuickFilterActive('recycle')"
+                    @click="applyQuickFilter('recycle')"
+                >
+                    回收站
                 </el-button>
             </div>
 
@@ -298,7 +336,164 @@
                 </template>
             </el-dialog>
 
-            <el-table size="large" stripe v-loading="pager.loading" :data="safeLists">
+            <el-dialog
+                v-model="batchEditDialogVisible"
+                title="批量编辑文章"
+                width="700px"
+                destroy-on-close
+            >
+                <el-alert
+                    class="mb-3"
+                    type="info"
+                    :closable="false"
+                    :title="`当前已选择 ${selectedIds.length} 篇文章`"
+                />
+                <el-form :model="batchEditForm" label-width="120px">
+                    <el-form-item label="栏目设置">
+                        <el-switch v-model="batchEditForm.applyCid" />
+                        <el-select
+                            v-model="batchEditForm.cid"
+                            class="ml-3 w-[320px]"
+                            clearable
+                            filterable
+                            placeholder="选择栏目"
+                            :disabled="!batchEditForm.applyCid"
+                        >
+                            <el-option
+                                v-for="item in optionsData.articleCate"
+                                :key="item.id"
+                                :label="item.name"
+                                :value="item.id"
+                            />
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="标签设置">
+                        <el-switch v-model="batchEditForm.applyTagIds" />
+                        <el-select
+                            v-model="batchEditForm.tagIds"
+                            class="ml-3 w-[320px]"
+                            multiple
+                            clearable
+                            filterable
+                            collapse-tags
+                            collapse-tags-tooltip
+                            placeholder="选择标签"
+                            :disabled="!batchEditForm.applyTagIds"
+                        >
+                            <el-option
+                                v-for="item in optionsData.articleTag"
+                                :key="item.id"
+                                :label="item.name"
+                                :value="item.id"
+                            />
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="专题设置">
+                        <el-switch v-model="batchEditForm.applyTopicId" />
+                        <el-select
+                            v-model="batchEditForm.topicId"
+                            class="ml-3 w-[320px]"
+                            clearable
+                            filterable
+                            placeholder="选择专题"
+                            :disabled="!batchEditForm.applyTopicId"
+                        >
+                            <el-option label="不设置专题" :value="0" />
+                            <el-option
+                                v-for="item in optionsData.articleTopic"
+                                :key="item.id"
+                                :label="item.name"
+                                :value="item.id"
+                            />
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="发布状态">
+                        <el-switch v-model="batchEditForm.applyIsShow" />
+                        <el-radio-group v-model="batchEditForm.isShow" class="ml-3" :disabled="!batchEditForm.applyIsShow">
+                            <el-radio :label="1">已发布</el-radio>
+                            <el-radio :label="0">待发布</el-radio>
+                        </el-radio-group>
+                    </el-form-item>
+                    <el-form-item label="SEO设置">
+                        <el-switch v-model="batchEditForm.applySeo" />
+                    </el-form-item>
+                    <template v-if="batchEditForm.applySeo">
+                        <el-form-item label="SEO标题模板">
+                            <el-input
+                                v-model="batchEditForm.seoTitleTemplate"
+                                placeholder="例如：{title} - {category}"
+                            />
+                        </el-form-item>
+                        <el-form-item label="SEO描述模板">
+                            <el-input
+                                v-model="batchEditForm.seoDescriptionTemplate"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="例如：{summary}，作者：{author}"
+                            />
+                            <div class="form-tips">支持变量：{title} {intro} {summary} {category} {author}</div>
+                        </el-form-item>
+                    </template>
+                </el-form>
+                <template #footer>
+                    <el-button :disabled="batchEditLoading" @click="batchEditDialogVisible = false">取消</el-button>
+                    <el-button type="primary" :loading="batchEditLoading" @click="handleBatchEditSubmit">确认批量编辑</el-button>
+                </template>
+            </el-dialog>
+
+            <el-dialog
+                v-model="recyclePolicyDialogVisible"
+                title="回收站自动清理策略"
+                width="620px"
+                destroy-on-close
+            >
+                <el-form :model="recyclePolicyForm" label-width="140px">
+                    <el-form-item label="启用自动清理">
+                        <el-switch v-model="recyclePolicyForm.enabled" />
+                    </el-form-item>
+                    <el-form-item label="保留天数">
+                        <el-input-number
+                            v-model="recyclePolicyForm.retentionDays"
+                            :min="1"
+                            :max="365"
+                            :step="1"
+                        />
+                    </el-form-item>
+                    <el-form-item label="执行间隔(小时)">
+                        <el-input-number
+                            v-model="recyclePolicyForm.intervalHours"
+                            :min="1"
+                            :max="168"
+                            :step="1"
+                        />
+                    </el-form-item>
+                    <el-form-item label="上次清理时间">
+                        <span>{{ recyclePolicyLastCleanupText }}</span>
+                    </el-form-item>
+                </el-form>
+                <template #footer>
+                    <el-button :disabled="recyclePolicyLoading" @click="recyclePolicyDialogVisible = false">取消</el-button>
+                    <el-button
+                        type="warning"
+                        plain
+                        :loading="recyclePolicyCleanupLoading"
+                        :disabled="recyclePolicyLoading"
+                        @click="handleRecyclePolicyCleanupNow"
+                    >
+                        立即清理
+                    </el-button>
+                    <el-button type="primary" :loading="recyclePolicyLoading" @click="handleRecyclePolicySave">保存策略</el-button>
+                </template>
+            </el-dialog>
+
+            <el-table
+                size="large"
+                stripe
+                v-loading="pager.loading"
+                :data="safeLists"
+                @selection-change="handleSelectionChange"
+            >
+                <el-table-column type="selection" width="50" />
                 <el-table-column label="ID" prop="id" min-width="80" />
                 <el-table-column label="封面" min-width="100">
                     <template #default="{ row }">
@@ -368,7 +563,7 @@
                             <el-tooltip
                                 content="审核通过并发布"
                                 placement="top"
-                                v-if="Number(row.reviewStatus) === 1 && Number(row.isShow) !== 1"
+                                v-if="!isRecycleBinMode && Number(row.reviewStatus) === 1 && Number(row.isShow) !== 1"
                             >
                                 <el-button
                                     v-perms="['article:change']"
@@ -380,6 +575,7 @@
                             </el-tooltip>
 
                             <el-tooltip
+                                v-if="!isRecycleBinMode"
                                 :content="
                                     Number(row.isShow) === 1
                                         ? '前台查看'
@@ -396,7 +592,7 @@
                                 />
                             </el-tooltip>
 
-                            <el-tooltip content="编辑" placement="top">
+                            <el-tooltip v-if="!isRecycleBinMode" content="编辑" placement="top">
                                 <el-button
                                     v-perms="['article:edit', 'article:add/edit']"
                                     type="primary"
@@ -407,6 +603,7 @@
                             </el-tooltip>
 
                             <el-tooltip
+                                v-if="!isRecycleBinMode"
                                 :content="Number(row.isShow) === 1 ? '转为待发布' : '发表'"
                                 placement="top"
                             >
@@ -419,13 +616,31 @@
                                 />
                             </el-tooltip>
 
-                            <el-tooltip content="删除" placement="top">
+                            <el-tooltip v-if="!isRecycleBinMode" content="移入回收站" placement="top">
                                 <el-button
                                     v-perms="['article:del']"
                                     type="danger"
                                     link
                                     :icon="Delete"
                                     @click="handleDelete(row.id)"
+                                />
+                            </el-tooltip>
+                            <el-tooltip v-if="isRecycleBinMode" content="恢复文章" placement="top">
+                                <el-button
+                                    v-perms="['article:del']"
+                                    type="success"
+                                    link
+                                    :icon="RefreshLeft"
+                                    @click="handleRestore(row.id)"
+                                />
+                            </el-tooltip>
+                            <el-tooltip v-if="isRecycleBinMode" content="彻底删除" placement="top">
+                                <el-button
+                                    v-perms="['article:del']"
+                                    type="danger"
+                                    link
+                                    :icon="Delete"
+                                    @click="handlePurge(row.id)"
                                 />
                             </el-tooltip>
                         </div>
@@ -439,13 +654,18 @@
     </div>
 </template>
 <script lang="ts" setup name="articleLists">
-import { Delete, Document, EditPen, Promotion, Select, View } from '@element-plus/icons-vue'
+import { Delete, Document, EditPen, Promotion, RefreshLeft, Select, View } from '@element-plus/icons-vue'
 import {
     articleLists,
     articleDelete,
+    articleRestore,
+    articlePurge,
+    articleBatchEdit,
+    articleRecyclePolicyConfig,
+    articleRecyclePolicySave,
+    articleRecyclePolicyCleanup,
     articleStatus,
     articleFrontAudit,
-    articleSeedTestData,
     articleImportWechatBatch,
     articleCateAll,
     articleTagAll,
@@ -496,16 +716,19 @@ interface BatchWechatImportResultRow {
     reason?: string
 }
 
+type BatchEditStatusValue = 0 | 1
+
 const queryParams = reactive({
     title: '',
     cid: '',
     isShow: '',
     reviewStatus: '',
     tagId: '',
-    topicId: ''
+    topicId: '',
+    recycleBin: 0
 })
 const router = useRouter()
-const seedLoading = ref(false)
+const selectedIds = ref<number[]>([])
 const batchWechatImportDialogVisible = ref(false)
 const batchWechatImportLoading = ref(false)
 const batchWechatImportAuthorKeyword = ref('')
@@ -522,6 +745,30 @@ const batchWechatImportForm = reactive({
     urlsText: '',
     status: 'draft',
     aiEnabled: false
+})
+const batchEditDialogVisible = ref(false)
+const batchEditLoading = ref(false)
+const batchEditForm = reactive({
+    applyCid: false,
+    cid: '' as number | string,
+    applyTagIds: false,
+    tagIds: [] as number[],
+    applyTopicId: false,
+    topicId: 0 as number | string,
+    applyIsShow: false,
+    isShow: 1 as BatchEditStatusValue,
+    applySeo: false,
+    seoTitleTemplate: '',
+    seoDescriptionTemplate: ''
+})
+const recyclePolicyDialogVisible = ref(false)
+const recyclePolicyLoading = ref(false)
+const recyclePolicyCleanupLoading = ref(false)
+const recyclePolicyForm = reactive({
+    enabled: false,
+    retentionDays: 30,
+    intervalHours: 12,
+    lastCleanupTime: 0
 })
 const frontendUrl = (import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3003').replace(
     /\/$/,
@@ -554,6 +801,11 @@ const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: articleLists,
     params: queryParams
 })
+
+/**
+ * 当前是否处于“回收站”视图
+ */
+const isRecycleBinMode = computed(() => Number(queryParams.recycleBin || 0) === 1)
 
 /**
  * 统一处理搜索筛选项变更，减少重复点击查询按钮
@@ -657,6 +909,15 @@ const pageDraftCount = computed(
 )
 
 /**
+ * 回收策略上次清理时间文案
+ */
+const recyclePolicyLastCleanupText = computed(() => {
+    const timestamp = Number(recyclePolicyForm.lastCleanupTime || 0)
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return '未执行过'
+    return new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
+})
+
+/**
  * 审核状态标签颜色
  */
 const getReviewTagType = (reviewStatus: number | string | undefined) => {
@@ -665,6 +926,19 @@ const getReviewTagType = (reviewStatus: number | string | undefined) => {
     if (status === 2) return 'success'
     if (status === 3) return 'danger'
     return 'info'
+}
+
+/**
+ * 记录表格多选项，用于批量编辑。
+ */
+const handleSelectionChange = (rows: ArticleListItem[]) => {
+    selectedIds.value = Array.from(
+        new Set(
+            (Array.isArray(rows) ? rows : [])
+                .map((item) => Number(item?.id || 0))
+                .filter((item) => Number.isInteger(item) && item > 0)
+        )
+    )
 }
 
 /**
@@ -738,34 +1012,41 @@ const handleView = (row: ArticleListItem) => {
  */
 const handleDelete = async (id: number) => {
     try {
-        await feedback.confirm('确定要删除？')
+        await feedback.confirm('确认将该文章移入回收站？')
     } catch (error) {
         return
     }
     await articleDelete({ id })
-    feedback.msgSuccess('删除成功')
+    feedback.msgSuccess('已移入回收站')
     getLists()
 }
 
 /**
- * 一键生成测试数据（文章/分类/标签/专题关联）
+ * 从回收站恢复文章
  */
-const handleSeedTestData = async () => {
+const handleRestore = async (id: number) => {
     try {
-        await feedback.confirm('将自动生成测试文章用于联调验证，是否继续？')
+        await feedback.confirm('确认恢复该文章到正常列表？')
     } catch (error) {
         return
     }
-    seedLoading.value = true
+    await articleRestore({ id })
+    feedback.msgSuccess('文章已恢复')
+    getLists()
+}
+
+/**
+ * 彻底删除回收站文章（不可恢复）
+ */
+const handlePurge = async (id: number) => {
     try {
-        const data = await articleSeedTestData({ count: 12 })
-        feedback.msgSuccess(`已生成 ${Number(data?.created || 0)} 条测试文章`)
-        resetPage()
-    } catch (error: any) {
-        feedback.msgError(error?.message || '生成测试数据失败')
-    } finally {
-        seedLoading.value = false
+        await feedback.confirm('确认彻底删除该文章？该操作不可恢复。')
+    } catch (error) {
+        return
     }
+    await articlePurge({ id })
+    feedback.msgSuccess('文章已彻底删除')
+    getLists()
 }
 
 /**
@@ -845,27 +1126,203 @@ const handleBatchWechatImportSubmit = async () => {
 }
 
 /**
+ * 打开批量编辑弹窗并重置表单
+ */
+const openBatchEditDialog = () => {
+    if (selectedIds.value.length === 0) {
+        feedback.msgWarning('请先勾选要批量编辑的文章')
+        return
+    }
+    batchEditForm.applyCid = false
+    batchEditForm.cid = ''
+    batchEditForm.applyTagIds = false
+    batchEditForm.tagIds = []
+    batchEditForm.applyTopicId = false
+    batchEditForm.topicId = 0
+    batchEditForm.applyIsShow = false
+    batchEditForm.isShow = 1
+    batchEditForm.applySeo = false
+    batchEditForm.seoTitleTemplate = ''
+    batchEditForm.seoDescriptionTemplate = ''
+    batchEditDialogVisible.value = true
+}
+
+/**
+ * 提交批量编辑任务
+ */
+const handleBatchEditSubmit = async () => {
+    if (selectedIds.value.length === 0) {
+        feedback.msgWarning('请选择要批量编辑的文章')
+        return
+    }
+    if (!batchEditForm.applyCid && !batchEditForm.applyTagIds && !batchEditForm.applyTopicId && !batchEditForm.applyIsShow && !batchEditForm.applySeo) {
+        feedback.msgWarning('请至少选择一项批量编辑内容')
+        return
+    }
+    if (batchEditForm.applyCid && !Number(batchEditForm.cid || 0)) {
+        feedback.msgWarning('请选择栏目')
+        return
+    }
+
+    batchEditLoading.value = true
+    try {
+        await articleBatchEdit({
+            ids: selectedIds.value,
+            applyCid: batchEditForm.applyCid,
+            cid: Number(batchEditForm.cid || 0),
+            applyTagIds: batchEditForm.applyTagIds,
+            tagIds: batchEditForm.tagIds,
+            applyTopicId: batchEditForm.applyTopicId,
+            topicId: Number(batchEditForm.topicId || 0),
+            applyIsShow: batchEditForm.applyIsShow,
+            isShow: Number(batchEditForm.isShow || 0),
+            applySeo: batchEditForm.applySeo,
+            seoTitleTemplate: String(batchEditForm.seoTitleTemplate || ''),
+            seoDescriptionTemplate: String(batchEditForm.seoDescriptionTemplate || '')
+        })
+        feedback.msgSuccess(`批量编辑成功，共处理 ${selectedIds.value.length} 篇文章`)
+        batchEditDialogVisible.value = false
+        selectedIds.value = []
+        getLists()
+    } catch (error: any) {
+        feedback.msgError(error?.message || '批量编辑失败')
+    } finally {
+        batchEditLoading.value = false
+    }
+}
+
+/**
+ * 拉取回收站策略配置
+ */
+const loadRecyclePolicyConfig = async () => {
+    try {
+        const data: any = await articleRecyclePolicyConfig()
+        recyclePolicyForm.enabled = data?.enabled === true
+        recyclePolicyForm.retentionDays = Number(data?.retentionDays || 30)
+        recyclePolicyForm.intervalHours = Number(data?.intervalHours || 12)
+        recyclePolicyForm.lastCleanupTime = Number(data?.lastCleanupTime || 0)
+    } catch (error) {
+        recyclePolicyForm.enabled = false
+        recyclePolicyForm.retentionDays = 30
+        recyclePolicyForm.intervalHours = 12
+        recyclePolicyForm.lastCleanupTime = 0
+    }
+}
+
+/**
+ * 打开回收站策略弹窗
+ */
+const openRecyclePolicyDialog = async () => {
+    await loadRecyclePolicyConfig()
+    recyclePolicyDialogVisible.value = true
+}
+
+/**
+ * 保存回收站策略
+ */
+const handleRecyclePolicySave = async () => {
+    recyclePolicyLoading.value = true
+    try {
+        const data: any = await articleRecyclePolicySave({
+            enabled: recyclePolicyForm.enabled === true,
+            retentionDays: Number(recyclePolicyForm.retentionDays || 30),
+            intervalHours: Number(recyclePolicyForm.intervalHours || 12)
+        })
+        recyclePolicyForm.enabled = data?.enabled === true
+        recyclePolicyForm.retentionDays = Number(data?.retentionDays || 30)
+        recyclePolicyForm.intervalHours = Number(data?.intervalHours || 12)
+        recyclePolicyForm.lastCleanupTime = Number(data?.lastCleanupTime || 0)
+        feedback.msgSuccess('回收策略已保存')
+        recyclePolicyDialogVisible.value = false
+    } catch (error: any) {
+        feedback.msgError(error?.message || '保存回收策略失败')
+    } finally {
+        recyclePolicyLoading.value = false
+    }
+}
+
+/**
+ * 立即执行回收站清理
+ */
+const handleRecyclePolicyCleanupNow = async () => {
+    recyclePolicyCleanupLoading.value = true
+    try {
+        const data: any = await articleRecyclePolicyCleanup()
+        recyclePolicyForm.lastCleanupTime = Number(data?.cleanupTime || Math.floor(Date.now() / 1000))
+        const deletedCount = Number(data?.deletedCount || 0)
+        const checkedCount = Number(data?.checkedCount || 0)
+        feedback.msgSuccess(`清理完成：已删除 ${deletedCount} 篇，扫描 ${checkedCount} 篇`)
+        if (Number(queryParams.recycleBin || 0) === 1) {
+            getLists()
+        }
+    } catch (error: any) {
+        feedback.msgError(error?.message || '执行清理失败')
+    } finally {
+        recyclePolicyCleanupLoading.value = false
+    }
+}
+
+/**
  * 应用文章列表快捷筛选
  */
-const applyQuickFilter = (type: 'all' | 'pendingReview' | 'published' | 'draft') => {
+const applyQuickFilter = (type: 'all' | 'pendingReview' | 'published' | 'draft' | 'recycle') => {
     if (type === 'all') {
+        queryParams.recycleBin = 0
         queryParams.isShow = ''
         queryParams.reviewStatus = ''
     }
     if (type === 'pendingReview') {
+        queryParams.recycleBin = 0
         queryParams.isShow = ''
         queryParams.reviewStatus = 1 as any
     }
     if (type === 'published') {
+        queryParams.recycleBin = 0
         queryParams.isShow = 1 as any
         queryParams.reviewStatus = ''
     }
     if (type === 'draft') {
+        queryParams.recycleBin = 0
         queryParams.isShow = 0 as any
+        queryParams.reviewStatus = ''
+    }
+    if (type === 'recycle') {
+        queryParams.recycleBin = 1
+        queryParams.isShow = ''
         queryParams.reviewStatus = ''
     }
     resetPage()
 }
+
+/**
+ * 判断文章快捷筛选按钮是否激活。
+ * @param type 快捷筛选类型
+ */
+const isQuickFilterActive = (type: 'all' | 'pendingReview' | 'published' | 'draft' | 'recycle') => {
+    if (type === 'recycle') {
+        return Number(queryParams.recycleBin || 0) === 1
+    }
+    if (Number(queryParams.recycleBin || 0) === 1) {
+        return false
+    }
+    if (type === 'all') {
+        return !queryParams.isShow && !queryParams.reviewStatus
+    }
+    if (type === 'pendingReview') {
+        return !queryParams.isShow && Number(queryParams.reviewStatus) === 1
+    }
+    if (type === 'published') {
+        return Number(queryParams.isShow) === 1
+    }
+    return Number(queryParams.isShow) === 0
+}
+
+watch(
+    () => pager.lists,
+    () => {
+        selectedIds.value = []
+    }
+)
 
 onActivated(() => {
     getLists()

@@ -26,6 +26,7 @@
                                 <div class="article-edit__panel-head">
                                     <span class="font-medium">正文编辑</span>
                                     <div class="article-edit__actions">
+                                        <el-tag size="small" type="info">{{ autoDraftStatusText }}</el-tag>
                                         <el-button size="small" @click="saveLocalDraft"
                                             >暂存草稿</el-button
                                         >
@@ -328,10 +329,14 @@ const importWechatLoading = ref(false)
 const transferImagesLoading = ref(false)
 const localDraftExists = ref(false)
 const localDraftTime = ref('')
+const autoDraftLastSavedAt = ref(0)
+const autoDraftDirty = ref(false)
 const authorOptionsLoading = ref(false)
 const authorUserTypeFilter = ref<number | ''>('')
 const authorOptions = ref<AuthorOptionItem[]>([])
 const authorKeyword = ref('')
+const autoDraftDebounceTimer = ref<number | null>(null)
+const autoDraftIntervalTimer = ref<number | null>(null)
 const rules = reactive({
     title: [{ required: true, message: '请输入文章标题', trigger: 'blur' }],
     cid: [{ required: true, message: '请选择文章栏目', trigger: 'blur' }],
@@ -397,6 +402,11 @@ const draftStorageKey = computed(() => {
 const localDraftTip = computed(() => {
     if (!localDraftExists.value) return '暂无本地草稿，可点击“暂存草稿”保存编辑进度。'
     return `已存在草稿：${localDraftTime.value || '-'}`
+})
+
+const autoDraftStatusText = computed(() => {
+    if (!autoDraftLastSavedAt.value) return '自动保存：待触发'
+    return `自动保存：${formatDraftTime(autoDraftLastSavedAt.value)}`
 })
 
 /**
@@ -541,16 +551,38 @@ const formatDraftTime = (timestamp: number) => {
 const refreshLocalDraftState = () => {
     localDraftExists.value = false
     localDraftTime.value = ''
+    autoDraftLastSavedAt.value = 0
     try {
         const raw = localStorage.getItem(draftStorageKey.value)
         if (!raw) return
         const payload = JSON.parse(raw)
         if (!payload?.formData) return
+        const updatedAt = Number(payload?.updatedAt || Date.now())
         localDraftExists.value = true
-        localDraftTime.value = formatDraftTime(Number(payload?.updatedAt || Date.now()))
+        localDraftTime.value = formatDraftTime(updatedAt)
+        autoDraftLastSavedAt.value = updatedAt
     } catch (error) {
         localDraftExists.value = false
         localDraftTime.value = ''
+        autoDraftLastSavedAt.value = 0
+    }
+}
+
+/**
+ * 写入草稿到本地存储（手动/自动共用）
+ */
+const persistDraftToLocal = (silent = false) => {
+    const now = Date.now()
+    const payload = {
+        updatedAt: now,
+        formData: getPersistFormData()
+    }
+    localStorage.setItem(draftStorageKey.value, JSON.stringify(payload))
+    autoDraftLastSavedAt.value = now
+    autoDraftDirty.value = false
+    refreshLocalDraftState()
+    if (!silent) {
+        feedback.msgSuccess('草稿已暂存到本地')
     }
 }
 
@@ -558,13 +590,7 @@ const refreshLocalDraftState = () => {
  * 暂存草稿到本地
  */
 const saveLocalDraft = () => {
-    const payload = {
-        updatedAt: Date.now(),
-        formData: getPersistFormData()
-    }
-    localStorage.setItem(draftStorageKey.value, JSON.stringify(payload))
-    refreshLocalDraftState()
-    feedback.msgSuccess('草稿已暂存到本地')
+    persistDraftToLocal(false)
 }
 
 /**
@@ -597,6 +623,7 @@ const restoreLocalDraft = async () => {
             ? formData.tagIds.map((id: any) => Number(id)).filter((id: number) => id > 0)
             : []
         formData.topicId = Number(formData.topicId || 0)
+        autoDraftDirty.value = false
         refreshLocalDraftState()
         feedback.msgSuccess('草稿已恢复')
     } catch (error) {
@@ -614,8 +641,35 @@ const clearLocalDraft = async () => {
         return
     }
     localStorage.removeItem(draftStorageKey.value)
+    autoDraftDirty.value = false
+    autoDraftLastSavedAt.value = 0
     refreshLocalDraftState()
     feedback.msgSuccess('草稿已清空')
+}
+
+/**
+ * 判断当前编辑内容是否值得自动保存（避免空表单反复写入）
+ */
+const hasDraftContent = () => {
+    return Boolean(
+        String(formData.title || '').trim()
+        || String(formData.content || '').trim()
+        || String(formData.intro || '').trim()
+        || String(formData.summary || '').trim()
+    )
+}
+
+/**
+ * 调度自动保存（防抖）
+ */
+const scheduleAutoSaveDraft = () => {
+    if (autoDraftDebounceTimer.value) {
+        window.clearTimeout(autoDraftDebounceTimer.value)
+    }
+    autoDraftDebounceTimer.value = window.setTimeout(() => {
+        if (!autoDraftDirty.value || !hasDraftContent()) return
+        persistDraftToLocal(true)
+    }, 2000)
 }
 
 /**
@@ -864,15 +918,50 @@ const handleSave = async () => {
         await articleAdd(formData)
     }
     localStorage.removeItem(draftStorageKey.value)
+    autoDraftDirty.value = false
+    autoDraftLastSavedAt.value = 0
     refreshLocalDraftState()
     feedback.msgSuccess('操作成功')
     removeTab()
     router.back()
 }
 
+/**
+ * 页面关闭前兜底自动保存，降低内容丢失风险。
+ */
+const handleBeforeUnloadAutoSave = () => {
+    if (!autoDraftDirty.value || !hasDraftContent()) return
+    persistDraftToLocal(true)
+}
+
+watch(
+    () => getPersistFormData(),
+    () => {
+        autoDraftDirty.value = true
+        scheduleAutoSaveDraft()
+    },
+    { deep: true }
+)
+
 onMounted(() => {
     refreshLocalDraftState()
     fetchAuthorOptions('')
+    window.addEventListener('beforeunload', handleBeforeUnloadAutoSave)
+    autoDraftIntervalTimer.value = window.setInterval(() => {
+        if (!autoDraftDirty.value || !hasDraftContent()) return
+        persistDraftToLocal(true)
+    }, 20000)
+})
+
+onBeforeUnmount(() => {
+    if (autoDraftDebounceTimer.value) {
+        window.clearTimeout(autoDraftDebounceTimer.value)
+    }
+    if (autoDraftIntervalTimer.value) {
+        window.clearInterval(autoDraftIntervalTimer.value)
+    }
+    handleBeforeUnloadAutoSave()
+    window.removeEventListener('beforeunload', handleBeforeUnloadAutoSave)
 })
 
 route.query.id && getDetails()

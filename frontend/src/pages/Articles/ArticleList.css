@@ -12,15 +12,18 @@
 }
 
 .article-list-page {
-  min-height: 100vh;
-  background-color: var(--article-bg);
-  padding-bottom: 80px;
+  min-height: calc(100vh - var(--header-height));
+  background: transparent;
+  padding: var(--spacing-5) var(--container-padding) var(--spacing-10);
 }
 
 /* Header Section */
 .article-header-section {
   background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-  padding: 60px 20px 40px; /* 减小内边距 */
+  max-width: var(--container-width);
+  margin: 0 auto 16px;
+  border-radius: 20px;
+  padding: 44px 24px 30px;
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -133,10 +136,10 @@
 
 /* Main Container */
 .article-main-container {
-  max-width: 1280px;
+  max-width: var(--container-width);
   margin: 0 auto;
-  padding: 0 24px;
-  transform: translateY(-40px);
+  padding: 0;
+  transform: none;
   position: relative;
   z-index: 3;
 }
@@ -145,9 +148,9 @@
 .article-filters {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 24px;
-  margin-bottom: 40px;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 20px;
   border: 1px solid rgba(0, 0, 0, 0.05); /* 移除阴影，使用微弱边框 */
   position: sticky;
   top: calc(var(--header-height, 64px) + 12px);
@@ -298,9 +301,9 @@
 /* Article Grid */
 .article-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* 减小卡片最小宽度 */
-  gap: 20px;
-  padding: 40px 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding: 18px 0 32px;
 }
 
 .article-card {
@@ -414,13 +417,24 @@
     font-size: 2rem;
   }
 
+  .article-list-page {
+    padding: 12px;
+  }
+
+  .article-header-section {
+    margin-bottom: 10px;
+    border-radius: 14px;
+    padding: 30px 14px 22px;
+  }
+
   .article-filters {
     position: static;
+    margin-bottom: 12px;
   }
   
   .article-main-container {
-    padding: 0 16px;
-    transform: translateY(-20px);
+    padding: 0;
+    transform: none;
   }
 
   .article-result-toolbar {
@@ -435,7 +449,7 @@
   
   .article-grid {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 14px;
   }
   
   .filter-row {
@@ -445,5 +459,17 @@
   
   .filter-label {
     margin-bottom: 4px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .article-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .article-grid {
+    grid-template-columns: 1fr;
   }
 }

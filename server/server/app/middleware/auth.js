@@ -210,6 +210,11 @@ module.exports = options => {
       // 内容管理：回收站操作复用文章删除权限
       'article:restore': [ 'article:del' ],
       'article:purge': [ 'article:del' ],
+      // 内容管理：批量编辑与回收站策略复用文章编辑/删除权限
+      'article:batch:edit': [ 'article:edit' ],
+      'article:recycle:policy:config': [ 'article:list', 'article:edit' ],
+      'article:recycle:policy:save': [ 'article:edit' ],
+      'article:recycle:policy:cleanup': [ 'article:del', 'article:edit' ],
       // 内容管理：测试数据生成复用文章新增权限
       'article:seed:testData': [ 'article:add', 'article:edit', 'article:list' ],
       // 内容管理：专题管理兼容旧角色（复用文章权限）

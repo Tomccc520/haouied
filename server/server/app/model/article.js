@@ -30,6 +30,18 @@ module.exports = app => {
       allowNull: true,
       defaultValue: '',
     },
+    seo_title: {
+      type: STRING(255),
+      allowNull: false,
+      defaultValue: '',
+      comment: 'SEO标题',
+    },
+    seo_description: {
+      type: STRING(500),
+      allowNull: false,
+      defaultValue: '',
+      comment: 'SEO描述',
+    },
     image: {
       type: STRING(200),
       allowNull: false,

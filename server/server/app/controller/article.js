@@ -480,12 +480,94 @@ class ArticleController extends baseController {
     }
   }
 
+  /**
+   * 批量编辑文章（分类/标签/状态/SEO）
+   */
+  async batchEdit() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      const data = await ctx.service.article.batchEdit(body);
+      this.result({ data, message: '批量编辑成功' });
+    } catch (err) {
+      this.result({ data: '', message: err.message, code: 300 });
+    }
+  }
+
+  /**
+   * 获取文章回收站自动清理策略
+   */
+  async recyclePolicyConfig() {
+    const { ctx } = this;
+    try {
+      const data = await ctx.service.article.getArticleRecyclePolicyConfig();
+      this.result({ data, message: '获取成功' });
+    } catch (err) {
+      this.result({ data: '', message: err.message, code: 300 });
+    }
+  }
+
+  /**
+   * 保存文章回收站自动清理策略
+   */
+  async recyclePolicyConfigSave() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      const data = await ctx.service.article.saveArticleRecyclePolicyConfig(body);
+      this.result({ data, message: '保存成功' });
+    } catch (err) {
+      this.result({ data: '', message: err.message, code: 300 });
+    }
+  }
+
+  /**
+   * 手动触发文章回收站清理
+   */
+  async recyclePolicyCleanupNow() {
+    const { ctx } = this;
+    try {
+      const data = await ctx.service.article.cleanupRecycleArticlesByPolicy(true);
+      this.result({ data, message: '清理完成' });
+    } catch (err) {
+      this.result({ data: '', message: err.message, code: 300 });
+    }
+  }
+
   async del() {
     const { ctx } = this;
     try {
       const body = ctx.request.body || {};
       await ctx.service.article.del(body.id);
       this.result({ data: true, message: '操作成功' });
+    } catch (err) {
+      this.result({ data: '', message: err.message, code: 300 });
+    }
+  }
+
+  /**
+   * 回收站恢复文章
+   */
+  async restore() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      await ctx.service.article.restore(body.id);
+      this.result({ data: true, message: '恢复成功' });
+    } catch (err) {
+      this.result({ data: '', message: err.message, code: 300 });
+    }
+  }
+
+  /**
+   * 彻底删除文章（仅回收站可操作）
+   */
+  async purge() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      await ctx.service.article.purge(body.id);
+      this.result({ data: true, message: '彻底删除成功' });
     } catch (err) {
       this.result({ data: '', message: err.message, code: 300 });
     }

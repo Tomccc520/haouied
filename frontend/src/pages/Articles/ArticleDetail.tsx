@@ -170,8 +170,8 @@ const normalizeArticleDetailHeaderAlign = (align: unknown): 'center' | 'left' =>
  */
 const normalizeArticleDetailMaxWidth = (value: unknown): number => {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 880;
-  return Math.max(680, Math.min(1600, parsed));
+  if (!Number.isFinite(parsed)) return 1120;
+  return Math.max(760, Math.min(1800, parsed));
 };
 
 interface ArticleSidebarModuleConfig {

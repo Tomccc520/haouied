@@ -48,19 +48,61 @@ export function articleAdd(params: any) {
     return request.post({ url: '/article/add', params })
 }
 
-// 生成文章测试数据
-export function articleSeedTestData(params?: { count?: number; prefixTs?: number }) {
-    return request.post({ url: '/article/seed/testData', params })
-}
-
 // 编辑文章
 export function articleEdit(params: any) {
     return request.post({ url: '/article/edit', params })
 }
 
+// 批量编辑文章
+export function articleBatchEdit(params: {
+    ids: number[] | string
+    applyCid?: boolean
+    cid?: number | string
+    applyTagIds?: boolean
+    tagIds?: number[] | string
+    applyTopicId?: boolean
+    topicId?: number | string
+    applyIsShow?: boolean
+    isShow?: 0 | 1 | number
+    applySeo?: boolean
+    seoTitleTemplate?: string
+    seoDescriptionTemplate?: string
+}) {
+    return request.post({ url: '/article/batch/edit', params })
+}
+
 // 删除文章
 export function articleDelete(params: any) {
     return request.post({ url: '/article/del', params })
+}
+
+// 回收站恢复文章
+export function articleRestore(params: any) {
+    return request.post({ url: '/article/restore', params })
+}
+
+// 回收站彻底删除文章
+export function articlePurge(params: any) {
+    return request.post({ url: '/article/purge', params })
+}
+
+// 获取文章回收站策略配置
+export function articleRecyclePolicyConfig() {
+    return request.get({ url: '/article/recycle/policy/config' })
+}
+
+// 保存文章回收站策略配置
+export function articleRecyclePolicySave(params: {
+    enabled: boolean
+    retentionDays: number
+    intervalHours: number
+}) {
+    return request.post({ url: '/article/recycle/policy/save', params })
+}
+
+// 立即执行文章回收站清理
+export function articleRecyclePolicyCleanup() {
+    return request.post({ url: '/article/recycle/policy/cleanup' })
 }
 
 // 文章详情

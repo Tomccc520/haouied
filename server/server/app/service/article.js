@@ -278,6 +278,164 @@ class ArticleService extends Service {
   }
 
   /**
+   * 确保文章 SEO 字段存在（兼容历史库）
+   */
+  async ensureArticleSeoColumns() {
+    const { app, ctx } = this;
+    if (app.__articleSeoColumnsReady) return true;
+    try {
+      await this.ensureTableColumn(
+        'la_article',
+        'seo_title',
+        "ALTER TABLE `la_article` ADD COLUMN `seo_title` varchar(255) NOT NULL DEFAULT '' COMMENT 'SEO标题' AFTER `summary`;"
+      );
+      await this.ensureTableColumn(
+        'la_article',
+        'seo_description',
+        "ALTER TABLE `la_article` ADD COLUMN `seo_description` varchar(500) NOT NULL DEFAULT '' COMMENT 'SEO描述' AFTER `seo_title`;"
+      );
+      app.__articleSeoColumnsReady = true;
+      return true;
+    } catch (error) {
+      ctx.logger.warn(`ensureArticleSeoColumns skipped: ${error.message || error}`);
+      return false;
+    }
+  }
+
+  /**
+   * 获取文章回收站策略默认配置
+   */
+  getDefaultArticleRecyclePolicy() {
+    return {
+      enabled: false,
+      retentionDays: 30,
+      intervalHours: 12,
+      lastCleanupTime: 0,
+    };
+  }
+
+  /**
+   * 规范化文章回收站策略配置
+   */
+  normalizeArticleRecyclePolicyConfig(raw = {}) {
+    const defaults = this.getDefaultArticleRecyclePolicy();
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const retentionDays = Math.max(1, Math.min(365, Number(source.retentionDays ?? defaults.retentionDays) || defaults.retentionDays));
+    const intervalHours = Math.max(1, Math.min(168, Number(source.intervalHours ?? defaults.intervalHours) || defaults.intervalHours));
+    return {
+      enabled: source.enabled === true,
+      retentionDays,
+      intervalHours,
+      lastCleanupTime: Math.max(0, Number(source.lastCleanupTime || 0)),
+    };
+  }
+
+  /**
+   * 读取文章回收站策略配置
+   */
+  async getArticleRecyclePolicyConfig() {
+    const { ctx } = this;
+    const defaults = this.getDefaultArticleRecyclePolicy();
+    try {
+      const map = await ctx.service.common.getMap('article', 'recycle_policy');
+      return this.normalizeArticleRecyclePolicyConfig({ ...defaults, ...(map || {}) });
+    } catch (error) {
+      ctx.logger.warn(`[article] 读取回收站策略失败，回退默认值: ${error.message || error}`);
+      return defaults;
+    }
+  }
+
+  /**
+   * 保存文章回收站策略配置
+   */
+  async saveArticleRecyclePolicyConfig(params = {}) {
+    const { ctx } = this;
+    const current = await this.getArticleRecyclePolicyConfig();
+    const normalized = this.normalizeArticleRecyclePolicyConfig({
+      ...current,
+      ...params,
+      lastCleanupTime: Object.prototype.hasOwnProperty.call(params, 'lastCleanupTime')
+        ? Number(params.lastCleanupTime || 0)
+        : current.lastCleanupTime,
+    });
+    await ctx.service.common.set('article', 'recycle_policy', JSON.stringify(normalized));
+    return normalized;
+  }
+
+  /**
+   * 渲染 SEO 模板变量
+   */
+  renderArticleSeoTemplate(template = '', row = {}) {
+    const raw = String(template || '').trim();
+    if (!raw) return '';
+    const title = String(row.title || '').trim();
+    const intro = String(row.intro || '').trim();
+    const summary = String(row.summary || '').trim();
+    const category = String(row.category || '').trim();
+    const author = String(row.author || '').trim();
+    return raw
+      .replace(/\{title\}/gi, title)
+      .replace(/\{intro\}/gi, intro)
+      .replace(/\{summary\}/gi, summary || intro)
+      .replace(/\{category\}/gi, category)
+      .replace(/\{author\}/gi, author)
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * 按策略自动清理回收站过期文章
+   */
+  async cleanupRecycleArticlesByPolicy(forceRun = false) {
+    const { ctx } = this;
+    const config = await this.getArticleRecyclePolicyConfig();
+    const now = Math.floor(Date.now() / 1000);
+    if (!forceRun && config.enabled !== true) {
+      return { skipped: true, reason: 'disabled', deletedCount: 0, checkedCount: 0 };
+    }
+    const intervalSeconds = Math.max(1, Number(config.intervalHours || 12)) * 3600;
+    if (!forceRun && Number(config.lastCleanupTime || 0) > 0 && (now - Number(config.lastCleanupTime || 0)) < intervalSeconds) {
+      return { skipped: true, reason: 'interval_not_reached', deletedCount: 0, checkedCount: 0 };
+    }
+
+    const retentionDays = Math.max(1, Number(config.retentionDays || 30));
+    const expireBefore = now - retentionDays * 86400;
+    const rows = await ctx.model.Article.findAll({
+      where: {
+        is_delete: 1,
+        delete_time: { [Op.gt]: 0, [Op.lte]: expireBefore },
+      },
+      attributes: [ 'id' ],
+      order: [[ 'delete_time', 'ASC' ]],
+      limit: 300,
+    });
+    let deletedCount = 0;
+    for (let i = 0; i < rows.length; i += 1) {
+      const articleId = Number(rows[i]?.id || 0);
+      if (!articleId) continue;
+      try {
+        await this.purge(articleId);
+        deletedCount += 1;
+      } catch (error) {
+        ctx.logger.warn(`[article] 自动清理回收站失败 id=${articleId}: ${error.message || error}`);
+      }
+    }
+    await this.saveArticleRecyclePolicyConfig({
+      ...config,
+      lastCleanupTime: now,
+    });
+    return {
+      skipped: false,
+      reason: '',
+      deletedCount,
+      checkedCount: rows.length,
+      retentionDays,
+      expireBefore,
+      cleanupTime: now,
+    };
+  }
+
+  /**
    * 确保标签/专题 slug 字段与唯一索引存在（兼容历史库）
    */
   async ensureTagAndTopicSlugColumns() {
@@ -472,6 +630,26 @@ class ArticleService extends Service {
   stripHtmlTags(html = '') {
     return this.decodeHtmlEntities(String(html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
       .trim());
+  }
+
+  /**
+   * 兼容 utf8mb3：清洗 4 字节字符（如 emoji），避免 MySQL 字符集转换报错。
+   * 说明：仅用于入库写操作，不影响前端展示逻辑。
+   * @param {unknown} value 文本值
+   * @param {number} maxLength 最大长度（0=不限制）
+   * @return {string}
+   */
+  sanitizeUtf8mb3Text(value = '', maxLength = 0) {
+    const raw = String(value || '');
+    if (!raw) return '';
+    // surrogate pair（非 BMP 字符）在 utf8mb3 中不可存储，统一剔除
+    let next = raw
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+      .replace(/[\uD800-\uDFFF]/g, '');
+    if (Number.isInteger(maxLength) && maxLength > 0) {
+      next = next.slice(0, maxLength);
+    }
+    return next;
   }
 
   /**
@@ -762,6 +940,106 @@ class ArticleService extends Service {
   }
 
   /**
+   * 规范化域名白名单（支持数组/逗号文本/换行文本）
+   * @param {Array<string>|string} input - 原始域名配置
+   * @param {Array<string>} fallback - 默认值
+   * @return {Array<string>}
+   */
+  normalizeInsecureDomainList(input, fallback = []) {
+    const source = Array.isArray(input)
+      ? input
+      : String(input || '').split(/[\n,;\s]+/);
+    const list = source
+      .map(item => String(item || '').trim().toLowerCase())
+      .filter(Boolean)
+      .map(item => item.replace(/^https?:\/\//, ''))
+      .map(item => item.replace(/\/+$/, ''))
+      .filter(item => /^[a-z0-9.-]+$/.test(item));
+    const merged = list.length
+      ? list
+      : (Array.isArray(fallback) ? fallback.map(item => String(item || '').trim().toLowerCase()).filter(Boolean) : []);
+    return Array.from(new Set(merged));
+  }
+
+  /**
+   * 判断错误是否为证书链相关错误
+   * @param {Error} error - 捕获到的错误对象
+   * @return {boolean}
+   */
+  isTlsIssuerError(error) {
+    const message = String(error && error.message ? error.message : '').toLowerCase();
+    const code = String(error && error.code ? error.code : '').toUpperCase();
+    return (
+      message.includes('unable to get local issuer certificate')
+      || message.includes('self-signed certificate')
+      || message.includes('unable to verify the first certificate')
+      || code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'
+      || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
+      || code === 'SELF_SIGNED_CERT_IN_CHAIN'
+      || code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+    );
+  }
+
+  /**
+   * 判断域名是否命中证书容错白名单（支持子域名）
+   * @param {string} host - 当前请求域名
+   * @param {Array<string>} whitelist - 白名单
+   * @return {boolean}
+   */
+  matchInsecureTlsHost(host = '', whitelist = []) {
+    const normalizedHost = String(host || '').trim().toLowerCase();
+    if (!normalizedHost) return false;
+    const domains = Array.isArray(whitelist) ? whitelist : [];
+    return domains.some(domain => {
+      const normalizedDomain = String(domain || '').trim().toLowerCase();
+      if (!normalizedDomain) return false;
+      return normalizedHost === normalizedDomain || normalizedHost.endsWith(`.${normalizedDomain}`);
+    });
+  }
+
+  /**
+   * 读取“远程抓取/图片转存”证书容错配置
+   * 优先级：环境变量 > AI 助手导入配置 > 后端静态配置
+   * @return {Promise<{allowInsecureTls:boolean,insecureDomains:Array<string>}>}
+   */
+  async getRemoteImageTransferConfig() {
+    const { ctx } = this;
+    const fileConfig = this.config.remoteImageTransfer || {};
+    let allowInsecureTls = Boolean(fileConfig.allowInsecureTls);
+    let insecureDomains = this.normalizeInsecureDomainList(fileConfig.insecureDomains, []);
+
+    try {
+      const importConfig = await ctx.service.uied.aiConfig.getImportConfig();
+      const networkConfig = importConfig?.network || importConfig?.remoteImageTransfer || {};
+      if (Object.prototype.hasOwnProperty.call(networkConfig, 'allowInsecureTls')) {
+        allowInsecureTls = Boolean(networkConfig.allowInsecureTls);
+      }
+      insecureDomains = this.normalizeInsecureDomainList(
+        networkConfig.insecureDomains,
+        insecureDomains
+      );
+    } catch (error) {
+      ctx.logger.warn(`[article.getRemoteImageTransferConfig] 读取 AI 导入网络配置失败: ${error?.message || error}`);
+    }
+
+    if (process.env.UIED_REMOTE_ALLOW_INSECURE_TLS !== undefined) {
+      const raw = String(process.env.UIED_REMOTE_ALLOW_INSECURE_TLS || '').trim().toLowerCase();
+      allowInsecureTls = raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+    }
+    if (process.env.UIED_REMOTE_INSECURE_DOMAINS) {
+      insecureDomains = this.normalizeInsecureDomainList(
+        process.env.UIED_REMOTE_INSECURE_DOMAINS,
+        insecureDomains
+      );
+    }
+
+    return {
+      allowInsecureTls,
+      insecureDomains,
+    };
+  }
+
+  /**
    * 抓取公众号页面 HTML（请求头兜底重试）
    */
   async fetchWechatArticleHtml(url = '') {
@@ -781,7 +1059,7 @@ class ArticleService extends Service {
       { ...baseHeaders, Referer: 'https://mp.weixin.qq.com/' },
       { ...baseHeaders },
     ];
-    const transferConfig = this.config.remoteImageTransfer || {};
+    const transferConfig = await this.getRemoteImageTransferConfig();
 
     /**
      * 执行一次抓取（支持控制 TLS 校验）
@@ -805,29 +1083,11 @@ class ArticleService extends Service {
         const parsed = new URL(articleUrl);
         const host = String(parsed.hostname || '').trim().toLowerCase();
         const allow = Boolean(transferConfig.allowInsecureTls);
-        const domains = Array.isArray(transferConfig.insecureDomains) ? transferConfig.insecureDomains : [];
-        const whitelist = domains.map(v => String(v || '').trim().toLowerCase());
-        return allow && whitelist.includes(host);
+        const whitelist = Array.isArray(transferConfig.insecureDomains) ? transferConfig.insecureDomains : [];
+        return allow && this.matchInsecureTlsHost(host, whitelist);
       } catch (error) {
         return false;
       }
-    };
-
-    /**
-     * 判断错误是否为证书链相关错误
-     */
-    const isTlsIssuerError = error => {
-      const message = String(error && error.message ? error.message : '').toLowerCase();
-      const code = String(error && error.code ? error.code : '').toUpperCase();
-      return (
-        message.includes('unable to get local issuer certificate') ||
-        message.includes('self-signed certificate') ||
-        message.includes('unable to verify the first certificate') ||
-        code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' ||
-        code === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
-        code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
-        code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-      );
     };
 
     let lastStatus = 0;
@@ -850,7 +1110,7 @@ class ArticleService extends Service {
     }
 
     // 证书链异常兜底：仅在配置允许且域名白名单命中时，降级为不校验证书重试
-    if (lastError && isTlsIssuerError(lastError) && allowInsecureTlsForCurrentHost()) {
+    if (lastError && this.isTlsIssuerError(lastError) && allowInsecureTlsForCurrentHost()) {
       ctx.logger.warn(`fetchWechatArticleHtml retry insecure tls: url=${articleUrl}`);
       lastError = null;
       for (let i = 0; i < headerCandidates.length; i += 1) {
@@ -1859,6 +2119,8 @@ class ArticleService extends Service {
     const isAdminRequest = await this.isValidAdminRequest();
     if (isAdminRequest) {
       await this.ensureArticleReviewColumns();
+      const recycleBin = Number(params.recycleBin || 0) === 1 ? 1 : 0;
+      where.is_delete = recycleBin;
       if (isShow !== undefined && isShow !== '') {
         where.is_show = Number(isShow);
       }
@@ -2753,6 +3015,10 @@ class ArticleService extends Service {
   async list(params) {
     const { ctx } = this;
     await this.ensureArticleReviewColumns();
+    await this.ensureArticleSeoColumns();
+    if (Number(params?.recycleBin || 0) === 1) {
+      await this.cleanupRecycleArticlesByPolicy(false);
+    }
     const pageNo = Number(params.pageNo || 1);
     const pageSize = Number(params.pageSize || 10);
     const where = await this.buildArticleWhere(params);
@@ -2803,6 +3069,8 @@ class ArticleService extends Service {
       reviewRemark: String(item.review_remark || ''),
       reviewTime: formatTime(item.review_time),
       reviewAdminId: Number(item.review_admin_id || 0),
+      seoTitle: String(item.seo_title || ''),
+      seoDescription: String(item.seo_description || ''),
       sort: item.sort,
       createTime: formatTime(item.create_time),
     }));
@@ -2832,6 +3100,7 @@ class ArticleService extends Service {
   async detail(id) {
     const { ctx } = this;
     await this.ensureArticleReviewColumns();
+    await this.ensureArticleSeoColumns();
     const detailWhere = { id, is_delete: 0 };
     const isAdminRequest = await this.isValidAdminRequest();
     if (!isAdminRequest) {
@@ -2874,6 +3143,8 @@ class ArticleService extends Service {
       reviewRemark: String(row.review_remark || ''),
       reviewTime: formatTime(row.review_time),
       reviewAdminId: Number(row.review_admin_id || 0),
+      seoTitle: String(row.seo_title || ''),
+      seoDescription: String(row.seo_description || ''),
       summary: row.summary,
       createTime: formatTime(row.create_time),
       updateTime: formatTime(row.update_time),
@@ -2883,6 +3154,7 @@ class ArticleService extends Service {
   async add(params) {
     const { ctx } = this;
     await this.ensureArticleReviewColumns();
+    await this.ensureArticleSeoColumns();
     const now = Math.floor(Date.now() / 1000);
     const authorInput = String(params.author || '').trim();
     if (!authorInput) {
@@ -2892,19 +3164,29 @@ class ArticleService extends Service {
     if (!Number(authorInfo.userId || 0)) {
       throw new Error('请选择有效作者');
     }
+    const title = this.sanitizeUtf8mb3Text(String(params.title || '').trim(), 255);
+    const content = this.sanitizeUtf8mb3Text(String(params.content || '').trim());
+    const introInput = this.sanitizeUtf8mb3Text(String(params.intro || '').trim(), 1000);
+    const summaryInput = this.sanitizeUtf8mb3Text(String(params.summary || '').trim(), 1200);
+    const seoTitle = this.sanitizeUtf8mb3Text(String(params.seoTitle || '').trim(), 255);
+    const seoDescription = this.sanitizeUtf8mb3Text(String(params.seoDescription || '').trim(), 500);
+    const intro = introInput || this.sanitizeUtf8mb3Text(this.stripHtmlTags(content).slice(0, 120), 120);
+    const summary = summaryInput || this.sanitizeUtf8mb3Text(intro.slice(0, 200), 200);
     // 未设置封面图时，默认取正文第一张图（仅作为“地址引用”，不静默抓图）
-    const coverImage = String(params.image || '').trim() || this.extractFirstImageFromContent(params.content);
+    const coverImage = String(params.image || '').trim() || this.extractFirstImageFromContent(content);
     const isShowValue = Number(params.isShow ?? 1);
     const reviewStatusValue = isShowValue === 1 ? 2 : 0;
     // 说明：返回新增文章ID，便于前端“保存草稿/发表”后立即进入编辑态并做前台预览跳转
     const row = await ctx.model.Article.create({
       cid: Number(params.cid || 0),
-      title: params.title || '',
-      intro: params.intro || '',
-      summary: params.summary || '',
+      title,
+      intro,
+      summary,
+      seo_title: seoTitle,
+      seo_description: seoDescription,
       image: this.normalizeStoreImageValue(coverImage),
-      content: params.content || '',
-      author: authorInfo.authorName || '',
+      content,
+      author: this.sanitizeUtf8mb3Text(authorInfo.authorName || '', 120),
       visit: Number(params.visit || 0),
       sort: Number(params.sort || 0),
       is_show: isShowValue,
@@ -3110,8 +3392,8 @@ class ArticleService extends Service {
     await this.ensureArticleReviewColumns();
     const userId = await this.getFrontendUserId(true);
     await this.ensureArticleAuthorRelTable();
-    const title = String(params.title || '').trim();
-    const content = String(params.content || '').trim();
+    const title = this.sanitizeUtf8mb3Text(String(params.title || '').trim(), 255);
+    const content = this.sanitizeUtf8mb3Text(String(params.content || '').trim());
     const cid = Number(params.cid || 0);
     if (!title) throw new Error('请输入文章标题');
     if (!cid) throw new Error('请选择文章分类');
@@ -3133,11 +3415,19 @@ class ArticleService extends Service {
       where: { id: Number(userId), isDelete: 0 },
       attributes: [ 'id', 'nickname', 'username' ],
     });
-    const intro = String(params.intro || '').trim() || this.stripHtmlTags(content).slice(0, 120);
-    const summary = String(params.summary || '').trim() || intro.slice(0, 200);
-    const author =
+    const intro = this.sanitizeUtf8mb3Text(
+      String(params.intro || '').trim() || this.stripHtmlTags(content).slice(0, 120),
+      1000
+    );
+    const summary = this.sanitizeUtf8mb3Text(
+      String(params.summary || '').trim() || intro.slice(0, 200),
+      1200
+    );
+    const author = this.sanitizeUtf8mb3Text(
       String(params.author || '').trim() ||
-      String(user?.nickname || user?.username || `用户${userId}`);
+        String(user?.nickname || user?.username || `用户${userId}`),
+      120
+    );
     const now = Math.floor(Date.now() / 1000);
     const coverImage = String(params.image || '').trim() || this.extractFirstImageFromContent(content);
 
@@ -3456,8 +3746,8 @@ class ArticleService extends Service {
       throw new Error('已发布文章请在后台编辑');
     }
 
-    const title = String(params.title || '').trim();
-    const content = String(params.content || '').trim();
+    const title = this.sanitizeUtf8mb3Text(String(params.title || '').trim(), 255);
+    const content = this.sanitizeUtf8mb3Text(String(params.content || '').trim());
     const cid = Number(params.cid || 0);
     if (!title) throw new Error('请输入文章标题');
     if (!cid) throw new Error('请选择文章分类');
@@ -3473,8 +3763,14 @@ class ArticleService extends Service {
     });
     if (!cate) throw new Error('文章分类不存在或不可用');
 
-    const intro = String(params.intro || '').trim() || this.stripHtmlTags(content).slice(0, 120);
-    const summary = String(params.summary || '').trim() || intro.slice(0, 200);
+    const intro = this.sanitizeUtf8mb3Text(
+      String(params.intro || '').trim() || this.stripHtmlTags(content).slice(0, 120),
+      1000
+    );
+    const summary = this.sanitizeUtf8mb3Text(
+      String(params.summary || '').trim() || intro.slice(0, 200),
+      1200
+    );
     const coverImage = String(params.image || '').trim() || this.extractFirstImageFromContent(content);
     const now = Math.floor(Date.now() / 1000);
     await ctx.model.Article.update({
@@ -3647,6 +3943,7 @@ class ArticleService extends Service {
   async edit(params) {
     const { ctx } = this;
     await this.ensureArticleReviewColumns();
+    await this.ensureArticleSeoColumns();
     const now = Math.floor(Date.now() / 1000);
     const authorInput = String(params.author || '').trim();
     if (!authorInput) {
@@ -3656,18 +3953,28 @@ class ArticleService extends Service {
     if (!Number(authorInfo.userId || 0)) {
       throw new Error('请选择有效作者');
     }
+    const title = this.sanitizeUtf8mb3Text(String(params.title || '').trim(), 255);
+    const content = this.sanitizeUtf8mb3Text(String(params.content || '').trim());
+    const introInput = this.sanitizeUtf8mb3Text(String(params.intro || '').trim(), 1000);
+    const summaryInput = this.sanitizeUtf8mb3Text(String(params.summary || '').trim(), 1200);
+    const seoTitle = this.sanitizeUtf8mb3Text(String(params.seoTitle || '').trim(), 255);
+    const seoDescription = this.sanitizeUtf8mb3Text(String(params.seoDescription || '').trim(), 500);
+    const intro = introInput || this.sanitizeUtf8mb3Text(this.stripHtmlTags(content).slice(0, 120), 120);
+    const summary = summaryInput || this.sanitizeUtf8mb3Text(intro.slice(0, 200), 200);
     // 未设置封面图时，默认取正文第一张图（仅作为“地址引用”，不静默抓图）
-    const coverImage = String(params.image || '').trim() || this.extractFirstImageFromContent(params.content);
+    const coverImage = String(params.image || '').trim() || this.extractFirstImageFromContent(content);
     const isShowValue = Number(params.isShow ?? 1);
     const reviewStatusValue = isShowValue === 1 ? 2 : 0;
     await ctx.model.Article.update({
       cid: Number(params.cid || 0),
-      title: params.title || '',
-      intro: params.intro || '',
-      summary: params.summary || '',
+      title,
+      intro,
+      summary,
+      seo_title: seoTitle,
+      seo_description: seoDescription,
       image: this.normalizeStoreImageValue(coverImage),
-      content: params.content || '',
-      author: authorInfo.authorName || '',
+      content,
+      author: this.sanitizeUtf8mb3Text(authorInfo.authorName || '', 120),
       visit: Number(params.visit || 0),
       sort: Number(params.sort || 0),
       is_show: isShowValue,
@@ -3688,15 +3995,158 @@ class ArticleService extends Service {
     }
   }
 
+  /**
+   * 批量编辑文章（分类/标签/状态/SEO）
+   */
+  async batchEdit(params = {}) {
+    const { ctx } = this;
+    await this.ensureArticleReviewColumns();
+    await this.ensureArticleSeoColumns();
+    const ids = this.parseIdArray(params.ids);
+    if (!ids.length) {
+      throw new Error('请先选择要批量编辑的文章');
+    }
+
+    const applyCid = params.applyCid === true;
+    const applyTagIds = params.applyTagIds === true;
+    const applyTopicId = params.applyTopicId === true;
+    const applyIsShow = params.applyIsShow === true;
+    const applySeo = params.applySeo === true;
+    if (!applyCid && !applyTagIds && !applyTopicId && !applyIsShow && !applySeo) {
+      throw new Error('请至少选择一项批量编辑内容');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const rows = await ctx.model.Article.findAll({
+      where: {
+        id: { [Op.in]: ids },
+        is_delete: 0,
+      },
+      attributes: [ 'id', 'title', 'intro', 'summary', 'author', 'cid', 'is_show' ],
+    });
+    const rowIds = rows.map(item => Number(item.id || 0)).filter(Boolean);
+    if (!rowIds.length) {
+      throw new Error('未找到可编辑的有效文章');
+    }
+
+    let categoryNameMap = new Map();
+    if (applyCid) {
+      const cid = Number(params.cid || 0);
+      if (!Number.isInteger(cid) || cid <= 0) {
+        throw new Error('请选择有效分类');
+      }
+      const categoryRow = await ctx.model.ArticleCategory.findOne({
+        where: { id: cid, is_delete: 0 },
+        attributes: [ 'id', 'name' ],
+      });
+      if (!categoryRow) {
+        throw new Error('分类不存在或已删除');
+      }
+    }
+
+    if (applySeo) {
+      const cidList = Array.from(new Set(rows.map(item => Number(item.cid || 0)).filter(Boolean)));
+      const categories = cidList.length
+        ? await ctx.model.ArticleCategory.findAll({
+          where: { id: { [Op.in]: cidList }, is_delete: 0 },
+          attributes: [ 'id', 'name' ],
+        })
+        : [];
+      categoryNameMap = new Map(categories.map(item => [ Number(item.id || 0), String(item.name || '') ]));
+    }
+
+    const isShowValue = Number(params.isShow ?? -1);
+    const seoTitleTemplate = String(params.seoTitleTemplate || '').trim();
+    const seoDescriptionTemplate = String(params.seoDescriptionTemplate || '').trim();
+    const commonUpdate = {
+      update_time: now,
+    };
+    if (applyCid) {
+      commonUpdate.cid = Number(params.cid || 0);
+    }
+    if (applyIsShow) {
+      if (![ 0, 1 ].includes(isShowValue)) {
+        throw new Error('状态值无效');
+      }
+      commonUpdate.is_show = isShowValue;
+      commonUpdate.review_status = isShowValue === 1 ? 2 : 0;
+      commonUpdate.review_remark = isShowValue === 1 ? '' : '批量操作调整为待发布';
+      commonUpdate.review_time = isShowValue === 1 ? now : 0;
+      commonUpdate.review_admin_id = isShowValue === 1 ? Number(ctx.session[reqAdminIdKey] || 0) : 0;
+    }
+
+    if (Object.keys(commonUpdate).length > 1 || !applySeo) {
+      await ctx.model.Article.update(commonUpdate, {
+        where: {
+          id: { [Op.in]: rowIds },
+          is_delete: 0,
+        },
+      });
+    }
+
+    if (applySeo) {
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const articleId = Number(row.id || 0);
+        if (!articleId) continue;
+        const categoryName = String(categoryNameMap.get(Number(row.cid || 0)) || '');
+        const renderedTitle = this.renderArticleSeoTemplate(seoTitleTemplate, {
+          title: row.title,
+          intro: row.intro,
+          summary: row.summary,
+          category: categoryName,
+          author: row.author,
+        });
+        const renderedDescription = this.renderArticleSeoTemplate(seoDescriptionTemplate, {
+          title: row.title,
+          intro: row.intro,
+          summary: row.summary,
+          category: categoryName,
+          author: row.author,
+        });
+        const fallbackTitle = String(row.title || '').trim();
+        const fallbackDescription = String(row.summary || row.intro || '').trim();
+        await ctx.model.Article.update({
+          seo_title: this.sanitizeUtf8mb3Text(renderedTitle || fallbackTitle, 255),
+          seo_description: this.sanitizeUtf8mb3Text(renderedDescription || fallbackDescription, 500),
+          update_time: now,
+        }, {
+          where: { id: articleId, is_delete: 0 },
+        });
+      }
+    }
+
+    if (applyTagIds) {
+      for (let i = 0; i < rowIds.length; i += 1) {
+        await this.saveArticleTagRelations(rowIds[i], params.tagIds);
+      }
+    }
+
+    if (applyTopicId) {
+      for (let i = 0; i < rowIds.length; i += 1) {
+        await this.saveArticleTopicRelation(rowIds[i], params.topicId);
+      }
+    }
+
+    return {
+      updatedCount: rowIds.length,
+      ids: rowIds,
+    };
+  }
+
   async del(id) {
     const { ctx } = this;
+    const articleId = Number(id || 0);
+    if (!Number.isInteger(articleId) || articleId <= 0) {
+      throw new Error('文章ID不能为空');
+    }
     const now = Math.floor(Date.now() / 1000);
     await ctx.model.Article.update({
       is_delete: 1,
       delete_time: now,
       update_time: now,
     }, {
-      where: { id, is_delete: 0 },
+      where: { id: articleId, is_delete: 0 },
     });
     try {
       await ctx.model.ArticleTagRel.update({
@@ -3704,18 +4154,121 @@ class ArticleService extends Service {
         delete_time: now,
         update_time: now,
       }, {
-        where: { article_id: id, is_delete: 0 },
+        where: { article_id: articleId, is_delete: 0 },
       });
       await ctx.model.ArticleTopicRel.update({
         is_delete: 1,
         delete_time: now,
         update_time: now,
       }, {
-        where: { article_id: id, is_delete: 0 },
+        where: { article_id: articleId, is_delete: 0 },
+      });
+      await ctx.model.ArticleAuthorRel.update({
+        is_delete: 1,
+        delete_time: now,
+        update_time: now,
+      }, {
+        where: { article_id: articleId, is_delete: 0 },
       });
     } catch (error) {
       ctx.logger.warn(`article del relation cleanup skipped: ${error.message || error}`);
     }
+  }
+
+  /**
+   * 从回收站恢复文章
+   */
+  async restore(id) {
+    const { ctx } = this;
+    const articleId = Number(id || 0);
+    if (!Number.isInteger(articleId) || articleId <= 0) {
+      throw new Error('文章ID不能为空');
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const [ affected ] = await ctx.model.Article.update({
+      is_delete: 0,
+      delete_time: 0,
+      update_time: now,
+    }, {
+      where: { id: articleId, is_delete: 1 },
+    });
+    if (Number(affected || 0) <= 0) {
+      throw new Error('回收站中未找到该文章');
+    }
+    try {
+      await ctx.model.ArticleTagRel.update({
+        is_delete: 0,
+        delete_time: 0,
+        update_time: now,
+      }, {
+        where: { article_id: articleId, is_delete: 1 },
+      });
+      await ctx.model.ArticleTopicRel.update({
+        is_delete: 0,
+        delete_time: 0,
+        update_time: now,
+      }, {
+        where: { article_id: articleId, is_delete: 1 },
+      });
+      await ctx.model.ArticleAuthorRel.update({
+        is_delete: 0,
+        delete_time: 0,
+        update_time: now,
+      }, {
+        where: { article_id: articleId, is_delete: 1 },
+      });
+    } catch (error) {
+      ctx.logger.warn(`article restore relation cleanup skipped: ${error.message || error}`);
+    }
+  }
+
+  /**
+   * 彻底删除回收站文章（不可恢复）
+   */
+  async purge(id) {
+    const { ctx } = this;
+    const articleId = Number(id || 0);
+    if (!Number.isInteger(articleId) || articleId <= 0) {
+      throw new Error('文章ID不能为空');
+    }
+
+    const exists = await ctx.model.Article.findOne({
+      where: { id: articleId, is_delete: 1 },
+      attributes: [ 'id' ],
+    });
+    if (!exists) {
+      throw new Error('请先将文章移入回收站后再彻底删除');
+    }
+
+    // 先删除评论扩展表，再删除评论主表，避免残留脏数据。
+    const [ commentRows ] = await ctx.model.query(
+      'SELECT id FROM la_article_comment WHERE article_id = ?',
+      { replacements: [ articleId ] }
+    );
+    const commentIds = Array.isArray(commentRows)
+      ? commentRows.map(item => Number(item.id || 0)).filter(Boolean)
+      : [];
+    if (commentIds.length) {
+      await ctx.model.query(
+        `DELETE FROM la_article_comment_like WHERE comment_id IN (${commentIds.map(() => '?').join(',')})`,
+        { replacements: commentIds }
+      );
+      await ctx.model.query(
+        `DELETE FROM la_article_comment_report WHERE comment_id IN (${commentIds.map(() => '?').join(',')})`,
+        { replacements: commentIds }
+      );
+    }
+    await ctx.model.query(
+      'DELETE FROM la_article_comment_report WHERE article_id = ?',
+      { replacements: [ articleId ] }
+    );
+    await ctx.model.ArticleComment.destroy({ where: { article_id: articleId } });
+    await ctx.model.ArticleCollect.destroy({ where: { article_id: articleId } });
+    await ctx.model.ArticleLike.destroy({ where: { article_id: articleId } });
+    await ctx.model.ArticleTagRel.destroy({ where: { article_id: articleId } });
+    await ctx.model.ArticleTopicRel.destroy({ where: { article_id: articleId } });
+    await ctx.model.ArticleAuthorRel.destroy({ where: { article_id: articleId } });
+    await ctx.model.Article.destroy({ where: { id: articleId, is_delete: 1 } });
   }
 
   async change(id) {

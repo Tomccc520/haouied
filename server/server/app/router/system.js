@@ -225,7 +225,13 @@ module.exports = app => {
   router.all('/api/article/front/audit', controller.article.frontAudit);
   router.all('/api/article/front/audit/message/list', controller.article.frontAuditMessageList);
   router.all('/api/article/edit', controller.article.edit);
+  router.all('/api/article/batch/edit', controller.article.batchEdit);
   router.all('/api/article/del', controller.article.del);
+  router.all('/api/article/restore', controller.article.restore);
+  router.all('/api/article/purge', controller.article.purge);
+  router.all('/api/article/recycle/policy/config', controller.article.recyclePolicyConfig);
+  router.all('/api/article/recycle/policy/save', controller.article.recyclePolicyConfigSave);
+  router.all('/api/article/recycle/policy/cleanup', controller.article.recyclePolicyCleanupNow);
   router.all('/api/article/detail', controller.article.detail);
   router.all('/api/article/change', controller.article.change);
   router.all('/api/article/visit/incr', controller.article.visitIncr);
