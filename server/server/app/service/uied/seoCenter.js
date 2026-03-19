@@ -213,11 +213,14 @@ class SeoCenterService extends Service {
           invalidScan: true,
           linkDetector: true,
           imageOptimization: false,
+          sitemapGenerate: true,
+          logs404Digest: true,
           platformPush: false,
         },
         pushPlatform: 'baidu',
         pushLimit: 100,
         siteOrigin: '',
+        digestLookbackDays: 7,
       },
     };
   }
@@ -421,6 +424,14 @@ class SeoCenterService extends Service {
             merged.autoTasks?.tasks?.imageOptimization,
             defaults.autoTasks.tasks.imageOptimization
           ),
+          sitemapGenerate: this.normalizeBoolean(
+            merged.autoTasks?.tasks?.sitemapGenerate,
+            defaults.autoTasks.tasks.sitemapGenerate
+          ),
+          logs404Digest: this.normalizeBoolean(
+            merged.autoTasks?.tasks?.logs404Digest,
+            defaults.autoTasks.tasks.logs404Digest
+          ),
           platformPush: this.normalizeBoolean(
             merged.autoTasks?.tasks?.platformPush,
             defaults.autoTasks.tasks.platformPush
@@ -438,6 +449,12 @@ class SeoCenterService extends Service {
           1000
         ),
         siteOrigin: this.normalizeString(merged.autoTasks?.siteOrigin, ''),
+        digestLookbackDays: this.normalizeNumber(
+          merged.autoTasks?.digestLookbackDays,
+          defaults.autoTasks.digestLookbackDays,
+          1,
+          90
+        ),
       },
     };
   }
@@ -1393,17 +1410,25 @@ class SeoCenterService extends Service {
   /**
    * 规范化自动任务类型
    * @param {unknown} value 原始任务类型
-   * @return {'all'|'invalid'|'link-detector'|'image-optimization'|'push-platform'} 标准任务类型
+   * @return {'all'|'invalid'|'link-detector'|'image-optimization'|'sitemap-generate'|'logs-404-digest'|'push-platform'} 标准任务类型
    */
   normalizeAutoTaskType(value) {
     const taskType = this.normalizeString(value || 'all').toLowerCase();
-    const allowList = [ 'all', 'invalid', 'link-detector', 'image-optimization', 'push-platform' ];
+    const allowList = [
+      'all',
+      'invalid',
+      'link-detector',
+      'image-optimization',
+      'sitemap-generate',
+      'logs-404-digest',
+      'push-platform',
+    ];
     return allowList.includes(taskType) ? taskType : 'all';
   }
 
   /**
    * 根据任务类型和开关解析实际执行项
-   * @param {'all'|'invalid'|'link-detector'|'image-optimization'|'push-platform'} taskType 任务类型
+   * @param {'all'|'invalid'|'link-detector'|'image-optimization'|'sitemap-generate'|'logs-404-digest'|'push-platform'} taskType 任务类型
    * @param {Record<string, any>} autoTaskConfig 自动任务配置
    * @param {boolean} respectSwitch 是否遵循开关
    * @return {string[]} 待执行任务编码列表
@@ -1424,6 +1449,12 @@ class SeoCenterService extends Service {
     if (taskType === 'image-optimization') {
       return [ 'image-optimization' ];
     }
+    if (taskType === 'sitemap-generate') {
+      return [ 'sitemap-generate' ];
+    }
+    if (taskType === 'logs-404-digest') {
+      return [ 'logs-404-digest' ];
+    }
     if (taskType === 'push-platform') {
       return [ 'push-platform' ];
     }
@@ -1432,6 +1463,8 @@ class SeoCenterService extends Service {
     if (isEnabled('invalidScan')) list.push('invalid');
     if (isEnabled('linkDetector')) list.push('link-detector');
     if (isEnabled('imageOptimization')) list.push('image-optimization');
+    if (isEnabled('sitemapGenerate')) list.push('sitemap-generate');
+    if (isEnabled('logs404Digest')) list.push('logs-404-digest');
     if (isEnabled('platformPush')) list.push('push-platform');
     return list;
   }
@@ -1487,6 +1520,107 @@ class SeoCenterService extends Service {
     };
     await this.ctx.service.uied.setting.save({ [SEO_AUTO_TASK_STATE_KEY]: next });
     return next;
+  }
+
+  /**
+   * 生成 Sitemap 快照摘要（用于自动任务中心展示）。
+   * @param {Record<string, any>} config SEO 配置
+   * @param {Record<string, any>} options 执行参数
+   * @return {Promise<Record<string, any>>} 快照摘要
+   */
+  async buildSitemapSnapshot(config = {}, options = {}) {
+    const sitemap = this.isPlainObject(config.sitemap) ? config.sitemap : {};
+    const autoTask = this.isPlainObject(config.autoTasks) ? config.autoTasks : {};
+    const siteOrigin = this.normalizeString(options.siteOrigin || autoTask.siteOrigin, '');
+
+    const [ basicXml, routeBundle ] = await Promise.all([
+      this.buildBasicSitemapXml({ siteOrigin }),
+      this.buildSitemapRoutes({ siteOrigin }),
+    ]);
+
+    let advancedMeta = [];
+    if (sitemap.advancedEnabled !== false) {
+      const advanced = await this.buildAdvancedSitemapBundle({ siteOrigin });
+      advancedMeta = Array.isArray(advanced?.meta) ? advanced.meta : [];
+    }
+
+    const advancedUrlCount = advancedMeta.reduce((sum, item) => {
+      return sum + Number(item?.count || 0);
+    }, 0);
+
+    return {
+      siteOrigin: this.resolveSiteOrigin(siteOrigin),
+      routeCount: Array.isArray(routeBundle?.routes) ? routeBundle.routes.length : 0,
+      basicXmlBytes: Buffer.byteLength(String(basicXml || ''), 'utf8'),
+      advancedFileCount: advancedMeta.length,
+      advancedUrlCount,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 聚合 404 日志摘要（用于自动任务中心巡检）。
+   * @param {Record<string, any>} config SEO 配置
+   * @param {Record<string, any>} options 执行参数
+   * @return {Promise<Record<string, any>>} 聚合结果
+   */
+  async build404Digest(config = {}, options = {}) {
+    const autoTask = this.isPlainObject(config.autoTasks) ? config.autoTasks : {};
+    const lookbackDays = this.normalizeNumber(
+      options.lookbackDays,
+      autoTask.digestLookbackDays || 7,
+      1,
+      90
+    );
+    const cutoff = Date.now() - (lookbackDays * 24 * 60 * 60 * 1000);
+    const logs = await this.getLogs(SEO_404_LOG_KEY);
+    const sourceRows = Array.isArray(logs) ? logs : [];
+    const recentRows = sourceRows.filter(item => {
+      const createdAtText = this.normalizeString(item?.createdAt, '');
+      const createdMs = Date.parse(createdAtText);
+      if (Number.isFinite(createdMs)) {
+        return createdMs >= cutoff;
+      }
+      return true;
+    });
+
+    const pathCounter = new Map();
+    const sourceCounter = new Map();
+    recentRows.forEach(item => {
+      const path = this.normalizeString(item?.path, '/');
+      const source = this.normalizeString(item?.source, 'unknown');
+      const createdAt = this.normalizeString(item?.createdAt, '');
+
+      const previousPath = pathCounter.get(path) || { path, count: 0, lastSeenAt: '' };
+      previousPath.count += 1;
+      if (createdAt && (!previousPath.lastSeenAt || Date.parse(createdAt) > Date.parse(previousPath.lastSeenAt || ''))) {
+        previousPath.lastSeenAt = createdAt;
+      }
+      pathCounter.set(path, previousPath);
+
+      const previousSourceCount = Number(sourceCounter.get(source) || 0);
+      sourceCounter.set(source, previousSourceCount + 1);
+    });
+
+    const topPaths = Array.from(pathCounter.values())
+      .sort((left, right) => {
+        if (left.count !== right.count) return right.count - left.count;
+        return String(right.lastSeenAt || '').localeCompare(String(left.lastSeenAt || ''));
+      })
+      .slice(0, 20);
+
+    const sourceStats = Array.from(sourceCounter.entries())
+      .map(([ source, count ]) => ({ source, count: Number(count || 0) }))
+      .sort((left, right) => right.count - left.count);
+
+    return {
+      lookbackDays,
+      totalCount: recentRows.length,
+      uniquePathCount: topPaths.length,
+      topPaths,
+      sourceStats,
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   /**
@@ -1547,6 +1681,45 @@ class SeoCenterService extends Service {
         data: {
           scannedCount: Number(data.scannedCount || 0),
           issueCount: Number(data.issueCount || 0),
+        },
+      };
+    }
+
+    if (taskName === 'sitemap-generate') {
+      const data = await this.buildSitemapSnapshot(config, {
+        siteOrigin,
+      });
+      return {
+        task: taskName,
+        success: true,
+        summary: `Sitemap 路由 ${Number(data.routeCount || 0)}，分片 ${Number(data.advancedFileCount || 0)}`,
+        data: {
+          routeCount: Number(data.routeCount || 0),
+          advancedFileCount: Number(data.advancedFileCount || 0),
+          advancedUrlCount: Number(data.advancedUrlCount || 0),
+          basicXmlBytes: Number(data.basicXmlBytes || 0),
+          siteOrigin: data.siteOrigin,
+        },
+      };
+    }
+
+    if (taskName === 'logs-404-digest') {
+      const data = await this.build404Digest(config, {
+        lookbackDays: Number(autoTask.digestLookbackDays || 7),
+      });
+      const topPath = Array.isArray(data.topPaths) && data.topPaths[0]
+        ? `${data.topPaths[0].path}(${data.topPaths[0].count})`
+        : '无';
+      return {
+        task: taskName,
+        success: true,
+        summary: `404汇总 ${data.totalCount} 条，Top: ${topPath}`,
+        data: {
+          lookbackDays: Number(data.lookbackDays || 0),
+          totalCount: Number(data.totalCount || 0),
+          uniquePathCount: Number(data.uniquePathCount || 0),
+          topPaths: Array.isArray(data.topPaths) ? data.topPaths.slice(0, 10) : [],
+          sourceStats: Array.isArray(data.sourceStats) ? data.sourceStats : [],
         },
       };
     }

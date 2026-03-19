@@ -7,8 +7,9 @@
  * @version 1.0.0
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSiteInfo } from '../../hooks/useSiteInfo';
+import api from '../../services/api';
 
 interface SEOProps {
   title?: string;
@@ -21,6 +22,46 @@ interface SEOProps {
   canonical?: string | false;
 }
 
+interface SeoPublicConfig {
+  webmasterVerification?: Record<string, unknown>;
+}
+
+let seoPublicConfigCache: SeoPublicConfig | null = null;
+let seoPublicConfigPromise: Promise<SeoPublicConfig> | null = null;
+
+/**
+ * 获取公开 SEO 配置，并使用模块级缓存避免页面切换时重复请求。
+ */
+const fetchSeoPublicConfig = async (): Promise<SeoPublicConfig> => {
+  if (seoPublicConfigCache) {
+    return seoPublicConfigCache;
+  }
+  if (seoPublicConfigPromise) {
+    return seoPublicConfigPromise;
+  }
+  seoPublicConfigPromise = api
+    .get('/seo/public-config', {
+      params: {
+        _t: Date.now(),
+      },
+    })
+    .then((response) => {
+      const data = response?.data;
+      const normalized = (data && typeof data === 'object') ? (data as SeoPublicConfig) : {};
+      seoPublicConfigCache = normalized;
+      return normalized;
+    })
+    .catch(() => {
+      const fallback: SeoPublicConfig = {};
+      seoPublicConfigCache = fallback;
+      return fallback;
+    })
+    .finally(() => {
+      seoPublicConfigPromise = null;
+    });
+  return seoPublicConfigPromise;
+};
+
 const SEO: React.FC<SEOProps> = ({
   title,
   description,
@@ -32,6 +73,21 @@ const SEO: React.FC<SEOProps> = ({
   canonical
 }) => {
   const { siteInfo } = useSiteInfo();
+  const [seoPublicConfig, setSeoPublicConfig] = useState<SeoPublicConfig | null>(seoPublicConfigCache);
+
+  /**
+   * 组件首次挂载时获取公开 SEO 配置，用于注入站长验证标签。
+   */
+  useEffect(() => {
+    let active = true;
+    fetchSeoPublicConfig().then((config) => {
+      if (!active) return;
+      setSeoPublicConfig(config);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const siteName = String(siteInfo?.siteName || 'UIED设计导航').trim() || 'UIED设计导航';
   const defaultTitle = String(siteInfo?.siteTitle || siteName).trim() || siteName;
   const defaultDescription = String(
@@ -146,7 +202,53 @@ const SEO: React.FC<SEOProps> = ({
       node.setAttribute('href', String(canonicalHref || defaultCanonicalUrl));
     }
 
-  }, [fullTitle, resolvedDescription, resolvedKeywords, image, resolvedUrl, type, noindex, canonicalHref, defaultCanonicalUrl, siteName]);
+    /**
+     * 更新站长验证标签；未配置值时删除旧标签，避免后台清空后前端残留。
+     */
+    const updateVerificationMeta = (metaName: string, tokenValue: string) => {
+      const selector = `meta[name="${metaName}"]`;
+      const existing = document.querySelector(selector) as HTMLMetaElement | null;
+      const normalizedToken = String(tokenValue || '').trim();
+      if (!normalizedToken) {
+        if (existing?.parentNode) {
+          existing.parentNode.removeChild(existing);
+        }
+        return;
+      }
+      if (!existing) {
+        const created = document.createElement('meta');
+        created.setAttribute('name', metaName);
+        created.setAttribute('content', normalizedToken);
+        document.head.appendChild(created);
+        return;
+      }
+      existing.setAttribute('content', normalizedToken);
+    };
+
+    const verification = (
+      seoPublicConfig?.webmasterVerification &&
+      typeof seoPublicConfig.webmasterVerification === 'object'
+    ) ? seoPublicConfig.webmasterVerification : {};
+
+    updateVerificationMeta('baidu-site-verification', String(verification.baidu || ''));
+    updateVerificationMeta('google-site-verification', String(verification.google || ''));
+    updateVerificationMeta('msvalidate.01', String(verification.bing || ''));
+    updateVerificationMeta('sogou_site_verification', String(verification.sogou || ''));
+    updateVerificationMeta('360-site-verification', String(verification.so360 || ''));
+
+  }, [
+    fullTitle,
+    resolvedDescription,
+    resolvedKeywords,
+    image,
+    resolvedUrl,
+    type,
+    noindex,
+    canonicalHref,
+    defaultCanonicalUrl,
+    siteName,
+    seoPublicConfig,
+  ]);
 
   return null; // 该组件不渲染任何内容
 };

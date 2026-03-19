@@ -293,6 +293,15 @@
                                     <el-form-item label="图片优化检测">
                                         <el-switch v-model="configForm.autoTasks.tasks.imageOptimization" />
                                     </el-form-item>
+                                    <el-form-item label="Sitemap 生成">
+                                        <el-switch v-model="configForm.autoTasks.tasks.sitemapGenerate" />
+                                    </el-form-item>
+                                    <el-form-item label="404 聚合摘要">
+                                        <el-switch v-model="configForm.autoTasks.tasks.logs404Digest" />
+                                    </el-form-item>
+                                    <el-form-item label="404 汇总天数">
+                                        <el-input-number v-model="configForm.autoTasks.digestLookbackDays" :min="1" :max="90" />
+                                    </el-form-item>
                                     <el-form-item label="站长推送">
                                         <el-switch v-model="configForm.autoTasks.tasks.platformPush" />
                                     </el-form-item>
@@ -352,6 +361,8 @@
                                     <el-button :loading="loading.autoTaskRun" @click="runAutoTask('invalid')">失效检测</el-button>
                                     <el-button :loading="loading.autoTaskRun" @click="runAutoTask('link-detector')">链接检测</el-button>
                                     <el-button :loading="loading.autoTaskRun" @click="runAutoTask('image-optimization')">图片检测</el-button>
+                                    <el-button :loading="loading.autoTaskRun" @click="runAutoTask('sitemap-generate')">生成Sitemap</el-button>
+                                    <el-button :loading="loading.autoTaskRun" @click="runAutoTask('logs-404-digest')">404汇总</el-button>
                                     <el-button :loading="loading.autoTaskRun" @click="runAutoTask('push-platform')">站长推送</el-button>
                                 </div>
                             </el-card>
@@ -704,7 +715,7 @@ type SeoTab = 'basic' | 'autoTask' | 'redirects' | 'monitor' | 'push'
 type BasicSubTab = 'tdk' | 'media-link' | 'robots-sitemap' | 'verification' | 'internal-detector' | 'monitoring'
 type MonitorSubTab = 'actions' | '404-log' | 'invalid-log' | 'detector-log' | 'image-log' | 'internal-links'
 type PushSubTab = 'platform' | 'manual' | 'logs'
-type AutoTaskType = 'all' | 'invalid' | 'link-detector' | 'image-optimization' | 'push-platform'
+type AutoTaskType = 'all' | 'invalid' | 'link-detector' | 'image-optimization' | 'sitemap-generate' | 'logs-404-digest' | 'push-platform'
 type LogKey = 'seo404Logs' | 'seoInvalidUrlLogs' | 'seoLinkDetectorLogs' | 'seoImageOptimizationLogs' | 'seoPushLogs' | 'seoAutoTaskLogs'
 
 interface OverviewStats {
@@ -831,11 +842,14 @@ const createDefaultSeoConfig = () => ({
             invalidScan: true,
             linkDetector: true,
             imageOptimization: false,
+            sitemapGenerate: true,
+            logs404Digest: true,
             platformPush: false
         },
         pushPlatform: 'baidu',
         pushLimit: 100,
-        siteOrigin: ''
+        siteOrigin: '',
+        digestLookbackDays: 7
     }
 })
 
@@ -1356,6 +1370,8 @@ const formatAutoTaskType = (value: unknown): string => {
     if (key === 'invalid') return '失效 URL 检测'
     if (key === 'link-detector') return '进阶链接检测'
     if (key === 'image-optimization') return '图片优化检测'
+    if (key === 'sitemap-generate') return 'Sitemap 生成'
+    if (key === 'logs-404-digest') return '404 聚合摘要'
     if (key === 'push-platform') return '站长推送'
     return key || '-'
 }
