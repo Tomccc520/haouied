@@ -91,6 +91,193 @@
   min-width: 0;
 }
 
+.detail-product-layout {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+.detail-action-rail {
+  position: sticky;
+  top: calc(var(--header-height) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-action-pill {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 14px;
+  min-height: 66px;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #374151;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.detail-action-pill:hover {
+  border-color: #111827;
+  color: #111827;
+}
+
+.detail-action-pill--hot .detail-action-pill__glyph {
+  color: #f97316;
+}
+
+.detail-action-pill__count {
+  font-size: 11px;
+  background: #f3f4f6;
+  color: #374151;
+  border-radius: 999px;
+  min-width: 20px;
+  padding: 1px 6px;
+  text-align: center;
+}
+
+.detail-action-pill__glyph {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #111827;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-action-pill__label {
+  font-size: 12px;
+}
+
+.detail-product-main {
+  min-width: 0;
+}
+
+.detail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 14px;
+}
+
+.detail-tab {
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+}
+
+.detail-tab:hover {
+  color: #111827;
+}
+
+.detail-tab.is-active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
+}
+
+.detail-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  padding: 20px;
+}
+
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-meta-card {
+  border: 1px solid #eceff3;
+  border-radius: 12px;
+  background: #fafafa;
+  padding: 14px;
+}
+
+.detail-meta-card h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: #111827;
+}
+
+.detail-meta-card p {
+  margin: 0 0 8px;
+  color: #4b5563;
+  line-height: 1.7;
+}
+
+.detail-meta-card p:last-child {
+  margin-bottom: 0;
+}
+
+.detail-related-list {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-related-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+  padding: 12px 14px;
+  text-decoration: none;
+}
+
+.detail-related-item__name {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.detail-related-item__desc {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.detail-faq-list {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-faq-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+  padding: 14px;
+}
+
+.detail-faq-item h4 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: #111827;
+}
+
+.detail-faq-item p {
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.75;
+}
+
 .article-detail-sidebar {
   display: flex;
   flex-direction: column;
@@ -343,7 +530,7 @@
 
 /* Cover Image */
 .detail-cover {
-  margin: 0 0 3.75rem;
+  margin: 0 0 1.4rem;
   border-radius: var(--radius-xl);
   overflow: hidden;
   /* 移除阴影，使用扁平化设计 */
@@ -560,6 +747,40 @@
   .article-detail-layout--with-sidebar {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .detail-product-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .detail-action-rail {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .detail-action-pill {
+    min-height: auto;
+    padding: 8px 4px;
+  }
+
+  .detail-action-pill__label {
+    font-size: 11px;
+  }
+
+  .detail-tab {
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+
+  .detail-panel {
+    padding: 14px;
+  }
+
+  .detail-meta-grid {
+    grid-template-columns: 1fr;
   }
 
   .article-detail-sidebar.is-sticky {

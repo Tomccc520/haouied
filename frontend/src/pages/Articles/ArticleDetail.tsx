@@ -5,7 +5,7 @@
  * @copyright 版权所有 (c) 2026 UIED技术团队
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getArticleDetail, getArticles, recordArticleView } from '../../services/articleService';
@@ -75,10 +75,24 @@ interface ArticleSidebarLatestArticleItem {
   publishedAt: number | null;
 }
 
+type ArticleDetailTabKey = 'intro' | 'info' | 'related' | 'faq';
+
+interface ArticleDetailTabItem {
+  key: ArticleDetailTabKey;
+  label: string;
+}
+
 const DEFAULT_ARTICLE_SIDEBAR_MODULES: ArticleSidebarModuleConfig[] = [
   { key: 'latest_articles', name: '最新文章', enabled: true, sort: 1 },
   { key: 'hot_websites', name: '热门网址', enabled: true, sort: 2 },
   { key: 'article_tags', name: '文章标签', enabled: true, sort: 3 },
+];
+
+const ARTICLE_DETAIL_TABS: ArticleDetailTabItem[] = [
+  { key: 'intro', label: '产品介绍' },
+  { key: 'info', label: '产品信息' },
+  { key: 'related', label: '关联网址' },
+  { key: 'faq', label: '常见问题' },
 ];
 
 /**
@@ -130,6 +144,9 @@ const ArticleDetail: React.FC = () => {
   const [sidebarLatestArticlesLoading, setSidebarLatestArticlesLoading] = useState(false);
   const [sidebarHotWebsites, setSidebarHotWebsites] = useState<ArticleSidebarHotWebsiteItem[]>([]);
   const [sidebarHotWebsitesLoading, setSidebarHotWebsitesLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<ArticleDetailTabKey>('intro');
+  const [likeCount, setLikeCount] = useState(0);
+  const commentsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -151,6 +168,19 @@ const ArticleDetail: React.FC = () => {
     };
     fetchArticle();
   }, [slug]);
+
+  /**
+   * 文章切换时重置标签页，并初始化本地点赞计数。
+   */
+  useEffect(() => {
+    setActiveTab('intro');
+    if (!article?.id) {
+      setLikeCount(0);
+      return;
+    }
+    const stored = Number(localStorage.getItem(`article_like_${article.id}`) || 0);
+    setLikeCount(Number.isFinite(stored) && stored > 0 ? stored : 0);
+  }, [article?.id]);
 
   // 记录阅读量
   useEffect(() => {
@@ -194,6 +224,49 @@ const ArticleDetail: React.FC = () => {
       window.alert('复制失败，请手动复制地址栏链接');
     }
   };
+
+  /**
+   * 滚动到评论区，提升互动效率。
+   */
+  const handleFocusComments = () => {
+    commentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  /**
+   * 本地点赞反馈（演示态，不写后端）。
+   */
+  const handleToggleLike = () => {
+    if (!article?.id) return;
+    const nextValue = likeCount > 0 ? 0 : 1;
+    setLikeCount(nextValue);
+    localStorage.setItem(`article_like_${article.id}`, String(nextValue));
+  };
+
+  const relatedWebsites = useMemo(
+    () => (Array.isArray(article?.relatedWebsites) ? article?.relatedWebsites || [] : []),
+    [article?.relatedWebsites]
+  );
+
+  /**
+   * 组装“常见问题”演示内容，确保缺省时也有稳定展示。
+   */
+  const faqList = useMemo(() => {
+    if (!article) return [];
+    return [
+      {
+        question: `这篇《${article.title}》适合谁阅读？`,
+        answer: `建议 ${article.category} 从业者优先阅读，也适合想快速了解该主题的新用户。`,
+      },
+      {
+        question: '如何判断内容是否仍然有效？',
+        answer: '可结合发布时间、文中链接可用性和相关工具更新日志交叉确认。',
+      },
+      {
+        question: '文中提到的网站如何继续筛选？',
+        answer: '可先看“关联网址”分组，再按点击量和描述信息做二次筛选。',
+      },
+    ];
+  }, [article]);
 
   const articleSetting = publicSettings?.article;
   const detailLayoutWidthMode = normalizeArticleDetailLayoutWidthMode(articleSetting?.detailLayoutWidthMode);
@@ -374,37 +447,132 @@ const ArticleDetail: React.FC = () => {
               </div>
             </header>
 
-            {/* 封面图 */}
-            {article.coverImage && (
-              <figure className="detail-cover">
-                <img src={article.coverImage} alt={article.title} />
-              </figure>
-            )}
+            <section className="detail-product-layout">
+              <aside className="detail-action-rail">
+                <button type="button" className="detail-action-pill" onClick={handleFocusComments}>
+                  <span className="detail-action-pill__count">0</span>
+                  <span className="detail-action-pill__glyph">评</span>
+                  <span className="detail-action-pill__label">点评</span>
+                </button>
+                <button type="button" className="detail-action-pill" onClick={handleToggleLike}>
+                  <span className="detail-action-pill__count">{likeCount}</span>
+                  <span className="detail-action-pill__glyph">赞</span>
+                  <span className="detail-action-pill__label">点赞</span>
+                </button>
+                <button type="button" className="detail-action-pill detail-action-pill--hot">
+                  <span className="detail-action-pill__count">{article.viewCount}</span>
+                  <span className="detail-action-pill__glyph">热</span>
+                  <span className="detail-action-pill__label">热度</span>
+                </button>
+                <button type="button" className="detail-action-pill" onClick={() => setActiveTab('related')}>
+                  <span className="detail-action-pill__count">{relatedWebsites.length}</span>
+                  <span className="detail-action-pill__glyph">链</span>
+                  <span className="detail-action-pill__label">关联网址</span>
+                </button>
+                <button type="button" className="detail-action-pill" onClick={handleCopyArticleLink}>
+                  <span className="detail-action-pill__count">1</span>
+                  <span className="detail-action-pill__glyph">享</span>
+                  <span className="detail-action-pill__label">分享</span>
+                </button>
+              </aside>
 
-            {/* 正文区域 */}
-            <div className="detail-content-wrapper">
-              <div 
-                className="detail-content typography"
-                dangerouslySetInnerHTML={{ __html: article.content }} // 注意：实际项目中建议使用 renderMarkdown 或 DOMPurify
-              />
-            </div>
+              <div className="detail-product-main">
+                <div className="detail-tabs">
+                  {ARTICLE_DETAIL_TABS.map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      className={`detail-tab ${activeTab === tab.key ? 'is-active' : ''}`}
+                      onClick={() => setActiveTab(tab.key)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
 
-            {/* 底部标签 */}
-            {article.tags.length > 0 && (
-              <div className="detail-tags">
-                {article.tags.map(tag => (
-                  <Link key={tag.id} to={`/articles?tag=${tag.slug}`} className="tag-chip">
-                    # {tag.name}
-                  </Link>
-                ))}
+                <div className="detail-panel">
+                  {activeTab === 'intro' && (
+                    <div>
+                      {/* 封面图 */}
+                      {article.coverImage && (
+                        <figure className="detail-cover">
+                          <img src={article.coverImage} alt={article.title} />
+                        </figure>
+                      )}
+                      {/* 正文区域 */}
+                      <div className="detail-content-wrapper">
+                        <div
+                          className="detail-content typography"
+                          dangerouslySetInnerHTML={{ __html: article.content }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'info' && (
+                    <div className="detail-meta-grid">
+                      <div className="detail-meta-card">
+                        <h4>基础信息</h4>
+                        <p><strong>所属分类：</strong>{article.category}</p>
+                        <p><strong>作者：</strong>{article.author}</p>
+                        <p><strong>发布时间：</strong>{formatDate(article.publishedAt) || '-'}</p>
+                        <p><strong>阅读热度：</strong>{article.viewCount}</p>
+                      </div>
+                      <div className="detail-meta-card">
+                        <h4>内容摘要</h4>
+                        <p>{article.excerpt || '暂无摘要'}</p>
+                      </div>
+                      {article.tags.length > 0 && (
+                        <div className="detail-meta-card">
+                          <h4>文章标签</h4>
+                          <div className="detail-tags">
+                            {article.tags.map(tag => (
+                              <Link key={tag.id} to={`/articles?tag=${tag.slug}`} className="tag-chip">
+                                # {tag.name}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === 'related' && (
+                    <div className="detail-related-list">
+                      {relatedWebsites.length > 0 ? relatedWebsites.map(site => (
+                        <a
+                          key={`related-${site.id}`}
+                          href={site.url || `/website/${site.slug || site.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="detail-related-item"
+                        >
+                          <div className="detail-related-item__name">{site.name}</div>
+                          <div className="detail-related-item__desc">{site.description || site.url}</div>
+                        </a>
+                      )) : (
+                        <div className="article-sidebar-empty">暂无关联网址</div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === 'faq' && (
+                    <div className="detail-faq-list">
+                      {faqList.map((item, index) => (
+                        <div key={`faq-${index}`} className="detail-faq-item">
+                          <h4>{item.question}</h4>
+                          <p>{item.answer}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-
-            <hr className="detail-divider" />
+            </section>
 
             {/* 评论区 */}
             {hasFeature(FEATURES.ARTICLE_COMMENTS) && articleSetting?.commentsEnabled !== false && (
-              <section className="detail-comments">
+              <section ref={commentsRef} className="detail-comments">
                 <h3>评论互动</h3>
                 <ArticleComments articleId={String(article.id)} />
               </section>

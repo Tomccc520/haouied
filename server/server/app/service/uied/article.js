@@ -85,6 +85,136 @@ class ArticleService extends Service {
   }
 
   /**
+   * 解析正整数 ID 列表，兼容数组/逗号分隔字符串。
+   * @param {unknown} value 原始输入
+   * @return {number[]} 规范化后的 ID 数组
+   */
+  parsePositiveIntList(value) {
+    if (Array.isArray(value)) {
+      return Array.from(new Set(
+        value
+          .map(item => this.parsePositiveInt(item, 0))
+          .filter(Boolean)
+      ));
+    }
+    const text = String(value || '').trim();
+    if (!text) return [];
+    return Array.from(new Set(
+      text
+        .split(/[，,]/)
+        .map(item => this.parsePositiveInt(item, 0))
+        .filter(Boolean)
+    ));
+  }
+
+  /**
+   * 确保“文章-网址关联表”存在。
+   */
+  async ensureArticleWebsiteRelationTable() {
+    if (this._articleWebsiteRelationTableReady) return;
+    const { app } = this;
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_article_website_relation\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`article_id\` BIGINT UNSIGNED NOT NULL COMMENT '文章ID',
+        \`website_id\` BIGINT UNSIGNED NOT NULL COMMENT '网址ID',
+        \`sort_order\` INT NOT NULL DEFAULT 0 COMMENT '排序',
+        \`create_time\` BIGINT NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`uniq_article_website\` (\`article_id\`, \`website_id\`),
+        KEY \`idx_article\` (\`article_id\`, \`sort_order\`),
+        KEY \`idx_website\` (\`website_id\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='文章绑定网址关联表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
+    this._articleWebsiteRelationTableReady = true;
+  }
+
+  /**
+   * 保存文章绑定网址（全量覆盖）。
+   * @param {number} articleId 文章ID
+   * @param {number[]} websiteIds 网址ID列表
+   */
+  async saveArticleWebsiteRelations(articleId, websiteIds = []) {
+    const { app } = this;
+    const normalizedArticleId = this.parsePositiveInt(articleId, 0);
+    if (!normalizedArticleId) return;
+
+    await this.ensureArticleWebsiteRelationTable();
+    const normalizedWebsiteIds = this.parsePositiveIntList(websiteIds);
+    const now = Math.floor(Date.now() / 1000);
+
+    await app.model.query(
+      'DELETE FROM uied_article_website_relation WHERE article_id = ?',
+      { replacements: [ normalizedArticleId ], type: app.Sequelize.QueryTypes.DELETE }
+    );
+
+    if (!normalizedWebsiteIds.length) return;
+
+    const placeholders = normalizedWebsiteIds.map(() => '(?, ?, ?, ?, ?)').join(',');
+    const replacements = [];
+    normalizedWebsiteIds.forEach((websiteId, index) => {
+      replacements.push(
+        normalizedArticleId,
+        websiteId,
+        index + 1,
+        now,
+        now
+      );
+    });
+
+    await app.model.query(
+      `INSERT INTO uied_article_website_relation
+        (article_id, website_id, sort_order, create_time, update_time)
+       VALUES ${placeholders}`,
+      { replacements, type: app.Sequelize.QueryTypes.INSERT }
+    );
+  }
+
+  /**
+   * 批量获取文章绑定的网址列表。
+   * @param {number[]} articleIds 文章ID数组
+   * @return {Promise<Object<number, Array>>} 映射结构
+   */
+  async batchGetRelatedWebsites(articleIds = []) {
+    const { app } = this;
+    const normalizedArticleIds = this.parsePositiveIntList(articleIds);
+    if (!normalizedArticleIds.length) {
+      return {};
+    }
+
+    await this.ensureArticleWebsiteRelationTable();
+    const rows = await app.model.query(
+      `SELECT r.article_id, w.id, w.name, w.slug, w.url, w.description, w.icon_url, w.click_count
+       FROM uied_article_website_relation r
+       INNER JOIN uied_website w ON w.id = r.website_id AND w.is_delete = 0
+       WHERE r.article_id IN (?)
+       ORDER BY r.article_id ASC, r.sort_order ASC, r.id ASC`,
+      { replacements: [ normalizedArticleIds ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+
+    const map = {};
+    normalizedArticleIds.forEach(id => { map[id] = []; });
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      const articleId = this.parsePositiveInt(row.article_id, 0);
+      if (!articleId) return;
+      if (!map[articleId]) map[articleId] = [];
+      map[articleId].push({
+        id: this.parsePositiveInt(row.id, 0),
+        name: String(row.name || ''),
+        slug: String(row.slug || row.id || ''),
+        url: String(row.url || ''),
+        description: String(row.description || ''),
+        iconUrl: String(row.icon_url || ''),
+        clickCount: this.parsePositiveInt(row.click_count, 0),
+      });
+    });
+
+    return map;
+  }
+
+  /**
    * 获取文章列表（管理后台 & 前端）
    */
   async list(params = {}) {
@@ -270,6 +400,9 @@ class ArticleService extends Service {
     // 获取文章标签
     const tagsMap = await this.batchGetArticleTags([ article.id ]);
     formatted.tags = tagsMap[article.id] || [];
+    // 获取文章绑定网址
+    const relatedWebsiteMap = await this.batchGetRelatedWebsites([ article.id ]);
+    formatted.relatedWebsites = relatedWebsiteMap[article.id] || [];
 
     return formatted;
   }
@@ -291,6 +424,9 @@ class ArticleService extends Service {
     // 获取文章标签
     const tagsMap = await this.batchGetArticleTags([ article.id ]);
     formatted.tags = tagsMap[article.id] || [];
+    // 获取文章绑定网址
+    const relatedWebsiteMap = await this.batchGetRelatedWebsites([ article.id ]);
+    formatted.relatedWebsites = relatedWebsiteMap[article.id] || [];
 
     return formatted;
   }
@@ -323,6 +459,12 @@ class ArticleService extends Service {
     const tagIds = Array.isArray(tagIdsRaw)
       ? Array.from(new Set(tagIdsRaw.map(item => this.parsePositiveInt(item, 0)).filter(Boolean)))
       : [];
+    const hasRelatedWebsiteIdsInput = data.relatedWebsiteIds !== undefined
+      || data.related_website_ids !== undefined;
+    const relatedWebsiteIdsRaw = data.relatedWebsiteIds !== undefined
+      ? data.relatedWebsiteIds
+      : data.related_website_ids;
+    const relatedWebsiteIds = this.parsePositiveIntList(relatedWebsiteIdsRaw);
 
     return {
       title,
@@ -338,6 +480,8 @@ class ArticleService extends Service {
       seoDescription,
       tagIds,
       hasTagIdsInput,
+      relatedWebsiteIds,
+      hasRelatedWebsiteIdsInput,
     };
   }
 
@@ -417,6 +561,11 @@ class ArticleService extends Service {
     // 保存文章标签关联
     if (payload.tagIds.length > 0) {
       await this.ctx.service.uied.articleTag.setArticleTags(result, payload.tagIds);
+    }
+
+    // 保存文章绑定网址
+    if (payload.hasRelatedWebsiteIdsInput) {
+      await this.saveArticleWebsiteRelations(result, payload.relatedWebsiteIds);
     }
 
     return result;
@@ -516,6 +665,11 @@ class ArticleService extends Service {
       await this.ctx.service.uied.articleTag.setArticleTags(id, payload.tagIds);
     }
 
+    // 保存文章绑定网址
+    if (payload.hasRelatedWebsiteIdsInput) {
+      await this.saveArticleWebsiteRelations(id, payload.relatedWebsiteIds);
+    }
+
     return true;
   }
 
@@ -532,6 +686,17 @@ class ArticleService extends Service {
       `UPDATE uied_article SET is_delete = 1, delete_time = ? WHERE id IN (${placeholders})`,
       { replacements: [ now, ...idList ], type: app.Sequelize.QueryTypes.UPDATE }
     );
+
+    // 同步移除文章-网址关联，避免脏数据残留
+    try {
+      await this.ensureArticleWebsiteRelationTable();
+      await app.model.query(
+        `DELETE FROM uied_article_website_relation WHERE article_id IN (${placeholders})`,
+        { replacements: idList, type: app.Sequelize.QueryTypes.DELETE }
+      );
+    } catch (error) {
+      this.ctx.logger.warn('[article] 删除文章时清理网址关联失败，忽略:', error.message);
+    }
 
     return true;
   }
@@ -875,6 +1040,7 @@ class ArticleService extends Service {
       createdAt: article.create_time ? article.create_time * 1000 : null,
       updatedAt: article.update_time ? article.update_time * 1000 : null,
       tags: article.tags || [],
+      relatedWebsites: Array.isArray(article.relatedWebsites) ? article.relatedWebsites : [],
     };
 
     if (includeContent) {

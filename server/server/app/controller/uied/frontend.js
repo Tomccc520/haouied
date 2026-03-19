@@ -2182,6 +2182,17 @@ class FrontendController extends Controller {
     }).filter(tag => tag.id > 0 && tag.name);
 
     const excerpt = String(item?.excerpt || item?.summary || item?.intro || '').trim();
+    const relatedWebsites = (Array.isArray(item?.relatedWebsites) ? item.relatedWebsites : [])
+      .map(site => ({
+        id: this.parsePositiveInt(site?.id, 0),
+        name: String(site?.name || '').trim(),
+        slug: String(site?.slug || site?.id || '').trim(),
+        url: String(site?.url || '').trim(),
+        description: String(site?.description || '').trim(),
+        iconUrl: String(site?.iconUrl || site?.icon_url || '').trim(),
+        clickCount: this.parsePositiveInt(site?.clickCount ?? site?.click_count, 0),
+      }))
+      .filter(site => site.id > 0 && site.name);
     return {
       id,
       title: String(item?.title || ''),
@@ -2199,6 +2210,7 @@ class FrontendController extends Controller {
       createdAt: this.toTimestampMs(item?.createdAt ?? item?.createTime),
       updatedAt: this.toTimestampMs(item?.updatedAt ?? item?.updateTime),
       tags,
+      relatedWebsites,
     };
   }
 

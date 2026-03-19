@@ -82,6 +82,8 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', scope: 'frontend', text: '【后台管理】新增“SEO中心”页面（基础配置/重定向规则/检测与日志/站长推送四标签），支持在线预览 robots 与 sitemap，执行扫描与清空日志' },
       { type: 'feature', scope: 'backend', text: '【后台接口】新增 `/api/uied/setting/get|save/seoCenter/*` 统一接口组，复用站点设置权限体系（`uied:setting:get/save`）降低角色改造成本' },
       { type: 'feature', scope: 'backend', text: '【菜单补丁】新增 SQL 补丁 `patch_2026_0318_seo_center_menu.sql`：在“网站设置 -> 基础配置”下新增“SEO中心”菜单并自动补齐管理员角色授权' },
+      { type: 'feature', scope: 'fullstack', text: '【文章管理】新增“文章绑定网址”能力：后台编辑文章可搜索并多选关联网址，详情接口返回 `relatedWebsites`，前端可直接渲染关联站点卡片' },
+      { type: 'feature', scope: 'frontend', text: '【文章详情】重构为“左侧交互栏 + 顶部标签页”布局：支持产品介绍/产品信息/关联网址/常见问题四区切换，阅读与运营信息分层更清晰' },
     ]
   },
   {

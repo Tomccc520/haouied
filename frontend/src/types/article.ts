@@ -85,6 +85,20 @@ export interface ArticleDetail extends ArticleListItem {
   seoTitle?: string;
   seoDescription?: string;
   status?: string;
+  relatedWebsites?: ArticleRelatedWebsite[];
+}
+
+/**
+ * 文章关联网址
+ */
+export interface ArticleRelatedWebsite {
+  id: number;
+  name: string;
+  slug: string;
+  url: string;
+  description?: string;
+  iconUrl?: string;
+  clickCount?: number;
 }
 
 // ============================================================================

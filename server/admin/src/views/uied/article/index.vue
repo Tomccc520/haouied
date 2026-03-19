@@ -108,6 +108,34 @@
                 <el-form-item label="作者">
                     <el-input v-model="formData.author" placeholder="作者名称" />
                 </el-form-item>
+                <el-form-item label="关联网址">
+                    <el-select
+                        v-model="formData.relatedWebsiteIds"
+                        multiple
+                        filterable
+                        remote
+                        clearable
+                        collapse-tags
+                        collapse-tags-tooltip
+                        reserve-keyword
+                        placeholder="输入关键词搜索网址并绑定（可多选）"
+                        :remote-method="searchWebsiteOptions"
+                        :loading="websiteSearchLoading"
+                        style="width: 100%"
+                    >
+                        <el-option
+                            v-for="site in websiteOptions"
+                            :key="site.id"
+                            :label="site.name"
+                            :value="site.id"
+                        >
+                            <div class="article-related-site-option">
+                                <span class="article-related-site-option__name">{{ site.name }}</span>
+                                <span class="article-related-site-option__meta">{{ site.url }}</span>
+                            </div>
+                        </el-option>
+                    </el-select>
+                </el-form-item>
                 <el-form-item label="封面图">
                     <el-input v-model="formData.coverImage" placeholder="封面图片URL" />
                 </el-form-item>
@@ -179,6 +207,15 @@ const tableData = ref<any[]>([])
 const total = ref(0)
 const selectedIds = ref<number[]>([])
 const categories = ref<string[]>([])
+const websiteSearchLoading = ref(false)
+const websiteOptions = ref<
+    Array<{
+        id: number
+        name: string
+        url: string
+        slug?: string
+    }>
+>([])
 
 // 弹窗
 const dialogVisible = ref(false)
@@ -198,7 +235,8 @@ const formData = reactive({
     slug: '',
     status: 'draft',
     seoTitle: '',
-    seoDescription: ''
+    seoDescription: '',
+    relatedWebsiteIds: [] as number[]
 })
 
 // 表单验证
@@ -264,9 +302,43 @@ const handleAdd = () => {
         slug: '',
         status: 'draft',
         seoTitle: '',
-        seoDescription: ''
+        seoDescription: '',
+        relatedWebsiteIds: []
     })
+    searchWebsiteOptions('')
     dialogVisible.value = true
+}
+
+/**
+ * 搜索网址选项（用于文章绑定网址）。
+ * @param keyword 搜索关键词
+ */
+const searchWebsiteOptions = async (keyword: string) => {
+    websiteSearchLoading.value = true
+    try {
+        const res = await request.get({
+            url: '/uied/website/list',
+            params: {
+                pageNo: 1,
+                pageSize: 20,
+                keyword: String(keyword || '').trim(),
+                sortBy: 'click_desc'
+            }
+        })
+        const lists = Array.isArray(res?.lists) ? res.lists : []
+        websiteOptions.value = lists
+            .map((item: any) => ({
+                id: Number(item?.id || 0),
+                name: String(item?.name || '').trim(),
+                url: String(item?.url || '').trim(),
+                slug: String(item?.slug || '').trim()
+            }))
+            .filter((item: any) => item.id > 0 && item.name)
+    } catch (error) {
+        websiteOptions.value = []
+    } finally {
+        websiteSearchLoading.value = false
+    }
 }
 
 // 编辑
@@ -276,6 +348,32 @@ const handleEdit = async (row: any) => {
         const res = await request.get({ url: '/uied/article/detail', params: { id: row.id } })
         if (res) {
             Object.assign(formData, res)
+            const idSource = Array.isArray(res.relatedWebsiteIds)
+                ? res.relatedWebsiteIds
+                : (Array.isArray(res.relatedWebsites) ? res.relatedWebsites.map((site: any) => site?.id) : [])
+            formData.relatedWebsiteIds = Array.from(
+                new Set(
+                    idSource
+                        .map((id: any) => Number(id || 0))
+                        .filter((id: number) => Number.isInteger(id) && id > 0)
+                )
+            )
+            const detailOptions = (Array.isArray(res.relatedWebsites) ? res.relatedWebsites : [])
+                .map((site: any) => ({
+                    id: Number(site?.id || 0),
+                    name: String(site?.name || '').trim(),
+                    url: String(site?.url || '').trim(),
+                    slug: String(site?.slug || '').trim()
+                }))
+                .filter((site: any) => site.id > 0 && site.name)
+            if (detailOptions.length > 0) {
+                const mergedMap = new Map<number, { id: number; name: string; url: string; slug?: string }>()
+                websiteOptions.value.forEach((site) => mergedMap.set(site.id, site))
+                detailOptions.forEach((site: any) => mergedMap.set(site.id, site))
+                websiteOptions.value = Array.from(mergedMap.values())
+            } else {
+                searchWebsiteOptions('')
+            }
         }
     } catch (error) {
         ElMessage.error('获取文章详情失败')
@@ -337,11 +435,33 @@ const formatTime = (timestamp: number) => {
 onMounted(() => {
     getList()
     getCategories()
+    searchWebsiteOptions('')
 })
 </script>
 
 <style scoped>
 .article-container {
     padding: 20px;
+}
+
+.article-related-site-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.article-related-site-option__name {
+    font-size: 13px;
+    color: #1f2937;
+}
+
+.article-related-site-option__meta {
+    font-size: 12px;
+    color: #94a3b8;
+    max-width: 380px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 </style>
