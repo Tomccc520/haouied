@@ -177,9 +177,15 @@ const ProfilePage: React.FC = () => {
   const [contentStats, setContentStats] = useState<{
     websiteFavoriteTotal: number;
     websiteLikeTotal: number;
+    articleCollectTotal: number;
+    articleLikeTotal: number;
+    commentTotal: number;
   }>({
     websiteFavoriteTotal: 0,
     websiteLikeTotal: 0,
+    articleCollectTotal: 0,
+    articleLikeTotal: 0,
+    commentTotal: 0,
   });
 
   useEffect(() => {
@@ -206,20 +212,40 @@ const ProfilePage: React.FC = () => {
   useEffect(() => {
     if (!isLoggedIn) return;
     /**
-     * 拉取用户中心内容互动统计（收藏/点赞），用于首页卡片快速展示。
+     * 拉取用户中心内容互动统计（网站 + 文章 + 评论），用于首页卡片快速展示。
      */
     Promise.allSettled([
       userService.getWebsiteFavoriteList({ page: 1, pageSize: 1 }),
       userService.getWebsiteLikeList({ page: 1, pageSize: 1 }),
-    ]).then(([favoriteRes, likeRes]) => {
+      getUserCollectedArticles({ page: 1, pageSize: 1 }),
+      getUserLikedArticles({ page: 1, pageSize: 1 }),
+      userService.getArticleCommentList({ page: 1, pageSize: 1 }),
+      userService.getWebsiteCommentList({ page: 1, pageSize: 1 }),
+    ]).then(([favoriteRes, likeRes, articleCollectRes, articleLikeRes, articleCommentRes, websiteCommentRes]) => {
+      const articleCommentTotal = articleCommentRes.status === 'fulfilled'
+        ? Number(articleCommentRes.value?.total || 0)
+        : 0;
+      const websiteCommentTotal = websiteCommentRes.status === 'fulfilled'
+        ? Number(websiteCommentRes.value?.total || 0)
+        : 0;
       setContentStats({
         websiteFavoriteTotal: favoriteRes.status === 'fulfilled' ? Number(favoriteRes.value?.total || 0) : 0,
         websiteLikeTotal: likeRes.status === 'fulfilled' ? Number(likeRes.value?.total || 0) : 0,
+        articleCollectTotal: articleCollectRes.status === 'fulfilled'
+          ? Number(articleCollectRes.value?.total || 0)
+          : 0,
+        articleLikeTotal: articleLikeRes.status === 'fulfilled'
+          ? Number(articleLikeRes.value?.total || 0)
+          : 0,
+        commentTotal: articleCommentTotal + websiteCommentTotal,
       });
     }).catch(() => {
       setContentStats({
         websiteFavoriteTotal: 0,
         websiteLikeTotal: 0,
+        articleCollectTotal: 0,
+        articleLikeTotal: 0,
+        commentTotal: 0,
       });
     });
   }, [isLoggedIn]);
@@ -305,6 +331,18 @@ const ProfilePage: React.FC = () => {
               <div className="user-card-stat">
                 <div className="user-card-stat__value">{Number(contentStats.websiteLikeTotal || 0)}</div>
                 <div className="user-card-stat__label">网站点赞</div>
+              </div>
+              <div className="user-card-stat">
+                <div className="user-card-stat__value">{Number(contentStats.articleCollectTotal || 0)}</div>
+                <div className="user-card-stat__label">文章收藏</div>
+              </div>
+              <div className="user-card-stat">
+                <div className="user-card-stat__value">{Number(contentStats.articleLikeTotal || 0)}</div>
+                <div className="user-card-stat__label">文章点赞</div>
+              </div>
+              <div className="user-card-stat">
+                <div className="user-card-stat__value">{Number(contentStats.commentTotal || 0)}</div>
+                <div className="user-card-stat__label">我的评论</div>
               </div>
             </div>
           </div>
