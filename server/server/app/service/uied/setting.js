@@ -829,6 +829,12 @@ class SettingService extends Service {
      * 排序值为 0 的站点默认按“最新优先”排序，可由后台页面配置开关控制。
      */
     normalized.sortZeroNewFirstEnabled = config.sortZeroNewFirstEnabled === true;
+    normalized.categoryPaginationThreshold = Number.isFinite(Number(config.categoryPaginationThreshold))
+      ? Math.max(24, Math.min(2000, Number(config.categoryPaginationThreshold)))
+      : 120;
+    normalized.categoryPaginationPageSize = Number.isFinite(Number(config.categoryPaginationPageSize))
+      ? Math.max(8, Math.min(120, Number(config.categoryPaginationPageSize)))
+      : 24;
     normalized.categorySvgLibrary = this.normalizeCategorySvgLibrary(config.categorySvgLibrary);
     return normalized;
   }
@@ -1799,6 +1805,8 @@ class SettingService extends Service {
       detailPageNewWindow: false,
       viewMoreNewWindow: false,
       pageSize: 20,
+      categoryPaginationThreshold: 120,
+      categoryPaginationPageSize: 24,
       hotRecommendationClickMode: 'detail', // 热门推荐独立配置，默认进详情页
       appendRefEnabled: false,
       appendRefValue: '',

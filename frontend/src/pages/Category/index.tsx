@@ -80,6 +80,28 @@ interface CategoryDetail {
 }
 
 /**
+ * 规范化分类分页阈值：仅当分类总数超过该值才启用分页。
+ * @param value 原始配置值
+ * @returns 合法阈值
+ */
+const normalizeCategoryPaginationThreshold = (value: unknown): number => {
+  const next = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(next)) return 120;
+  return Math.max(24, Math.min(2000, next));
+};
+
+/**
+ * 规范化分类分页每页条数。
+ * @param value 原始配置值
+ * @returns 合法每页条数
+ */
+const normalizeCategoryPaginationPageSize = (value: unknown): number => {
+  const next = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(next)) return 24;
+  return Math.max(8, Math.min(120, next));
+};
+
+/**
  * 渲染分类图标内容：优先 svg:key，未命中则回退文本图标。
  */
 const renderCategoryIconContent = (
@@ -242,7 +264,6 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [page, setPage] = useState(1);
   const [retrySeed, setRetrySeed] = useState(0);
-  const pageSize = 24;
 
   // 获取前端配置
   const { config: frontendConfig } = useFrontendConfig();
@@ -253,6 +274,16 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const detailPageNewWindow = frontendConfig?.pageGlobalConfig?.detailPageNewWindow ?? false;
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
   const svgIconMap = createSvgIconMap(frontendConfig?.pageGlobalConfig?.categorySvgLibrary || []);
+  const categoryPaginationThreshold = normalizeCategoryPaginationThreshold(
+    frontendConfig?.pageGlobalConfig?.categoryPaginationThreshold,
+  );
+  const categoryPaginationPageSize = normalizeCategoryPaginationPageSize(
+    frontendConfig?.pageGlobalConfig?.categoryPaginationPageSize,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [slug]);
 
   // 获取分类详情
   useEffect(() => {
@@ -262,7 +293,20 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
       setNotFound(false);
       try {
         const normalizedSlug = decodeURIComponent(String(slug || '').trim());
-        const res = await api.get(`/categories/${normalizedSlug}`, { params: { page, pageSize } });
+        /**
+         * 分类页采用“超阈值才分页”策略：
+         * - 首屏先按阈值请求，若总数未超阈值则一次展示全部；
+         * - 若超阈值，再按每页条数展示并显示分页器。
+         */
+        const requestPageSize = page > 1
+          ? categoryPaginationPageSize
+          : Math.max(categoryPaginationThreshold, categoryPaginationPageSize);
+        const res = await api.get(`/categories/${normalizedSlug}`, {
+          params: {
+            page,
+            pageSize: requestPageSize,
+          },
+        });
         const data = unwrapApiResponse<CategoryDetail | null>(res.data, null);
         if (!data || !data.category) {
           setDetail(null);
@@ -284,7 +328,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
     };
     fetchDetail();
     window.scrollTo(0, 0);
-  }, [slug, page, retrySeed]);
+  }, [slug, page, retrySeed, categoryPaginationThreshold, categoryPaginationPageSize]);
 
   /**
    * 上报网站点击，失败时静默处理，不阻断页面跳转。
@@ -330,7 +374,29 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
     }
   }, [isDirectMode, directArrowNewWindow, detailPageNewWindow, permalinkConfig, navigate, frontendConfig?.pageGlobalConfig, reportWebsiteClick]);
 
-  const totalPages = detail ? Math.ceil(detail.total / pageSize) : 0;
+  const shouldPaginate = detail ? detail.total > categoryPaginationThreshold : false;
+  const totalPages = shouldPaginate && detail
+    ? Math.ceil(detail.total / categoryPaginationPageSize)
+    : 1;
+  const visibleWebsites = (() => {
+    if (!detail) return [];
+    if (!shouldPaginate) return detail.websites;
+    if (page === 1 && detail.websites.length > categoryPaginationPageSize) {
+      return detail.websites.slice(0, categoryPaginationPageSize);
+    }
+    return detail.websites;
+  })();
+
+  useEffect(() => {
+    if (!detail) return;
+    if (!shouldPaginate && page !== 1) {
+      setPage(1);
+      return;
+    }
+    if (shouldPaginate && page > totalPages) {
+      setPage(totalPages || 1);
+    }
+  }, [detail, shouldPaginate, page, totalPages]);
 
   if (loading && !detail) {
     return (
@@ -454,7 +520,7 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
       {/* 网站列表 */}
       <div className="category-websites-container">
         <div className="tools-grid">
-          {detail.websites.map(website => (
+          {visibleWebsites.map(website => (
             <ToolCard
               key={website.id}
               tool={{
@@ -481,14 +547,14 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
           ))}
         </div>
 
-        {detail.websites.length === 0 && (
+        {visibleWebsites.length === 0 && (
           <div className="category-empty">
             <p>该分类下暂无网站</p>
           </div>
         )}
 
         {/* 分页 */}
-        {totalPages > 1 && (
+        {shouldPaginate && totalPages > 1 && (
           <div className="category-pagination">
             <button
               disabled={page <= 1}

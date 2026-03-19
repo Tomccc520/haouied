@@ -865,6 +865,36 @@
                                 :max="100"
                             />
                         </el-form-item>
+                        <el-form-item>
+                            <template #label
+                                ><span>分页触发阈值</span
+                                ><el-tooltip
+                                    content="分类总数超过该值才启用分页；低于或等于该值时分类页默认展示全部。"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-input-number
+                                v-model="pageConfigData.categoryPaginationThreshold"
+                                :min="24"
+                                :max="2000"
+                            />
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label
+                                ><span>分类页每页数</span
+                                ><el-tooltip
+                                    content="仅在超过分页触发阈值后生效。"
+                                    placement="top"
+                                    ><el-icon class="label-tip-icon"
+                                        ><QuestionFilled /></el-icon></el-tooltip
+                            ></template>
+                            <el-input-number
+                                v-model="pageConfigData.categoryPaginationPageSize"
+                                :min="8"
+                                :max="120"
+                            />
+                        </el-form-item>
                         <el-divider content-position="left">网站排序策略</el-divider>
                         <el-form-item>
                             <template #label
@@ -2304,6 +2334,8 @@ const pageConfigData = reactive({
     directArrowNewWindow: true,
     viewMoreNewWindow: false,
     pageSize: 20,
+    categoryPaginationThreshold: 120,
+    categoryPaginationPageSize: 24,
     hotRecommendationClickMode: 'detail', // 热门推荐独立配置
     appendRefEnabled: false,
     appendRefValue: '',
@@ -2339,6 +2371,15 @@ const normalizePageConfigData = (config: any) => ({
         config?.hotRecommendationClickMode
     ),
     viewMoreNewWindow: config?.viewMoreNewWindow === true,
+    pageSize: Number.isFinite(Number(config?.pageSize))
+        ? Math.max(10, Math.min(100, Number(config.pageSize)))
+        : 20,
+    categoryPaginationThreshold: Number.isFinite(Number(config?.categoryPaginationThreshold))
+        ? Math.max(24, Math.min(2000, Number(config.categoryPaginationThreshold)))
+        : 120,
+    categoryPaginationPageSize: Number.isFinite(Number(config?.categoryPaginationPageSize))
+        ? Math.max(8, Math.min(120, Number(config.categoryPaginationPageSize)))
+        : 24,
     appendRefEnabled: config?.appendRefEnabled === true,
     appendRefValue: String(config?.appendRefValue || '').trim(),
     sortZeroNewFirstEnabled: config?.sortZeroNewFirstEnabled === true,

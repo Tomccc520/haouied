@@ -72,6 +72,8 @@ interface PageGlobalConfig {
   appendRefEnabled?: boolean;
   appendRefValue?: string;
   sortZeroNewFirstEnabled?: boolean;
+  categoryPaginationThreshold?: number;
+  categoryPaginationPageSize?: number;
   categorySvgLibrary?: Array<{
     key: string;
     label?: string;
@@ -248,6 +250,8 @@ const defaultPageGlobalConfig: PageGlobalConfig = {
   appendRefEnabled: false,
   appendRefValue: '',
   sortZeroNewFirstEnabled: false,
+  categoryPaginationThreshold: 120,
+  categoryPaginationPageSize: 24,
   categorySvgLibrary: [],
 };
 
@@ -398,6 +402,12 @@ const normalizePageGlobalConfig = (config: unknown): PageGlobalConfig => {
     appendRefEnabled: mergedConfig.appendRefEnabled === true,
     appendRefValue: String(mergedConfig.appendRefValue || '').trim(),
     sortZeroNewFirstEnabled: mergedConfig.sortZeroNewFirstEnabled === true,
+    categoryPaginationThreshold: Number.isFinite(Number(mergedConfig.categoryPaginationThreshold))
+      ? Math.max(24, Math.min(2000, Number(mergedConfig.categoryPaginationThreshold)))
+      : 120,
+    categoryPaginationPageSize: Number.isFinite(Number(mergedConfig.categoryPaginationPageSize))
+      ? Math.max(8, Math.min(120, Number(mergedConfig.categoryPaginationPageSize)))
+      : 24,
     categorySvgLibrary: normalizedCategorySvgLibrary,
   };
 };
