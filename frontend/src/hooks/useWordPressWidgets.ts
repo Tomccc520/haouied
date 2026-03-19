@@ -24,6 +24,9 @@ export interface WordPressWidget {
   widgetKey?: string;
   settings?: Record<string, unknown>;
   meta?: Record<string, unknown>;
+  enableSubCategories?: boolean;
+  fixedFilterType?: 'category' | 'tag';
+  fixedFilterId?: number;
 }
 
 interface UseWordPressWidgetsOptions {
@@ -91,6 +94,9 @@ const normalizeWidget = (row: Record<string, any>): WordPressWidget => {
     widgetKey: String(row?.widgetKey || '').trim(),
     settings: meta.settings && typeof meta.settings === 'object' ? meta.settings : {},
     meta,
+    enableSubCategories: meta.enableSubCategories === undefined ? undefined : meta.enableSubCategories === true,
+    fixedFilterType: String(meta.fixedFilterType || '').trim().toLowerCase() === 'tag' ? 'tag' : 'category',
+    fixedFilterId: toPositiveInt(meta.fixedFilterId, 0),
   };
 };
 
@@ -146,14 +152,29 @@ export const useWordPressWidgets = (
   // 根据位置获取组件配置
   const getWidgetByPosition = useCallback((pos: string) => {
     const normalizedPos = String(pos || '').trim().toLowerCase();
-    // 先精确匹配位置
+    /**
+     * 优先按 design-article-grid-container 定位，避免同一位置多个组件导致读取错配。
+     */
+    const foundByKey = widgets.find(
+      (w) => String(w.widgetKey || '').trim() === 'design-article-grid-container',
+    );
+    if (foundByKey) return foundByKey;
+
+    /**
+     * 其次按 position + componentType 定位，兼容旧数据。
+     */
+    const foundByType = widgets.find((w) => {
+      const currentPos = String(w.position || '').trim().toLowerCase();
+      const type = String(w.componentType || '').trim().toLowerCase();
+      return currentPos === normalizedPos && type === 'designarticlegrid';
+    });
+    if (foundByType) return foundByType;
+
+    /**
+     * 最后退化为仅按 position 匹配。
+     */
     let found = widgets.find((w) => String(w.position || '').trim().toLowerCase() === normalizedPos);
-    
-    // 如果没找到，尝试使用第一个可用的组件（兼容旧配置）
-    if (!found && widgets.length > 0) {
-      found = widgets.find((w) => String(w.widgetKey || '').trim() === 'design-article-grid-container') || widgets[0];
-    }
-    
+    if (!found && widgets.length > 0) found = widgets[0];
     return found;
   }, [widgets]);
 

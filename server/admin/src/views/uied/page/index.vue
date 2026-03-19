@@ -344,6 +344,56 @@
                                 选中后会自动写入组件配置，无需手工维护 ID 文本。
                             </div>
                         </el-form-item>
+                        <el-form-item label="展示方式">
+                            <el-radio-group
+                                v-model="editData.designArticleDisplayMode"
+                                :disabled="!editData.designArticleEnabled"
+                            >
+                                <el-radio-button label="fixed">固定显示</el-radio-button>
+                                <el-radio-button label="tabs">分类切换</el-radio-button>
+                            </el-radio-group>
+                            <div class="text-gray-400 text-xs mt-1">
+                                固定显示：前端仅展示一个分类/标签；分类切换：前端展示可切换标签。
+                            </div>
+                        </el-form-item>
+                        <el-form-item
+                            v-if="editData.designArticleDisplayMode === 'fixed'"
+                            label="固定来源"
+                        >
+                            <el-radio-group
+                                v-model="editData.designArticleFixedType"
+                                :disabled="!editData.designArticleEnabled"
+                            >
+                                <el-radio-button label="category">分类</el-radio-button>
+                                <el-radio-button label="tag">标签</el-radio-button>
+                            </el-radio-group>
+                        </el-form-item>
+                        <el-form-item
+                            v-if="editData.designArticleDisplayMode === 'fixed'"
+                            label="固定项"
+                        >
+                            <el-select
+                                v-model="editData.designArticleFixedId"
+                                filterable
+                                clearable
+                                :disabled="
+                                    !editData.designArticleEnabled ||
+                                    designArticleFixedOptions.length === 0
+                                "
+                                class="w-100"
+                                placeholder="请选择固定展示的分类或标签"
+                            >
+                                <el-option
+                                    v-for="item in designArticleFixedOptions"
+                                    :key="`${item.type}-${item.id}`"
+                                    :label="item.label"
+                                    :value="item.id"
+                                />
+                            </el-select>
+                            <div class="text-gray-400 text-xs mt-1">
+                                仅展示当前固定项；请先在上方分类/标签里选择来源数据。
+                            </div>
+                        </el-form-item>
                         <el-form-item label="更多链接">
                             <el-input
                                 v-model="editData.designArticleShowMoreLink"
@@ -724,6 +774,12 @@ interface WordPressFilterOption {
     label: string
 }
 
+interface DesignArticleFixedOption {
+    id: number
+    label: string
+    type: 'category' | 'tag'
+}
+
 type WpTaxonomyType = 'category' | 'tag'
 
 interface WpTaxonomyRow {
@@ -895,7 +951,10 @@ const editData = reactive({
     designArticleLimit: 8,
     designArticleShowMoreLink: '',
     designArticleCategoryIdsText: '',
-    designArticleTagIdsText: ''
+    designArticleTagIdsText: '',
+    designArticleDisplayMode: 'fixed',
+    designArticleFixedType: 'category',
+    designArticleFixedId: 0
 })
 
 const editRules: FormRules = {
@@ -1314,6 +1373,67 @@ const designArticleTagIdsModel = computed<number[]>({
 })
 
 /**
+ * 规范化设计文章展示模式。
+ */
+const normalizeDesignArticleDisplayMode = (value: unknown): 'fixed' | 'tabs' => {
+    const mode = String(value || '').trim().toLowerCase()
+    return mode === 'tabs' ? 'tabs' : 'fixed'
+}
+
+/**
+ * 规范化固定来源类型。
+ */
+const normalizeDesignArticleFixedType = (value: unknown): 'category' | 'tag' => {
+    const type = String(value || '').trim().toLowerCase()
+    return type === 'tag' ? 'tag' : 'category'
+}
+
+/**
+ * 构建“固定展示项”下拉列表。
+ */
+const designArticleFixedOptions = computed<DesignArticleFixedOption[]>(() => {
+    const fixedType = normalizeDesignArticleFixedType(editData.designArticleFixedType)
+    if (fixedType === 'tag') {
+        const selectedTagIds = new Set(parseNumberIdList(editData.designArticleTagIdsText))
+        return wordpressTagOptions.value
+            .filter((item) => selectedTagIds.has(item.id))
+            .map((item) => ({ id: item.id, label: item.label, type: 'tag' as const }))
+    }
+    const selectedCategoryIds = new Set(parseNumberIdList(editData.designArticleCategoryIdsText))
+    return wordpressCategoryOptions.value
+        .filter((item) => selectedCategoryIds.has(item.id))
+        .map((item) => ({ id: item.id, label: item.label, type: 'category' as const }))
+})
+
+/**
+ * 基于当前来源与已选分类/标签，推导固定项兜底 ID。
+ */
+const resolveDesignArticleFixedFallbackId = (
+    fixedType: 'category' | 'tag',
+    categoryIds: number[],
+    tagIds: number[]
+): number => {
+    if (fixedType === 'tag') return Number(tagIds[0] || 0)
+    return Number(categoryIds[0] || 0)
+}
+
+/**
+ * 同步固定展示项，避免来源切换后残留无效 ID。
+ */
+const syncDesignArticleFixedSelection = () => {
+    const displayMode = normalizeDesignArticleDisplayMode(editData.designArticleDisplayMode)
+    if (displayMode !== 'fixed') return
+    const fixedType = normalizeDesignArticleFixedType(editData.designArticleFixedType)
+    const categoryIds = parseNumberIdList(editData.designArticleCategoryIdsText)
+    const tagIds = parseNumberIdList(editData.designArticleTagIdsText)
+    const options = designArticleFixedOptions.value
+    const normalizedCurrentId = Number.parseInt(String(editData.designArticleFixedId || 0), 10) || 0
+    const matched = options.some((item) => item.id === normalizedCurrentId)
+    if (matched) return
+    editData.designArticleFixedId = resolveDesignArticleFixedFallbackId(fixedType, categoryIds, tagIds)
+}
+
+/**
  * 从页面名称生成默认别名（仅新建时自动生成）。
  */
 const buildSlugFromName = (name: string): string => {
@@ -1351,6 +1471,18 @@ const toNumberIdText = (value: unknown): string => {
         .join(',')
 }
 
+watch(
+    [
+        () => editData.designArticleDisplayMode,
+        () => editData.designArticleFixedType,
+        () => editData.designArticleCategoryIdsText,
+        () => editData.designArticleTagIdsText
+    ],
+    () => {
+        syncDesignArticleFixedSelection()
+    }
+)
+
 /**
  * 从页面 slug 拉取设计文章组件配置并回填编辑表单。
  */
@@ -1364,16 +1496,24 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
         editData.designArticleShowMoreLink = ''
         editData.designArticleCategoryIdsText = ''
         editData.designArticleTagIdsText = ''
+        editData.designArticleDisplayMode = 'fixed'
+        editData.designArticleFixedType = 'category'
+        editData.designArticleFixedId = 0
         return
     }
     try {
         const rows = (await uiedWordpressWidgetList({ pageSlug: normalizedSlug })) as WordPressWidgetRow[] | undefined
         const list = Array.isArray(rows) ? rows : []
-        const target = list.find((item) => {
-            const key = String(item?.widgetKey || '').trim()
-            const position = String(item?.meta?.position || '').trim().toLowerCase()
-            return key === 'design-article-grid-container' || position === 'main'
-        })
+        const targetByKey = list.find(
+            (item) => String(item?.widgetKey || '').trim() === 'design-article-grid-container'
+        )
+        const target =
+            targetByKey ||
+            list.find((item) => {
+                const position = String(item?.meta?.position || '').trim().toLowerCase()
+                const componentType = String(item?.meta?.componentType || '').trim().toLowerCase()
+                return position === 'main' && componentType === 'designarticlegrid'
+            })
         if (!target) {
             editData.designArticleWidgetId = 0
             editData.designArticleEnabled = true
@@ -1382,6 +1522,9 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
             editData.designArticleShowMoreLink = ''
             editData.designArticleCategoryIdsText = ''
             editData.designArticleTagIdsText = ''
+            editData.designArticleDisplayMode = 'fixed'
+            editData.designArticleFixedType = 'category'
+            editData.designArticleFixedId = 0
             return
         }
         const meta = target.meta && typeof target.meta === 'object' ? target.meta : {}
@@ -1394,9 +1537,31 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
         editData.designArticleShowMoreLink = String(meta.showMoreLink || target.showMoreLink || '').trim()
         editData.designArticleCategoryIdsText = toNumberIdText(categoryIds)
         editData.designArticleTagIdsText = toNumberIdText(tagIds)
+        const hasDisplayMode =
+            meta.displayMode !== undefined &&
+            meta.displayMode !== null &&
+            String(meta.displayMode).trim() !== ''
+        const displayMode =
+            meta.enableSubCategories === true
+                ? 'tabs'
+                : meta.enableSubCategories === false
+                ? 'fixed'
+                : hasDisplayMode
+                ? normalizeDesignArticleDisplayMode(meta.displayMode)
+                : 'tabs'
+        const fixedType = normalizeDesignArticleFixedType(meta.fixedFilterType)
+        const fixedId = Number.parseInt(String(meta.fixedFilterId || 0), 10) || 0
+        editData.designArticleDisplayMode = displayMode
+        editData.designArticleFixedType = fixedType
+        editData.designArticleFixedId =
+            fixedId || resolveDesignArticleFixedFallbackId(fixedType, categoryIds, tagIds)
+        syncDesignArticleFixedSelection()
     } catch (error) {
         console.error('加载设计文章组件配置失败:', error)
         editData.designArticleWidgetId = 0
+        editData.designArticleDisplayMode = 'fixed'
+        editData.designArticleFixedType = 'category'
+        editData.designArticleFixedId = 0
     }
 }
 
@@ -1408,6 +1573,11 @@ const syncDesignArticleWidgetConfig = async (pageSlug: string) => {
     if (!normalizedSlug) return
     const categoryIds = parseNumberIdList(editData.designArticleCategoryIdsText)
     const tagIds = parseNumberIdList(editData.designArticleTagIdsText)
+    const displayMode = normalizeDesignArticleDisplayMode(editData.designArticleDisplayMode)
+    const fixedType = normalizeDesignArticleFixedType(editData.designArticleFixedType)
+    const fixedId =
+        Number.parseInt(String(editData.designArticleFixedId || 0), 10) ||
+        resolveDesignArticleFixedFallbackId(fixedType, categoryIds, tagIds)
     const payload = {
         id: editData.designArticleWidgetId || undefined,
         widgetKey: 'design-article-grid-container',
@@ -1424,6 +1594,10 @@ const syncDesignArticleWidgetConfig = async (pageSlug: string) => {
             showMoreLink: String(editData.designArticleShowMoreLink || '').trim(),
             categoryIds,
             tagIds,
+            displayMode,
+            enableSubCategories: displayMode === 'tabs',
+            fixedFilterType: fixedType,
+            fixedFilterId: fixedId
         },
     }
     if (editData.designArticleWidgetId > 0) {
@@ -1609,7 +1783,10 @@ const resetEditData = () => {
         designArticleLimit: 8,
         designArticleShowMoreLink: '',
         designArticleCategoryIdsText: '',
-        designArticleTagIdsText: ''
+        designArticleTagIdsText: '',
+        designArticleDisplayMode: 'fixed',
+        designArticleFixedType: 'category',
+        designArticleFixedId: 0
     })
     slugTouched.value = false
     selectedScrollCategoryIds.value = []

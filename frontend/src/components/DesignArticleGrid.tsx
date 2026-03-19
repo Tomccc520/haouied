@@ -270,6 +270,42 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
    * 当页面存在显式组件配置且已关闭时，不再回退到默认展示，避免“后台关闭前台仍显示”。
    */
   const isWidgetExplicitlyHidden = Boolean(pageSlug && widgetConfig && widgetConfig.visible === false);
+  /**
+   * 解析后台配置的展示模式：tabs=分类切换，fixed=固定分类/标签。
+   */
+  const widgetDisplayMode = useMemo<'fixed' | 'tabs'>(() => {
+    if (!widgetConfig) {
+      return enableSubCategories ? 'tabs' : 'fixed';
+    }
+    if (widgetConfig.enableSubCategories === true) return 'tabs';
+    if (widgetConfig.enableSubCategories === false) return 'fixed';
+    const mode = String(widgetConfig?.meta?.displayMode || '').trim().toLowerCase();
+    if (mode === 'tabs') return 'tabs';
+    if (mode === 'fixed') return 'fixed';
+    return enableSubCategories ? 'tabs' : 'fixed';
+  }, [widgetConfig, enableSubCategories]);
+
+  /**
+   * 固定模式下的来源类型（分类/标签）。
+   */
+  const widgetFixedFilterType = useMemo<'category' | 'tag'>(() => {
+    if (!widgetConfig) return 'category';
+    const directType = String(widgetConfig.fixedFilterType || '').trim().toLowerCase();
+    if (directType === 'tag') return 'tag';
+    const metaType = String(widgetConfig?.meta?.fixedFilterType || '').trim().toLowerCase();
+    return metaType === 'tag' ? 'tag' : 'category';
+  }, [widgetConfig]);
+
+  /**
+   * 固定模式下的来源 ID。
+   */
+  const widgetFixedFilterId = useMemo(() => {
+    const directId = Number.parseInt(String(widgetConfig?.fixedFilterId || 0), 10);
+    if (Number.isFinite(directId) && directId > 0) return directId;
+    const metaId = Number.parseInt(String(widgetConfig?.meta?.fixedFilterId || 0), 10);
+    return Number.isFinite(metaId) && metaId > 0 ? metaId : 0;
+  }, [widgetConfig]);
+  const effectiveEnableSubCategories = widgetDisplayMode === 'tabs';
   
   // 使用组件配置覆盖默认值
   const effectiveTitle = widgetConfig?.title || title;
@@ -353,6 +389,20 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
     // 否则使用所有默认分类
     return DEFAULT_TAG_OPTIONS;
   }, [widgetConfig?.categoryIds, widgetConfig?.tagIds, backendCategories, backendTags]);
+  /**
+   * 固定模式下优先选中的分类/标签。
+   */
+  const fixedTagOption = useMemo(() => {
+    if (effectiveEnableSubCategories || TAG_OPTIONS.length === 0) return null;
+    if (widgetFixedFilterId > 0) {
+      const matched = TAG_OPTIONS.find(
+        (option) => option.type === widgetFixedFilterType && option.id === widgetFixedFilterId,
+      );
+      if (matched) return matched;
+    }
+    const sameType = TAG_OPTIONS.find((option) => option.type === widgetFixedFilterType);
+    return sameType || TAG_OPTIONS[0] || null;
+  }, [effectiveEnableSubCategories, TAG_OPTIONS, widgetFixedFilterType, widgetFixedFilterId]);
   const widgetCategoryIdsKey = useMemo(
     () => (widgetConfig?.categoryIds || []).join(','),
     [widgetConfig?.categoryIds]
@@ -363,18 +413,28 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   
   // 当TAG_OPTIONS加载完成后，设置默认选中的分类
   useEffect(() => {
-    if (TAG_OPTIONS.length > 0 && !activeTag) {
-      // 尝试找到匹配defaultSubCategory的选项
-      const matchingOption = TAG_OPTIONS.find(opt => 
-        opt.name === defaultSubCategory || 
-        opt.key === defaultSubCategory ||
-        opt.name.includes(defaultSubCategory)
-      );
-      const defaultKey = matchingOption?.key || TAG_OPTIONS[0].key;
-      debugLog.dev('[DesignArticleGrid] 设置默认分类:', defaultKey, 'TAG_OPTIONS:', TAG_OPTIONS.map(t => t.key));
-      setActiveTag(defaultKey);
+    if (TAG_OPTIONS.length === 0) return;
+    if (!effectiveEnableSubCategories) {
+      const fixedKey = fixedTagOption?.key || TAG_OPTIONS[0]?.key || '';
+      if (fixedKey && fixedKey !== activeTag) {
+        debugLog.dev('[DesignArticleGrid] 固定模式设置分类:', fixedKey);
+        setActiveTag(fixedKey);
+      }
+      return;
     }
-  }, [TAG_OPTIONS, activeTag, defaultSubCategory]);
+    if (activeTag && TAG_OPTIONS.some((opt) => opt.key === activeTag)) {
+      return;
+    }
+    // 尝试找到匹配defaultSubCategory的选项
+    const matchingOption = TAG_OPTIONS.find(opt => 
+      opt.name === defaultSubCategory || 
+      opt.key === defaultSubCategory ||
+      opt.name.includes(defaultSubCategory)
+    );
+    const defaultKey = matchingOption?.key || TAG_OPTIONS[0].key;
+    debugLog.dev('[DesignArticleGrid] 设置默认分类:', defaultKey, 'TAG_OPTIONS:', TAG_OPTIONS.map(t => t.key));
+    setActiveTag(defaultKey);
+  }, [TAG_OPTIONS, activeTag, defaultSubCategory, effectiveEnableSubCategories, fixedTagOption]);
   
   // 状态管理
   const [articles, setArticles] = useState<RankItem[]>([]);
@@ -398,13 +458,16 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   
   // 获取当前选中项的ID和类型
   const getCurrentOption = useCallback(() => {
+    if (!effectiveEnableSubCategories && fixedTagOption) {
+      return fixedTagOption;
+    }
     // 如果activeTag为空，使用第一个选项
     if (!activeTag && TAG_OPTIONS.length > 0) {
       return TAG_OPTIONS[0];
     }
     const activeOption = TAG_OPTIONS.find(option => option.key === activeTag);
     return activeOption || TAG_OPTIONS[0] || { id: 334, type: 'category' as const, key: 'UI', name: 'UI' };
-  }, [activeTag, TAG_OPTIONS]);
+  }, [activeTag, TAG_OPTIONS, effectiveEnableSubCategories, fixedTagOption]);
 
   // 获取文章数据
   const fetchArticles = useCallback(async (forceRefresh = false) => {
@@ -543,6 +606,9 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
 
   // 处理子分类切换
   const handleTagChange = useCallback((tagKey: string) => {
+    if (!effectiveEnableSubCategories) {
+      return;
+    }
     // 如果是当前选中的标签，忽略
     if (tagKey === activeTag) {
       return;
@@ -583,7 +649,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
         fetchArticles(false);
       }
     }, 0);
-  }, [fetchArticles, activeTag, TAG_OPTIONS, effectiveLimit]);
+  }, [fetchArticles, activeTag, TAG_OPTIONS, effectiveLimit, effectiveEnableSubCategories]);
 
   // 重试加载数据
   const handleRetry = useCallback(() => {
@@ -744,7 +810,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       </motion.div>
       
       {/* 子分类切换标签 - 只有在启用时才显示 */}
-      {enableSubCategories && (
+      {effectiveEnableSubCategories && (
         <motion.div 
           className="article-subcategories"
           initial={{ opacity: 0, y: 10 }}

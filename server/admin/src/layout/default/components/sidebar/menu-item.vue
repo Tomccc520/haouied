@@ -106,6 +106,7 @@ const normalizeSecondLevelTitle = (title: string): string => {
 
 const hasShowChild = computed(() => {
     const children: RouteRecordRaw[] = props.route.children ?? []
+    if (menuDepth.value >= 3) return false
     return !!children.filter((item) => !item.meta?.hidden).length
 })
 
@@ -115,7 +116,8 @@ const nextDepth = computed(() => menuDepth.value + 1)
 /**
  * 启用悬浮弹层菜单：
  * - 一级分类保持原交互（点击展开）
- * - 二级及以下改为悬浮弹层，避免三级菜单被侧栏遮挡
+ * - 二级菜单改为悬浮弹层
+ * - 三级菜单强制收敛为叶子节点，避免四级继续展开
  */
 const enableHoverFlyout = computed(() => menuDepth.value >= 2)
 
@@ -148,7 +150,7 @@ const routeMeta = computed(() => {
  * 菜单显示标题：
  * - 一级业务分类保持原文
  * - 二级菜单统一四字简称
- * - 三级及以下保持原文，避免信息损失
+ * - 三级功能入口保持原文，避免语义丢失
  */
 const displayTitle = computed(() => {
     const rawTitle = String(routeMeta.value?.title || '')
