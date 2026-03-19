@@ -41,6 +41,10 @@ module.exports = app => {
   router.all('/api/uied/website/batchWeightTags', controller.uied.website.batchWeightTags);
   router.all('/api/uied/website/del', controller.uied.website.del);
   router.all('/api/uied/website/batchDel', controller.uied.website.batchDel);
+  router.all('/api/uied/website/restore', controller.uied.website.restore);
+  router.all('/api/uied/website/batchRestore', controller.uied.website.batchRestore);
+  router.all('/api/uied/website/realDelete', controller.uied.website.realDelete);
+  router.all('/api/uied/website/batchRealDelete', controller.uied.website.batchRealDelete);
   router.all('/api/uied/website/click', controller.uied.website.click);
   router.all('/api/uied/website/search', controller.uied.website.search);
 
@@ -317,6 +321,8 @@ module.exports = app => {
   router.all('/api/uied/article/add', controller.uied.article.add);
   router.all('/api/uied/article/edit', controller.uied.article.edit);
   router.all('/api/uied/article/del', controller.uied.article.del);
+  router.all('/api/uied/article/restore', controller.uied.article.restore);
+  router.all('/api/uied/article/realDelete', controller.uied.article.realDelete);
   router.all('/api/uied/article/batchStatus', controller.uied.article.batchStatus);
   router.all('/api/uied/article/categories', controller.uied.article.categories);
 

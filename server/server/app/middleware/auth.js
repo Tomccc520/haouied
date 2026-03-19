@@ -207,6 +207,9 @@ module.exports = options => {
     const aliasPerms = {
       // 内容管理：投稿审核复用“文章状态”权限，避免历史角色漏配新权限点
       'article:front:audit': [ 'article:change' ],
+      // 内容管理：回收站操作复用文章删除权限
+      'article:restore': [ 'article:del' ],
+      'article:purge': [ 'article:del' ],
       // 内容管理：测试数据生成复用文章新增权限
       'article:seed:testData': [ 'article:add', 'article:edit', 'article:list' ],
       // 内容管理：专题管理兼容旧角色（复用文章权限）
@@ -276,6 +279,13 @@ module.exports = options => {
       'uied:setting:saveArticleTopicsConfig': [ 'uied:setting:save' ],
       'uied:setting:backup:export': [ 'uied:setting:get' ],
       'uied:setting:backup:import': [ 'uied:setting:save' ],
+      // 商业版：文章/网址回收站操作复用“删除”权限，兼容历史角色
+      'uied:article:restore': [ 'uied:article:del' ],
+      'uied:article:realDelete': [ 'uied:article:del' ],
+      'uied:website:restore': [ 'uied:website:del' ],
+      'uied:website:batchRestore': [ 'uied:website:del' ],
+      'uied:website:realDelete': [ 'uied:website:del' ],
+      'uied:website:batchRealDelete': [ 'uied:website:del' ],
       // 商业版：AI 配置 detail 兼容别名复用 get 权限
       'uied:aiConfig:detail': [ 'uied:aiConfig:get', 'uied:aiConfig:list' ],
       // 商业版：WordPress 标签/组件复用原有分类管理权限，避免历史角色漏配

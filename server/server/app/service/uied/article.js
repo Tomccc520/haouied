@@ -228,6 +228,7 @@ class ArticleService extends Service {
     const categoryId = this.parsePositiveInt(params.categoryId ?? params.cid, 0);
     const tagId = this.parsePositiveInt(params.tagId ?? params.tag_id, 0);
     const tagSlug = String(params.tagSlug || params.tag || '').trim();
+    const recycleBin = Number(params.recycleBin || params.trash || 0) === 1 ? 1 : 0;
     const offset = (currentPage - 1) * currentPageSize;
     const articleCategoryColumn = await this.getArticleCategoryColumn();
     const selectCategoryIdSql = articleCategoryColumn
@@ -306,8 +307,8 @@ class ArticleService extends Service {
       // 查询总数
       const [ countResult ] = await app.model.query(
         `SELECT COUNT(*) as total FROM uied_article 
-         WHERE is_delete = 0${statusCondition}${categoryCondition}${tagCondition}${keywordCondition}`,
-        { replacements, type: app.Sequelize.QueryTypes.SELECT }
+         WHERE is_delete = ?${statusCondition}${categoryCondition}${tagCondition}${keywordCondition}`,
+        { replacements: [ recycleBin, ...replacements ], type: app.Sequelize.QueryTypes.SELECT }
       );
 
       // 查询列表
@@ -315,11 +316,11 @@ class ArticleService extends Service {
         `SELECT id, title, excerpt, cover_image, author, category, ${selectCategoryIdSql}, slug, status, 
                 view_count, published_at, create_time, update_time
          FROM uied_article 
-         WHERE is_delete = 0${statusCondition}${categoryCondition}${tagCondition}${keywordCondition}
+         WHERE is_delete = ?${statusCondition}${categoryCondition}${tagCondition}${keywordCondition}
          ORDER BY create_time DESC
          LIMIT ? OFFSET ?`,
         {
-          replacements: [ ...replacements, currentPageSize, offset ],
+          replacements: [ recycleBin, ...replacements, currentPageSize, offset ],
           type: app.Sequelize.QueryTypes.SELECT,
         }
       );
@@ -679,25 +680,73 @@ class ArticleService extends Service {
   async del(ids) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
-    const idList = Array.isArray(ids) ? ids : [ ids ];
-    const placeholders = idList.map(() => '?').join(',');
+    const idList = this.parsePositiveIntList(ids);
+    if (idList.length === 0) return true;
 
     await app.model.query(
-      `UPDATE uied_article SET is_delete = 1, delete_time = ? WHERE id IN (${placeholders})`,
-      { replacements: [ now, ...idList ], type: app.Sequelize.QueryTypes.UPDATE }
+      'UPDATE uied_article SET is_delete = 1, delete_time = ?, update_time = ? WHERE id IN (?) AND is_delete = 0',
+      { replacements: [ now, now, idList ], type: app.Sequelize.QueryTypes.UPDATE }
     );
+    return true;
+  }
 
-    // 同步移除文章-网址关联，避免脏数据残留
+  /**
+   * 从回收站恢复文章（支持单个/批量）。
+   * @param {number[]|number|string} ids 文章ID列表
+   */
+  async restore(ids) {
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const idList = this.parsePositiveIntList(ids);
+    if (idList.length === 0) return true;
+
+    await app.model.query(
+      'UPDATE uied_article SET is_delete = 0, delete_time = 0, update_time = ? WHERE id IN (?) AND is_delete = 1',
+      { replacements: [ now, idList ], type: app.Sequelize.QueryTypes.UPDATE }
+    );
+    return true;
+  }
+
+  /**
+   * 按文章ID批量执行“容错删除”，用于清理回收站关联脏数据。
+   * @param {string} tableName 表名
+   * @param {string} columnName 关联字段名
+   * @param {number[]} articleIds 文章ID列表
+   */
+  async safeDeleteByArticleIds(tableName, columnName, articleIds) {
+    const { app } = this;
+    if (!Array.isArray(articleIds) || articleIds.length === 0) return;
     try {
-      await this.ensureArticleWebsiteRelationTable();
       await app.model.query(
-        `DELETE FROM uied_article_website_relation WHERE article_id IN (${placeholders})`,
-        { replacements: idList, type: app.Sequelize.QueryTypes.DELETE }
+        `DELETE FROM \`${tableName}\` WHERE \`${columnName}\` IN (?)`,
+        { replacements: [ articleIds ], type: app.Sequelize.QueryTypes.DELETE }
       );
     } catch (error) {
-      this.ctx.logger.warn('[article] 删除文章时清理网址关联失败，忽略:', error.message);
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      this.ctx.logger.warn(`[article] 清理表 ${tableName} 失败，按兼容策略忽略:`, error.message);
     }
+  }
 
+  /**
+   * 彻底删除回收站文章（支持单个/批量）。
+   * @param {number[]|number|string} ids 文章ID列表
+   */
+  async realDelete(ids) {
+    const { app } = this;
+    const idList = this.parsePositiveIntList(ids);
+    if (idList.length === 0) return true;
+
+    await this.safeDeleteByArticleIds('uied_article_tag_relation', 'article_id', idList);
+    await this.safeDeleteByArticleIds('uied_article_comment_like', 'article_id', idList);
+    await this.safeDeleteByArticleIds('uied_article_comment_report', 'article_id', idList);
+    await this.safeDeleteByArticleIds('uied_article_comment', 'article_id', idList);
+    await this.safeDeleteByArticleIds('uied_article_website_relation', 'article_id', idList);
+    await app.model.query(
+      'DELETE FROM uied_article WHERE id IN (?) AND is_delete = 1',
+      { replacements: [ idList ], type: app.Sequelize.QueryTypes.DELETE }
+    );
     return true;
   }
 

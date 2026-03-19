@@ -144,13 +144,69 @@ class ArticleController extends Controller {
       await ctx.service.uied.article.del(ids);
       ctx.body = {
         code: 200,
-        msg: '删除成功',
+        msg: '已移入回收站',
       };
     } catch (error) {
       ctx.logger.error('删除文章失败:', error);
       ctx.body = {
         code: 500,
         msg: error.message || '删除失败',
+      };
+    }
+  }
+
+  /**
+   * 恢复文章（回收站 -> 正常）
+   * POST /api/uied/article/restore
+   */
+  async restore() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    const ids = body.ids || body.id;
+    if (!ids || (Array.isArray(ids) && ids.length === 0)) {
+      ctx.body = { code: 400, msg: '缺少文章ID' };
+      return;
+    }
+
+    try {
+      await ctx.service.uied.article.restore(ids);
+      ctx.body = {
+        code: 200,
+        msg: '恢复成功',
+      };
+    } catch (error) {
+      ctx.logger.error('恢复文章失败:', error);
+      ctx.body = {
+        code: 500,
+        msg: error.message || '恢复失败',
+      };
+    }
+  }
+
+  /**
+   * 彻底删除文章（仅回收站）
+   * POST /api/uied/article/realDelete
+   */
+  async realDelete() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    const ids = body.ids || body.id;
+    if (!ids || (Array.isArray(ids) && ids.length === 0)) {
+      ctx.body = { code: 400, msg: '缺少文章ID' };
+      return;
+    }
+
+    try {
+      await ctx.service.uied.article.realDelete(ids);
+      ctx.body = {
+        code: 200,
+        msg: '彻底删除成功',
+      };
+    } catch (error) {
+      ctx.logger.error('彻底删除文章失败:', error);
+      ctx.body = {
+        code: 500,
+        msg: error.message || '彻底删除失败',
       };
     }
   }

@@ -32,6 +32,7 @@ class WebsiteController extends baseController {
         includeChildren,
         hasDetailContent,
         hasThumbnail,
+        recycleBin,
       } = ctx.query;
       const result = await ctx.service.uied.website.list({
         page: parseInt(pageNo),
@@ -46,6 +47,7 @@ class WebsiteController extends baseController {
         includeChildren: includeChildren === 'true' || includeChildren === '1',
         hasDetailContent,
         hasThumbnail,
+        recycleBin,
       });
       this.result({ data: result });
     } catch (error) {
@@ -258,7 +260,7 @@ class WebsiteController extends baseController {
         return this.result({ code: 400, message: '缺少网站ID' });
       }
       await ctx.service.uied.website.del(id);
-      this.result({ message: '删除成功' });
+      this.result({ message: '已移入回收站' });
     } catch (error) {
       ctx.logger.error('删除网站失败:', error);
       this.result({ code: 500, message: '删除网站失败' });
@@ -276,10 +278,82 @@ class WebsiteController extends baseController {
         return this.result({ code: 400, message: '请选择要删除的网站' });
       }
       await ctx.service.uied.website.batchDel(ids);
-      this.result({ message: `成功删除 ${ids.length} 个网站` });
+      this.result({ message: `已移入回收站 ${ids.length} 个网站` });
     } catch (error) {
       ctx.logger.error('批量删除失败:', error);
       this.result({ code: 500, message: '批量删除失败' });
+    }
+  }
+
+  /**
+   * 恢复网站（回收站 -> 正常）
+   */
+  async restore() {
+    const { ctx } = this;
+    try {
+      const { id } = ctx.request.body || {};
+      if (!id) {
+        return this.result({ code: 400, message: '缺少网站ID' });
+      }
+      await ctx.service.uied.website.restore(id);
+      this.result({ message: '恢复成功' });
+    } catch (error) {
+      ctx.logger.error('恢复网站失败:', error);
+      this.result({ code: 500, message: '恢复网站失败' });
+    }
+  }
+
+  /**
+   * 批量恢复网站
+   */
+  async batchRestore() {
+    const { ctx } = this;
+    try {
+      const { ids } = ctx.request.body || {};
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return this.result({ code: 400, message: '请选择要恢复的网站' });
+      }
+      await ctx.service.uied.website.batchRestore(ids);
+      this.result({ message: `成功恢复 ${ids.length} 个网站` });
+    } catch (error) {
+      ctx.logger.error('批量恢复网站失败:', error);
+      this.result({ code: 500, message: '批量恢复网站失败' });
+    }
+  }
+
+  /**
+   * 彻底删除网站（仅回收站）
+   */
+  async realDelete() {
+    const { ctx } = this;
+    try {
+      const { id } = ctx.request.body || {};
+      if (!id) {
+        return this.result({ code: 400, message: '缺少网站ID' });
+      }
+      await ctx.service.uied.website.realDelete(id);
+      this.result({ message: '彻底删除成功' });
+    } catch (error) {
+      ctx.logger.error('彻底删除网站失败:', error);
+      this.result({ code: 500, message: '彻底删除网站失败' });
+    }
+  }
+
+  /**
+   * 批量彻底删除网站（仅回收站）
+   */
+  async batchRealDelete() {
+    const { ctx } = this;
+    try {
+      const { ids } = ctx.request.body || {};
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return this.result({ code: 400, message: '请选择要彻底删除的网站' });
+      }
+      await ctx.service.uied.website.batchRealDelete(ids);
+      this.result({ message: `成功彻底删除 ${ids.length} 个网站` });
+    } catch (error) {
+      ctx.logger.error('批量彻底删除网站失败:', error);
+      this.result({ code: 500, message: '批量彻底删除网站失败' });
     }
   }
 

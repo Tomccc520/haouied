@@ -125,6 +125,26 @@ export function uiedWebsiteBatchDelete(params: any) {
     return request.post({ url: '/uied/website/batchDel', params })
 }
 
+// 恢复网站
+export function uiedWebsiteRestore(params: any) {
+    return request.post({ url: '/uied/website/restore', params })
+}
+
+// 批量恢复网站
+export function uiedWebsiteBatchRestore(params: any) {
+    return request.post({ url: '/uied/website/batchRestore', params })
+}
+
+// 彻底删除网站
+export function uiedWebsiteRealDelete(params: any) {
+    return request.post({ url: '/uied/website/realDelete', params })
+}
+
+// 批量彻底删除网站
+export function uiedWebsiteBatchRealDelete(params: any) {
+    return request.post({ url: '/uied/website/batchRealDelete', params })
+}
+
 // 网站点击统计
 export function uiedWebsiteClick(params: any) {
     return request.post({ url: '/uied/website/click', params })

@@ -17,6 +17,12 @@
                         <el-option label="已发布" value="published" />
                     </el-select>
                 </el-form-item>
+                <el-form-item label="数据范围">
+                    <el-select v-model="queryParams.recycleBin" placeholder="全部" @change="handleQuery">
+                        <el-option label="正常数据" :value="0" />
+                        <el-option label="回收站" :value="1" />
+                    </el-select>
+                </el-form-item>
                 <el-form-item label="分类">
                     <el-select v-model="queryParams.category" placeholder="全部" clearable>
                         <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
@@ -32,13 +38,58 @@
         <!-- 操作栏 -->
         <el-card class="!border-none mb-4" shadow="never">
             <div class="flex justify-between">
-                <el-button type="primary" @click="handleAdd">
-                    <el-icon><Plus /></el-icon>
-                    新增文章
-                </el-button>
-                <el-button type="danger" :disabled="!selectedIds.length" @click="handleBatchDelete">
-                    批量删除
-                </el-button>
+                <div class="flex gap-2">
+                    <template v-if="!isRecycleBinMode">
+                        <el-button type="primary" @click="handleAdd">
+                            <el-icon><Plus /></el-icon>
+                            新增文章
+                        </el-button>
+                        <el-button
+                            type="danger"
+                            :disabled="!selectedIds.length"
+                            @click="handleBatchDelete"
+                        >
+                            批量删除
+                        </el-button>
+                    </template>
+                    <template v-else>
+                        <el-button
+                            type="success"
+                            :disabled="!selectedIds.length"
+                            @click="handleBatchRestore"
+                        >
+                            批量恢复
+                        </el-button>
+                        <el-button
+                            type="danger"
+                            :disabled="!selectedIds.length"
+                            @click="handleBatchRealDelete"
+                        >
+                            彻底删除
+                        </el-button>
+                    </template>
+                </div>
+                <div class="flex items-center gap-2">
+                    <el-tag v-if="isRecycleBinMode" type="warning" effect="plain">
+                        回收站 {{ total }} 条
+                    </el-tag>
+                    <el-button
+                        v-if="!isRecycleBinMode"
+                        type="warning"
+                        plain
+                        @click="switchRecycleBinMode(1)"
+                    >
+                        进入回收站
+                    </el-button>
+                    <el-button
+                        v-else
+                        type="primary"
+                        plain
+                        @click="switchRecycleBinMode(0)"
+                    >
+                        返回正常数据
+                    </el-button>
+                </div>
             </div>
         </el-card>
 
@@ -67,10 +118,35 @@
                         {{ row.publishedAt ? formatTime(row.publishedAt) : '-' }}
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="150" fixed="right">
+                <el-table-column label="操作" width="190" fixed="right">
                     <template #default="{ row }">
-                        <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-                        <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
+                        <el-button v-if="!isRecycleBinMode" type="primary" link @click="handleEdit(row)">
+                            编辑
+                        </el-button>
+                        <el-button
+                            v-if="!isRecycleBinMode"
+                            type="danger"
+                            link
+                            @click="handleDelete(row.id)"
+                        >
+                            删除
+                        </el-button>
+                        <el-button
+                            v-if="isRecycleBinMode"
+                            type="success"
+                            link
+                            @click="handleRestore(row.id)"
+                        >
+                            恢复
+                        </el-button>
+                        <el-button
+                            v-if="isRecycleBinMode"
+                            type="danger"
+                            link
+                            @click="handleRealDelete(row.id)"
+                        >
+                            彻底删除
+                        </el-button>
                     </template>
                 </el-table-column>
             </el-table>
@@ -187,7 +263,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import request from '@/utils/request'
@@ -198,7 +274,8 @@ const queryParams = reactive({
     pageSize: 15,
     keyword: '',
     status: '',
-    category: ''
+    category: '',
+    recycleBin: 0
 })
 
 // 数据
@@ -245,6 +322,11 @@ const formRules = {
     content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
 }
 
+/**
+ * 当前是否处于回收站视图。
+ */
+const isRecycleBinMode = computed(() => Number(queryParams.recycleBin || 0) === 1)
+
 // 获取列表
 const getList = async () => {
     loading.value = true
@@ -280,6 +362,16 @@ const handleReset = () => {
     queryParams.keyword = ''
     queryParams.status = ''
     queryParams.category = ''
+    queryParams.recycleBin = 0
+    handleQuery()
+}
+
+/**
+ * 切换列表数据范围（正常/回收站）。
+ * @param mode 0=正常数据，1=回收站
+ */
+const switchRecycleBinMode = (mode: 0 | 1) => {
+    queryParams.recycleBin = mode
     handleQuery()
 }
 
@@ -401,10 +493,10 @@ const handleSubmit = async () => {
 
 // 删除
 const handleDelete = async (id: number) => {
-    await ElMessageBox.confirm('确定要删除该文章吗？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定将该文章移入回收站吗？', '提示', { type: 'warning' })
     try {
         await request.post({ url: '/uied/article/del', params: { ids: [id] } })
-        ElMessage.success('删除成功')
+        ElMessage.success('已移入回收站')
         getList()
     } catch (error) {
         ElMessage.error('删除失败')
@@ -413,15 +505,82 @@ const handleDelete = async (id: number) => {
 
 // 批量删除
 const handleBatchDelete = async () => {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 篇文章吗？`, '提示', {
+    await ElMessageBox.confirm(`确定将选中的 ${selectedIds.value.length} 篇文章移入回收站吗？`, '提示', {
         type: 'warning'
     })
     try {
         await request.post({ url: '/uied/article/del', params: { ids: selectedIds.value } })
-        ElMessage.success('删除成功')
+        ElMessage.success('已移入回收站')
+        selectedIds.value = []
         getList()
     } catch (error) {
         ElMessage.error('删除失败')
+    }
+}
+
+/**
+ * 从回收站恢复单篇文章。
+ * @param id 文章ID
+ */
+const handleRestore = async (id: number) => {
+    await ElMessageBox.confirm('确定恢复该文章吗？', '提示', { type: 'warning' })
+    try {
+        await request.post({ url: '/uied/article/restore', params: { ids: [id] } })
+        ElMessage.success('恢复成功')
+        getList()
+    } catch (error) {
+        ElMessage.error('恢复失败')
+    }
+}
+
+/**
+ * 回收站中彻底删除单篇文章。
+ * @param id 文章ID
+ */
+const handleRealDelete = async (id: number) => {
+    await ElMessageBox.confirm('确定彻底删除该文章吗？该操作不可恢复。', '提示', { type: 'warning' })
+    try {
+        await request.post({ url: '/uied/article/realDelete', params: { ids: [id] } })
+        ElMessage.success('彻底删除成功')
+        getList()
+    } catch (error) {
+        ElMessage.error('彻底删除失败')
+    }
+}
+
+/**
+ * 批量恢复回收站文章。
+ */
+const handleBatchRestore = async () => {
+    await ElMessageBox.confirm(`确定恢复选中的 ${selectedIds.value.length} 篇文章吗？`, '提示', {
+        type: 'warning'
+    })
+    try {
+        await request.post({ url: '/uied/article/restore', params: { ids: selectedIds.value } })
+        ElMessage.success('批量恢复成功')
+        selectedIds.value = []
+        getList()
+    } catch (error) {
+        ElMessage.error('批量恢复失败')
+    }
+}
+
+/**
+ * 批量彻底删除回收站文章（不可恢复）。
+ */
+const handleBatchRealDelete = async () => {
+    await ElMessageBox.confirm(
+        `确定彻底删除选中的 ${selectedIds.value.length} 篇文章吗？该操作不可恢复。`,
+        '提示',
+        { type: 'warning' }
+    )
+    try {
+        await request.post({ url: '/uied/article/realDelete', params: { ids: selectedIds.value } })
+        ElMessage.success('批量彻底删除成功')
+        selectedIds.value = []
+        getList()
+    } catch (error) {
+        ElMessage.error('批量彻底删除失败')
     }
 }
 

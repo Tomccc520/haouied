@@ -14,6 +14,20 @@ const Service = require('egg').Service;
 
 class WebsiteService extends Service {
   /**
+   * 判断是否为可降级的库结构兼容错误。
+   * @param {Error} error 异常对象
+   * @return {boolean} 是否兼容错误
+   */
+  isSchemaCompatibilityError(error) {
+    const code = String(error?.original?.code || error?.code || '').toUpperCase();
+    const message = String(error?.message || '');
+    return code === 'ER_NO_SUCH_TABLE'
+      || code === 'ER_BAD_FIELD_ERROR'
+      || message.includes('doesn\'t exist')
+      || message.includes('Unknown column');
+  }
+
+  /**
    * 规范化网站状态值（兼容历史 normal 与新版 active）
    * @param {unknown} statusValue 显式状态
    * @param {unknown} isActiveValue 兼容布尔开关值
@@ -902,13 +916,15 @@ class WebsiteService extends Service {
     includeChildren,
     hasDetailContent,
     hasThumbnail,
+    recycleBin = 0,
   }) {
     const { app } = this;
     const offset = (page - 1) * pageSize;
+    const recycleFlag = Number(recycleBin || 0) === 1 ? 1 : 0;
 
     // 构建查询条件
-    let whereClause = 'w.is_delete = 0';
-    const replacements = [];
+    let whereClause = 'w.is_delete = ?';
+    const replacements = [ recycleFlag ];
 
     const categoryIdList = Array.from(
       new Set([
@@ -1412,18 +1428,17 @@ class WebsiteService extends Service {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const websiteId = Number.parseInt(String(id || 0), 10);
+    if (!Number.isInteger(websiteId) || websiteId <= 0) return;
 
     await app.model.query(
-      'UPDATE uied_website SET is_delete = 1, delete_time = ? WHERE id = ?',
-      { replacements: [ now, id ], type: app.Sequelize.QueryTypes.UPDATE }
+      'UPDATE uied_website SET is_delete = 1, delete_time = ?, update_time = ? WHERE id = ? AND is_delete = 0',
+      { replacements: [ now, now, websiteId ], type: app.Sequelize.QueryTypes.UPDATE }
     );
-    if (Number.isInteger(websiteId) && websiteId > 0) {
-      await this.ensureWebsiteCategoryTable();
-      await app.model.query(
-        'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id = ? AND is_delete = 0',
-        { replacements: [ now, websiteId ], type: app.Sequelize.QueryTypes.UPDATE }
-      );
-    }
+    await this.ensureWebsiteCategoryTable();
+    await app.model.query(
+      'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id = ? AND is_delete = 0',
+      { replacements: [ now, websiteId ], type: app.Sequelize.QueryTypes.UPDATE }
+    );
   }
 
   /**
@@ -1439,18 +1454,111 @@ class WebsiteService extends Service {
           .filter(item => Number.isInteger(item) && item > 0)
       )
     );
+    if (websiteIds.length === 0) return;
 
     await app.model.query(
-      `UPDATE uied_website SET is_delete = 1, delete_time = ? WHERE id IN (${ids.join(',')})`,
-      { replacements: [ now ], type: app.Sequelize.QueryTypes.UPDATE }
+      'UPDATE uied_website SET is_delete = 1, delete_time = ?, update_time = ? WHERE id IN (?) AND is_delete = 0',
+      { replacements: [ now, now, websiteIds ], type: app.Sequelize.QueryTypes.UPDATE }
     );
-    if (websiteIds.length > 0) {
-      await this.ensureWebsiteCategoryTable();
+    await this.ensureWebsiteCategoryTable();
+    await app.model.query(
+      'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id IN (?) AND is_delete = 0',
+      { replacements: [ now, websiteIds ], type: app.Sequelize.QueryTypes.UPDATE }
+    );
+  }
+
+  /**
+   * 从回收站恢复网站。
+   * @param {number|string} id 网站ID
+   */
+  async restore(id) {
+    return this.batchRestore([ id ]);
+  }
+
+  /**
+   * 批量恢复回收站网站。
+   * @param {Array<number|string>} ids 网站ID列表
+   */
+  async batchRestore(ids) {
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const websiteIds = Array.from(
+      new Set(
+        (Array.isArray(ids) ? ids : [ ids ])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    if (websiteIds.length === 0) return;
+
+    await app.model.query(
+      'UPDATE uied_website SET is_delete = 0, delete_time = 0, update_time = ? WHERE id IN (?) AND is_delete = 1',
+      { replacements: [ now, websiteIds ], type: app.Sequelize.QueryTypes.UPDATE }
+    );
+    await this.ensureWebsiteCategoryTable();
+    await app.model.query(
+      'UPDATE uied_website_category SET is_delete = 0, update_time = ? WHERE website_id IN (?)',
+      { replacements: [ now, websiteIds ], type: app.Sequelize.QueryTypes.UPDATE }
+    );
+  }
+
+  /**
+   * 按网站ID执行容错删除（关联清理）。
+   * @param {string} tableName 表名
+   * @param {string} columnName 关联字段
+   * @param {number[]} websiteIds 网站ID列表
+   */
+  async safeDeleteByWebsiteIds(tableName, columnName, websiteIds) {
+    const { app } = this;
+    if (!Array.isArray(websiteIds) || websiteIds.length === 0) return;
+    try {
       await app.model.query(
-        'UPDATE uied_website_category SET is_delete = 1, update_time = ? WHERE website_id IN (?) AND is_delete = 0',
-        { replacements: [ now, websiteIds ], type: app.Sequelize.QueryTypes.UPDATE }
+        `DELETE FROM \`${tableName}\` WHERE \`${columnName}\` IN (?)`,
+        { replacements: [ websiteIds ], type: app.Sequelize.QueryTypes.DELETE }
       );
+    } catch (error) {
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      this.ctx.logger.warn(`[website] 清理表 ${tableName} 失败，按兼容策略忽略:`, error.message);
     }
+  }
+
+  /**
+   * 彻底删除网站（仅回收站）。
+   * @param {number|string} id 网站ID
+   */
+  async realDelete(id) {
+    return this.batchRealDelete([ id ]);
+  }
+
+  /**
+   * 批量彻底删除网站（仅回收站）。
+   * @param {Array<number|string>} ids 网站ID列表
+   */
+  async batchRealDelete(ids) {
+    const { app } = this;
+    const websiteIds = Array.from(
+      new Set(
+        (Array.isArray(ids) ? ids : [ ids ])
+          .map(item => Number.parseInt(String(item || 0), 10))
+          .filter(item => Number.isInteger(item) && item > 0)
+      )
+    );
+    if (websiteIds.length === 0) return;
+
+    await this.safeDeleteByWebsiteIds('uied_website_category', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_website_traffic_metric', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_website_comment', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_website_favorite', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_website_like', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_website_rating', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_user_website_interaction', 'website_id', websiteIds);
+    await this.safeDeleteByWebsiteIds('uied_article_website_relation', 'website_id', websiteIds);
+    await app.model.query(
+      'DELETE FROM uied_website WHERE id IN (?) AND is_delete = 1',
+      { replacements: [ websiteIds ], type: app.Sequelize.QueryTypes.DELETE }
+    );
   }
 
   /**

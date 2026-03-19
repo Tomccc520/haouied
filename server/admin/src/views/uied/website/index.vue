@@ -70,6 +70,17 @@
                         <el-option label="异常" value="failed" />
                     </el-select>
                 </el-form-item>
+                <el-form-item label="数据范围">
+                    <el-select
+                        class="w-[140px]"
+                        v-model="queryParams.recycleBin"
+                        placeholder="正常数据"
+                        @change="resetPage"
+                    >
+                        <el-option label="正常数据" :value="0" />
+                        <el-option label="回收站" :value="1" />
+                    </el-select>
+                </el-form-item>
                 <el-form-item label="标记筛选">
                     <el-select
                         class="w-[220px]"
@@ -137,40 +148,81 @@
         </el-card>
         <el-card class="!border-none mt-4" shadow="never">
             <div class="mb-4 flex justify-between">
-                <div>
-                    <el-button type="primary" @click="handleAdd">
-                        <template #icon><icon name="el-icon-Plus" /></template>
-                        添加网站
-                    </el-button>
-                    <el-button type="success" plain @click="openBatchImportDialog">
-                        批量导入网址
-                    </el-button>
+                <div class="flex flex-wrap gap-2">
+                    <template v-if="!isRecycleBinMode">
+                        <el-button type="primary" @click="handleAdd">
+                            <template #icon><icon name="el-icon-Plus" /></template>
+                            添加网站
+                        </el-button>
+                        <el-button type="success" plain @click="openBatchImportDialog">
+                            批量导入网址
+                        </el-button>
+                        <el-button
+                            type="danger"
+                            :disabled="!selectedIds.length"
+                            @click="handleBatchDelete"
+                        >
+                            批量删除
+                        </el-button>
+                        <el-button
+                            type="warning"
+                            plain
+                            :loading="batchGenerateDetailLoading"
+                            :disabled="!selectedIds.length || batchGenerateDetailLoading"
+                            @click="handleBatchGenerateDetailContent"
+                        >
+                            批量AI生成正文
+                        </el-button>
+                        <el-button
+                            type="info"
+                            plain
+                            :disabled="batchWeightTagLoading"
+                            @click="openBatchWeightTagDialog"
+                        >
+                            批量权重标签
+                        </el-button>
+                    </template>
+                    <template v-else>
+                        <el-button
+                            type="success"
+                            :disabled="!selectedIds.length"
+                            @click="handleBatchRestore"
+                        >
+                            批量恢复
+                        </el-button>
+                        <el-button
+                            type="danger"
+                            :disabled="!selectedIds.length"
+                            @click="handleBatchRealDelete"
+                        >
+                            彻底删除
+                        </el-button>
+                    </template>
+                </div>
+                <div class="text-gray-400">
+                    <template v-if="isRecycleBinMode">
+                        <el-tag type="warning" effect="plain">回收站 {{ pager.count }} 个网站</el-tag>
+                    </template>
+                    <template v-else>共 {{ pager.count }} 个网站</template>
                     <el-button
-                        type="danger"
-                        :disabled="!selectedIds.length"
-                        @click="handleBatchDelete"
-                    >
-                        批量删除
-                    </el-button>
-                    <el-button
+                        v-if="!isRecycleBinMode"
                         type="warning"
                         plain
-                        :loading="batchGenerateDetailLoading"
-                        :disabled="!selectedIds.length || batchGenerateDetailLoading"
-                        @click="handleBatchGenerateDetailContent"
+                        class="ml-2"
+                        @click="switchRecycleBinMode(1)"
                     >
-                        批量AI生成正文
+                        进入回收站
                     </el-button>
                     <el-button
-                        type="info"
+                        v-else
+                        type="primary"
                         plain
-                        :disabled="batchWeightTagLoading"
-                        @click="openBatchWeightTagDialog"
+                        class="ml-2"
+                        @click="switchRecycleBinMode(0)"
                     >
-                        批量权重标签
+                        返回正常数据
                     </el-button>
                 </div>
-                <div class="text-gray-400">共 {{ pager.count }} 个网站</div>
             </div>
             <el-table
                 size="large"
@@ -283,8 +335,33 @@
                 <el-table-column label="操作" width="190" fixed="right">
                     <template #default="{ row }">
                         <el-button type="info" link @click="handleOpenDetailDrawer(row)">详情</el-button>
-                        <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-                        <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
+                        <el-button v-if="!isRecycleBinMode" type="primary" link @click="handleEdit(row)">
+                            编辑
+                        </el-button>
+                        <el-button
+                            v-if="!isRecycleBinMode"
+                            type="danger"
+                            link
+                            @click="handleDelete(row.id)"
+                        >
+                            删除
+                        </el-button>
+                        <el-button
+                            v-if="isRecycleBinMode"
+                            type="success"
+                            link
+                            @click="handleRestore(row.id)"
+                        >
+                            恢复
+                        </el-button>
+                        <el-button
+                            v-if="isRecycleBinMode"
+                            type="danger"
+                            link
+                            @click="handleRealDelete(row.id)"
+                        >
+                            彻底删除
+                        </el-button>
                     </template>
                 </el-table-column>
             </el-table>
@@ -753,6 +830,10 @@ import {
     uiedWebsiteDetail,
     uiedWebsiteDelete,
     uiedWebsiteBatchDelete,
+    uiedWebsiteRestore,
+    uiedWebsiteBatchRestore,
+    uiedWebsiteRealDelete,
+    uiedWebsiteBatchRealDelete,
     uiedWebsiteBatchImport,
     uiedWebsiteBatchGenerateDetailContent,
     uiedWebsiteBatchWeightTags,
@@ -918,6 +999,7 @@ const queryParams = reactive({
     keyword: '',
     categoryId: '',
     includeChildren: true,
+    recycleBin: 0,
     statusList: [] as string[],
     flagList: [] as string[],
     sortBy: 'default',
@@ -1003,6 +1085,7 @@ const hasRunningBatchTask = computed(
  */
 const fetchWebsiteList = (params: any) => {
     const payload = { ...params }
+    payload.recycleBin = Number(payload.recycleBin || 0)
     payload.statusList = Array.isArray(payload.statusList) ? payload.statusList.join(',') : ''
     payload.flagList = Array.isArray(payload.flagList) ? payload.flagList.join(',') : ''
     if (!payload.sortBy || payload.sortBy === 'default') delete payload.sortBy
@@ -1013,6 +1096,20 @@ const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: fetchWebsiteList,
     params: queryParams
 })
+
+/**
+ * 当前是否处于回收站视图。
+ */
+const isRecycleBinMode = computed(() => Number(queryParams.recycleBin || 0) === 1)
+
+/**
+ * 切换网站列表的数据范围（正常/回收站）并刷新列表。
+ * @param mode 0=正常数据，1=回收站
+ */
+const switchRecycleBinMode = (mode: 0 | 1) => {
+    queryParams.recycleBin = mode
+    resetPage()
+}
 
 /**
  * 统一格式化网站状态文案（兼容历史 normal 与新版 active）。
@@ -1724,16 +1821,60 @@ const handleEdit = (row: any) => {
 }
 
 const handleDelete = async (id: number) => {
-    await feedback.confirm('确定要删除该网站吗？')
+    await feedback.confirm('确定将该网站移入回收站吗？')
     await uiedWebsiteDelete({ id })
-    feedback.msgSuccess('删除成功')
+    feedback.msgSuccess('已移入回收站')
     getLists()
 }
 
 const handleBatchDelete = async () => {
-    await feedback.confirm(`确定要删除选中的 ${selectedIds.value.length} 个网站吗？`)
+    await feedback.confirm(`确定将选中的 ${selectedIds.value.length} 个网站移入回收站吗？`)
     await uiedWebsiteBatchDelete({ ids: selectedIds.value })
-    feedback.msgSuccess('删除成功')
+    feedback.msgSuccess('已移入回收站')
+    selectedIds.value = []
+    getLists()
+}
+
+/**
+ * 恢复单个回收站网站。
+ * @param id 网站ID
+ */
+const handleRestore = async (id: number) => {
+    await feedback.confirm('确定恢复该网站吗？')
+    await uiedWebsiteRestore({ id })
+    feedback.msgSuccess('恢复成功')
+    getLists()
+}
+
+/**
+ * 回收站彻底删除单个网站（不可恢复）。
+ * @param id 网站ID
+ */
+const handleRealDelete = async (id: number) => {
+    await feedback.confirm('确定彻底删除该网站吗？该操作不可恢复。')
+    await uiedWebsiteRealDelete({ id })
+    feedback.msgSuccess('彻底删除成功')
+    getLists()
+}
+
+/**
+ * 批量恢复回收站网站。
+ */
+const handleBatchRestore = async () => {
+    await feedback.confirm(`确定恢复选中的 ${selectedIds.value.length} 个网站吗？`)
+    await uiedWebsiteBatchRestore({ ids: selectedIds.value })
+    feedback.msgSuccess('批量恢复成功')
+    selectedIds.value = []
+    getLists()
+}
+
+/**
+ * 批量彻底删除回收站网站（不可恢复）。
+ */
+const handleBatchRealDelete = async () => {
+    await feedback.confirm(`确定彻底删除选中的 ${selectedIds.value.length} 个网站吗？该操作不可恢复。`)
+    await uiedWebsiteBatchRealDelete({ ids: selectedIds.value })
+    feedback.msgSuccess('批量彻底删除成功')
     selectedIds.value = []
     getLists()
 }
