@@ -1438,6 +1438,8 @@ class SettingService extends Service {
       detailLayoutWidthMode: 'contained',
       detailContentMaxWidth: 880,
       detailHeaderAlign: 'center',
+      detailVisualStyle: 'editorial',
+      detailActionRailStyle: 'rail',
       detailSidebarEnabled: true,
       detailSidebarSticky: true,
       detailSidebarTopOffset: 16,
@@ -1490,6 +1492,12 @@ class SettingService extends Service {
     const detailHeaderAlign = [ 'left', 'center' ].includes(String(merged.detailHeaderAlign || '').trim())
       ? String(merged.detailHeaderAlign || '').trim()
       : defaults.detailHeaderAlign;
+    const detailVisualStyle = [ 'editorial', 'product' ].includes(String(merged.detailVisualStyle || '').trim())
+      ? String(merged.detailVisualStyle || '').trim()
+      : defaults.detailVisualStyle;
+    const detailActionRailStyle = [ 'rail', 'toolbar' ].includes(String(merged.detailActionRailStyle || '').trim())
+      ? String(merged.detailActionRailStyle || '').trim()
+      : defaults.detailActionRailStyle;
     return {
       ...merged,
       enabled: merged.enabled !== false,
@@ -1502,6 +1510,8 @@ class SettingService extends Service {
         ? Math.max(680, Math.min(1600, Number(merged.detailContentMaxWidth)))
         : defaults.detailContentMaxWidth,
       detailHeaderAlign,
+      detailVisualStyle,
+      detailActionRailStyle,
       detailSidebarEnabled: merged.detailSidebarEnabled !== false,
       detailSidebarSticky: merged.detailSidebarSticky !== false,
       detailSidebarTopOffset: Number.isFinite(Number(merged.detailSidebarTopOffset))
@@ -2002,6 +2012,8 @@ class SettingService extends Service {
       detailLayoutWidthMode: 'contained',
       detailContentMaxWidth: 880,
       detailHeaderAlign: 'center',
+      detailVisualStyle: 'editorial',
+      detailActionRailStyle: 'rail',
       detailSidebarEnabled: true,
       detailSidebarSticky: true,
       detailSidebarTopOffset: 16,

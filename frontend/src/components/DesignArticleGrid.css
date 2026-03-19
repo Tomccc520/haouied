@@ -231,11 +231,12 @@
 }
 
 /* 文章网格布局 - 响应式设计 */
-.article-grid {
+.design-article-grid-container .article-grid {
   display: grid;
-  gap: 1rem;
-  /* 桌面端恢复 6 列，避免卡片过大 */
+  gap: 0.875rem;
+  /* 桌面端固定一行 6 卡，间距使用 rem 固定，避免超大屏被拉得过散 */
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 /* 包装器样式 */
@@ -246,28 +247,29 @@
 
 /* 大屏幕优化 */
 @media (min-width: 1440px) {
-  .article-grid {
+  .design-article-grid-container .article-grid {
     gap: 1.125rem;
   }
 }
 
 /* 超大屏幕优化 */
 @media (min-width: 1920px) {
-  .article-grid {
+  .design-article-grid-container .article-grid {
     gap: 1.25rem;
   }
 }
 
 /* 大平板/小桌面 */
-@media (max-width: 1400px) {
-  .article-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+@media (max-width: 1280px) {
+  .design-article-grid-container .article-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 }
 
 /* 平板端：3列网格 */
-@media (max-width: 1024px) {
-  .article-grid {
+@media (max-width: 1100px) {
+  .design-article-grid-container .article-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.875rem;
   }
@@ -350,7 +352,7 @@
 }
 
 /* 文章卡片样式 */
-.article-card {
+.design-article-grid-container .article-card {
   position: relative;
   border-radius: 0.75rem;
   overflow: hidden;
@@ -363,36 +365,37 @@
   border: none;
   box-shadow: none;
   /* 增加内边距 */
-  padding: 0.625rem;
+  padding: 0.5rem;
   height: auto; /* 改为自动高度 */
-  min-height: 10.75rem; /* 缩小卡片视觉高度 */
+  min-height: 9.5rem; /* 缩小卡片视觉高度 */
+  width: 100%;
   transition: all 0.3s ease;
 }
 
-.article-card:hover {
+.design-article-grid-container .article-card:hover {
   /* 移除阴影效果 */
   box-shadow: none;
 }
 
 /* 移动端文章卡片优化 */
 @media (max-width: 768px) {
-  .article-card {
+  .design-article-grid-container .article-card {
     min-height: 10rem; /* 移动端使用最小高度 */
     border-radius: 0.5rem;
     /* 移动端调整内边距 */
     padding: 0.5rem;
   }
   
-  .article-card:hover {
+  .design-article-grid-container .article-card:hover {
     transform: none; /* 移动端禁用hover变换 */
     box-shadow: none; /* 移除阴影 */
   }
 }
 
-.article-image-container {
+.design-article-grid-container .article-image-container {
   position: relative;
   width: 100%;
-  padding-top: 56.25%; /* 16:9 宽高比 */
+  padding-top: 52%; /* 稍微压缩图片区域，减小卡片整体体积 */
   background-color: #f5f5f5;
   overflow: hidden;
   /* 增加圆角以配合卡片内边距 */
@@ -402,14 +405,14 @@
 
 /* 移动端图片容器优化 */
 @media (max-width: 768px) {
-  .article-image-container {
+  .design-article-grid-container .article-image-container {
     padding-top: 50%; /* 移动端使用更小的宽高比 */
   }
 }
 
 /* 排行编号图标样式 - 移除，使用标题前的排行标签 */
 
-.article-image {
+.design-article-grid-container .article-image {
   position: absolute;
   top: 0;
   left: 0;
@@ -419,11 +422,11 @@
   transition: transform 0.3s ease;
 }
 
-.article-card:hover .article-image {
+.design-article-grid-container .article-card:hover .article-image {
   transform: scale(1.05);
 }
 
-.article-image-placeholder {
+.design-article-grid-container .article-image-placeholder {
   position: absolute;
   top: 0;
   left: 0;
@@ -436,7 +439,7 @@
 }
 
 /* 文章内容样式 */
-.article-content {
+.design-article-grid-container .article-content {
   padding: 0.75rem 0 0 0; /* 只保留顶部内边距 */
   flex: 1;
   display: flex;
@@ -446,9 +449,9 @@
   overflow: hidden; /* 防止内容溢出 */
 }
 
-.article-title {
+.design-article-grid-container .article-title {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.4;
   color: #333;
@@ -461,7 +464,7 @@
   overflow-wrap: break-word; /* 兼容性 */
 }
 
-.article-title-text {
+.design-article-grid-container .article-title-text {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -476,13 +479,13 @@
 }
 
 /* 鼠标悬停时标题变蓝色 */
-.article-card:hover .article-title-text {
+.design-article-grid-container .article-card:hover .article-title-text {
   color: #1976d2;
 }
 
 /* 移动端文章标题优化 */
 @media (max-width: 768px) {
-  .article-title {
+  .design-article-grid-container .article-title {
     font-size: 0.75rem;
     gap: 0.28rem;
     align-items: flex-start;
@@ -490,18 +493,18 @@
     min-height: auto; /* 移动端也使用自动高度 */
   }
   
-  .article-title-text {
+  .design-article-grid-container .article-title-text {
     line-height: 1.3;
     -webkit-line-clamp: 2;
   }
   
-  .article-content {
+  .design-article-grid-container .article-content {
     padding: 0.5rem 0 0 0; /* 移动端也只保留顶部内边距 */
   }
 }
 
 /* 文章排行标签样式 */
-.article-rank {
+.design-article-grid-container .article-rank {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -522,7 +525,7 @@
 
 /* 移动端排名标签优化 */
 @media (max-width: 768px) {
-  .article-rank {
+  .design-article-grid-container .article-rank {
     min-height: 1.02rem;
     font-size: 0.53125rem;
     padding: 0 0.34rem;
@@ -533,28 +536,28 @@
 
 /* 移除原来的文章排行颜色样式，因为现在使用动态样式设置 */
 /* 前三名有递减橙色效果 */
-.article-card:nth-child(1) .article-rank {
+.design-article-grid-container .article-card:nth-child(1) .article-rank {
   background-color: #FF6B00; /* 第一名 - 深橙色 */
 }
 
-.article-card:nth-child(2) .article-rank {
+.design-article-grid-container .article-card:nth-child(2) .article-rank {
   background-color: #FF7E1F; /* 第二名 */
 }
 
-.article-card:nth-child(3) .article-rank {
+.design-article-grid-container .article-card:nth-child(3) .article-rank {
   background-color: #FF913E; /* 第三名 */
 }
 
 /* 第4-6名递减橙色 */
-.article-card:nth-child(4) .article-rank {
+.design-article-grid-container .article-card:nth-child(4) .article-rank {
   background-color: #FFA45D; /* 第四名 */
 }
 
-.article-card:nth-child(5) .article-rank {
+.design-article-grid-container .article-card:nth-child(5) .article-rank {
   background-color: #FFB77C; /* 第五名 */
 }
 
-.article-card:nth-child(6) .article-rank {
+.design-article-grid-container .article-card:nth-child(6) .article-rank {
   background-color: #FFCA9B; /* 第六名 - 最浅的橙色 */
 }
 

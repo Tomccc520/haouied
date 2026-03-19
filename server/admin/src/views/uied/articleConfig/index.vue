@@ -15,188 +15,221 @@
                     </el-button>
                 </div>
             </template>
-            <el-form :model="articleConfig" label-width="140px" class="max-w-[820px]">
-                <el-form-item label="文章模块启用">
-                    <el-switch v-model="articleConfig.enabled" />
-                </el-form-item>
-                <el-form-item label="首页文章区启用">
-                    <el-switch v-model="articleConfig.homeSectionEnabled" />
-                </el-form-item>
-                <el-form-item label="首页标题">
-                    <el-input v-model="articleConfig.homeSectionTitle" />
-                </el-form-item>
-                <el-form-item label="首页副标题">
-                    <el-input v-model="articleConfig.homeSectionSubtitle" />
-                </el-form-item>
-                <el-form-item label="首页显示数量">
-                    <el-input-number v-model="articleConfig.homeSectionLimit" :min="1" :max="50" />
-                </el-form-item>
-                <el-form-item label="列表页标题">
-                    <el-input v-model="articleConfig.listPageTitle" />
-                </el-form-item>
-                <el-form-item label="列表页描述">
-                    <el-input
-                        v-model="articleConfig.listPageDescription"
-                        type="textarea"
-                        :rows="3"
-                    />
-                </el-form-item>
-                <el-form-item label="列表页封面图">
-                    <el-input
-                        v-model="articleConfig.listPageCoverImage"
-                        placeholder="https://..."
-                    />
-                </el-form-item>
-                <el-divider content-position="left">详情页布局</el-divider>
-                <el-form-item label="详情页宽度模式">
-                    <el-select v-model="articleConfig.detailLayoutWidthMode" style="width: 260px">
-                        <el-option label="标准（居中阅读）" value="contained" />
-                        <el-option label="宽版（信息更密）" value="wide" />
-                        <el-option label="全宽（屏幕自适应）" value="fluid" />
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="正文最大宽度">
-                    <el-input-number
-                        v-model="articleConfig.detailContentMaxWidth"
-                        :min="680"
-                        :max="1600"
-                        :step="20"
-                    />
-                    <span class="ml-2 text-xs text-[#909399]">px</span>
-                </el-form-item>
-                <el-form-item label="标题区对齐">
-                    <el-radio-group v-model="articleConfig.detailHeaderAlign">
-                        <el-radio-button label="center">居中</el-radio-button>
-                        <el-radio-button label="left">左对齐</el-radio-button>
-                    </el-radio-group>
-                </el-form-item>
-                <el-divider content-position="left">侧边栏配置</el-divider>
-                <el-form-item label="启用侧栏">
-                    <el-switch v-model="articleConfig.detailSidebarEnabled" />
-                </el-form-item>
-                <el-form-item label="侧栏吸顶">
-                    <el-switch
-                        v-model="articleConfig.detailSidebarSticky"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                </el-form-item>
-                <el-form-item label="吸顶偏移">
-                    <el-input-number
-                        v-model="articleConfig.detailSidebarTopOffset"
-                        :min="0"
-                        :max="240"
-                        :disabled="
-                            !articleConfig.detailSidebarEnabled ||
-                            !articleConfig.detailSidebarSticky
-                        "
-                    />
-                    <span class="ml-2 text-xs text-[#909399]">px</span>
-                </el-form-item>
-                <el-form-item label="链接新开窗口">
-                    <el-switch
-                        v-model="articleConfig.detailSidebarLinksNewWindow"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                    <span class="ml-2 text-xs text-[#909399]"
-                        >开启后侧栏内文章/网址/标签链接将新开窗口</span
-                    >
-                </el-form-item>
-                <el-form-item label="最新文章标题">
-                    <el-input
-                        v-model="articleConfig.detailSidebarLatestArticlesTitle"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                </el-form-item>
-                <el-form-item label="最新文章数量">
-                    <el-input-number
-                        v-model="articleConfig.detailSidebarLatestArticlesCount"
-                        :min="1"
-                        :max="20"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                </el-form-item>
-                <el-form-item label="热门网址标题">
-                    <el-input
-                        v-model="articleConfig.detailSidebarHotWebsitesTitle"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                </el-form-item>
-                <el-form-item label="热门网址数量">
-                    <el-input-number
-                        v-model="articleConfig.detailSidebarHotWebsitesCount"
-                        :min="1"
-                        :max="20"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                </el-form-item>
-                <el-form-item label="标签标题">
-                    <el-input
-                        v-model="articleConfig.detailSidebarTagsTitle"
-                        :disabled="!articleConfig.detailSidebarEnabled"
-                    />
-                </el-form-item>
-                <div class="config-table-wrap">
-                    <el-table
-                        :data="articleConfig.detailSidebarModules"
-                        row-key="key"
-                        border
-                        size="small"
-                        style="width: 100%"
-                    >
-                        <el-table-column label="排序" width="68" align="center">
-                            <template #default="{ $index }">
-                                <span>{{ $index + 1 }}</span>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="模块名称" prop="name" min-width="140" />
-                        <el-table-column label="模块标识" prop="key" min-width="140" />
-                        <el-table-column label="启用" width="88" align="center">
-                            <template #default="{ row }">
-                                <el-switch
-                                    v-model="row.enabled"
-                                    :disabled="!articleConfig.detailSidebarEnabled"
-                                />
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="操作" width="120" align="center">
-                            <template #default="{ $index }">
-                                <div class="sort-actions">
-                                    <el-button
-                                        type="primary"
-                                        link
-                                        :disabled="
-                                            $index === 0 || !articleConfig.detailSidebarEnabled
-                                        "
-                                        @click="moveSidebarModuleUp($index)"
-                                    >
-                                        上移
-                                    </el-button>
-                                    <el-button
-                                        type="primary"
-                                        link
-                                        :disabled="
-                                            $index ===
-                                                articleConfig.detailSidebarModules.length - 1 ||
-                                            !articleConfig.detailSidebarEnabled
-                                        "
-                                        @click="moveSidebarModuleDown($index)"
-                                    >
-                                        下移
-                                    </el-button>
-                                </div>
-                            </template>
-                        </el-table-column>
-                    </el-table>
-                </div>
-                <el-form-item label="文章详情评论">
-                    <el-switch v-model="articleConfig.commentsEnabled" />
-                    <span class="form-tip"
-                        >关闭后，文章详情页不展示评论区，且前台评论提交接口会返回已关闭提示。</span
-                    >
-                </el-form-item>
-                <el-form-item label="专题配置启用">
-                    <el-switch v-model="articleConfig.topicsEnabled" />
-                </el-form-item>
+            <el-form :model="articleConfig" label-width="140px" class="max-w-[860px]">
+                <el-tabs v-model="activeConfigTab" class="article-config-tabs">
+                    <el-tab-pane label="基础信息" name="basic">
+                        <el-form-item label="文章模块启用">
+                            <el-switch v-model="articleConfig.enabled" />
+                        </el-form-item>
+                        <el-form-item label="首页文章区启用">
+                            <el-switch v-model="articleConfig.homeSectionEnabled" />
+                        </el-form-item>
+                        <el-form-item label="首页标题">
+                            <el-input v-model="articleConfig.homeSectionTitle" />
+                        </el-form-item>
+                        <el-form-item label="首页副标题">
+                            <el-input v-model="articleConfig.homeSectionSubtitle" />
+                        </el-form-item>
+                        <el-form-item label="首页显示数量">
+                            <el-input-number
+                                v-model="articleConfig.homeSectionLimit"
+                                :min="1"
+                                :max="50"
+                            />
+                        </el-form-item>
+                        <el-form-item label="列表页标题">
+                            <el-input v-model="articleConfig.listPageTitle" />
+                        </el-form-item>
+                        <el-form-item label="列表页描述">
+                            <el-input
+                                v-model="articleConfig.listPageDescription"
+                                type="textarea"
+                                :rows="3"
+                            />
+                        </el-form-item>
+                        <el-form-item label="列表页封面图">
+                            <el-input
+                                v-model="articleConfig.listPageCoverImage"
+                                placeholder="https://..."
+                            />
+                        </el-form-item>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="详情样式" name="detail">
+                        <el-form-item label="样式预设">
+                            <el-radio-group v-model="detailStylePreset">
+                                <el-radio-button label="editorial_rail"
+                                    >资讯阅读（左侧互动）</el-radio-button
+                                >
+                                <el-radio-button label="product_toolbar"
+                                    >产品展示（顶部互动）</el-radio-button
+                                >
+                            </el-radio-group>
+                            <span class="form-tip"
+                                >直接切换即可：会同时应用视觉风格与互动栏样式。</span
+                            >
+                        </el-form-item>
+                        <el-form-item label="详情页宽度模式">
+                            <el-select
+                                v-model="articleConfig.detailLayoutWidthMode"
+                                style="width: 260px"
+                            >
+                                <el-option label="标准（居中阅读）" value="contained" />
+                                <el-option label="宽版（信息更密）" value="wide" />
+                                <el-option label="全宽（屏幕自适应）" value="fluid" />
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="正文最大宽度">
+                            <el-input-number
+                                v-model="articleConfig.detailContentMaxWidth"
+                                :min="680"
+                                :max="1600"
+                                :step="20"
+                            />
+                            <span class="ml-2 text-xs text-[#909399]">px</span>
+                        </el-form-item>
+                        <el-form-item label="标题区对齐">
+                            <el-radio-group v-model="articleConfig.detailHeaderAlign">
+                                <el-radio-button label="center">居中</el-radio-button>
+                                <el-radio-button label="left">左对齐</el-radio-button>
+                            </el-radio-group>
+                        </el-form-item>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="侧栏配置" name="sidebar">
+                        <el-form-item label="启用侧栏">
+                            <el-switch v-model="articleConfig.detailSidebarEnabled" />
+                        </el-form-item>
+                        <el-form-item label="侧栏吸顶">
+                            <el-switch
+                                v-model="articleConfig.detailSidebarSticky"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="吸顶偏移">
+                            <el-input-number
+                                v-model="articleConfig.detailSidebarTopOffset"
+                                :min="0"
+                                :max="240"
+                                :disabled="
+                                    !articleConfig.detailSidebarEnabled ||
+                                    !articleConfig.detailSidebarSticky
+                                "
+                            />
+                            <span class="ml-2 text-xs text-[#909399]">px</span>
+                        </el-form-item>
+                        <el-form-item label="链接新开窗口">
+                            <el-switch
+                                v-model="articleConfig.detailSidebarLinksNewWindow"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                            <span class="ml-2 text-xs text-[#909399]"
+                                >开启后侧栏内文章/网址/标签链接将新开窗口</span
+                            >
+                        </el-form-item>
+                        <el-form-item label="最新文章标题">
+                            <el-input
+                                v-model="articleConfig.detailSidebarLatestArticlesTitle"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="最新文章数量">
+                            <el-input-number
+                                v-model="articleConfig.detailSidebarLatestArticlesCount"
+                                :min="1"
+                                :max="20"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="热门网址标题">
+                            <el-input
+                                v-model="articleConfig.detailSidebarHotWebsitesTitle"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="热门网址数量">
+                            <el-input-number
+                                v-model="articleConfig.detailSidebarHotWebsitesCount"
+                                :min="1"
+                                :max="20"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="标签标题">
+                            <el-input
+                                v-model="articleConfig.detailSidebarTagsTitle"
+                                :disabled="!articleConfig.detailSidebarEnabled"
+                            />
+                        </el-form-item>
+                        <div class="config-table-wrap">
+                            <el-table
+                                :data="articleConfig.detailSidebarModules"
+                                row-key="key"
+                                border
+                                size="small"
+                                style="width: 100%"
+                            >
+                                <el-table-column label="排序" width="68" align="center">
+                                    <template #default="{ $index }">
+                                        <span>{{ $index + 1 }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="模块名称" prop="name" min-width="140" />
+                                <el-table-column label="模块标识" prop="key" min-width="140" />
+                                <el-table-column label="启用" width="88" align="center">
+                                    <template #default="{ row }">
+                                        <el-switch
+                                            v-model="row.enabled"
+                                            :disabled="!articleConfig.detailSidebarEnabled"
+                                        />
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="120" align="center">
+                                    <template #default="{ $index }">
+                                        <div class="sort-actions">
+                                            <el-button
+                                                type="primary"
+                                                link
+                                                :disabled="
+                                                    $index === 0 ||
+                                                    !articleConfig.detailSidebarEnabled
+                                                "
+                                                @click="moveSidebarModuleUp($index)"
+                                            >
+                                                上移
+                                            </el-button>
+                                            <el-button
+                                                type="primary"
+                                                link
+                                                :disabled="
+                                                    $index ===
+                                                        articleConfig.detailSidebarModules.length -
+                                                            1 ||
+                                                    !articleConfig.detailSidebarEnabled
+                                                "
+                                                @click="moveSidebarModuleDown($index)"
+                                            >
+                                                下移
+                                            </el-button>
+                                        </div>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </div>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="评论与专题" name="comment">
+                        <el-form-item label="文章详情评论">
+                            <el-switch v-model="articleConfig.commentsEnabled" />
+                            <span class="form-tip"
+                                >关闭后，文章详情页不展示评论区，且前台评论提交接口会返回已关闭提示。</span
+                            >
+                        </el-form-item>
+                        <el-form-item label="专题配置启用">
+                            <el-switch v-model="articleConfig.topicsEnabled" />
+                        </el-form-item>
+                    </el-tab-pane>
+                </el-tabs>
             </el-form>
         </el-card>
 
@@ -233,7 +266,7 @@
  * @author UIED技术团队
  * @createDate 2026.2.20
  */
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import feedback from '@/utils/feedback'
 import {
     uiedArticleConfig,
@@ -258,6 +291,9 @@ const DEFAULT_ARTICLE_SIDEBAR_MODULES: ArticleSidebarModuleItem[] = [
 const savingConfig = ref(false)
 const savingTopics = ref(false)
 const topicsJson = ref('{}')
+const activeConfigTab = ref<'basic' | 'detail' | 'sidebar' | 'comment'>('basic')
+
+type ArticleDetailStylePreset = 'editorial_rail' | 'product_toolbar'
 
 const articleConfig = reactive({
     enabled: true,
@@ -271,6 +307,8 @@ const articleConfig = reactive({
     detailLayoutWidthMode: 'contained',
     detailContentMaxWidth: 880,
     detailHeaderAlign: 'center',
+    detailVisualStyle: 'editorial',
+    detailActionRailStyle: 'rail',
     detailSidebarEnabled: true,
     detailSidebarSticky: true,
     detailSidebarTopOffset: 16,
@@ -283,6 +321,49 @@ const articleConfig = reactive({
     detailSidebarModules: DEFAULT_ARTICLE_SIDEBAR_MODULES.map((item) => ({ ...item })),
     commentsEnabled: true,
     topicsEnabled: true
+})
+
+/**
+ * 根据详情配置解析预设键，统一后台“一键切换”展示状态。
+ */
+const resolveDetailStylePreset = (
+    detailVisualStyle: unknown,
+    detailActionRailStyle: unknown
+): ArticleDetailStylePreset => {
+    const visual = String(detailVisualStyle || '').trim()
+    const rail = String(detailActionRailStyle || '').trim()
+    if (visual === 'product' && rail === 'toolbar') {
+        return 'product_toolbar'
+    }
+    return 'editorial_rail'
+}
+
+/**
+ * 应用详情样式预设，直接写回两个配置字段。
+ */
+const applyDetailStylePreset = (preset: ArticleDetailStylePreset) => {
+    if (preset === 'product_toolbar') {
+        articleConfig.detailVisualStyle = 'product'
+        articleConfig.detailActionRailStyle = 'toolbar'
+        return
+    }
+    articleConfig.detailVisualStyle = 'editorial'
+    articleConfig.detailActionRailStyle = 'rail'
+}
+
+/**
+ * 详情样式预设计算属性：用于后台二级标签页中的快速切换。
+ */
+const detailStylePreset = computed<ArticleDetailStylePreset>({
+    get() {
+        return resolveDetailStylePreset(
+            articleConfig.detailVisualStyle,
+            articleConfig.detailActionRailStyle
+        )
+    },
+    set(value) {
+        applyDetailStylePreset(value)
+    }
 })
 
 /**
@@ -418,6 +499,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.article-config-tabs {
+    margin-top: 2px;
+}
+
+.article-config-tabs :deep(.el-tabs__header) {
+    margin-bottom: 16px;
+}
+
 .config-table-wrap {
     margin-bottom: 12px;
 }

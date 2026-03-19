@@ -247,6 +247,8 @@ export interface ArticleConfig {
   detailLayoutWidthMode: 'contained' | 'wide' | 'fluid';
   detailContentMaxWidth: number;
   detailHeaderAlign: 'left' | 'center';
+  detailVisualStyle: 'editorial' | 'product';
+  detailActionRailStyle: 'rail' | 'toolbar';
   detailSidebarEnabled: boolean;
   detailSidebarSticky: boolean;
   detailSidebarTopOffset: number;
@@ -550,6 +552,8 @@ export const DEFAULT_ARTICLE_SETTING: ArticleConfig = {
   detailLayoutWidthMode: 'contained',
   detailContentMaxWidth: 880,
   detailHeaderAlign: 'center',
+  detailVisualStyle: 'editorial',
+  detailActionRailStyle: 'rail',
   detailSidebarEnabled: true,
   detailSidebarSticky: true,
   detailSidebarTopOffset: 16,
@@ -871,6 +875,12 @@ export const publicSettingService = {
     const detailHeaderAlign = [ 'left', 'center' ].includes(String(merged.detailHeaderAlign || '').trim())
       ? (String(merged.detailHeaderAlign || '').trim() as 'left' | 'center')
       : DEFAULT_ARTICLE_SETTING.detailHeaderAlign;
+    const detailVisualStyle = [ 'editorial', 'product' ].includes(String(merged.detailVisualStyle || '').trim())
+      ? (String(merged.detailVisualStyle || '').trim() as 'editorial' | 'product')
+      : DEFAULT_ARTICLE_SETTING.detailVisualStyle;
+    const detailActionRailStyle = [ 'rail', 'toolbar' ].includes(String(merged.detailActionRailStyle || '').trim())
+      ? (String(merged.detailActionRailStyle || '').trim() as 'rail' | 'toolbar')
+      : DEFAULT_ARTICLE_SETTING.detailActionRailStyle;
     return {
       ...merged,
       enabled: merged.enabled !== false,
@@ -886,6 +896,8 @@ export const publicSettingService = {
         ? Math.max(680, Math.min(1600, Number(merged.detailContentMaxWidth)))
         : DEFAULT_ARTICLE_SETTING.detailContentMaxWidth,
       detailHeaderAlign,
+      detailVisualStyle,
+      detailActionRailStyle,
       detailSidebarEnabled: merged.detailSidebarEnabled !== false,
       detailSidebarSticky: merged.detailSidebarSticky !== false,
       detailSidebarTopOffset: Number.isFinite(Number(merged.detailSidebarTopOffset))

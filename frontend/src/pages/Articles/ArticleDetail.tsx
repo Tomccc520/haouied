@@ -159,7 +159,7 @@ const normalizeArticleDetailLayoutWidthMode = (mode: unknown): 'contained' | 'wi
 };
 
 /**
- * 规范化文章详情标题区对齐方式
+ * 规范化文章详情标题区对齐方式。
  */
 const normalizeArticleDetailHeaderAlign = (align: unknown): 'center' | 'left' => {
   return String(align || '').trim() === 'left' ? 'left' : 'center';
@@ -170,8 +170,8 @@ const normalizeArticleDetailHeaderAlign = (align: unknown): 'center' | 'left' =>
  */
 const normalizeArticleDetailMaxWidth = (value: unknown): number => {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 1120;
-  return Math.max(760, Math.min(1800, parsed));
+  if (!Number.isFinite(parsed)) return 980;
+  return Math.max(720, Math.min(1320, parsed));
 };
 
 interface ArticleSidebarModuleConfig {
@@ -193,6 +193,12 @@ interface ArticleSidebarLatestArticleItem {
   slug: string;
   title: string;
   publishedAt: number | null;
+}
+
+interface ArticleTocItem {
+  id: string;
+  text: string;
+  level: 2 | 3;
 }
 
 type ArticleDetailTabKey = 'intro' | 'info' | 'related' | 'faq';
@@ -395,6 +401,12 @@ const ArticleDetail: React.FC = () => {
   const detailHeaderAlign = normalizeArticleDetailHeaderAlign(articleSetting?.detailHeaderAlign);
   const detailMaxWidth = normalizeArticleDetailMaxWidth(articleSetting?.detailContentMaxWidth);
   const detailSidebarEnabled = articleSetting?.detailSidebarEnabled !== false;
+  const detailVisualStyle = [ 'editorial', 'product' ].includes(String(articleSetting?.detailVisualStyle || '').trim())
+    ? (String(articleSetting?.detailVisualStyle || '').trim() as 'editorial' | 'product')
+    : 'editorial';
+  const detailActionRailStyle = [ 'rail', 'toolbar' ].includes(String(articleSetting?.detailActionRailStyle || '').trim())
+    ? (String(articleSetting?.detailActionRailStyle || '').trim() as 'rail' | 'toolbar')
+    : 'rail';
   const detailSidebarSticky = articleSetting?.detailSidebarSticky !== false;
   const detailSidebarTopOffset = Number.isFinite(Number(articleSetting?.detailSidebarTopOffset))
     ? Math.max(0, Math.min(240, Number(articleSetting?.detailSidebarTopOffset)))
@@ -412,6 +424,53 @@ const ArticleDetail: React.FC = () => {
   const detailSidebarModules = normalizeArticleSidebarModules(articleSetting?.detailSidebarModules);
   const detailSidebarLinkTarget = detailSidebarLinksNewWindow ? '_blank' : undefined;
   const detailSidebarLinkRel = detailSidebarLinksNewWindow ? 'noopener noreferrer' : undefined;
+  /**
+   * 预处理正文：为 h2/h3 注入稳定锚点，并生成文章目录。
+   */
+  const { normalizedContentHtml, articleToc } = useMemo(() => {
+    const raw = String(article?.content || '');
+    if (!raw) {
+      return {
+        normalizedContentHtml: '',
+        articleToc: [] as ArticleTocItem[],
+      };
+    }
+    if (typeof window === 'undefined') {
+      return {
+        normalizedContentHtml: raw,
+        articleToc: [] as ArticleTocItem[],
+      };
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="article-root">${raw}</div>`, 'text/html');
+    const root = doc.querySelector('#article-root');
+    if (!root) {
+      return {
+        normalizedContentHtml: raw,
+        articleToc: [] as ArticleTocItem[],
+      };
+    }
+    const headingRows = Array.from(root.querySelectorAll('h2, h3'));
+    const tocRows: ArticleTocItem[] = [];
+    let fallbackIndex = 1;
+    headingRows.forEach((heading) => {
+      const text = String(heading.textContent || '').trim();
+      if (!text) return;
+      const headingLevel = heading.tagName === 'H3' ? 3 : 2;
+      const baseId = String(heading.getAttribute('id') || '').trim();
+      const nextId = baseId || `article-toc-${fallbackIndex++}`;
+      heading.setAttribute('id', nextId);
+      tocRows.push({
+        id: nextId,
+        text,
+        level: headingLevel,
+      });
+    });
+    return {
+      normalizedContentHtml: root.innerHTML,
+      articleToc: tocRows.slice(0, 80),
+    };
+  }, [article?.content]);
   /**
    * 文章图集：封面图 + 正文图片（去重后用于幻灯片展示）。
    */
@@ -436,7 +495,8 @@ const ArticleDetail: React.FC = () => {
   const hotWebsitesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'hot_websites');
   const articleTagsModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'article_tags');
   const shouldRenderSidebar = detailSidebarEnabled && (
-    latestArticlesModuleEnabled
+    articleToc.length > 0
+    || latestArticlesModuleEnabled
     || hotWebsitesModuleEnabled
     || articleTagsModuleEnabled
   );
@@ -578,6 +638,17 @@ const ArticleDetail: React.FC = () => {
   };
 
   /**
+   * 点击文章目录后滚动到对应标题，预留顶部空间避免被导航遮挡。
+   */
+  const handleTocNavigate = (headingId: string) => {
+    const target = document.getElementById(String(headingId || '').trim());
+    if (!target) return;
+    const topOffset = 96;
+    const targetTop = target.getBoundingClientRect().top + window.scrollY - topOffset;
+    window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+  };
+
+  /**
    * 灯箱上一张切换。
    */
   const handleLightboxPrev = () => {
@@ -695,7 +766,7 @@ const ArticleDetail: React.FC = () => {
 
   return (
     <article
-      className={`article-detail-page article-detail-page--layout-${detailLayoutWidthMode} article-detail-page--header-${detailHeaderAlign} ${shouldRenderSidebar ? 'article-detail-page--has-sidebar' : ''}`}
+      className={`article-detail-page article-detail-page--layout-${detailLayoutWidthMode} article-detail-page--header-${detailHeaderAlign} article-detail-page--visual-${detailVisualStyle} article-detail-page--rail-${detailActionRailStyle} ${shouldRenderSidebar ? 'article-detail-page--has-sidebar' : ''}`}
       style={{ '--article-detail-max-width': `${detailMaxWidth}px` } as React.CSSProperties}
     >
       <div className="detail-reading-progress" aria-hidden="true">
@@ -716,46 +787,25 @@ const ArticleDetail: React.FC = () => {
       <div className="detail-hero-bg"></div>
 
       <div className={`detail-container ${shouldRenderSidebar ? 'detail-container--with-sidebar' : ''}`}>
+        {/* 导航面包屑 */}
+        <nav className="detail-nav">
+          <Link to="/articles">文章列表</Link>
+          <span className="separator">/</span>
+          <span className="current">{article.category}</span>
+        </nav>
+
+        {/* 文章头部信息 */}
+        <header className="detail-header">
+          <div className="detail-meta-tags">
+            <span className="category-badge">{article.category}</span>
+            <time className="publish-date">{formatDate(article.publishedAt)}</time>
+          </div>
+
+          <h1 className="detail-title">{article.title}</h1>
+        </header>
+
         <div className={`article-detail-layout ${shouldRenderSidebar ? 'article-detail-layout--with-sidebar' : ''}`}>
           <div className="article-detail-main">
-            {/* 导航面包屑 */}
-            <nav className="detail-nav">
-              <Link to="/articles">文章列表</Link>
-              <span className="separator">/</span>
-              <span className="current">{article.category}</span>
-            </nav>
-
-            {/* 文章头部信息 */}
-            <header className="detail-header">
-              <div className="detail-meta-tags">
-                <span className="category-badge">{article.category}</span>
-                <time className="publish-date">{formatDate(article.publishedAt)}</time>
-              </div>
-
-              <h1 className="detail-title">{article.title}</h1>
-
-              <div className="detail-author-bar">
-                <div className="author-info">
-                  <div className="author-avatar">
-                    {article.author.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="author-text">
-                    <span className="author-name">{article.author}</span>
-                    <span className="read-count">{article.viewCount} 次阅读</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="detail-header-actions">
-                <button type="button" className="detail-header-action" onClick={() => navigate('/articles')}>
-                  返回列表
-                </button>
-                <button type="button" className="detail-header-action detail-header-action--primary" onClick={handleCopyArticleLink}>
-                  复制链接
-                </button>
-              </div>
-            </header>
-
             <section className="detail-product-layout">
               <aside className="detail-action-rail">
                 <button type="button" className="detail-action-pill" onClick={handleFocusComments}>
@@ -765,12 +815,16 @@ const ArticleDetail: React.FC = () => {
                   </span>
                   <span className="detail-action-pill__label">点评</span>
                 </button>
-                <button type="button" className="detail-action-pill" onClick={handleToggleLike}>
-                  <span className="detail-action-pill__count">{likeCount}</span>
+                <button
+                  type="button"
+                  className={`detail-action-pill detail-action-pill--like ${likeCount > 0 ? 'is-active' : ''}`}
+                  onClick={handleToggleLike}
+                >
+                  <span className="detail-action-pill__count">{likeCount > 0 ? likeCount : '赞'}</span>
                   <span className="detail-action-pill__glyph" aria-hidden="true">
                     <DetailRailLikeIcon className="detail-action-pill__icon" />
                   </span>
-                  <span className="detail-action-pill__label">点赞</span>
+                  <span className="detail-action-pill__label">{likeCount > 0 ? '已点赞' : '点赞'}</span>
                 </button>
                 <button type="button" className="detail-action-pill detail-action-pill--hot">
                   <span className="detail-action-pill__count">{article.viewCount}</span>
@@ -796,6 +850,26 @@ const ArticleDetail: React.FC = () => {
               </aside>
 
               <div className="detail-product-main">
+                <div className="detail-content-meta">
+                  <div className="author-info">
+                    <div className="author-avatar">
+                      {article.author.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="author-text">
+                      <span className="author-name">{article.author}</span>
+                      <span className="read-count">{article.viewCount} 次阅读</span>
+                    </div>
+                  </div>
+                  <div className="detail-content-meta__actions">
+                    <button type="button" className="detail-header-action" onClick={() => navigate('/articles')}>
+                      返回列表
+                    </button>
+                    <button type="button" className="detail-header-action detail-header-action--primary" onClick={handleCopyArticleLink}>
+                      复制链接
+                    </button>
+                  </div>
+                </div>
+
                 <div className="detail-tabs">
                   {ARTICLE_DETAIL_TABS.map(tab => (
                     <button
@@ -817,7 +891,7 @@ const ArticleDetail: React.FC = () => {
                         <div
                           className="detail-content detail-content--interactive typography"
                           onClick={handleArticleContentClick}
-                          dangerouslySetInnerHTML={{ __html: article.content }}
+                          dangerouslySetInnerHTML={{ __html: normalizedContentHtml || article.content }}
                         />
                       </div>
                     </div>
@@ -897,6 +971,24 @@ const ArticleDetail: React.FC = () => {
               className={`article-detail-sidebar ${detailSidebarSticky ? 'is-sticky' : ''}`}
               style={detailSidebarSticky ? { top: `calc(var(--header-height) + ${detailSidebarTopOffset}px)` } : undefined}
             >
+              {articleToc.length > 0 && (
+                <section className="article-sidebar-section article-sidebar-section--toc">
+                  <h3 className="article-sidebar-title">文章目录</h3>
+                  <div className="article-sidebar-toc">
+                    {articleToc.map((item) => (
+                      <button
+                        key={`toc-${item.id}`}
+                        type="button"
+                        className={`article-sidebar-toc__item level-${item.level}`}
+                        onClick={() => handleTocNavigate(item.id)}
+                        title={item.text}
+                      >
+                        {item.text}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               {renderSidebarModules()}
             </aside>
           )}
