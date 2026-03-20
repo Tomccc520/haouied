@@ -1552,6 +1552,43 @@ class FrontendService extends Service {
       ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取文章数据失败: ${error?.message || error}`);
     }
 
+    // MCP 中心路由
+    try {
+      upsertRoute({
+        path: '/mcp',
+        title: this.buildSeoTitle('MCP 中心', siteName),
+        description: siteDescription,
+        keywords: `MCP,Model Context Protocol,${siteKeywords}`,
+      });
+
+      const mcpRows = await app.model.query(
+        `SELECT slug, name, summary, seo_title, seo_description, seo_keywords,
+                publish_time, update_time
+         FROM uied_mcp_item
+         WHERE is_delete = 0
+           AND status = 'published'
+           AND slug IS NOT NULL
+           AND slug <> ''
+         ORDER BY COALESCE(publish_time, update_time) DESC, id DESC`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      );
+      (Array.isArray(mcpRows) ? mcpRows : []).forEach(row => {
+        const slug = String(row?.slug || '').trim();
+        if (!slug) return;
+        const name = this.normalizeSeoText(row?.name, slug);
+        const updatedAt = Number.parseInt(String(row?.publish_time || row?.update_time || now), 10) || now;
+        upsertRoute({
+          path: `/mcp/${slug}`,
+          title: this.buildSeoTitle(row?.seo_title || `${name} MCP`, siteName),
+          description: this.normalizeSeoText(row?.seo_description || row?.summary, siteDescription),
+          keywords: this.normalizeSeoText(row?.seo_keywords, `${name},MCP,${siteKeywords}`),
+          updatedAt,
+        });
+      });
+    } catch (error) {
+      ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取 MCP 数据失败: ${error?.message || error}`);
+    }
+
     // 网站详情页（可选）
     if (includeWebsiteDetails) {
       try {

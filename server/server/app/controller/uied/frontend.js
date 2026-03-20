@@ -2334,13 +2334,8 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
-      const categories = await ctx.service.uied.articleCategory.all();
-      const names = Array.from(new Set(
-        (Array.isArray(categories) ? categories : [])
-          .map(item => String(item?.name || '').trim())
-          .filter(Boolean)
-      ));
-      ctx.body = names;
+      const names = await ctx.service.uied.articleCategory.publicPublishedCategoryNames();
+      ctx.body = Array.isArray(names) ? names : [];
     } catch (error) {
       ctx.logger.error('获取文章分类失败:', error);
       ctx.status = 500;
@@ -2484,6 +2479,88 @@ class FrontendController extends Controller {
       ctx.logger.error('获取文章标签失败:', error);
       ctx.status = 500;
       ctx.body = { error: error.message };
+    }
+  }
+
+  /**
+   * 获取 MCP 列表（前端）
+   * GET /api/mcp/list
+   */
+  async mcpList() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const result = await ctx.service.uied.mcp.publicList(ctx.query || {});
+      ctx.body = result;
+    } catch (error) {
+      ctx.logger.error('获取 MCP 列表失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 MCP 列表失败' };
+    }
+  }
+
+  /**
+   * 获取 MCP 详情（前端）
+   * GET /api/mcp/:idOrSlug
+   */
+  async mcpDetail() {
+    const { ctx } = this;
+    const idOrSlug = String(ctx.params?.idOrSlug || '').trim();
+    try {
+      this.setNoCacheHeaders();
+      if (!idOrSlug) {
+        ctx.status = 400;
+        ctx.body = { error: '缺少 MCP 标识' };
+        return;
+      }
+      const detail = await ctx.service.uied.mcp.publicDetail(idOrSlug);
+      if (!detail) {
+        ctx.status = 404;
+        ctx.body = { error: 'MCP 不存在' };
+        return;
+      }
+      await ctx.service.uied.mcp.increaseViewCount(detail.id).catch(err => {
+        ctx.logger.warn(`记录 MCP 浏览量失败: ${err?.message || err}`);
+      });
+      ctx.body = detail;
+    } catch (error) {
+      ctx.logger.error('获取 MCP 详情失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 MCP 详情失败' };
+    }
+  }
+
+  /**
+   * 获取 MCP 分类元数据（前端）
+   * GET /api/mcp/meta/categories
+   */
+  async mcpCategories() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const rows = await ctx.service.uied.mcp.publicCategories();
+      ctx.body = Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      ctx.logger.error('获取 MCP 分类元数据失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 MCP 分类元数据失败' };
+    }
+  }
+
+  /**
+   * 获取 MCP 标签元数据（前端）
+   * GET /api/mcp/meta/tags
+   */
+  async mcpTags() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const rows = await ctx.service.uied.mcp.publicTags();
+      ctx.body = Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      ctx.logger.error('获取 MCP 标签元数据失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 MCP 标签元数据失败' };
     }
   }
 
@@ -3313,7 +3390,7 @@ class FrontendController extends Controller {
   }
 
   /**
-   * 按内置入口配置解析导航菜单项（当前支持 daily_hot / daily_new / hot_articles / rankings）
+   * 按内置入口配置解析导航菜单项（支持 daily_hot / daily_new / hot_articles / rankings / mcp_center）
    */
   applyBuiltinNavMenuRefs(rows = [], context = {}) {
     const list = Array.isArray(rows) ? rows : [];
@@ -3348,13 +3425,18 @@ class FrontendController extends Controller {
         if (!String(next.text || '').trim()) {
           next.text = rankBoardConfig.displayLabel || '榜单系统';
         }
+      } else if (builtinKey === 'mcp_center') {
+        next.link = next.link || '/mcp';
+        if (!String(next.text || '').trim()) {
+          next.text = 'MCP中心';
+        }
       }
       return next;
     });
   }
 
   /**
-   * 按内置入口配置解析页脚链接（当前支持 daily_hot / daily_new / hot_articles / rankings）
+   * 按内置入口配置解析页脚链接（支持 daily_hot / daily_new / hot_articles / rankings / mcp_center）
    */
   applyBuiltinFooterLinks(groups = [], context = {}) {
     const list = Array.isArray(groups) ? groups : [];
@@ -3387,6 +3469,11 @@ class FrontendController extends Controller {
           next.url = rankBoardConfig.displayPath || next.url || '/p/hot?tab=rankings';
           if (!String(next.text || '').trim()) {
             next.text = rankBoardConfig.displayLabel || '榜单系统';
+          }
+        } else if (builtinKey === 'mcp_center') {
+          next.url = next.url || '/mcp';
+          if (!String(next.text || '').trim()) {
+            next.text = 'MCP中心';
           }
         }
         return next;

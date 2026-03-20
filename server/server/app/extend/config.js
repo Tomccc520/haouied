@@ -208,6 +208,11 @@ const rsa = {
     'articles:meta:tags',
     'articles:categories',
     'articles:*',
+    // MCP 中心公开接口
+    'mcp:list',
+    'mcp:meta:categories',
+    'mcp:meta:tags',
+    'mcp:*',
     // 前台用户中心（账号与个人中心）
     'user:register',
     'user:login',

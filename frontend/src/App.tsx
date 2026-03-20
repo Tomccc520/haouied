@@ -26,6 +26,8 @@ import SubmitPage from './pages/Submit';
 import ChangelogPage from './pages/Changelog';
 import HotArticlesPage from './pages/HotArticles';
 import WebsiteComparePage from './pages/WebsiteCompare';
+import MCPListPage from './pages/MCP';
+import MCPDetailPage from './pages/MCP/detail';
 import NotFoundPage from './pages/NotFound';
 import WebsiteDetail from './pages/WebsiteDetail';
 import InstallPage from './pages/Install';
@@ -126,6 +128,8 @@ const MainRouteTree: React.FC = () => {
             <Route path="/website/:idOrSlug" element={<WebsiteDetail />} />
             <Route path="/vs/:leftIdOrSlug/:rightIdOrSlug" element={<WebsiteComparePage />} />
             <Route path="/vs/:pair" element={<WebsiteComparePage />} />
+            <Route path="/mcp" element={<MCPListPage />} />
+            <Route path="/mcp/:slug" element={<MCPDetailPage />} />
 
             {/* @pro-feature-start: articles */}
             <Route path="/articles" element={<ArticleList />} />

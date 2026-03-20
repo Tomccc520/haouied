@@ -966,6 +966,237 @@ class SettingService extends Service {
   }
 
   /**
+   * 获取 MCP 页面默认配置
+   */
+  getDefaultMcpPageConfig() {
+    return {
+      enabled: true,
+      heroEnabled: true,
+      heroStyle: 'glass',
+      visualPreset: 'minimal',
+      pageKicker: 'MCP HUB',
+      pageTitle: 'MCP 中心',
+      pageDescription: '集中收录可直接部署与接入的 MCP 服务，支持按分类和标签快速筛选。',
+      showHeroStats: true,
+      cardStyle: 'elevated',
+      density: 'comfortable',
+      backgroundMode: 'mesh',
+      accentColor: '#2563eb',
+      pageBackgroundColor: '#f2f6ff',
+      heroBackgroundColor: '#eef4ff',
+      heroCoverImage: '',
+      cardBorderColor: '#dbe4ff',
+      cardRadius: 16,
+      cardShadowEnabled: false,
+      showOfficialLink: true,
+      showTagFilter: true,
+      tagFilterLimit: 20,
+      showCategoryCount: true,
+      listPageSize: 12,
+      maxWidth: 1280,
+    };
+  }
+
+  /**
+   * 规范化 MCP 页面配置，确保售卖版站点在不同主题下都可稳定渲染
+   */
+  normalizeMcpPageConfig(config = {}) {
+    const defaults = this.getDefaultMcpPageConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const merged = { ...defaults, ...source };
+    const heroStyle = String(merged.heroStyle || '').trim().toLowerCase();
+    const visualPreset = String(merged.visualPreset || '').trim().toLowerCase();
+    const cardStyle = String(merged.cardStyle || '').trim().toLowerCase();
+    const density = String(merged.density || '').trim().toLowerCase();
+    const backgroundMode = String(merged.backgroundMode || '').trim().toLowerCase();
+    /**
+     * 规范化色值，避免非法颜色导致前端样式失效。
+     * @param {unknown} value 原始颜色
+     * @param {string} fallback 兜底颜色
+     * @return {string}
+     */
+    const normalizeColor = (value, fallback) => {
+      const text = String(value || '').trim();
+      return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text) ? text : fallback;
+    };
+    const normalizedHeroStyle = [ 'glass', 'solid' ].includes(heroStyle) ? heroStyle : defaults.heroStyle;
+    const normalizedVisualPreset = [ 'minimal', 'tech' ].includes(visualPreset) ? visualPreset : defaults.visualPreset;
+    const normalizedCardStyle = [ 'elevated', 'outline' ].includes(cardStyle) ? cardStyle : defaults.cardStyle;
+    const normalizedDensity = [ 'compact', 'comfortable' ].includes(density) ? density : defaults.density;
+    const normalizedBackgroundMode = [ 'plain', 'mesh', 'grid' ].includes(backgroundMode) ? backgroundMode : defaults.backgroundMode;
+    return {
+      enabled: merged.enabled !== false,
+      heroEnabled: merged.heroEnabled !== false,
+      heroStyle: normalizedHeroStyle,
+      visualPreset: normalizedVisualPreset,
+      pageKicker: String(merged.pageKicker || defaults.pageKicker).trim().slice(0, 40) || defaults.pageKicker,
+      pageTitle: String(merged.pageTitle || defaults.pageTitle).trim().slice(0, 80) || defaults.pageTitle,
+      pageDescription: String(merged.pageDescription || defaults.pageDescription).trim().slice(0, 240) || defaults.pageDescription,
+      showHeroStats: merged.showHeroStats !== false,
+      cardStyle: normalizedCardStyle,
+      density: normalizedDensity,
+      backgroundMode: normalizedBackgroundMode,
+      accentColor: normalizeColor(merged.accentColor, defaults.accentColor),
+      pageBackgroundColor: normalizeColor(merged.pageBackgroundColor, defaults.pageBackgroundColor),
+      heroBackgroundColor: normalizeColor(merged.heroBackgroundColor, defaults.heroBackgroundColor),
+      heroCoverImage: String(merged.heroCoverImage || defaults.heroCoverImage).trim().slice(0, 1000),
+      cardBorderColor: normalizeColor(merged.cardBorderColor, defaults.cardBorderColor),
+      cardRadius: Number.isFinite(Number(merged.cardRadius))
+        ? Math.max(10, Math.min(28, Number(merged.cardRadius)))
+        : defaults.cardRadius,
+      cardShadowEnabled: merged.cardShadowEnabled === true,
+      showOfficialLink: merged.showOfficialLink !== false,
+      showTagFilter: merged.showTagFilter !== false,
+      tagFilterLimit: Number.isFinite(Number(merged.tagFilterLimit))
+        ? Math.max(5, Math.min(60, Number(merged.tagFilterLimit)))
+        : defaults.tagFilterLimit,
+      showCategoryCount: merged.showCategoryCount !== false,
+      listPageSize: Number.isFinite(Number(merged.listPageSize))
+        ? Math.max(6, Math.min(48, Number(merged.listPageSize)))
+        : defaults.listPageSize,
+      maxWidth: Number.isFinite(Number(merged.maxWidth))
+        ? Math.max(960, Math.min(1800, Number(merged.maxWidth)))
+        : defaults.maxWidth,
+    };
+  }
+
+  /**
+   * 获取网站对比页默认配置
+   */
+  getDefaultWebsiteCompareConfig() {
+    return {
+      sections: {
+        coreDiff: true,
+        guide: true,
+        faq: true,
+        internalLinks: true,
+        aiAnalysis: true,
+      },
+      copywriting: {
+        heroTitleTemplate: '{left} 和 {right} 哪个好？有什么区别和优缺点？',
+        heroDescriptionTemplate: '对比 {left} 和 {right} 的基础信息、分类、标签、截图与更新时间，帮助你更快判断哪个网站更适合你的使用场景。',
+        coreDiffTitle: '核心差异对比',
+        guideTitle: '优缺点速览与适用人群',
+        guideDescription: '基于站点公开信息自动生成结构化建议，辅助快速决策。',
+        faqTitle: '常见问题',
+        internalLinksTitle: '更多候选对比（内链）',
+        internalLinksDescription: '基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。',
+        aiAnalysisTitle: 'AI 分析对比（可选）',
+        aiAnalysisDescription: '基于当前公开信息生成对比结论、适用人群与选择建议。',
+      },
+      metrics: [
+        { key: 'category', label: '分类', enabled: true, sort: 10 },
+        { key: 'domain', label: '域名', enabled: true, sort: 20 },
+        { key: 'protocol', label: '协议', enabled: true, sort: 30 },
+        { key: 'tag_count', label: '标签数量', enabled: true, sort: 40 },
+        { key: 'screenshot_count', label: '截图数量', enabled: true, sort: 50 },
+        { key: 'comment_count', label: '评论数', enabled: true, sort: 60 },
+        { key: 'rating_count', label: '评分人数', enabled: true, sort: 70 },
+        { key: 'updated_at', label: '最近更新', enabled: true, sort: 80 },
+      ],
+      faqItems: [
+        { question: '{left} 和 {right} 哪个更适合新手？', answer: '建议先从功能定位、界面复杂度和你的使用目标来判断。', sort: 10, enabled: true },
+        { question: '{left} 和 {right} 的主要区别是什么？', answer: '通常差异体现在功能定位、内容风格、更新频率与使用门槛。', sort: 20, enabled: true },
+        { question: '怎么选择 {left} 或 {right}？', answer: '优先选择标签和分类更匹配的站点，再结合实际体验做最终决策。', sort: 30, enabled: true },
+      ],
+    };
+  }
+
+  /**
+   * 规范化网站对比页配置，避免模板与指标项结构失真
+   */
+  normalizeWebsiteCompareConfig(config = {}) {
+    const defaults = this.getDefaultWebsiteCompareConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const merged = {
+      ...defaults,
+      ...source,
+      sections: {
+        ...defaults.sections,
+        ...(this.isPlainObject(source.sections) ? source.sections : {}),
+      },
+      copywriting: {
+        ...defaults.copywriting,
+        ...(this.isPlainObject(source.copywriting) ? source.copywriting : {}),
+      },
+      metrics: Array.isArray(source.metrics) ? source.metrics : defaults.metrics,
+      faqItems: Array.isArray(source.faqItems) ? source.faqItems : defaults.faqItems,
+    };
+    const allowedMetricKeys = new Set([
+      'category',
+      'domain',
+      'protocol',
+      'tag_count',
+      'screenshot_count',
+      'comment_count',
+      'rating_count',
+      'updated_at',
+    ]);
+    const metricList = merged.metrics
+      .map((item, index) => {
+        const key = String(item?.key || '').trim().toLowerCase();
+        if (!allowedMetricKeys.has(key)) return null;
+        return {
+          key,
+          label: String(item?.label || key).trim() || key,
+          enabled: item?.enabled !== false,
+          sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.sort - b.sort)
+      .map((item, index) => ({ ...item, sort: (index + 1) * 10 }));
+    const faqItems = merged.faqItems
+      .map((item, index) => ({
+        question: String(item?.question || '').trim().slice(0, 160),
+        answer: String(item?.answer || '').trim().slice(0, 1200),
+        sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+        enabled: item?.enabled !== false,
+      }))
+      .filter(item => item.question && item.answer)
+      .sort((a, b) => a.sort - b.sort)
+      .map((item, index) => ({ ...item, sort: (index + 1) * 10 }));
+
+    return {
+      sections: {
+        coreDiff: merged.sections.coreDiff !== false,
+        guide: merged.sections.guide !== false,
+        faq: merged.sections.faq !== false,
+        internalLinks: merged.sections.internalLinks !== false,
+        aiAnalysis: merged.sections.aiAnalysis !== false,
+      },
+      copywriting: {
+        heroTitleTemplate: String(
+          merged.copywriting.heroTitleTemplate || defaults.copywriting.heroTitleTemplate
+        ).trim() || defaults.copywriting.heroTitleTemplate,
+        heroDescriptionTemplate: String(
+          merged.copywriting.heroDescriptionTemplate || defaults.copywriting.heroDescriptionTemplate
+        ).trim() || defaults.copywriting.heroDescriptionTemplate,
+        coreDiffTitle: String(merged.copywriting.coreDiffTitle || defaults.copywriting.coreDiffTitle).trim() || defaults.copywriting.coreDiffTitle,
+        guideTitle: String(merged.copywriting.guideTitle || defaults.copywriting.guideTitle).trim() || defaults.copywriting.guideTitle,
+        guideDescription: String(
+          merged.copywriting.guideDescription || defaults.copywriting.guideDescription
+        ).trim() || defaults.copywriting.guideDescription,
+        faqTitle: String(merged.copywriting.faqTitle || defaults.copywriting.faqTitle).trim() || defaults.copywriting.faqTitle,
+        internalLinksTitle: String(
+          merged.copywriting.internalLinksTitle || defaults.copywriting.internalLinksTitle
+        ).trim() || defaults.copywriting.internalLinksTitle,
+        internalLinksDescription: String(
+          merged.copywriting.internalLinksDescription || defaults.copywriting.internalLinksDescription
+        ).trim() || defaults.copywriting.internalLinksDescription,
+        aiAnalysisTitle: String(
+          merged.copywriting.aiAnalysisTitle || defaults.copywriting.aiAnalysisTitle
+        ).trim() || defaults.copywriting.aiAnalysisTitle,
+        aiAnalysisDescription: String(
+          merged.copywriting.aiAnalysisDescription || defaults.copywriting.aiAnalysisDescription
+        ).trim() || defaults.copywriting.aiAnalysisDescription,
+      },
+      metrics: metricList.length > 0 ? metricList : defaults.metrics,
+      faqItems: faqItems.length > 0 ? faqItems : defaults.faqItems,
+    };
+  }
+
+  /**
    * 获取页脚关于区域默认配置
    * 用于“footer-section footer-about-section”后台可配置。
    */
@@ -1636,6 +1867,10 @@ class SettingService extends Service {
         value = this.normalizeHotArticlesConfig(rawValue);
       } else if (key === 'commentConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeCommentConfig(rawValue);
+      } else if (key === 'websiteCompareConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeWebsiteCompareConfig(rawValue);
+      } else if (key === 'mcpPageConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeMcpPageConfig(rawValue);
       }
       const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
@@ -1805,6 +2040,8 @@ class SettingService extends Service {
     const articleConfig = await this.get('articleConfig');
     const articleTopicsConfig = await this.get('articleTopicsConfig');
     const footerAboutConfig = await this.get('footerAboutConfig');
+    const websiteCompareConfig = await this.get('websiteCompareConfig');
+    const mcpPageConfig = await this.get('mcpPageConfig');
     const authConfig = await this.getAuthConfig();
 
     // 默认配置
@@ -2033,6 +2270,8 @@ class SettingService extends Service {
     };
 
     const defaultFooterAbout = this.getDefaultFooterAboutConfig();
+    const defaultWebsiteCompareConfig = this.getDefaultWebsiteCompareConfig();
+    const defaultMcpPageConfig = this.getDefaultMcpPageConfig();
 
     const defaultHotArticlesConfig = {
       enabled: true,
@@ -2103,6 +2342,8 @@ class SettingService extends Service {
       article: this.normalizeArticleConfig(articleConfig || defaultArticleConfig),
       articleTopics: this.normalizeArticleTopicsConfig(articleTopicsConfig || {}),
       footerAbout: this.normalizeFooterAboutConfig(footerAboutConfig || defaultFooterAbout),
+      mcpPage: this.normalizeMcpPageConfig(mcpPageConfig || defaultMcpPageConfig),
+      websiteCompare: this.normalizeWebsiteCompareConfig(websiteCompareConfig || defaultWebsiteCompareConfig),
     };
   }
 

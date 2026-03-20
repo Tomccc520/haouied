@@ -318,6 +318,24 @@ module.exports = app => {
   // GET /api/tags/:idOrSlug - 获取标签详情及其网站
   get('/api/tags/:idOrSlug', controller.uied.frontend.tagDetail);
 
+  // ==================== MCP 中心（前端公开） ====================
+  // GET /api/mcp/list - 获取 MCP 列表
+  get('/api/mcp/list', controller.uied.frontend.mcpList);
+  // GET /api/mcp/meta/categories - 获取 MCP 分类元数据
+  get('/api/mcp/meta/categories', controller.uied.frontend.mcpCategories);
+  // GET /api/mcp/meta/tags - 获取 MCP 标签元数据
+  get('/api/mcp/meta/tags', controller.uied.frontend.mcpTags);
+  // GET /api/mcp/:idOrSlug - 获取 MCP 详情
+  get('/api/mcp/:idOrSlug', controller.uied.frontend.mcpDetail);
+  // GET /mcp/list - 兼容旧前端无 /api 前缀
+  getLegacy('/mcp/list', controller.uied.frontend.mcpList);
+  // GET /mcp/meta/categories - 兼容旧前端无 /api 前缀
+  getLegacy('/mcp/meta/categories', controller.uied.frontend.mcpCategories);
+  // GET /mcp/meta/tags - 兼容旧前端无 /api 前缀
+  getLegacy('/mcp/meta/tags', controller.uied.frontend.mcpTags);
+  // GET /mcp/:idOrSlug - 兼容旧前端无 /api 前缀
+  getLegacy('/mcp/:idOrSlug', controller.uied.frontend.mcpDetail);
+
   // ==================== 文章相关（前端） ====================
   // GET /api/articles - 获取文章列表
   get('/api/articles', controller.uied.frontend.articles);

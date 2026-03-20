@@ -50,6 +50,25 @@ module.exports = app => {
   router.all('/api/uied/website/click', controller.uied.website.click);
   router.all('/api/uied/website/search', controller.uied.website.search);
 
+  // ==================== MCP 中心 ====================
+  router.all('/api/uied/mcp/list', controller.uied.mcp.list);
+  router.all('/api/uied/mcp/detail', controller.uied.mcp.detail);
+  router.all('/api/uied/mcp/add', controller.uied.mcp.add);
+  router.all('/api/uied/mcp/edit', controller.uied.mcp.edit);
+  router.all('/api/uied/mcp/del', controller.uied.mcp.del);
+
+  router.all('/api/uied/mcp/category/list', controller.uied.mcp.categoryList);
+  router.all('/api/uied/mcp/category/all', controller.uied.mcp.categoryAll);
+  router.all('/api/uied/mcp/category/add', controller.uied.mcp.categoryAdd);
+  router.all('/api/uied/mcp/category/edit', controller.uied.mcp.categoryEdit);
+  router.all('/api/uied/mcp/category/del', controller.uied.mcp.categoryDel);
+
+  router.all('/api/uied/mcp/tag/list', controller.uied.mcp.tagList);
+  router.all('/api/uied/mcp/tag/all', controller.uied.mcp.tagAll);
+  router.all('/api/uied/mcp/tag/add', controller.uied.mcp.tagAdd);
+  router.all('/api/uied/mcp/tag/edit', controller.uied.mcp.tagEdit);
+  router.all('/api/uied/mcp/tag/del', controller.uied.mcp.tagDel);
+
   // ==================== 页面管理 ====================
   router.all('/api/uied/page/list', controller.uied.page.list);
   router.all('/api/uied/page/all', controller.uied.page.all);

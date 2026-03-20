@@ -631,7 +631,8 @@ const builtinNavEntryOptions: BuiltinNavEntryOption[] = [
     { key: 'hot_articles', label: '热门文章', defaultPath: '/p/hot' },
     { key: 'rankings', label: '热门榜单', defaultPath: '/p/hot?tab=rankings' },
     { key: 'submit', label: '投稿页面', defaultPath: '/submit' },
-    { key: 'articles', label: '文章频道', defaultPath: '/articles' }
+    { key: 'articles', label: '文章频道', defaultPath: '/articles' },
+    { key: 'mcp_center', label: 'MCP中心', defaultPath: '/mcp' }
 ]
 const categoryList = ref<CategoryOption[]>([])
 const quickAddTab = ref<'custom' | 'builtin' | 'category'>('custom')

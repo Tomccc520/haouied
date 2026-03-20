@@ -65,6 +65,22 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         ]
     },
     {
+        path: '/mcp-center',
+        component: LAYOUT,
+        children: [
+            {
+                path: 'mcp-publish',
+                name: Symbol(),
+                component: () => import('@/views/uied/mcp/publish.vue'),
+                meta: {
+                    title: '发布MCP',
+                    hidden: true,
+                    activeMenu: '/mcp-center/mcp-list'
+                }
+            }
+        ]
+    },
+    {
         path: '/system-setting/base-config',
         component: LAYOUT,
         children: [

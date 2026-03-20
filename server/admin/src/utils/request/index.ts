@@ -10,6 +10,12 @@ import { AxiosError, type AxiosRequestConfig } from 'axios'
 import router from '@/router'
 import { PageEnum } from '@/enums/pageEnum'
 
+const TOKEN_EXPIRED_CODE_SET = new Set<number>([
+    RequestCodeEnum.TOKEN_EMPTY,
+    RequestCodeEnum.TOKEN_INVALID
+])
+let authExpiredDialogVisible = false
+
 /**
  * 解析商业版功能拦截 403 错误（用于显示更友好的提示）
  */
@@ -26,6 +32,69 @@ function parseCommercialFeatureGuardError(error: any) {
                 .trim()
                 .toLowerCase() || 'free'
     }
+}
+
+/**
+ * 提取接口异常消息（优先后端 message / msg）
+ */
+function extractResponseErrorMessage(error: any): string {
+    const body = error?.response?.data || {}
+    return String(body?.msg || body?.message || error?.msg || error?.message || '').trim()
+}
+
+/**
+ * 解析登录态失效异常（token 为空/无效、会话过期等）
+ */
+function parseAuthExpiredError(error: any) {
+    const status = Number(error?.response?.status || 0)
+    const body = error?.response?.data || {}
+    const code = Number(body?.code || 0)
+    const featureKey = String(body?.data?.featureKey || '').trim()
+    if (status !== 401 && status !== 403) return null
+    // 商业版功能拦截 403（含 featureKey）不走登录态失效逻辑
+    if (status === 403 && code === RequestCodeEnum.NO_PERMISSTION && featureKey) return null
+
+    const rawMessage = extractResponseErrorMessage(error).toLowerCase()
+    const maybeExpiredByMessage = /token参数为空|token参数无效|token|登录状态|会话|session|expired/.test(
+        rawMessage
+    )
+    if (!TOKEN_EXPIRED_CODE_SET.has(code) && !maybeExpiredByMessage) return null
+
+    return {
+        message: '登录状态已过期，请重新登录后继续操作'
+    }
+}
+
+/**
+ * 统一展示登录过期弹窗，避免并发请求下重复弹出
+ */
+async function showAuthExpiredDialog(message: string) {
+    if (authExpiredDialogVisible) return
+    authExpiredDialogVisible = true
+    try {
+        await feedback.alertWarning(message || '登录状态已过期，请重新登录后继续操作')
+    } catch (_error) {
+        // 用户关闭弹窗时无需额外处理
+    } finally {
+        authExpiredDialogVisible = false
+        if (router.currentRoute.value.path !== PageEnum.LOGIN) {
+            router.push({ path: PageEnum.LOGIN })
+        }
+    }
+}
+
+/**
+ * 统一处理登录态失效：清理本地登录态 + 友好弹窗 + 跳转登录页
+ */
+function handleAuthExpiredError(error: any): boolean {
+    const expiredState = parseAuthExpiredError(error)
+    if (!expiredState) return false
+    clearAuthInfo()
+    const message = String(expiredState.message || '登录状态已过期，请重新登录后继续操作').trim()
+    error.message = message
+    ;(error as any).__uiedHandled = true
+    void showAuthExpiredDialog(message)
+    return true
 }
 
 // 处理axios的钩子函数
@@ -94,8 +163,15 @@ const axiosHooks: AxiosHooks = {
             case RequestCodeEnum.TOKEN_INVALID:
             case RequestCodeEnum.TOKEN_EMPTY:
                 clearAuthInfo()
-                router.push(PageEnum.LOGIN)
-                return Promise.reject()
+                void showAuthExpiredDialog(
+                    messageText || '登录状态已过期，请重新登录后继续操作'
+                )
+                return Promise.reject({
+                    code,
+                    data,
+                    message: messageText || '登录状态已过期，请重新登录后继续操作',
+                    __uiedHandled: true
+                })
 
             default:
                 /**
@@ -115,17 +191,19 @@ const axiosHooks: AxiosHooks = {
     },
     responseInterceptorsCatchHook(error) {
         NProgress.done()
-        if (error.code !== AxiosError.ERR_CANCELED) {
-            const featureDenied = parseCommercialFeatureGuardError(error)
-            if (featureDenied) {
-                feedback.msgError(
-                    `当前版本未授权该功能（${
-                        featureDenied.featureKey
-                    }，当前版本：${featureDenied.edition.toUpperCase()}）`
-                )
-            } else {
-                error.message && feedback.msgError(error.message)
-            }
+        if (error.code === AxiosError.ERR_CANCELED) return Promise.reject(error)
+        if (handleAuthExpiredError(error)) return Promise.reject(error)
+
+        const featureDenied = parseCommercialFeatureGuardError(error)
+        if (featureDenied) {
+            feedback.msgError(
+                `当前版本未授权该功能（${
+                    featureDenied.featureKey
+                }，当前版本：${featureDenied.edition.toUpperCase()}）`
+            )
+        } else {
+            const errorMessage = extractResponseErrorMessage(error)
+            errorMessage && feedback.msgError(errorMessage)
         }
         return Promise.reject(error)
     }

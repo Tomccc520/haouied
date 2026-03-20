@@ -281,6 +281,81 @@ export interface ArticleTopicConfig {
 
 export type ArticleTopicsConfig = Record<string, ArticleTopicConfig>;
 
+export type WebsiteCompareMetricKey =
+  | 'category'
+  | 'domain'
+  | 'protocol'
+  | 'tag_count'
+  | 'screenshot_count'
+  | 'comment_count'
+  | 'rating_count'
+  | 'updated_at';
+
+export interface WebsiteCompareMetricConfig {
+  key: WebsiteCompareMetricKey;
+  label: string;
+  enabled: boolean;
+  sort: number;
+}
+
+export interface WebsiteCompareFaqItem {
+  question: string;
+  answer: string;
+  enabled: boolean;
+  sort: number;
+}
+
+export interface WebsiteCompareConfig {
+  sections: {
+    coreDiff: boolean;
+    guide: boolean;
+    faq: boolean;
+    internalLinks: boolean;
+    aiAnalysis: boolean;
+  };
+  copywriting: {
+    heroTitleTemplate: string;
+    heroDescriptionTemplate: string;
+    coreDiffTitle: string;
+    guideTitle: string;
+    guideDescription: string;
+    faqTitle: string;
+    internalLinksTitle: string;
+    internalLinksDescription: string;
+    aiAnalysisTitle: string;
+    aiAnalysisDescription: string;
+  };
+  metrics: WebsiteCompareMetricConfig[];
+  faqItems: WebsiteCompareFaqItem[];
+}
+
+export interface McpPageConfig {
+  enabled: boolean;
+  heroEnabled: boolean;
+  heroStyle: 'glass' | 'solid';
+  visualPreset: 'minimal' | 'tech';
+  pageKicker: string;
+  pageTitle: string;
+  pageDescription: string;
+  showHeroStats: boolean;
+  cardStyle: 'elevated' | 'outline';
+  density: 'compact' | 'comfortable';
+  backgroundMode: 'plain' | 'mesh' | 'grid';
+  accentColor: string;
+  pageBackgroundColor: string;
+  heroBackgroundColor: string;
+  heroCoverImage: string;
+  cardBorderColor: string;
+  cardRadius: number;
+  cardShadowEnabled: boolean;
+  showOfficialLink: boolean;
+  showTagFilter: boolean;
+  tagFilterLimit: number;
+  showCategoryCount: boolean;
+  listPageSize: number;
+  maxWidth: number;
+}
+
 // 登录/注册/个人中心配置
 export interface AuthConfig {
   enable_register: number;
@@ -305,6 +380,8 @@ export interface PublicSettings {
   detailPage: DetailPageConfig;
   article: ArticleConfig;
   articleTopics: ArticleTopicsConfig;
+  mcpPage: McpPageConfig;
+  websiteCompare: WebsiteCompareConfig;
 }
 
 interface PublicSettingsPayload {
@@ -320,6 +397,8 @@ interface PublicSettingsPayload {
   detailPage?: DetailPageConfig;
   article?: ArticleConfig;
   articleTopics?: ArticleTopicsConfig;
+  mcpPage?: McpPageConfig;
+  websiteCompare?: WebsiteCompareConfig;
   popup?: ExitModalConfig;
 }
 
@@ -573,6 +652,85 @@ export const DEFAULT_ARTICLE_SETTING: ArticleConfig = {
 };
 
 export const DEFAULT_ARTICLE_TOPICS: ArticleTopicsConfig = ARTICLE_TOPICS;
+
+export const DEFAULT_WEBSITE_COMPARE: WebsiteCompareConfig = {
+  sections: {
+    coreDiff: true,
+    guide: true,
+    faq: true,
+    internalLinks: true,
+    aiAnalysis: true,
+  },
+  copywriting: {
+    heroTitleTemplate: '{left} 和 {right} 哪个好？有什么区别和优缺点？',
+    heroDescriptionTemplate: '对比 {left} 和 {right} 的基础信息、分类、标签、截图与更新时间，帮助你更快判断哪个网站更适合你的使用场景。',
+    coreDiffTitle: '核心差异对比',
+    guideTitle: '优缺点速览与适用人群',
+    guideDescription: '基于站点公开信息自动生成结构化建议，辅助快速决策。',
+    faqTitle: '常见问题',
+    internalLinksTitle: '更多候选对比（内链）',
+    internalLinksDescription: '基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。',
+    aiAnalysisTitle: 'AI 分析对比（可选）',
+    aiAnalysisDescription: '基于当前公开信息生成对比结论、适用人群与选择建议。',
+  },
+  metrics: [
+    { key: 'category', label: '分类', enabled: true, sort: 10 },
+    { key: 'domain', label: '域名', enabled: true, sort: 20 },
+    { key: 'protocol', label: '协议', enabled: true, sort: 30 },
+    { key: 'tag_count', label: '标签数量', enabled: true, sort: 40 },
+    { key: 'screenshot_count', label: '截图数量', enabled: true, sort: 50 },
+    { key: 'comment_count', label: '评论数', enabled: true, sort: 60 },
+    { key: 'rating_count', label: '评分人数', enabled: true, sort: 70 },
+    { key: 'updated_at', label: '最近更新', enabled: true, sort: 80 },
+  ],
+  faqItems: [
+    {
+      question: '{left} 和 {right} 哪个更适合新手？',
+      answer: '建议先从功能定位、界面复杂度和你的使用目标来判断。',
+      enabled: true,
+      sort: 10,
+    },
+    {
+      question: '{left} 和 {right} 的主要区别是什么？',
+      answer: '通常差异体现在功能定位、内容风格、更新频率与使用门槛。',
+      enabled: true,
+      sort: 20,
+    },
+    {
+      question: '怎么选择 {left} 或 {right}？',
+      answer: '优先选择标签和分类更匹配的站点，再结合实际体验做最终决策。',
+      enabled: true,
+      sort: 30,
+    },
+  ],
+};
+
+export const DEFAULT_MCP_PAGE: McpPageConfig = {
+  enabled: true,
+  heroEnabled: true,
+  heroStyle: 'glass',
+  visualPreset: 'minimal',
+  pageKicker: 'MCP HUB',
+  pageTitle: 'MCP 中心',
+  pageDescription: '集中收录可直接部署与接入的 MCP 服务，支持按分类和标签快速筛选。',
+  showHeroStats: true,
+  cardStyle: 'elevated',
+  density: 'comfortable',
+  backgroundMode: 'mesh',
+  accentColor: '#2563eb',
+  pageBackgroundColor: '#f2f6ff',
+  heroBackgroundColor: '#eef4ff',
+  heroCoverImage: '',
+  cardBorderColor: '#dbe4ff',
+  cardRadius: 16,
+  cardShadowEnabled: false,
+  showOfficialLink: true,
+  showTagFilter: true,
+  tagFilterLimit: 20,
+  showCategoryCount: true,
+  listPageSize: 12,
+  maxWidth: 1280,
+};
 
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
   enable_register: 1,
@@ -953,6 +1111,149 @@ export const publicSettingService = {
     }, {} as ArticleTopicsConfig);
   },
 
+  /**
+   * 规范化网站对比配置，确保区块开关、指标项与 FAQ 数据结构稳定。
+   */
+  normalizeWebsiteCompareConfig: (config: unknown): WebsiteCompareConfig => {
+    const source = (config && typeof config === 'object')
+      ? (config as Partial<WebsiteCompareConfig>)
+      : {};
+    const mergedSections = {
+      ...DEFAULT_WEBSITE_COMPARE.sections,
+      ...(source.sections || {}),
+    };
+    const mergedCopywriting = {
+      ...DEFAULT_WEBSITE_COMPARE.copywriting,
+      ...(source.copywriting || {}),
+    };
+    const allowMetricKeys = new Set<WebsiteCompareMetricKey>([
+      'category',
+      'domain',
+      'protocol',
+      'tag_count',
+      'screenshot_count',
+      'comment_count',
+      'rating_count',
+      'updated_at',
+    ]);
+    const normalizedMetrics = (Array.isArray(source.metrics) ? source.metrics : DEFAULT_WEBSITE_COMPARE.metrics)
+      .map((item, index) => {
+        const key = String(item?.key || '').trim() as WebsiteCompareMetricKey;
+        if (!allowMetricKeys.has(key)) return null;
+        return {
+          key,
+          label: String(item?.label || key).trim() || key,
+          enabled: item?.enabled !== false,
+          sort: Number.isFinite(Number(item?.sort)) ? Number(item?.sort) : (index + 1) * 10,
+        };
+      })
+      .filter((item): item is WebsiteCompareMetricConfig => Boolean(item))
+      .sort((a, b) => a.sort - b.sort)
+      .map((item, index) => ({ ...item, sort: (index + 1) * 10 }));
+    const normalizedFaqItems = (Array.isArray(source.faqItems) ? source.faqItems : DEFAULT_WEBSITE_COMPARE.faqItems)
+      .map((item, index) => ({
+        question: String(item?.question || '').trim().slice(0, 160),
+        answer: String(item?.answer || '').trim().slice(0, 1200),
+        enabled: item?.enabled !== false,
+        sort: Number.isFinite(Number(item?.sort)) ? Number(item?.sort) : (index + 1) * 10,
+      }))
+      .filter((item) => Boolean(item.question && item.answer))
+      .sort((a, b) => a.sort - b.sort)
+      .map((item, index) => ({ ...item, sort: (index + 1) * 10 }));
+    return {
+      sections: {
+        coreDiff: mergedSections.coreDiff !== false,
+        guide: mergedSections.guide !== false,
+        faq: mergedSections.faq !== false,
+        internalLinks: mergedSections.internalLinks !== false,
+        aiAnalysis: mergedSections.aiAnalysis !== false,
+      },
+      copywriting: {
+        heroTitleTemplate: String(mergedCopywriting.heroTitleTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.heroTitleTemplate).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.heroTitleTemplate,
+        heroDescriptionTemplate: String(
+          mergedCopywriting.heroDescriptionTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.heroDescriptionTemplate
+        ).trim() || DEFAULT_WEBSITE_COMPARE.copywriting.heroDescriptionTemplate,
+        coreDiffTitle: String(mergedCopywriting.coreDiffTitle || DEFAULT_WEBSITE_COMPARE.copywriting.coreDiffTitle).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.coreDiffTitle,
+        guideTitle: String(mergedCopywriting.guideTitle || DEFAULT_WEBSITE_COMPARE.copywriting.guideTitle).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.guideTitle,
+        guideDescription: String(mergedCopywriting.guideDescription || DEFAULT_WEBSITE_COMPARE.copywriting.guideDescription).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.guideDescription,
+        faqTitle: String(mergedCopywriting.faqTitle || DEFAULT_WEBSITE_COMPARE.copywriting.faqTitle).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.faqTitle,
+        internalLinksTitle: String(mergedCopywriting.internalLinksTitle || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksTitle).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksTitle,
+        internalLinksDescription: String(
+          mergedCopywriting.internalLinksDescription || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksDescription
+        ).trim() || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksDescription,
+        aiAnalysisTitle: String(mergedCopywriting.aiAnalysisTitle || DEFAULT_WEBSITE_COMPARE.copywriting.aiAnalysisTitle).trim()
+          || DEFAULT_WEBSITE_COMPARE.copywriting.aiAnalysisTitle,
+        aiAnalysisDescription: String(
+          mergedCopywriting.aiAnalysisDescription || DEFAULT_WEBSITE_COMPARE.copywriting.aiAnalysisDescription
+        ).trim() || DEFAULT_WEBSITE_COMPARE.copywriting.aiAnalysisDescription,
+      },
+      metrics: normalizedMetrics.length > 0 ? normalizedMetrics : DEFAULT_WEBSITE_COMPARE.metrics,
+      faqItems: normalizedFaqItems.length > 0 ? normalizedFaqItems : DEFAULT_WEBSITE_COMPARE.faqItems,
+    };
+  },
+
+  /**
+   * 规范化 MCP 页面配置，确保页面样式与筛选交互在售卖版下可稳定回放。
+   */
+  normalizeMcpPageConfig: (config: unknown): McpPageConfig => {
+    const source = (config && typeof config === 'object')
+      ? (config as Partial<McpPageConfig>)
+      : {};
+    const merged = { ...DEFAULT_MCP_PAGE, ...source };
+    const heroStyle = String(merged.heroStyle || '').trim().toLowerCase();
+    const visualPreset = String(merged.visualPreset || '').trim().toLowerCase();
+    const cardStyle = String(merged.cardStyle || '').trim().toLowerCase();
+    const density = String(merged.density || '').trim().toLowerCase();
+    const backgroundMode = String(merged.backgroundMode || '').trim().toLowerCase();
+    /**
+     * 规范化十六进制色值，避免注入非法字符串到 CSS 变量。
+     */
+    const normalizeColor = (value: unknown, fallback: string): string => {
+      const text = String(value || '').trim();
+      return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text) ? text : fallback;
+    };
+    return {
+      enabled: merged.enabled !== false,
+      heroEnabled: merged.heroEnabled !== false,
+      heroStyle: heroStyle === 'solid' ? 'solid' : 'glass',
+      visualPreset: visualPreset === 'tech' ? 'tech' : 'minimal',
+      pageKicker: String(merged.pageKicker || DEFAULT_MCP_PAGE.pageKicker).trim() || DEFAULT_MCP_PAGE.pageKicker,
+      pageTitle: String(merged.pageTitle || DEFAULT_MCP_PAGE.pageTitle).trim() || DEFAULT_MCP_PAGE.pageTitle,
+      pageDescription: String(merged.pageDescription || DEFAULT_MCP_PAGE.pageDescription).trim() || DEFAULT_MCP_PAGE.pageDescription,
+      showHeroStats: merged.showHeroStats !== false,
+      cardStyle: cardStyle === 'outline' ? 'outline' : 'elevated',
+      density: density === 'compact' ? 'compact' : 'comfortable',
+      backgroundMode: backgroundMode === 'plain' || backgroundMode === 'grid' ? backgroundMode : 'mesh',
+      accentColor: normalizeColor(merged.accentColor, DEFAULT_MCP_PAGE.accentColor),
+      pageBackgroundColor: normalizeColor(merged.pageBackgroundColor, DEFAULT_MCP_PAGE.pageBackgroundColor),
+      heroBackgroundColor: normalizeColor(merged.heroBackgroundColor, DEFAULT_MCP_PAGE.heroBackgroundColor),
+      heroCoverImage: String(merged.heroCoverImage || '').trim().slice(0, 1000),
+      cardBorderColor: normalizeColor(merged.cardBorderColor, DEFAULT_MCP_PAGE.cardBorderColor),
+      cardRadius: Number.isFinite(Number(merged.cardRadius))
+        ? Math.max(10, Math.min(28, Number(merged.cardRadius)))
+        : DEFAULT_MCP_PAGE.cardRadius,
+      cardShadowEnabled: merged.cardShadowEnabled === true,
+      showOfficialLink: merged.showOfficialLink !== false,
+      showTagFilter: merged.showTagFilter !== false,
+      tagFilterLimit: Number.isFinite(Number(merged.tagFilterLimit))
+        ? Math.max(5, Math.min(60, Number(merged.tagFilterLimit)))
+        : DEFAULT_MCP_PAGE.tagFilterLimit,
+      showCategoryCount: merged.showCategoryCount !== false,
+      listPageSize: Number.isFinite(Number(merged.listPageSize))
+        ? Math.max(6, Math.min(48, Number(merged.listPageSize)))
+        : DEFAULT_MCP_PAGE.listPageSize,
+      maxWidth: Number.isFinite(Number(merged.maxWidth))
+        ? Math.max(960, Math.min(1800, Number(merged.maxWidth)))
+        : DEFAULT_MCP_PAGE.maxWidth,
+    };
+  },
+
   getFrontendConfig: async (): Promise<FrontendConfigPayload> => {
     try {
       const response = await api.get('/settings/frontend-config');
@@ -1012,6 +1313,8 @@ export const publicSettingService = {
         detailPage: publicSettingService.normalizeDetailPageConfig(data.detailPage),
         article: publicSettingService.normalizeArticleConfig(data.article),
         articleTopics: publicSettingService.normalizeArticleTopicsConfig(data.articleTopics),
+        mcpPage: publicSettingService.normalizeMcpPageConfig(data.mcpPage),
+        websiteCompare: publicSettingService.normalizeWebsiteCompareConfig(data.websiteCompare),
       };
     } catch (error) {
       debugLog.error('获取公开设置失败，使用默认配置:', error);
@@ -1029,6 +1332,8 @@ export const publicSettingService = {
         detailPage: publicSettingService.normalizeDetailPageConfig(DEFAULT_DETAIL_PAGE),
         article: DEFAULT_ARTICLE_SETTING,
         articleTopics: DEFAULT_ARTICLE_TOPICS,
+        mcpPage: DEFAULT_MCP_PAGE,
+        websiteCompare: DEFAULT_WEBSITE_COMPARE,
       };
     }
   },

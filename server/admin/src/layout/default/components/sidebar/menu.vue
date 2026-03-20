@@ -149,6 +149,7 @@ const MENU_CATEGORY_DEFINITIONS: MenuCategoryDefinition[] = [
     { key: 'page', label: '页面管理', icon: 'el-icon-Document' },
     { key: 'tag', label: '标签管理', icon: 'el-icon-CollectionTag' },
     { key: 'content', label: '内容管理', icon: 'el-icon-Reading' },
+    { key: 'mcp', label: 'MCP中心', icon: 'el-icon-Connection' },
     { key: 'material', label: '素材管理', icon: 'el-icon-PictureFilled' },
     { key: 'frontend', label: '前端配置', icon: 'el-icon-Monitor' },
     { key: 'settings', label: '网站设置', icon: 'el-icon-Setting' },
@@ -303,6 +304,24 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
         ]
     },
     {
+        key: 'mcp',
+        keywords: [
+            'mcp中心',
+            'mcp列表',
+            'mcp分类',
+            'mcp标签',
+            '发布mcp',
+            '资源管理',
+            '标签管理',
+            '发布管理',
+            '/mcp-center',
+            '/mcp-list',
+            '/mcp-category',
+            '/mcp-tag',
+            'uied:mcp:'
+        ]
+    },
+    {
         key: 'category',
         keywords: ['分类管理', '分类', '/category', 'uied:category:']
     },
@@ -393,6 +412,7 @@ const MENU_SECOND_LEVEL_GROUP_ICON: Record<string, string> = {
     page: 'el-icon-Document',
     tag: 'el-icon-CollectionTag',
     content: 'el-icon-Reading',
+    mcp: 'el-icon-Connection',
     material: 'el-icon-PictureFilled',
     frontend: 'el-icon-Monitor',
     settings: 'el-icon-Setting',
@@ -445,6 +465,13 @@ const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
     热门推荐: 'el-icon-Star',
     专题工厂: 'el-icon-Management',
     投稿管理: 'el-icon-EditPen',
+    MCP中心: 'el-icon-Connection',
+    MCP列表: 'el-icon-List',
+    MCP分类: 'el-icon-Files',
+    MCP标签: 'el-icon-CollectionTag',
+    发布MCP: 'el-icon-EditPen',
+    资源管理: 'el-icon-List',
+    发布管理: 'el-icon-EditPen',
     商业授权: 'el-icon-Key',
     交付中心: 'el-icon-Suitcase',
     交付工具: 'el-icon-Suitcase',
@@ -489,6 +516,16 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'content:文章栏目': 20,
     'content:文章专题': 30,
     'content:评论管理': 40,
+
+    'mcp:MCP中心': 10,
+    'mcp:MCP列表': 20,
+    'mcp:MCP分类': 30,
+    'mcp:MCP标签': 40,
+    'mcp:发布MCP': 50,
+    'mcp:资源管理': 20,
+    'mcp:分类管理': 30,
+    'mcp:标签管理': 40,
+    'mcp:发布管理': 50,
 
     'material:素材管理': 10,
     'material:素材中心': 20,

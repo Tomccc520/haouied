@@ -86,7 +86,14 @@ const SECOND_LEVEL_TITLE_ALIAS: Record<string, string> = {
     榜单系统: '榜单系统',
     专题工厂: '专题工厂',
     投稿管理: '投稿管理',
-    导航菜单: '导航菜单'
+    导航菜单: '导航菜单',
+    MCP中心: 'MCP中心',
+    MCP列表: 'MCP列表',
+    MCP分类: 'MCP分类',
+    MCP标签: 'MCP标签',
+    发布MCP: '发布MCP',
+    资源管理: '资源管理',
+    发布管理: '发布管理'
 }
 
 /**

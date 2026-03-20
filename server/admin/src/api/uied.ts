@@ -165,6 +165,83 @@ export function uiedWebsiteSearch(params?: any) {
     return request.get({ url: '/uied/website/search', params })
 }
 
+// ==================== MCP中心 ====================
+
+// MCP列表
+export function uiedMcpList(params?: any) {
+    return request.get({ url: '/uied/mcp/list', params })
+}
+
+// MCP详情
+export function uiedMcpDetail(params: any) {
+    return request.get({ url: '/uied/mcp/detail', params })
+}
+
+// 添加MCP
+export function uiedMcpAdd(params: any) {
+    return request.post({ url: '/uied/mcp/add', params })
+}
+
+// 编辑MCP
+export function uiedMcpEdit(params: any) {
+    return request.post({ url: '/uied/mcp/edit', params })
+}
+
+// 删除MCP
+export function uiedMcpDelete(params: any) {
+    return request.post({ url: '/uied/mcp/del', params })
+}
+
+// MCP分类列表
+export function uiedMcpCategoryList(params?: any) {
+    return request.get({ url: '/uied/mcp/category/list', params })
+}
+
+// MCP分类全量
+export function uiedMcpCategoryAll(params?: any) {
+    return request.get({ url: '/uied/mcp/category/all', params })
+}
+
+// 添加MCP分类
+export function uiedMcpCategoryAdd(params: any) {
+    return request.post({ url: '/uied/mcp/category/add', params })
+}
+
+// 编辑MCP分类
+export function uiedMcpCategoryEdit(params: any) {
+    return request.post({ url: '/uied/mcp/category/edit', params })
+}
+
+// 删除MCP分类
+export function uiedMcpCategoryDelete(params: any) {
+    return request.post({ url: '/uied/mcp/category/del', params })
+}
+
+// MCP标签列表
+export function uiedMcpTagList(params?: any) {
+    return request.get({ url: '/uied/mcp/tag/list', params })
+}
+
+// MCP标签全量
+export function uiedMcpTagAll(params?: any) {
+    return request.get({ url: '/uied/mcp/tag/all', params })
+}
+
+// 添加MCP标签
+export function uiedMcpTagAdd(params: any) {
+    return request.post({ url: '/uied/mcp/tag/add', params })
+}
+
+// 编辑MCP标签
+export function uiedMcpTagEdit(params: any) {
+    return request.post({ url: '/uied/mcp/tag/edit', params })
+}
+
+// 删除MCP标签
+export function uiedMcpTagDelete(params: any) {
+    return request.post({ url: '/uied/mcp/tag/del', params })
+}
+
 // 网站标签（全部）
 export function uiedWebsiteTagAll() {
     return request.get({ url: '/uied/websiteTag/all' })
