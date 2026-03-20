@@ -303,6 +303,88 @@ class BannerService extends Service {
   }
 
   /**
+   * 规范化后台“场景筛选”参数。
+   * @param {unknown} scene 场景标识
+   * @return {string} 规范化后的场景
+   */
+  normalizeScene(scene) {
+    const value = String(scene || '').trim().toLowerCase();
+    if (!value) return 'all';
+    const map = {
+      page: 'page_banner',
+      pagebanner: 'page_banner',
+      page_banner: 'page_banner',
+      home: 'home',
+      top: 'home',
+      sidebar: 'sidebar',
+      detail: 'detail',
+      footer: 'footer',
+      bottom: 'footer',
+      global: 'global_strip',
+      global_strip: 'global_strip',
+      all: 'all',
+      other: 'other',
+    };
+    return map[value] || value;
+  }
+
+  /**
+   * 将具体位置归类到业务场景，便于后台筛选与统计。
+   * @param {string} position 单个位置标识
+   * @return {string} 业务场景
+   */
+  resolveSceneFromPosition(position) {
+    const normalized = this.normalizePosition(position);
+    if (!normalized) return 'other';
+    if (normalized === 'page_banner') return 'page_banner';
+    if ([ 'home', 'top' ].includes(normalized)) return 'home';
+    if ([ 'global_strip' ].includes(normalized)) return 'global_strip';
+    if ([ 'sidebar', 'detail_sidebar', 'website_detail_sidebar', 'detall_sidebar' ].includes(normalized)) return 'sidebar';
+    if ([ 'footer', 'bottom' ].includes(normalized)) return 'footer';
+    if (
+      [ 'detail', 'popup', 'detall', 'detail_top', 'detail_inline', 'detail_bottom', 'detall_top', 'detall_inline', 'detall_bottom' ]
+        .includes(normalized)
+    ) {
+      return 'detail';
+    }
+    return 'other';
+  }
+
+  /**
+   * 判断广告是否匹配场景筛选。
+   * @param {Object} item 广告项
+   * @param {string} scene 场景标识
+   * @return {boolean} 是否匹配
+   */
+  isBannerMatchedScene(item, scene) {
+    const normalizedScene = this.normalizeScene(scene);
+    if (normalizedScene === 'all') return true;
+    const positionList = this.normalizePositionList(item.positionList?.length ? item.positionList : item.position);
+    if (positionList.length === 0) return normalizedScene === 'other';
+    const sceneSet = new Set(positionList.map(position => this.resolveSceneFromPosition(position)));
+    return sceneSet.has(normalizedScene);
+  }
+
+  /**
+   * 判断广告是否匹配关键字（标题/描述/链接/页面标识/位置）。
+   * @param {Object} item 广告项
+   * @param {string} keyword 关键字
+   * @return {boolean} 是否匹配
+   */
+  isBannerMatchedKeyword(item, keyword) {
+    const q = String(keyword || '').trim().toLowerCase();
+    if (!q) return true;
+    const hitFields = [
+      item.title,
+      item.description,
+      item.linkUrl || item.url,
+      item.pageSlug,
+      item.position,
+    ];
+    return hitFields.some(field => String(field || '').toLowerCase().includes(q));
+  }
+
+  /**
    * 获取广告位置别名集合（兼容后台配置值与前端请求值不一致）
    * @param {string} position 前端传入的位置标识
    * @return {string[]} 可匹配的位置列表
@@ -349,8 +431,22 @@ class BannerService extends Service {
     const mergedLists = this
       .mergeListByPositionGroup(rows.map(item => this.formatItem(item)))
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || Number(a.id || 0) - Number(b.id || 0));
-    const total = mergedLists.length;
-    const lists = mergedLists.slice(offset, offset + pageSize);
+    const keyword = String(params.keyword || '').trim();
+    const scene = this.normalizeScene(params.scene);
+    const contentType = String(params.contentType || '').trim().toLowerCase();
+    const status = String(params.status || '').trim().toLowerCase();
+    const filteredLists = mergedLists.filter(item => {
+      if (!this.isBannerMatchedKeyword(item, keyword)) return false;
+      if (scene !== 'all' && !this.isBannerMatchedScene(item, scene)) return false;
+      if ([ 'image', 'html', 'text' ].includes(contentType) && String(item.contentType || 'image').toLowerCase() !== contentType) {
+        return false;
+      }
+      if (status === 'active' && !item.isActive) return false;
+      if (status === 'hidden' && item.isActive) return false;
+      return true;
+    });
+    const total = filteredLists.length;
+    const lists = filteredLists.slice(offset, offset + pageSize);
 
     return {
       lists,

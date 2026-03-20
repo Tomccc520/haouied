@@ -259,6 +259,17 @@
                         <el-form-item label="启用搜索">
                             <el-switch v-model="editData.searchEnabled" />
                         </el-form-item>
+                        <el-form-item label="显示页面广告">
+                            <el-switch v-model="editData.showBanner" />
+                            <div class="text-gray-400 text-xs mt-1">
+                                页面 4 宫格 Banner 独立开关；前台展示位置在“热门推荐”上方。
+                            </div>
+                            <div class="mt-1">
+                                <el-button type="primary" link @click="goBannerSetting">
+                                    前往 Banner 广告设置
+                                </el-button>
+                            </div>
+                        </el-form-item>
                         <el-form-item label="显示热门推荐">
                             <el-switch v-model="editData.showHotRecommendations" />
                         </el-form-item>
@@ -941,6 +952,7 @@ const editData = reactive({
     // 页面配置
     searchPlaceholder: '',
     searchEnabled: true,
+    showBanner: true,
     showHotRecommendations: true,
     showCategories: true,
     showSidebar: true,
@@ -1633,6 +1645,14 @@ const handleResetSearch = () => {
     getLists()
 }
 
+/**
+ * 跳转到 Banner 广告配置页，便于页面配置与广告配置联动调整。
+ */
+const goBannerSetting = () => {
+    const targetPath = '/uied/operation/commercial-monetization/banner'
+    window.open(`${window.location.origin}${targetPath}`, '_blank')
+}
+
 // 获取背景值占位符
 const getBgPlaceholder = () => {
     switch (editData.heroBgType) {
@@ -1773,6 +1793,7 @@ const resetEditData = () => {
         heroScrollCategories: [],
         searchPlaceholder: '',
         searchEnabled: true,
+        showBanner: true,
         showHotRecommendations: true,
         showCategories: true,
         showSidebar: true,
@@ -1833,6 +1854,7 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         hotSearchTagsStr,
         heroScrollWebsites,
         searchEnabled: row.searchEnabled !== false,
+        showBanner: row.showBanner !== false,
         showHotRecommendations: row.showHotRecommendations !== false,
         showCategories: row.showCategories !== false,
         showSidebar: row.showSidebar !== false

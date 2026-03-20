@@ -71,6 +71,25 @@ const platformLinks = [
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.0.9',
+    date: '2026-03-20',
+    title: '正式版1.0.9：MCP中心导航归位 + 官网MCP页重构',
+    changes: [
+      { type: 'feature', scope: 'fullstack', text: '【页面Banner】新增独立广告位置 `page_banner`：前端动态页面在“热门推荐”上方支持固定展示 4 个 Banner，后台广告管理可直接按新位置投放' },
+      { type: 'feature', scope: 'frontend', text: '【页面Banner】AdBanner 组件新增 `page_banner` 渲染分支：采用 4 卡网格布局（移动端自动降为 2 列/1 列），替代原顶部单图轮播用于频道页运营位' },
+      { type: 'improve', scope: 'backend', text: '【页面Banner】后台广告管理“位置”枚举新增“页面Banner（page_banner）”，并在位置说明卡片补充用途提示，降低运营同学配置成本' },
+      { type: 'improve', scope: 'frontend', text: '【后台导航】侧边栏分组规则调整：MCP相关入口统一归并到“网站设置”业务域，避免一级菜单堆叠与入口分散' },
+      { type: 'feature', scope: 'backend', text: '【菜单补丁】新增 SQL `patch_2026_0320_mcp_setting_menu.sql`：在“网站设置 -> 基础配置”下新增“MCP配置”二级入口，并默认切到内容中心 `tab=mcp`' },
+      { type: 'improve', scope: 'frontend', text: '【MCP官网】/mcp 页面结构重构为“顶部筛选工具栏 + 结果网格卡片”，筛选与结果阅读路径更接近导航站主站交互' },
+      { type: 'improve', scope: 'frontend', text: '【MCP官网】支持整卡点击进入详情页，并保留外链点击防穿透，降低误触导致的跳转混乱' },
+      { type: 'improve', scope: 'frontend', text: '【MCP官网】卡片图标链路优化：优先使用后台配置 icon_url，缺失时回退站点 favicon，提高卡片识别度与数据容错' },
+      { type: 'improve', scope: 'frontend', text: '【MCP官网】页面视觉变量继续保持后台可配置（主题色、背景色、头图、卡片圆角/边框/阴影开关），方便售卖版按客户风格快速交付' },
+      { type: 'improve', scope: 'frontend', text: '【MCP官网】卡片悬浮反馈改为“仅描边高亮”，去除额外悬浮装饰，保证视觉与主站卡片交互风格一致' },
+      { type: 'improve', scope: 'frontend', text: '【MCP官网】页面外边距与顶部留白按详情页规范统一，列表容器宽度与站点主容器对齐，并支持后台配置最大宽度' },
+      { type: 'feature', scope: 'frontend', text: '【MCP详情】新增“使用教程 + SEO摘要”模块，并补充 FAQPage 结构化数据输出，提升内容可读性与搜索引擎可理解度' },
+    ]
+  },
+  {
     version: '1.0.8',
     date: '2026-03-18',
     title: '正式版1.0.8：SEO中心（配置化 + 检测 + 推送）首版上线',

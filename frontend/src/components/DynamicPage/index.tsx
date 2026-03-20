@@ -607,6 +607,15 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
             </section>
           )}
 
+          {/* 页面 Banner（独立开关）- 放在热门推荐上方 */}
+          {!isSearchMode && pageConfig?.showBanner !== false && (
+            <AdBanner
+              pageSlug={slug}
+              position="page_banner"
+              limit={4}
+            />
+          )}
+
           {/* 热门推荐 - 使用 HotRecommendations 组件，与其他页面保持一致 */}
           {pageConfig?.showHotRecommendations && !isSearchMode && (
             <HotRecommendations 
@@ -640,19 +649,6 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
               limit={6}
               showMoreButton={true}
               enableSubCategories={true}
-            />
-          )}
-
-          {/* 广告位 - 放在设计文章下方 */}
-          {!isSearchMode && (
-            <AdBanner
-              pageSlug={slug}
-              position="top"
-              limit={1}
-              commercialSlotKey="category-inline-ad"
-              commercialSlotType="category_ad"
-              commercialScopeType="category"
-              commercialScopeValue={slug}
             />
           )}
 

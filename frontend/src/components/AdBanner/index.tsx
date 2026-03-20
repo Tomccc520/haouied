@@ -14,6 +14,7 @@ interface AdBannerProps {
   pageSlug?: string;
   position?:
     | 'top'
+    | 'page_banner'
     | 'sidebar'
     | 'bottom'
     | 'popup'
@@ -76,8 +77,11 @@ const resolveBannerRequestPosition = (position?: string): string => {
 /**
  * 计算前端渲染样式分组（顶部/侧栏/底部）。
  */
-const resolveBannerRenderVariant = (position?: string): 'top' | 'sidebar' | 'bottom' => {
+const resolveBannerRenderVariant = (
+  position?: string
+): 'top' | 'sidebar' | 'bottom' | 'page_grid' => {
   const normalized = normalizeAdPosition(position);
+  if (normalized === 'page_banner') return 'page_grid';
   if ([ 'sidebar', 'detail_sidebar', 'website_detail_sidebar' ].includes(normalized)) return 'sidebar';
   if ([ 'bottom', 'footer', 'detail_bottom' ].includes(normalized)) return 'bottom';
   return 'top';
@@ -248,6 +252,53 @@ const AdBanner: React.FC<AdBannerProps> = ({
 
   if (effectiveBanners.length === 0) {
     return null;
+  }
+
+  /**
+   * 页面 Banner：固定为四卡网格样式，给频道页“热门推荐上方”使用。
+   */
+  if (renderVariant === 'page_grid') {
+    return (
+      <div className={`ad-banner ad-banner-page-grid ${positionClassName} ${commercialSlotClassName} ${className}`.trim()}>
+        {htmlBanners.length > 0 && (
+          <div ref={htmlContainerRef} className="html-banner-container" />
+        )}
+
+        {validImageBanners.length > 0 && (
+          <div className="page-banner-grid">
+            {validImageBanners.map((banner) => (
+              <div
+                key={banner.id}
+                className="page-banner-grid__item"
+                onClick={() => handleClick(banner)}
+              >
+                <img src={banner.imageUrl} alt={banner.title} />
+                {banner.title && <div className="page-banner-grid__title">{banner.title}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {validImageBanners.length === 0 && textBanners.length > 0 && (
+          <div className="page-banner-grid page-banner-grid--text">
+            {textBanners.map((banner, index) => (
+              <div
+                key={banner.id}
+                className="page-banner-grid__item page-banner-grid__item--text"
+                data-gradient-index={index % 4}
+                onClick={() => handleClick(banner)}
+              >
+                <div className="page-banner-grid__text-title">
+                  {banner.title}
+                  {banner.badgeText && <span className="page-banner-grid__text-badge">{banner.badgeText}</span>}
+                </div>
+                {banner.description && <div className="page-banner-grid__text-desc">{banner.description}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // 顶部横幅样式
