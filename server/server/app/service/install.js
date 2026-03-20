@@ -10,7 +10,9 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
 const md5 = require('md5');
+const mysql = require('mysql2/promise');
 const Service = require('egg').Service;
 const { dbTablePrefix = 'la_' } = require('../extend/config');
 
@@ -41,6 +43,24 @@ class InstallService extends Service {
       minor: Number(match[2] || 0),
       patch: Number(match[3] || 0),
     };
+  }
+
+  /**
+   * 检查系统命令是否存在
+   */
+  resolveCommandPath(commandName = '') {
+    const command = String(commandName || '').trim();
+    if (!command) return '';
+    try {
+      const result = spawnSync('sh', [ '-lc', `command -v ${command}` ], {
+        encoding: 'utf8',
+        timeout: 1500,
+      });
+      if (result.status !== 0) return '';
+      return String(result.stdout || '').trim();
+    } catch (error) {
+      return '';
+    }
   }
 
   /**
@@ -233,6 +253,44 @@ class InstallService extends Service {
   }
 
   /**
+   * 检测反向代理环境（Nginx / Apache）
+   */
+  detectWebServerCheck() {
+    const proxyHint = String(
+      process.env.UIED_REVERSE_PROXY
+      || process.env.SERVER_SOFTWARE
+      || ''
+    ).trim().toLowerCase();
+    const nginxPath = this.resolveCommandPath('nginx');
+    const apachePath = this.resolveCommandPath('httpd') || this.resolveCommandPath('apache2');
+    if (proxyHint.includes('nginx') || nginxPath) {
+      return {
+        key: 'webserver',
+        label: 'Nginx/Apache',
+        status: 'pass',
+        value: nginxPath || proxyHint || 'nginx',
+        message: '检测到 Nginx 运行环境',
+      };
+    }
+    if (proxyHint.includes('apache') || apachePath) {
+      return {
+        key: 'webserver',
+        label: 'Nginx/Apache',
+        status: 'pass',
+        value: apachePath || proxyHint || 'apache',
+        message: '检测到 Apache 运行环境',
+      };
+    }
+    return {
+      key: 'webserver',
+      label: 'Nginx/Apache',
+      status: 'warn',
+      value: 'not_detected',
+      message: '未检测到 Nginx/Apache（生产环境建议使用反向代理）',
+    };
+  }
+
+  /**
    * 检测核心数据表是否齐全
    */
   async detectTableCheck() {
@@ -313,6 +371,7 @@ class InstallService extends Service {
       Promise.resolve(this.detectNodeCheck()),
       this.detectMysqlCheck(),
       this.detectRedisCheck(),
+      Promise.resolve(this.detectWebServerCheck()),
       this.detectTableCheck(),
       this.detectWritableCheck(),
     ]);
@@ -366,6 +425,112 @@ class InstallService extends Service {
       adminEmail,
       roleId,
     };
+  }
+
+  /**
+   * 规范化“数据库连接测试”参数
+   */
+  normalizeDbTestPayload(payload = {}) {
+    const sequelizeConfig = this.app?.config?.sequelize || {};
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const host = String(
+      source.host
+      || process.env.UIED_DB_HOST
+      || sequelizeConfig.host
+      || '127.0.0.1'
+    ).trim();
+    const port = Number.parseInt(
+      String(source.port || process.env.UIED_DB_PORT || sequelizeConfig.port || 3306),
+      10
+    ) || 3306;
+    const username = String(
+      source.username
+      || source.user
+      || process.env.UIED_DB_USER
+      || sequelizeConfig.username
+      || ''
+    ).trim();
+    const password = String(
+      source.password !== undefined
+        ? source.password
+        : (process.env.UIED_DB_PASSWORD || sequelizeConfig.password || '')
+    );
+    const database = String(
+      source.database
+      || process.env.UIED_DB_NAME
+      || sequelizeConfig.database
+      || ''
+    ).trim();
+    const connectTimeout = Math.max(
+      1000,
+      Math.min(
+        30000,
+        Number.parseInt(String(source.connectTimeout || 5000), 10) || 5000
+      )
+    );
+    if (!host) throw new Error('数据库主机不能为空');
+    if (!username) throw new Error('数据库用户名不能为空');
+    if (!database) throw new Error('数据库名称不能为空');
+    return {
+      host,
+      port,
+      username,
+      password,
+      database,
+      connectTimeout,
+    };
+  }
+
+  /**
+   * 测试数据库连接（支持用户手工输入连接参数）
+   */
+  async testDatabaseConnection(payload = {}) {
+    const config = this.normalizeDbTestPayload(payload);
+    let connection = null;
+    try {
+      connection = await mysql.createConnection({
+        host: config.host,
+        port: config.port,
+        user: config.username,
+        password: config.password,
+        database: config.database,
+        connectTimeout: config.connectTimeout,
+        charset: 'utf8mb4',
+      });
+      const [ versionRows ] = await connection.query('SELECT VERSION() AS version');
+      const [ dbRows ] = await connection.query('SELECT DATABASE() AS dbName');
+      return {
+        success: true,
+        message: '数据库连接成功',
+        version: String(versionRows?.[0]?.version || ''),
+        databaseName: String(dbRows?.[0]?.dbName || config.database),
+        config: {
+          host: config.host,
+          port: config.port,
+          username: config.username,
+          database: config.database,
+        },
+        checkedAt: Math.floor(Date.now() / 1000),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || '数据库连接失败',
+        version: '',
+        databaseName: config.database,
+        config: {
+          host: config.host,
+          port: config.port,
+          username: config.username,
+          database: config.database,
+        },
+        checkedAt: Math.floor(Date.now() / 1000),
+      };
+    } finally {
+      if (connection) {
+        await connection.end().catch(() => null);
+      }
+    }
   }
 
   /**
@@ -726,4 +891,3 @@ class InstallService extends Service {
 }
 
 module.exports = InstallService;
-

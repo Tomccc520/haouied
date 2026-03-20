@@ -10,8 +10,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  InstallDbTestResult,
   getInstallEnvCheck,
   getInstallStatus,
+  runInstallDbTest,
   runInstallInitialize,
   InstallEnvResult,
   InstallStatus,
@@ -50,9 +52,11 @@ const InstallPage: React.FC = () => {
   const [statusLoading, setStatusLoading] = useState<boolean>(true);
   const [envLoading, setEnvLoading] = useState<boolean>(true);
   const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+  const [dbTestLoading, setDbTestLoading] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [statusData, setStatusData] = useState<InstallStatus | null>(null);
   const [envData, setEnvData] = useState<InstallEnvResult | null>(null);
+  const [dbTestResult, setDbTestResult] = useState<InstallDbTestResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [submitMessage, setSubmitMessage] = useState<string>('');
 
@@ -66,6 +70,14 @@ const InstallPage: React.FC = () => {
     confirmPassword: '',
     adminNickname: '系统管理员',
     adminEmail: '',
+  });
+
+  const [dbFormData, setDbFormData] = useState({
+    host: '127.0.0.1',
+    port: '3306',
+    username: '',
+    password: '',
+    database: '',
   });
 
   /**
@@ -136,6 +148,55 @@ const InstallPage: React.FC = () => {
    */
   const updateFormField = (key: string, value: string) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  /**
+   * 更新数据库测试表单字段
+   */
+  const updateDbFormField = (key: string, value: string) => {
+    setDbFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  /**
+   * 执行数据库连接测试
+   */
+  const handleDbTest = async () => {
+    const host = dbFormData.host.trim();
+    const username = dbFormData.username.trim();
+    const database = dbFormData.database.trim();
+    const port = Number.parseInt(dbFormData.port, 10) || 3306;
+    if (!host) {
+      setErrorMessage('数据库主机不能为空');
+      return;
+    }
+    if (!username) {
+      setErrorMessage('数据库用户名不能为空');
+      return;
+    }
+    if (!database) {
+      setErrorMessage('数据库名称不能为空');
+      return;
+    }
+    setErrorMessage('');
+    setDbTestLoading(true);
+    try {
+      const result = await runInstallDbTest({
+        host,
+        port,
+        username,
+        password: dbFormData.password,
+        database,
+      });
+      setDbTestResult(result);
+      if (!result.success) {
+        setErrorMessage(result.message || '数据库连接失败');
+      }
+    } catch (error: any) {
+      setErrorMessage(error?.message || '数据库连接测试失败');
+      setDbTestResult(null);
+    } finally {
+      setDbTestLoading(false);
+    }
   };
 
   /**
@@ -262,6 +323,77 @@ const InstallPage: React.FC = () => {
         </div>
 
         <div className="install-card">
+          <h2>数据库连接测试</h2>
+          <p className="install-card__desc">用于安装前验证宝塔 MySQL 连接参数是否可用</p>
+          <div className="install-form-grid install-form-grid--compact">
+            <label>
+              主机
+              <input
+                type="text"
+                value={dbFormData.host}
+                onChange={(event) => updateDbFormField('host', event.target.value)}
+                placeholder="127.0.0.1"
+              />
+            </label>
+            <label>
+              端口
+              <input
+                type="number"
+                value={dbFormData.port}
+                onChange={(event) => updateDbFormField('port', event.target.value)}
+                placeholder="3306"
+              />
+            </label>
+            <label>
+              用户名
+              <input
+                type="text"
+                value={dbFormData.username}
+                onChange={(event) => updateDbFormField('username', event.target.value)}
+                placeholder="数据库用户名"
+              />
+            </label>
+            <label>
+              数据库名
+              <input
+                type="text"
+                value={dbFormData.database}
+                onChange={(event) => updateDbFormField('database', event.target.value)}
+                placeholder="数据库名称"
+              />
+            </label>
+            <label className="is-full">
+              密码
+              <input
+                type="password"
+                value={dbFormData.password}
+                onChange={(event) => updateDbFormField('password', event.target.value)}
+                placeholder="数据库密码"
+              />
+            </label>
+          </div>
+          <div className="install-form-footer">
+            <button
+              type="button"
+              className="install-page__submit-btn install-page__submit-btn--ghost"
+              onClick={handleDbTest}
+              disabled={dbTestLoading}
+            >
+              {dbTestLoading ? '测试中...' : '测试连接'}
+            </button>
+            {dbTestResult ? (
+              <span className={`tip ${dbTestResult.success ? 'is-success' : 'is-error'}`}>
+                {dbTestResult.success
+                  ? `连接成功：MySQL ${dbTestResult.version || '-'} / DB ${dbTestResult.databaseName || '-'}`
+                  : `连接失败：${dbTestResult.message || '请检查参数'}`}
+              </span>
+            ) : (
+              <span className="tip">建议先测试连接，再执行初始化</span>
+            )}
+          </div>
+        </div>
+
+        <div className="install-card">
           <h2>一键初始化</h2>
           <div className="install-form-grid">
             <label>
@@ -368,4 +500,3 @@ const InstallPage: React.FC = () => {
 };
 
 export default InstallPage;
-

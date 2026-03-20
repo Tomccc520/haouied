@@ -20,6 +20,7 @@ module.exports = app => {
   router.all('/api/install/status', controller.system.install.status);
   router.all('/api/install/env-check', controller.system.install.envCheck);
   router.all('/api/install/initialize', controller.system.install.initialize);
+  router.all('/api/install/db-test', controller.system.install.dbTest);
 
   // 部门管理
   router.all('/api/system/dept/list', controller.system.dept.deptList);

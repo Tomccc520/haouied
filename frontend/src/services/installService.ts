@@ -83,6 +83,35 @@ export interface InstallInitializeResult {
 }
 
 /**
+ * 数据库连接测试参数
+ */
+export interface InstallDbTestPayload {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
+  connectTimeout?: number;
+}
+
+/**
+ * 数据库连接测试结果
+ */
+export interface InstallDbTestResult {
+  success: boolean;
+  message: string;
+  version: string;
+  databaseName: string;
+  config: {
+    host: string;
+    port: number;
+    username: string;
+    database: string;
+  };
+  checkedAt: number;
+}
+
+/**
  * 获取安装状态
  */
 export const getInstallStatus = async (): Promise<InstallStatus> => {
@@ -139,3 +168,24 @@ export const runInstallInitialize = async (
   });
 };
 
+/**
+ * 执行数据库连接测试
+ */
+export const runInstallDbTest = async (
+  payload: InstallDbTestPayload
+): Promise<InstallDbTestResult> => {
+  const response = await api.post('/install/db-test', payload);
+  return unwrapApiResponse<InstallDbTestResult>(response.data, {
+    success: false,
+    message: '',
+    version: '',
+    databaseName: '',
+    config: {
+      host: '',
+      port: 3306,
+      username: '',
+      database: '',
+    },
+    checkedAt: 0,
+  });
+};

@@ -52,7 +52,25 @@ class InstallController extends baseController {
       this.result({ code: 500, message: error.message || '安装初始化失败' });
     }
   }
+
+  /**
+   * 测试数据库连接（用于安装向导手动校验宝塔数据库参数）
+   */
+  async dbTest() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const data = await ctx.service.install.testDatabaseConnection(payload);
+      this.result({
+        code: 0,
+        data,
+        message: data.success ? '连接成功' : (data.message || '连接失败'),
+      });
+    } catch (error) {
+      ctx.logger.error('[install.dbTest] 数据库连接测试失败:', error);
+      this.result({ code: 500, message: error.message || '数据库连接测试失败' });
+    }
+  }
 }
 
 module.exports = InstallController;
-

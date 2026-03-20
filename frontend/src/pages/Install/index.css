@@ -90,6 +90,12 @@
   color: #111827;
 }
 
+.install-card__desc {
+  margin: -6px 0 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
 .install-empty {
   color: #6b7280;
   font-size: 14px;
@@ -187,6 +193,10 @@
   gap: 12px;
 }
 
+.install-form-grid--compact {
+  margin-top: 4px;
+}
+
 .install-form-grid label {
   display: flex;
   flex-direction: column;
@@ -235,6 +245,12 @@
   cursor: pointer;
 }
 
+.install-page__submit-btn--ghost {
+  border: 1px solid #d0d7e2;
+  background: #fff;
+  color: #111827;
+}
+
 .install-page__submit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -243,6 +259,14 @@
 .install-form-footer .tip {
   font-size: 12px;
   color: #6b7280;
+}
+
+.install-form-footer .tip.is-success {
+  color: #15803d;
+}
+
+.install-form-footer .tip.is-error {
+  color: #b91c1c;
 }
 
 @media (max-width: 760px) {
