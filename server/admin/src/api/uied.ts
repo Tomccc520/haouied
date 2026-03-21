@@ -279,6 +279,11 @@ export function uiedFigmaCategoryAll(params?: any) {
     return request.get({ url: '/uied/figma/category/all', params })
 }
 
+// 初始化Figma官方分类
+export function uiedFigmaCategoryInitOfficial(params?: any) {
+    return request.post({ url: '/uied/figma/category/initOfficial', params: params || {} })
+}
+
 // 添加Figma插件分类
 export function uiedFigmaCategoryAdd(params: any) {
     return request.post({ url: '/uied/figma/category/add', params })

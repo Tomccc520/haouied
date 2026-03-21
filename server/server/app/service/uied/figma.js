@@ -1444,6 +1444,146 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 获取 Figma 官方分类种子数据。
+   * @return {Array<{name:string,slug:string,description:string,sortOrder:number}>}
+   */
+  getOfficialCategorySeedList() {
+    const sourceCategoryMap = this.getOfficialSourceCategoryMap();
+    const seedKeys = [
+      'editing-effects',
+      'development',
+      'import-export',
+      'file-organization',
+      'accessibility',
+    ];
+    return seedKeys.map((key, index) => {
+      const source = sourceCategoryMap[key] || {};
+      const name = String(source.name || key).trim();
+      return {
+        name,
+        slug: key,
+        description: `Figma 官方插件分类：${name}`,
+        sortOrder: (index + 1) * 10,
+      };
+    });
+  }
+
+  /**
+   * 初始化 Figma 官方分类（已存在分类不会删除，仅补齐或更新基础描述）。
+   * @return {Promise<{total:number,created:number,updated:number,skipped:number}>}
+   */
+  async categoryInitOfficial() {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const seedList = this.getOfficialCategorySeedList();
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const seed of seedList) {
+      const name = String(seed.name || '').trim();
+      const slug = String(seed.slug || '').trim().toLowerCase();
+      if (!name || !slug) {
+        skipped += 1;
+        continue;
+      }
+
+      const [ existingBySlug ] = await app.model.query(
+        'SELECT id, name, description, sort_order FROM uied_figma_plugin_category WHERE slug = ? AND is_delete = 0 LIMIT 1',
+        {
+          replacements: [ slug ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+
+      if (existingBySlug && Number(existingBySlug.id || 0) > 0) {
+        await app.model.query(
+          `UPDATE uied_figma_plugin_category
+           SET name = CASE WHEN name = '' THEN ? ELSE name END,
+               description = CASE WHEN description = '' THEN ? ELSE description END,
+               sort_order = CASE WHEN sort_order = 0 THEN ? ELSE sort_order END,
+               update_time = ?
+           WHERE id = ?`,
+          {
+            replacements: [
+              name,
+              String(seed.description || '').trim(),
+              Number(seed.sortOrder || 0),
+              now,
+              Number(existingBySlug.id || 0),
+            ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+        updated += 1;
+        continue;
+      }
+
+      const [ existingByName ] = await app.model.query(
+        'SELECT id FROM uied_figma_plugin_category WHERE name = ? AND is_delete = 0 LIMIT 1',
+        {
+          replacements: [ name ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      if (existingByName && Number(existingByName.id || 0) > 0) {
+        await app.model.query(
+          `UPDATE uied_figma_plugin_category
+           SET slug = CASE WHEN slug = '' THEN ? ELSE slug END,
+               description = CASE WHEN description = '' THEN ? ELSE description END,
+               sort_order = CASE WHEN sort_order = 0 THEN ? ELSE sort_order END,
+               update_time = ?
+           WHERE id = ?`,
+          {
+            replacements: [
+              slug,
+              String(seed.description || '').trim(),
+              Number(seed.sortOrder || 0),
+              now,
+              Number(existingByName.id || 0),
+            ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+        updated += 1;
+        continue;
+      }
+
+      const [ inserted ] = await app.model.query(
+        `INSERT INTO uied_figma_plugin_category
+         (name, slug, description, sort_order, seo_title, seo_keywords, seo_description, is_delete, create_time, update_time)
+         VALUES (?, ?, ?, ?, ?, '', ?, 0, ?, ?)`,
+        {
+          replacements: [
+            name,
+            slug,
+            String(seed.description || '').trim(),
+            Number(seed.sortOrder || 0),
+            name,
+            String(seed.description || '').trim(),
+            now,
+            now,
+          ],
+          type: app.Sequelize.QueryTypes.INSERT,
+        }
+      );
+      if (Number(inserted || 0) > 0) {
+        created += 1;
+      } else {
+        skipped += 1;
+      }
+    }
+
+    return {
+      total: seedList.length,
+      created,
+      updated,
+      skipped,
+    };
+  }
+
+  /**
    * 新增 Figma插件 分类。
    * @param {Record<string, any>} data 分类数据
    * @return {Promise<number>}
@@ -1749,21 +1889,149 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 获取官方采集分类配置表。
+   * @return {Record<string, {key:string,name:string,url:string}>}
+   */
+  getOfficialSourceCategoryMap() {
+    return {
+      plugins: {
+        key: 'plugins',
+        name: '全部插件',
+        url: 'https://www.figma.com/community/plugins',
+      },
+      'editing-effects': {
+        key: 'editing-effects',
+        name: '编辑效果',
+        url: 'https://www.figma.com/community/editing-effects?resource_type=plugins',
+      },
+      development: {
+        key: 'development',
+        name: '开发协作',
+        url: 'https://www.figma.com/community/development?resource_type=plugins',
+      },
+      'import-export': {
+        key: 'import-export',
+        name: '导入导出',
+        url: 'https://www.figma.com/community/import-export?resource_type=plugins',
+      },
+      'file-organization': {
+        key: 'file-organization',
+        name: '文件组织',
+        url: 'https://www.figma.com/community/file-organization?resource_type=plugins',
+      },
+      accessibility: {
+        key: 'accessibility',
+        name: '无障碍',
+        url: 'https://www.figma.com/community/accessibility?resource_type=plugins',
+      },
+    };
+  }
+
+  /**
+   * 从分类 key 或 URL 解析官方采集分类信息。
+   * @param {string} input 分类 key 或来源地址
+   * @return {{key:string,name:string,url:string}|null}
+   */
+  resolveOfficialSourceCategory(input = '') {
+    const source = String(input || '').trim().toLowerCase();
+    if (!source) return null;
+    const categoryMap = this.getOfficialSourceCategoryMap();
+    if (categoryMap[source]) {
+      return categoryMap[source];
+    }
+    try {
+      const normalized = this.normalizeCommunityUrl(source);
+      const parsed = new URL(normalized);
+      const path = String(parsed.pathname || '').trim().replace(/\/+$/, '').toLowerCase();
+      if (path === '/community/plugins') {
+        return categoryMap.plugins;
+      }
+      const matched = path.match(/^\/community\/([a-z0-9-]+)/i);
+      const categoryKey = matched && matched[1] ? String(matched[1]).toLowerCase() : '';
+      if (categoryKey && categoryMap[categoryKey]) {
+        return categoryMap[categoryKey];
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * 根据来源分类自动创建/获取本地分类，便于采集后自动归类。
+   * @param {{key:string,name:string,url:string}|null} sourceCategory 分类信息
+   * @return {Promise<number|null>}
+   */
+  async ensureCategoryBySourceCategory(sourceCategory) {
+    if (!sourceCategory || !sourceCategory.key || !sourceCategory.name) return null;
+    if (sourceCategory.key === 'plugins') return null;
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+
+    const [ bySlug ] = await app.model.query(
+      'SELECT id FROM uied_figma_plugin_category WHERE slug = ? AND is_delete = 0 LIMIT 1',
+      {
+        replacements: [ sourceCategory.key ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (bySlug && Number(bySlug.id || 0) > 0) {
+      return Number(bySlug.id || 0);
+    }
+
+    const [ byName ] = await app.model.query(
+      'SELECT id FROM uied_figma_plugin_category WHERE name = ? AND is_delete = 0 LIMIT 1',
+      {
+        replacements: [ sourceCategory.name ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (byName && Number(byName.id || 0) > 0) {
+      return Number(byName.id || 0);
+    }
+
+    const slug = await this.resolveUniqueSlug(sourceCategory.key, sourceCategory.name, 0, 'category');
+    const [ inserted ] = await app.model.query(
+      `INSERT INTO uied_figma_plugin_category
+       (name, slug, description, sort_order, seo_title, seo_keywords, seo_description, is_delete, create_time, update_time)
+       VALUES (?, ?, ?, 0, ?, '', ?, 0, ?, ?)`,
+      {
+        replacements: [
+          sourceCategory.name,
+          slug,
+          `Figma 官方采集分类：${sourceCategory.name}`,
+          sourceCategory.name,
+          sourceCategory.name,
+          now,
+          now,
+        ],
+        type: app.Sequelize.QueryTypes.INSERT,
+      }
+    );
+    return Number(inserted || 0) || null;
+  }
+
+  /**
    * 构建 Figma 插件列表回退采集地址集合。
    * 说明：社区首页为动态渲染时，使用公开分类页补齐插件详情链接。
    * @param {string} sourceUrl 来源地址
+   * @param {{includeGlobalFallback?:boolean}} options 额外选项
    * @return {string[]}
    */
-  buildPluginListFallbackSources(sourceUrl = '') {
+  buildPluginListFallbackSources(sourceUrl = '', options = {}) {
     const normalizedSource = this.normalizeCommunityUrl(sourceUrl);
-    const sourceList = [
-      normalizedSource,
-      'https://www.figma.com/community/editing-effects?resource_type=plugins',
-      'https://www.figma.com/community/development?resource_type=plugins',
-      'https://www.figma.com/community/import-export?resource_type=plugins',
-      'https://www.figma.com/community/file-organization?resource_type=plugins',
-      'https://www.figma.com/community/accessibility?resource_type=plugins',
-    ];
+    const includeGlobalFallback = options && options.includeGlobalFallback !== false;
+    const sourceList = [ normalizedSource ];
+    if (includeGlobalFallback) {
+      sourceList.push(
+        'https://www.figma.com/community/editing-effects?resource_type=plugins',
+        'https://www.figma.com/community/development?resource_type=plugins',
+        'https://www.figma.com/community/import-export?resource_type=plugins',
+        'https://www.figma.com/community/file-organization?resource_type=plugins',
+        'https://www.figma.com/community/accessibility?resource_type=plugins'
+      );
+    }
     return Array.from(new Set(sourceList.map(item => String(item || '').trim()).filter(Boolean)));
   }
 
@@ -1771,13 +2039,14 @@ class UiedFigmaService extends Service {
    * 通过回退分类页采集插件详情链接。
    * @param {string} sourceUrl 来源地址
    * @param {number} limit 最多采集数量
+   * @param {{includeGlobalFallback?:boolean}} options 额外选项
    * @return {Promise<string[]>}
    */
-  async collectPluginLinksByFallbackSources(sourceUrl = '', limit = 20) {
+  async collectPluginLinksByFallbackSources(sourceUrl = '', limit = 20, options = {}) {
     const { ctx } = this;
     const maxCount = this.clamp(this.parsePositiveInt(limit, 20), 1, 120);
     const collected = new Set();
-    const fallbackSources = this.buildPluginListFallbackSources(sourceUrl);
+    const fallbackSources = this.buildPluginListFallbackSources(sourceUrl, options);
     for (const fallbackUrl of fallbackSources) {
       if (collected.size >= maxCount) break;
       try {
@@ -1871,9 +2140,20 @@ class UiedFigmaService extends Service {
    */
   async importOfficial(payload = {}) {
     await this.ensureTables();
-    const sourceUrl = this.normalizeCommunityUrl(payload.sourceUrl || payload.source_url);
+    const sourceCategoryRaw = String(payload.sourceCategory || payload.source_category || '').trim();
+    const sourceCategoryByInput = this.resolveOfficialSourceCategory(sourceCategoryRaw);
+    const sourceUrlRaw = sourceCategoryByInput
+      ? sourceCategoryByInput.url
+      : (payload.sourceUrl || payload.source_url);
+    const sourceUrl = this.normalizeCommunityUrl(sourceUrlRaw);
+    const sourceCategoryByUrl = this.resolveOfficialSourceCategory(sourceUrl);
+    const sourceCategory = sourceCategoryByInput || sourceCategoryByUrl;
+    const strictCollectByCategory = Boolean(sourceCategory && sourceCategory.key && sourceCategory.key !== 'plugins');
     const limit = this.clamp(this.parsePositiveInt(payload.limit, 20), 1, 120);
     const categoryId = this.parsePositiveInt(payload.categoryId ?? payload.category_id, 0) || null;
+    const autoCategory = payload.autoCategory === true
+      || payload.autoCategory === 1
+      || String(payload.autoCategory || '').trim().toLowerCase() === 'true';
     const status = String(payload.status || '').trim().toLowerCase() === 'draft' ? 'draft' : 'published';
     const shouldTranslate = payload.translate !== false && payload.translate !== 0;
     const defaultSortOrder = Number.isFinite(Number(payload.sortOrder ?? payload.sort_order))
@@ -1881,6 +2161,10 @@ class UiedFigmaService extends Service {
       : 0;
     const now = Math.floor(Date.now() / 1000);
     const { app, ctx } = this;
+    let targetCategoryId = categoryId;
+    if (!targetCategoryId && autoCategory && sourceCategory) {
+      targetCategoryId = await this.ensureCategoryBySourceCategory(sourceCategory);
+    }
 
     const sourceHtml = await this.fetchHtml(sourceUrl, { allowReadOnlyFallback: true });
     let pluginLinks = this.extractPluginLinksFromHtml(sourceHtml);
@@ -1897,12 +2181,14 @@ class UiedFigmaService extends Service {
      * 社区首页通常为动态渲染，抓不到详情链接时自动回退分类页。
      */
     if (pluginLinks.length === 0) {
-      pluginLinks = await this.collectPluginLinksByFallbackSources(sourceUrl, limit);
+      pluginLinks = await this.collectPluginLinksByFallbackSources(sourceUrl, limit, {
+        includeGlobalFallback: !strictCollectByCategory,
+      });
     }
     /**
      * 最终兜底：仍未提取到链接时，使用应急官方插件详情链接集合，避免“扫描 0”。
      */
-    if (pluginLinks.length === 0) {
+    if (pluginLinks.length === 0 && !strictCollectByCategory) {
       pluginLinks = this.getEmergencyPluginSeedLinks(limit);
       ctx.logger.warn('[uied.figma] 未提取到插件链接，已启用应急官方链接种子，数量: %s', pluginLinks.length);
     }
@@ -1968,7 +2254,7 @@ class UiedFigmaService extends Service {
                 safeCoverUrl,
                 pluginUrl,
                 parsed.pluginId || '',
-                categoryId,
+                targetCategoryId,
                 Number(parsed.userCount || 0),
                 Number(parsed.likeCount || 0),
                 status,
@@ -2005,7 +2291,7 @@ class UiedFigmaService extends Service {
               pluginUrl,
               parsed.pluginId || '',
               sourceUrl,
-              categoryId,
+              targetCategoryId,
               status,
               defaultSortOrder,
               now,
@@ -2029,6 +2315,9 @@ class UiedFigmaService extends Service {
       }
     }
 
+    result.sourceCategory = sourceCategory ? sourceCategory.key : '';
+    result.sourceCategoryName = sourceCategory ? sourceCategory.name : '';
+    result.categoryId = targetCategoryId || null;
     return result;
   }
 

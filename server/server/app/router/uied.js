@@ -79,6 +79,7 @@ module.exports = app => {
 
   router.all('/api/uied/figma/category/list', controller.uied.figma.categoryList);
   router.all('/api/uied/figma/category/all', controller.uied.figma.categoryAll);
+  router.all('/api/uied/figma/category/initOfficial', controller.uied.figma.categoryInitOfficial);
   router.all('/api/uied/figma/category/add', controller.uied.figma.categoryAdd);
   router.all('/api/uied/figma/category/edit', controller.uied.figma.categoryEdit);
   router.all('/api/uied/figma/category/del', controller.uied.figma.categoryDel);

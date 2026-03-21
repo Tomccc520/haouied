@@ -249,6 +249,8 @@ const AdBanner: React.FC<AdBannerProps> = ({
   const validImageBanners = imageBanners.filter(b => String(b.imageUrl || '').trim().length > 0);
   const htmlBanners = effectiveBanners.filter(b => b.contentType === 'html');
   const textBanners = effectiveBanners.filter(b => b.contentType === 'text');
+  const pageGridImageBanners = validImageBanners.slice(0, 4);
+  const pageGridTextBanners = textBanners.slice(0, 4);
 
   if (effectiveBanners.length === 0) {
     return null;
@@ -264,24 +266,27 @@ const AdBanner: React.FC<AdBannerProps> = ({
           <div ref={htmlContainerRef} className="html-banner-container" />
         )}
 
-        {validImageBanners.length > 0 && (
+        {pageGridImageBanners.length > 0 && (
           <div className="page-banner-grid">
-            {validImageBanners.map((banner) => (
+            {pageGridImageBanners.map((banner) => (
               <div
                 key={banner.id}
                 className="page-banner-grid__item"
                 onClick={() => handleClick(banner)}
               >
                 <img src={banner.imageUrl} alt={banner.title} />
-                {banner.title && <div className="page-banner-grid__title">{banner.title}</div>}
+                <div className="page-banner-grid__content">
+                  {banner.title && <div className="page-banner-grid__title">{banner.title}</div>}
+                  {banner.description && <div className="page-banner-grid__desc">{banner.description}</div>}
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {validImageBanners.length === 0 && textBanners.length > 0 && (
+        {pageGridImageBanners.length === 0 && pageGridTextBanners.length > 0 && (
           <div className="page-banner-grid page-banner-grid--text">
-            {textBanners.map((banner, index) => (
+            {pageGridTextBanners.map((banner, index) => (
               <div
                 key={banner.id}
                 className="page-banner-grid__item page-banner-grid__item--text"

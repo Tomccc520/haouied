@@ -28,10 +28,15 @@
 
         <el-card class="!border-none mt-4" shadow="never">
             <div class="mb-4 flex items-center justify-between">
-                <el-button type="primary" @click="handleAdd">
-                    <template #icon><icon name="el-icon-Plus" /></template>
-                    添加分类
-                </el-button>
+                <div class="flex items-center gap-2">
+                    <el-button type="primary" @click="handleAdd">
+                        <template #icon><icon name="el-icon-Plus" /></template>
+                        添加分类
+                    </el-button>
+                    <el-button :loading="initOfficialLoading" @click="handleInitOfficialCategories">
+                        初始化官方分类
+                    </el-button>
+                </div>
                 <div class="text-xs text-[#6b7280]">共 {{ pager.count }} 个分类</div>
             </div>
 
@@ -107,6 +112,7 @@ import {
     uiedFigmaCategoryAdd,
     uiedFigmaCategoryEdit,
     uiedFigmaCategoryDelete,
+    uiedFigmaCategoryInitOfficial,
 } from '@/api/uied'
 
 const queryParams = reactive({
@@ -120,6 +126,7 @@ const { pager, getLists, resetPage, resetParams } = usePaging({
 
 const dialogVisible = ref(false)
 const submitLoading = ref(false)
+const initOfficialLoading = ref(false)
 const formRef = ref<FormInstance>()
 const formData = reactive({
     id: 0,
@@ -215,6 +222,23 @@ const handleDelete = async (id: number) => {
     await uiedFigmaCategoryDelete({ id: targetId })
     feedback.msgSuccess('删除成功')
     await getLists()
+}
+
+/**
+ * 一键初始化 Figma 官方分类。
+ */
+const handleInitOfficialCategories = async () => {
+    initOfficialLoading.value = true
+    try {
+        const result = await uiedFigmaCategoryInitOfficial()
+        const total = Number(result?.total || 0)
+        const created = Number(result?.created || 0)
+        const updated = Number(result?.updated || 0)
+        feedback.msgSuccess(`初始化完成：共 ${total} 项，新增 ${created} 项，补齐 ${updated} 项`)
+        await getLists()
+    } finally {
+        initOfficialLoading.value = false
+    }
 }
 
 getLists()

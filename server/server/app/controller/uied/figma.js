@@ -136,6 +136,20 @@ class UiedFigmaController extends baseController {
   }
 
   /**
+   * 初始化 Figma插件 官方分类。
+   */
+  async categoryInitOfficial() {
+    const { ctx } = this;
+    try {
+      const result = await ctx.service.uied.figma.categoryInitOfficial();
+      this.result({ data: result, message: '官方分类初始化完成' });
+    } catch (error) {
+      ctx.logger.error('初始化 Figma插件 官方分类失败:', error);
+      this.result({ code: 500, message: error.message || '初始化官方分类失败' });
+    }
+  }
+
+  /**
    * 新增 Figma插件 分类。
    */
   async categoryAdd() {

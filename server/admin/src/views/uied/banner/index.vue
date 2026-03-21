@@ -530,6 +530,22 @@ const sceneLabelMap: Record<string, string> = {
     footer: '底部广告',
     other: '其他广告'
 }
+const FRONTEND_SYSTEM_PAGE_PATH_MAP: Record<string, string> = {
+    home: '/',
+    uiux: '/',
+    index: '/',
+    hot: '/p/hot',
+    'daily-hot': '/p/hot?tab=daily-hot',
+    'daily-new': '/p/hot?tab=daily-new',
+    rankings: '/p/hot?tab=rankings',
+    mcp: '/mcp',
+    figma: '/figma',
+    articles: '/articles',
+    search: '/search',
+    submit: '/submit'
+}
+const SYSTEM_PAGE_SLUG_SET = new Set<string>(Object.keys(FRONTEND_SYSTEM_PAGE_PATH_MAP))
+const NAVIGATION_PAGE_SLUG_SET = new Set<string>(['uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font'])
 const bannerPositionOptionGroups = [
     {
         label: '页面流量位',
@@ -566,6 +582,10 @@ bannerPositionLabelMap.website_detail_sidebar = bannerPositionLabelMap.detail_si
 const bannerPageOptions = [
     { label: '全部页面（all）', value: 'all' },
     { label: '首页（home）', value: 'home' },
+    { label: 'Figma中心（figma）', value: 'figma' },
+    { label: 'MCP中心（mcp）', value: 'mcp' },
+    { label: '文章中心（articles）', value: 'articles' },
+    { label: '投稿页（submit）', value: 'submit' },
     { label: '每日热榜（daily-hot）', value: 'daily-hot' },
     { label: '榜单系统（rankings）', value: 'rankings' },
     { label: '每日上新（daily-new）', value: 'daily-new' },
@@ -599,7 +619,8 @@ const isNavigationPageOption = (page: any): boolean => {
         return true
     }
     const slug = String(page?.slug || '').trim().toLowerCase()
-    return ['uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font', 'home', 'daily-hot', 'daily-new', 'rankings'].includes(slug)
+    if (NAVIGATION_PAGE_SLUG_SET.has(slug)) return true
+    return ['home', 'daily-hot', 'daily-new', 'rankings'].includes(slug)
 }
 
 interface PageBannerBatchItem {
@@ -624,6 +645,8 @@ const bannerLinkBuiltinOptions: BannerLinkOption[] = [
     { label: '热门内容（/p/hot）', value: '/p/hot' },
     { label: '文章中心（/articles）', value: '/articles' },
     { label: 'MCP中心（/mcp）', value: '/mcp' },
+    { label: 'Figma中心（/figma）', value: '/figma' },
+    { label: '投稿页（/submit）', value: '/submit' },
     { label: '搜索页（/search）', value: '/search' },
     { label: '每日热榜（/p/hot?tab=daily-hot）', value: '/p/hot?tab=daily-hot' },
     { label: '每日上新（/p/hot?tab=daily-new）', value: '/p/hot?tab=daily-new' },
@@ -631,6 +654,7 @@ const bannerLinkBuiltinOptions: BannerLinkOption[] = [
 ]
 const bannerDynamicPageOptions = ref<BannerLinkOption[]>([])
 const bannerDisplayPageDynamicOptions = ref<BannerLinkOption[]>([])
+const currentEditingBannerId = ref(0)
 
 /**
  * Banner 显示页面候选项（仅导航页面，不含 all）。
@@ -668,6 +692,18 @@ const bannerLinkOptions = computed<BannerLinkOption[]>(() => {
     })
     return Array.from(dedup.values())
 })
+
+/**
+ * 将页面 slug 转换为前端可访问路径。
+ */
+const resolveFrontendPathBySlug = (slug: unknown): string => {
+    const normalizedSlug = String(slug || '').trim().toLowerCase()
+    if (!normalizedSlug) return ''
+    if (FRONTEND_SYSTEM_PAGE_PATH_MAP[normalizedSlug]) {
+        return FRONTEND_SYSTEM_PAGE_PATH_MAP[normalizedSlug]
+    }
+    return `/p/${normalizedSlug}`
+}
 
 /**
  * 规范化广告位置列表，兼容数组与逗号分隔字符串。
@@ -837,15 +873,20 @@ const loadBannerDynamicPageOptions = async () => {
                 const slug = String(item?.slug || '').trim().toLowerCase()
                 const name = String(item?.name || slug || '').trim()
                 if (!slug) return null
+                const frontendPath = resolveFrontendPathBySlug(slug)
+                if (!frontendPath) return null
                 return {
-                    label: `${name || slug}（/p/${slug}）`,
-                    value: `/p/${slug}`
+                    label: `${name || slug}（${frontendPath}）`,
+                    value: frontendPath
                 } as BannerLinkOption
             })
             .filter((item): item is BannerLinkOption => Boolean(item))
         bannerDynamicPageOptions.value = options
         bannerDisplayPageDynamicOptions.value = safeRows
-            .filter((item: any) => isNavigationPageOption(item))
+            .filter((item: any) => {
+                const slug = String(item?.slug || '').trim().toLowerCase()
+                return isNavigationPageOption(item) || SYSTEM_PAGE_SLUG_SET.has(slug)
+            })
             .map((item: any) => {
                 const slug = String(item?.slug || '').trim().toLowerCase()
                 const name = String(item?.name || slug || '').trim()
@@ -1207,10 +1248,12 @@ const resetEditData = () =>
 
 const handleAdd = () => {
     resetEditData()
+    currentEditingBannerId.value = 0
     editingMultiPositionGroup.value = false
     showEdit.value = true
 }
 const handleEdit = (row: any) => {
+    currentEditingBannerId.value = Number(row?.id || 0)
     const isMultiGroupRecord = isMultiPositionGroupRecord(row?.oldId)
     let normalizedPositionList = normalizePositionList(
         row?.positionList?.length ? row.positionList : row?.position
@@ -1260,6 +1303,7 @@ const handleSubmit = async () => {
     await editFormRef.value?.validate()
     editLoading.value = true
     try {
+        const editingId = Number(currentEditingBannerId.value || editData.id || 0)
         let positionList = normalizePositionList(editData.positionList)
         if (!editingMultiPositionGroup.value && positionList.length > 1) {
             positionList = [positionList[0]]
@@ -1269,6 +1313,7 @@ const handleSubmit = async () => {
             : ['all']
         const submitData = {
             ...editData,
+            id: editingId,
             linkUrl: normalizedLinkUrl,
             url: normalizedLinkUrl,
             pageSlugList,
@@ -1276,13 +1321,14 @@ const handleSubmit = async () => {
             positionList,
             position: positionList[0] || 'home'
         }
-        if (editData.id) {
+        if (editingId > 0) {
             await uiedBannerEdit(submitData)
             feedback.msgSuccess('编辑成功')
         } else {
             await uiedBannerAdd(submitData)
             feedback.msgSuccess('添加成功')
         }
+        currentEditingBannerId.value = 0
         showEdit.value = false
         await getLists()
     } catch (error: any) {

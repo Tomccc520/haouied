@@ -191,7 +191,7 @@ const FigmaPage: React.FC = () => {
   }, [detailLayoutWidthMode]);
 
   const pageTitle = 'Figma 插件中心';
-  const pageDescription = '收录常用 Figma 插件，支持按分类与标签快速筛选，点击即可跳转至 Figma 官方插件页。';
+  const pageDescription = '收录常用 Figma 插件，支持按分类与标签快速筛选。';
 
   /**
    * 提交关键词搜索。
@@ -271,161 +271,170 @@ const FigmaPage: React.FC = () => {
           </div>
         </header>
 
-        <section className="figma-list-page__filters" aria-label="Figma 插件筛选">
-          <div className="figma-list-page__filters-head">
-            <div className="figma-list-page__filters-summary">
-              {activeFilterSummary ? activeFilterSummary : '可按分类和标签组合筛选'}
-            </div>
-            <button
-              type="button"
-              className="figma-list-page__clear-btn"
-              onClick={handleResetFilters}
-              disabled={!activeFilterSummary}
-            >
-              清空筛选
-            </button>
-          </div>
-
-          <div className="figma-list-page__chip-group">
-            <div className="figma-list-page__chip-title">分类</div>
-            <div className="figma-list-page__chips">
+        <div className="figma-list-page__content-layout">
+          <aside className="figma-list-page__filters" aria-label="Figma 插件筛选">
+            <div className="figma-list-page__filters-tip">可按分类和标签组合筛选</div>
+            <div className="figma-list-page__filters-head">
+              <div className="figma-list-page__filters-summary">
+                {activeFilterSummary ? activeFilterSummary : '当前显示全部结果'}
+              </div>
               <button
                 type="button"
-                className={category ? '' : 'is-active'}
-                onClick={() => updateParams({ category: null })}
+                className="figma-list-page__clear-btn"
+                onClick={handleResetFilters}
+                disabled={!activeFilterSummary}
               >
-                全部
+                清空筛选
               </button>
-              {categories.map((item) => (
-                <button
-                  key={`figma-category-${item.id}`}
-                  type="button"
-                  className={category === item.slug ? 'is-active' : ''}
-                  onClick={() => updateParams({ category: item.slug })}
-                >
-                  {item.name}
-                  {Number(item.itemCount || 0) > 0 ? ` (${item.itemCount})` : ''}
-                </button>
-              ))}
             </div>
-          </div>
 
-          <div className="figma-list-page__chip-group">
-            <div className="figma-list-page__chip-title">标签</div>
-            <div className="figma-list-page__chips">
-              <button
-                type="button"
-                className={tag ? '' : 'is-active'}
-                onClick={() => updateParams({ tag: null })}
-              >
-                全部
-              </button>
-              {tags.slice(0, 24).map((item) => (
+            <div className="figma-list-page__chip-group">
+              <div className="figma-list-page__chip-title">分类</div>
+              <div className="figma-list-page__chips">
                 <button
-                  key={`figma-tag-${item.id}`}
                   type="button"
-                  className={tag === item.slug ? 'is-active' : ''}
-                  onClick={() => updateParams({ tag: item.slug })}
+                  className={category ? '' : 'is-active'}
+                  onClick={() => updateParams({ category: null })}
                 >
-                  {item.name}
+                  全部
                 </button>
-              ))}
+                {categories.map((item) => (
+                  <button
+                    key={`figma-category-${item.id}`}
+                    type="button"
+                    className={category === item.slug ? 'is-active' : ''}
+                    onClick={() => updateParams({ category: item.slug })}
+                  >
+                    {item.name}
+                    {Number(item.itemCount || 0) > 0 ? ` (${item.itemCount})` : ''}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
 
-        {error ? <div className="figma-list-page__state">{error}</div> : null}
-
-        {!error && !loading && list.length === 0 ? (
-          <div className="figma-list-page__state">当前筛选条件下暂无插件，换个关键词试试。</div>
-        ) : null}
-
-        {!error && list.length > 0 ? (
-          <section className="figma-list-page__grid" aria-live="polite">
-            {list.map((item) => {
-              const targetUrl = resolvePluginExternalUrl(item);
-              const publishDate = formatPublishDate(item.publishTime);
-              const displayTags = Array.isArray(item.tags) ? item.tags.slice(0, 3) : [];
-              return (
-                <article
-                  key={`figma-item-${item.id}`}
-                  className={`figma-card ${targetUrl ? 'is-clickable' : ''}`}
-                  role={targetUrl ? 'button' : undefined}
-                  tabIndex={targetUrl ? 0 : -1}
-                  onClick={() => openPluginExternal(item)}
-                  onKeyDown={(event) => handleCardKeyOpen(event, item)}
-                  aria-label={targetUrl ? `打开 Figma 官方插件：${item.name}` : item.name}
+            <div className="figma-list-page__chip-group">
+              <div className="figma-list-page__chip-title">标签</div>
+              <div className="figma-list-page__chips">
+                <button
+                  type="button"
+                  className={tag ? '' : 'is-active'}
+                  onClick={() => updateParams({ tag: null })}
                 >
-                  <div className="figma-card__header">
-                    <div className="figma-card__icon-wrap">
-                      <WebsiteFavicon
-                        websiteUrl={targetUrl || String(item.officialUrl || '').trim()}
-                        iconUrl={item.iconUrl || item.coverUrl}
-                        name={item.name}
-                        size={48}
-                        alt={item.name}
-                      />
-                    </div>
-                    <div className="figma-card__title-wrap">
-                      <h3>{item.name}</h3>
-                      <div className="figma-card__meta-line">
-                        {item.categoryName ? <span>{item.categoryName}</span> : null}
-                        {publishDate ? <span>{publishDate}</span> : null}
-                        {Number(item.userCount || 0) > 0 ? <span>{formatCountLabel(item.userCount)} users</span> : null}
-                        {Number(item.likeCount || 0) > 0 ? <span>{formatCountLabel(item.likeCount)} 关注</span> : null}
-                        {Number(item.viewCount || 0) > 0 ? <span>{formatCountLabel(item.viewCount)} 浏览</span> : null}
+                  全部
+                </button>
+                {tags.slice(0, 24).map((item) => (
+                  <button
+                    key={`figma-tag-${item.id}`}
+                    type="button"
+                    className={tag === item.slug ? 'is-active' : ''}
+                    onClick={() => updateParams({ tag: item.slug })}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <section className="figma-list-page__results" aria-live="polite">
+            <header className="figma-list-page__results-head">
+              <div className="figma-list-page__results-title">Figma 插件列表</div>
+              <div className="figma-list-page__results-subtitle">
+                共 {formatCountLabel(pagination.total)} 个插件
+                {activeFilterSummary ? ` · ${activeFilterSummary}` : ''}
+              </div>
+            </header>
+
+            {error ? <div className="figma-list-page__state">{error}</div> : null}
+
+            {!error && !loading && list.length === 0 ? (
+              <div className="figma-list-page__state">当前筛选条件下暂无插件，换个关键词试试。</div>
+            ) : null}
+
+            {!error && list.length > 0 ? (
+              <section className="figma-list-page__grid">
+                {list.map((item) => {
+                  const targetUrl = resolvePluginExternalUrl(item);
+                  const publishDate = formatPublishDate(item.publishTime);
+                  const displayTags = Array.isArray(item.tags) ? item.tags.slice(0, 3) : [];
+                  return (
+                    <article
+                      key={`figma-item-${item.id}`}
+                      className={`figma-card ${targetUrl ? 'is-clickable' : ''}`}
+                      role={targetUrl ? 'button' : undefined}
+                      tabIndex={targetUrl ? 0 : -1}
+                      onClick={() => openPluginExternal(item)}
+                      onKeyDown={(event) => handleCardKeyOpen(event, item)}
+                      aria-label={targetUrl ? `打开 Figma 官方插件：${item.name}` : item.name}
+                    >
+                      <div className="figma-card__header">
+                        <div className="figma-card__icon-wrap">
+                          <WebsiteFavicon
+                            websiteUrl={targetUrl || String(item.officialUrl || '').trim()}
+                            iconUrl={item.iconUrl || item.coverUrl}
+                            name={item.name}
+                            size={48}
+                            alt={item.name}
+                          />
+                        </div>
+                        <div className="figma-card__title-wrap">
+                          <h3>{item.name}</h3>
+                          <div className="figma-card__meta-line">
+                            {item.categoryName ? <span>{item.categoryName}</span> : null}
+                            {publishDate ? <span>{publishDate}</span> : null}
+                            {Number(item.userCount || 0) > 0 ? <span>{formatCountLabel(item.userCount)} users</span> : null}
+                            {Number(item.likeCount || 0) > 0 ? <span>{formatCountLabel(item.likeCount)} 关注</span> : null}
+                            {Number(item.viewCount || 0) > 0 ? <span>{formatCountLabel(item.viewCount)} 浏览</span> : null}
+                          </div>
+                        </div>
+                        {Number(item.isRecommended || 0) === 1 ? <span className="figma-card__badge">推荐</span> : null}
                       </div>
-                    </div>
-                    {Number(item.isRecommended || 0) === 1 ? <span className="figma-card__badge">推荐</span> : null}
-                  </div>
 
-                  <p className="figma-card__summary">{item.summary || '暂无简介'}</p>
+                      <p className="figma-card__summary">{item.summary || '暂无简介'}</p>
 
-                  {displayTags.length > 0 ? (
-                    <div className="figma-card__tags">
-                      {displayTags.map((tagName) => (
-                        <span key={`${item.id}-${tagName}`}>{tagName}</span>
-                      ))}
-                    </div>
-                  ) : null}
+                      {displayTags.length > 0 ? (
+                        <div className="figma-card__tags">
+                          {displayTags.map((tagName) => (
+                            <span key={`${item.id}-${tagName}`}>{tagName}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </section>
+            ) : null}
 
-                  <div className="figma-card__footer">
-                    <span>{targetUrl ? '点击跳转 Figma 官方页面' : '暂无可用外链'}</span>
-                  </div>
-                </article>
-              );
-            })}
+            {!error && pagination.totalPages > 1 ? (
+              <nav className="figma-list-page__pager" aria-label="分页导航">
+                <button
+                  type="button"
+                  disabled={pagination.page <= 1}
+                  onClick={() => updateParams({ page: Math.max(1, pagination.page - 1) })}
+                >
+                  上一页
+                </button>
+                {pagerItems.map((item) => (
+                  <button
+                    type="button"
+                    key={`figma-pager-${item}`}
+                    className={item === pagination.page ? 'is-active' : ''}
+                    onClick={() => updateParams({ page: item })}
+                  >
+                    {item}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={pagination.page >= pagination.totalPages}
+                  onClick={() => updateParams({ page: Math.min(pagination.totalPages, pagination.page + 1) })}
+                >
+                  下一页
+                </button>
+              </nav>
+            ) : null}
           </section>
-        ) : null}
-
-        {!error && pagination.totalPages > 1 ? (
-          <nav className="figma-list-page__pager" aria-label="分页导航">
-            <button
-              type="button"
-              disabled={pagination.page <= 1}
-              onClick={() => updateParams({ page: Math.max(1, pagination.page - 1) })}
-            >
-              上一页
-            </button>
-            {pagerItems.map((item) => (
-              <button
-                type="button"
-                key={`figma-pager-${item}`}
-                className={item === pagination.page ? 'is-active' : ''}
-                onClick={() => updateParams({ page: item })}
-              >
-                {item}
-              </button>
-            ))}
-            <button
-              type="button"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => updateParams({ page: Math.min(pagination.totalPages, pagination.page + 1) })}
-            >
-              下一页
-            </button>
-          </nav>
-        ) : null}
+        </div>
       </div>
     </div>
   );

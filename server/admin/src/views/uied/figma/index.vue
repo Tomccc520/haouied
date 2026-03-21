@@ -133,8 +133,28 @@
             :close-on-click-modal="false"
         >
             <el-form :model="importForm" label-width="120px">
+                <el-form-item label="采集分类">
+                    <el-select
+                        v-model="importForm.sourceCategory"
+                        class="w-[360px]"
+                        placeholder="请选择官方分类"
+                        @change="handleSourceCategoryChange"
+                    >
+                        <el-option
+                            v-for="item in officialSourceCategoryOptions"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value"
+                        />
+                    </el-select>
+                    <div class="figma-list-page__hint">选择分类后会自动填充来源地址，仅“自定义链接”支持手工输入来源地址。</div>
+                </el-form-item>
                 <el-form-item label="来源地址">
-                    <el-input v-model="importForm.sourceUrl" placeholder="https://www.figma.com/community/plugins" />
+                    <el-input
+                        v-model="importForm.sourceUrl"
+                        placeholder="https://www.figma.com/community/plugins"
+                        :disabled="importForm.sourceCategory !== 'custom'"
+                    />
                     <div class="figma-list-page__hint">
                         仅采集公开元信息（封面/标题/简介）并保留来源链接；若官方页面被风控拦截，将自动降级只读通道继续采集。
                     </div>
@@ -151,6 +171,10 @@
                             :value="item.id"
                         />
                     </el-select>
+                </el-form-item>
+                <el-form-item label="来源自动分类">
+                    <el-switch v-model="importForm.autoCategory" />
+                    <div class="figma-list-page__hint">未指定“默认分类”时，将根据采集分类自动映射本地分类并写入。</div>
                 </el-form-item>
                 <el-form-item label="导入状态">
                     <el-radio-group v-model="importForm.status">
@@ -217,10 +241,21 @@ const categoryOptions = ref<FigmaCategoryOption[]>([])
 const importDialogVisible = ref(false)
 const importing = ref(false)
 const importResultText = ref('')
+const officialSourceCategoryOptions = [
+    { label: '全部插件', value: 'plugins', url: 'https://www.figma.com/community/plugins' },
+    { label: '编辑效果', value: 'editing-effects', url: 'https://www.figma.com/community/editing-effects?resource_type=plugins' },
+    { label: '开发协作', value: 'development', url: 'https://www.figma.com/community/development?resource_type=plugins' },
+    { label: '导入导出', value: 'import-export', url: 'https://www.figma.com/community/import-export?resource_type=plugins' },
+    { label: '文件组织', value: 'file-organization', url: 'https://www.figma.com/community/file-organization?resource_type=plugins' },
+    { label: '无障碍', value: 'accessibility', url: 'https://www.figma.com/community/accessibility?resource_type=plugins' },
+    { label: '自定义链接', value: 'custom', url: '' },
+]
 const importForm = reactive({
     sourceUrl: 'https://www.figma.com/community/plugins',
+    sourceCategory: 'plugins',
     limit: 20,
     categoryId: undefined as number | undefined,
+    autoCategory: true,
     status: 'published' as 'draft' | 'published',
     translate: true,
 })
@@ -303,8 +338,20 @@ const handleDelete = async (id: number) => {
  * 打开官方采集弹窗并清空上次结果。
  */
 const openImportDialog = () => {
+    handleSourceCategoryChange(importForm.sourceCategory)
     importResultText.value = ''
     importDialogVisible.value = true
+}
+
+/**
+ * 根据官方分类选择同步来源 URL。
+ */
+const handleSourceCategoryChange = (value?: string) => {
+    const sourceCategory = String(value || importForm.sourceCategory || '').trim()
+    const target = officialSourceCategoryOptions.find(item => item.value === sourceCategory)
+    if (!target) return
+    if (target.value === 'custom') return
+    importForm.sourceUrl = target.url
 }
 
 /**
@@ -316,8 +363,10 @@ const handleImportOfficial = async () => {
     try {
         const result = await uiedFigmaImportOfficial({
             sourceUrl: importForm.sourceUrl,
+            sourceCategory: importForm.sourceCategory,
             limit: Number(importForm.limit || 20),
             categoryId: importForm.categoryId || null,
+            autoCategory: importForm.autoCategory,
             status: importForm.status,
             translate: importForm.translate,
         }) as FigmaImportResult

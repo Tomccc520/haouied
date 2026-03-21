@@ -31,7 +31,7 @@
 
 /* 页面 Banner：热门推荐上方四卡广告 */
 .ad-banner-page-grid {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .page-banner-grid {
@@ -42,33 +42,57 @@
 
 .page-banner-grid__item {
   position: relative;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid var(--border-light);
-  background: var(--bg-card);
+  border: 1px solid #dbe2ee;
+  background: #ffffff;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.page-banner-grid__item:hover {
+  border-color: #c7d2e2;
+  transform: translateY(-1px);
 }
 
 .page-banner-grid__item img {
   width: 100%;
-  aspect-ratio: 16 / 8;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
   display: block;
 }
 
+.page-banner-grid__content {
+  padding: 11px 12px 12px;
+}
+
 .page-banner-grid__title {
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text-primary);
-  white-space: nowrap;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.page-banner-grid__desc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.58;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .page-banner-grid--text .page-banner-grid__item {
-  min-height: 112px;
-  padding: 12px;
+  min-height: 120px;
+  padding: 14px;
   border: none;
   color: #fff;
 }
@@ -93,9 +117,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.42;
 }
 
 .page-banner-grid__text-badge {
@@ -107,10 +131,15 @@
 }
 
 .page-banner-grid__text-desc {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.62;
   color: rgba(255, 255, 255, 0.92);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* 运营位：全局横条（global_strip）不保留上下留白，避免挤占首屏 */
@@ -309,8 +338,15 @@
   }
 
   .page-banner-grid__title {
-    padding: 8px 10px;
-    font-size: 12px;
+    font-size: 13px;
+  }
+
+  .page-banner-grid__content {
+    padding: 10px 10px 11px;
+  }
+
+  .page-banner-grid__desc {
+    font-size: 11px;
   }
 
   .banner-carousel {
