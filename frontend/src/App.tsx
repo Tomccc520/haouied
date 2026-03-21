@@ -29,6 +29,7 @@ import WebsiteComparePage from './pages/WebsiteCompare';
 import MCPListPage from './pages/MCP';
 import MCPDetailPage from './pages/MCP/detail';
 import FigmaPage from './pages/Figma';
+import FigmaDetailPage from './pages/Figma/detail';
 import NotFoundPage from './pages/NotFound';
 import WebsiteDetail from './pages/WebsiteDetail';
 import InstallPage from './pages/Install';
@@ -132,6 +133,7 @@ const MainRouteTree: React.FC = () => {
             <Route path="/mcp" element={<MCPListPage />} />
             <Route path="/mcp/:slug" element={<MCPDetailPage />} />
             <Route path="/figma" element={<FigmaPage />} />
+            <Route path="/figma/:idOrSlug" element={<FigmaDetailPage />} />
 
             {/* @pro-feature-start: articles */}
             <Route path="/articles" element={<ArticleList />} />

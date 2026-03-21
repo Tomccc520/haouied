@@ -1,0 +1,1308 @@
+{
+  "generatedAt": "2026-03-21T13:15:22.212Z",
+  "files": [
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round1.json",
+      "totalRows": 300,
+      "candidateRows": 300,
+      "updatedRows": 276,
+      "unresolvedRows": 24,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 12,
+          "fetchedPool": 105,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 12,
+          "fetchedPool": 68,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 12,
+          "fetchedPool": 114,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 12,
+          "fetchedPool": 88,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 12,
+          "fetchedPool": 107,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "handoff",
+          "rows": 12,
+          "fetchedPool": 122,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 12,
+          "fetchedPool": 108,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 12,
+          "fetchedPool": 57,
+          "assigned": 12,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round1.auto.json"
+    },
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round2.json",
+      "totalRows": 300,
+      "candidateRows": 300,
+      "updatedRows": 276,
+      "unresolvedRows": 24,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 12,
+          "fetchedPool": 105,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 12,
+          "fetchedPool": 68,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 12,
+          "fetchedPool": 114,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 12,
+          "fetchedPool": 88,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 12,
+          "fetchedPool": 107,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "handoff",
+          "rows": 12,
+          "fetchedPool": 122,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 12,
+          "fetchedPool": 108,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 12,
+          "fetchedPool": 57,
+          "assigned": 12,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round2.auto.json"
+    },
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round3.json",
+      "totalRows": 300,
+      "candidateRows": 300,
+      "updatedRows": 276,
+      "unresolvedRows": 24,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 12,
+          "fetchedPool": 105,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 12,
+          "fetchedPool": 68,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 12,
+          "fetchedPool": 114,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 12,
+          "fetchedPool": 88,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 12,
+          "fetchedPool": 107,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "handoff",
+          "rows": 12,
+          "fetchedPool": 122,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 12,
+          "fetchedPool": 108,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 12,
+          "fetchedPool": 57,
+          "assigned": 12,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round3.auto.json"
+    },
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round4.json",
+      "totalRows": 300,
+      "candidateRows": 300,
+      "updatedRows": 276,
+      "unresolvedRows": 24,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 12,
+          "fetchedPool": 105,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 12,
+          "fetchedPool": 68,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 12,
+          "fetchedPool": 114,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 12,
+          "fetchedPool": 88,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 12,
+          "fetchedPool": 107,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "handoff",
+          "rows": 12,
+          "fetchedPool": 122,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 12,
+          "fetchedPool": 108,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 12,
+          "fetchedPool": 57,
+          "assigned": 12,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round4.auto.json"
+    },
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round5.json",
+      "totalRows": 300,
+      "candidateRows": 300,
+      "updatedRows": 276,
+      "unresolvedRows": 24,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 12,
+          "fetchedPool": 105,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 12,
+          "fetchedPool": 68,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 12,
+          "fetchedPool": 114,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 12,
+          "fetchedPool": 88,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 12,
+          "fetchedPool": 107,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "handoff",
+          "rows": 12,
+          "fetchedPool": 122,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 12,
+          "fetchedPool": 108,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 12,
+          "fetchedPool": 57,
+          "assigned": 12,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round5.auto.json"
+    },
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round6.json",
+      "totalRows": 300,
+      "candidateRows": 300,
+      "updatedRows": 276,
+      "unresolvedRows": 24,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 12,
+          "fetchedPool": 105,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 12,
+          "fetchedPool": 68,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 12,
+          "fetchedPool": 114,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 12,
+          "fetchedPool": 88,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 12,
+          "fetchedPool": 107,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 12,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 12
+        },
+        {
+          "keyword": "handoff",
+          "rows": 12,
+          "fetchedPool": 122,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 12,
+          "fetchedPool": 108,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 12,
+          "fetchedPool": 103,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 12,
+          "fetchedPool": 100,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 12,
+          "fetchedPool": 106,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 12,
+          "fetchedPool": 104,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 12,
+          "fetchedPool": 101,
+          "assigned": 12,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 12,
+          "fetchedPool": 57,
+          "assigned": 12,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round6.auto.json"
+    },
+    {
+      "file": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round7.json",
+      "totalRows": 125,
+      "candidateRows": 125,
+      "updatedRows": 115,
+      "unresolvedRows": 10,
+      "keywordStats": [
+        {
+          "keyword": "3d",
+          "rows": 5,
+          "fetchedPool": 105,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ai-design",
+          "rows": 5,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 5
+        },
+        {
+          "keyword": "animation-gif",
+          "rows": 5,
+          "fetchedPool": 68,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "charts",
+          "rows": 5,
+          "fetchedPool": 100,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "chinese",
+          "rows": 5,
+          "fetchedPool": 100,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "code",
+          "rows": 5,
+          "fetchedPool": 114,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "color",
+          "rows": 5,
+          "fetchedPool": 101,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "components",
+          "rows": 5,
+          "fetchedPool": 103,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "design-system",
+          "rows": 5,
+          "fetchedPool": 100,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ecommerce",
+          "rows": 5,
+          "fetchedPool": 88,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "essentials",
+          "rows": 5,
+          "fetchedPool": 107,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "growth-ops",
+          "rows": 5,
+          "fetchedPool": 0,
+          "assigned": 0,
+          "unresolved": 5
+        },
+        {
+          "keyword": "handoff",
+          "rows": 5,
+          "fetchedPool": 122,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "icons",
+          "rows": 5,
+          "fetchedPool": 108,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "illustration",
+          "rows": 5,
+          "fetchedPool": 106,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "image",
+          "rows": 5,
+          "fetchedPool": 101,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "layout",
+          "rows": 5,
+          "fetchedPool": 101,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mobile",
+          "rows": 5,
+          "fetchedPool": 103,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "mockup",
+          "rows": 5,
+          "fetchedPool": 100,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "presentation",
+          "rows": 5,
+          "fetchedPool": 100,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "productivity",
+          "rows": 5,
+          "fetchedPool": 106,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "prototype",
+          "rows": 5,
+          "fetchedPool": 104,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "svg",
+          "rows": 5,
+          "fetchedPool": 104,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "typography",
+          "rows": 5,
+          "fetchedPool": 101,
+          "assigned": 5,
+          "unresolved": 0
+        },
+        {
+          "keyword": "ui-kits",
+          "rows": 5,
+          "fetchedPool": 57,
+          "assigned": 5,
+          "unresolved": 0
+        }
+      ],
+      "output": "/Users/tangxiaoda/Desktop/网站备份/HAO UIED/server/scripts/data/figma_real_mapping_round7.auto.json"
+    }
+  ],
+  "totals": {
+    "fileCount": 7,
+    "totalRows": 1925,
+    "candidateRows": 1925,
+    "updatedRows": 1771,
+    "unresolvedRows": 154,
+    "keywordCount": 25
+  }
+}

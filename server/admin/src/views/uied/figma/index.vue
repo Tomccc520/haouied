@@ -43,7 +43,7 @@
         </el-card>
 
         <el-card class="!border-none mt-4" shadow="never">
-            <div class="mb-4 flex items-center justify-between">
+            <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
                 <div class="flex items-center gap-2">
                     <el-button type="primary" @click="handleCreate">
                         <template #icon><icon name="el-icon-Plus" /></template>
@@ -55,7 +55,35 @@
                     </el-button>
                     <el-button @click="getLists">刷新</el-button>
                 </div>
-                <div class="text-xs text-[#6b7280]">共 {{ pager.count }} 个插件</div>
+                <div class="figma-list-page__toolbar-right">
+                    <div class="figma-list-page__click-config">
+                        <span class="figma-list-page__click-config-label">卡片点击</span>
+                        <el-radio-group
+                            v-model="figmaPageConfig.cardClickAction"
+                            size="small"
+                            :disabled="figmaPageConfigLoading || figmaPageConfigSaving"
+                        >
+                            <el-radio-button label="official_first">原链接优先</el-radio-button>
+                            <el-radio-button label="detail">进入详情页</el-radio-button>
+                        </el-radio-group>
+                        <el-switch
+                            v-model="figmaPageConfig.cardClickNewWindow"
+                            :disabled="figmaPageConfigLoading || figmaPageConfigSaving || figmaPageConfig.cardClickAction !== 'official_first'"
+                            inline-prompt
+                            active-text="新窗"
+                            inactive-text="当前页"
+                        />
+                        <el-button
+                            type="primary"
+                            size="small"
+                            :loading="figmaPageConfigSaving"
+                            @click="saveFigmaPageConfig"
+                        >
+                            保存交互
+                        </el-button>
+                    </div>
+                    <div class="text-xs text-[#6b7280]">共 {{ pager.count }} 个插件</div>
+                </div>
             </div>
 
             <el-table size="large" v-loading="pager.loading" :data="pager.lists">
@@ -214,6 +242,8 @@ import {
     uiedFigmaDelete,
     uiedFigmaCategoryAll,
     uiedFigmaImportOfficial,
+    uiedSettingGet,
+    uiedSettingSave,
 } from '@/api/uied'
 
 interface FigmaCategoryOption {
@@ -229,6 +259,13 @@ interface FigmaImportResult {
     failed: number
 }
 
+interface FigmaPageConfigState {
+    enabled: boolean
+    listPageSize: number
+    cardClickAction: 'detail' | 'official_first'
+    cardClickNewWindow: boolean
+}
+
 const router = useRouter()
 
 const queryParams = reactive({
@@ -241,6 +278,8 @@ const categoryOptions = ref<FigmaCategoryOption[]>([])
 const importDialogVisible = ref(false)
 const importing = ref(false)
 const importResultText = ref('')
+const figmaPageConfigLoading = ref(false)
+const figmaPageConfigSaving = ref(false)
 const officialSourceCategoryOptions = [
     { label: '全部插件', value: 'plugins', url: 'https://www.figma.com/community/plugins' },
     { label: '编辑效果', value: 'editing-effects', url: 'https://www.figma.com/community/editing-effects?resource_type=plugins' },
@@ -260,10 +299,73 @@ const importForm = reactive({
     translate: true,
 })
 
+const figmaPageConfig = reactive<FigmaPageConfigState>({
+    enabled: true,
+    listPageSize: 24,
+    cardClickAction: 'official_first',
+    cardClickNewWindow: true,
+})
+
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedFigmaList,
     params: queryParams,
 })
+
+/**
+ * 规范化 Figma 前端配置，确保后台保存前字段稳定。
+ */
+const normalizeFigmaPageConfig = (data: any): FigmaPageConfigState => {
+    const cardClickAction = String(data?.cardClickAction || '').trim().toLowerCase()
+    return {
+        enabled: data?.enabled !== false,
+        listPageSize: Number.isFinite(Number(data?.listPageSize))
+            ? Math.max(6, Math.min(72, Number(data.listPageSize)))
+            : 24,
+        cardClickAction: cardClickAction === 'detail' ? 'detail' : 'official_first',
+        cardClickNewWindow: data?.cardClickNewWindow !== false,
+    }
+}
+
+/**
+ * 加载 Figma 前端卡片点击配置，便于在 Figma 管理页直接调整交互。
+ */
+const loadFigmaPageConfig = async () => {
+    figmaPageConfigLoading.value = true
+    try {
+        const data = await uiedSettingGet({ key: 'figmaPageConfig' })
+        const config = normalizeFigmaPageConfig(data && typeof data === 'object' ? data : {})
+        figmaPageConfig.enabled = config.enabled
+        figmaPageConfig.listPageSize = config.listPageSize
+        figmaPageConfig.cardClickAction = config.cardClickAction
+        figmaPageConfig.cardClickNewWindow = config.cardClickNewWindow
+    } catch (error) {
+        console.error('加载Figma页面配置失败:', error)
+        feedback.msgError('加载卡片点击配置失败')
+    } finally {
+        figmaPageConfigLoading.value = false
+    }
+}
+
+/**
+ * 保存 Figma 前端卡片点击配置。
+ */
+const saveFigmaPageConfig = async () => {
+    figmaPageConfigSaving.value = true
+    try {
+        const payload = normalizeFigmaPageConfig(figmaPageConfig)
+        await uiedSettingSave({ figmaPageConfig: payload })
+        figmaPageConfig.enabled = payload.enabled
+        figmaPageConfig.listPageSize = payload.listPageSize
+        figmaPageConfig.cardClickAction = payload.cardClickAction
+        figmaPageConfig.cardClickNewWindow = payload.cardClickNewWindow
+        feedback.msgSuccess('卡片点击配置保存成功')
+    } catch (error) {
+        console.error('保存Figma页面配置失败:', error)
+        feedback.msgError('保存卡片点击配置失败')
+    } finally {
+        figmaPageConfigSaving.value = false
+    }
+}
 
 /**
  * 加载分类选项，用于列表筛选与采集默认分类选择。
@@ -395,6 +497,7 @@ const formatUnixTime = (value: number | string): string => {
 }
 
 onMounted(async () => {
+    await loadFigmaPageConfig()
     await loadCategoryOptions()
     await getLists()
 })
@@ -404,6 +507,26 @@ onMounted(async () => {
 .figma-list-page__title {
     font-weight: 600;
     color: #111827;
+}
+
+.figma-list-page__toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.figma-list-page__click-config {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.figma-list-page__click-config-label {
+    font-size: 12px;
+    color: #6b7280;
 }
 
 .figma-list-page__sub {
@@ -439,5 +562,12 @@ onMounted(async () => {
     color: #1e3a8a;
     line-height: 1.6;
     font-size: 13px;
+}
+
+@media (max-width: 960px) {
+    .figma-list-page__toolbar-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
 }
 </style>

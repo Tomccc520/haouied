@@ -33,6 +33,7 @@ import publicSettingService, {
   DEFAULT_ARTICLE_TOPICS,
   DEFAULT_AUTH_CONFIG,
   DEFAULT_MCP_PAGE,
+  DEFAULT_FIGMA_PAGE,
   DEFAULT_WEBSITE_COMPARE,
 } from '../services/publicSettingService';
 import { debugLog } from '../utils/debugHelper';
@@ -67,6 +68,7 @@ export const usePublicSettings = (): UseSettingResult<PublicSettings> => {
     article: DEFAULT_ARTICLE_SETTING,
     articleTopics: DEFAULT_ARTICLE_TOPICS,
     mcpPage: DEFAULT_MCP_PAGE,
+    figmaPage: DEFAULT_FIGMA_PAGE,
     websiteCompare: DEFAULT_WEBSITE_COMPARE,
   });
   const [loading, setLoading] = useState(true);

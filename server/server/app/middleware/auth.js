@@ -192,6 +192,23 @@ module.exports = options => {
     if (list.includes(auths)) return true;
     return list.some(item => {
       if (!item) return false;
+      /**
+       * 支持 `xxx:*` 通配符语法，匹配该前缀下所有子路径：
+       * - figma:*  -> figma:list / figma:abc / figma:abc:def
+       * - pages:*  -> pages:home / pages:home:full
+       */
+      if (item.endsWith(':*')) {
+        const prefix = item.slice(0, -2);
+        if (!prefix) return true;
+        return auths === prefix || auths.startsWith(prefix + ':');
+      }
+      /**
+       * 兼容少量历史配置里出现的通配符写法（非 :* 结尾）。
+       */
+      if (item.includes('*')) {
+        const escaped = item.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+        return new RegExp(`^${escaped}$`).test(auths);
+      }
       if (auths.startsWith(item + ':')) return true; // 兼容带参数路径
       if (auths.endsWith(':' + item)) return true; // 兼容前置段
       if (auths.includes(':' + item + ':')) return true; // 兼容前置段+参数

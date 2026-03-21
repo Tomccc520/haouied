@@ -1004,6 +1004,38 @@ class SettingService extends Service {
   }
 
   /**
+   * 获取 Figma 页面默认配置
+   */
+  getDefaultFigmaPageConfig() {
+    return {
+      enabled: true,
+      listPageSize: 24,
+      cardClickAction: 'official_first',
+      cardClickNewWindow: true,
+    };
+  }
+
+  /**
+   * 规范化 Figma 页面配置，确保卡片点击行为与分页参数稳定可用。
+   */
+  normalizeFigmaPageConfig(config = {}) {
+    const defaults = this.getDefaultFigmaPageConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const merged = { ...defaults, ...source };
+    const cardClickAction = String(merged.cardClickAction || '').trim().toLowerCase();
+    return {
+      enabled: merged.enabled !== false,
+      listPageSize: Number.isFinite(Number(merged.listPageSize))
+        ? Math.max(6, Math.min(72, Number(merged.listPageSize)))
+        : defaults.listPageSize,
+      cardClickAction: [ 'detail', 'official_first' ].includes(cardClickAction)
+        ? cardClickAction
+        : defaults.cardClickAction,
+      cardClickNewWindow: merged.cardClickNewWindow !== false,
+    };
+  }
+
+  /**
    * 规范化 MCP 页面配置，确保售卖版站点在不同主题下都可稳定渲染
    */
   normalizeMcpPageConfig(config = {}) {
@@ -1889,6 +1921,8 @@ class SettingService extends Service {
         value = this.normalizeWebsiteCompareConfig(rawValue);
       } else if (key === 'mcpPageConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeMcpPageConfig(rawValue);
+      } else if (key === 'figmaPageConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeFigmaPageConfig(rawValue);
       }
       const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
@@ -2060,6 +2094,7 @@ class SettingService extends Service {
     const footerAboutConfig = await this.get('footerAboutConfig');
     const websiteCompareConfig = await this.get('websiteCompareConfig');
     const mcpPageConfig = await this.get('mcpPageConfig');
+    const figmaPageConfig = await this.get('figmaPageConfig');
     const authConfig = await this.getAuthConfig();
 
     // 默认配置
@@ -2290,6 +2325,7 @@ class SettingService extends Service {
     const defaultFooterAbout = this.getDefaultFooterAboutConfig();
     const defaultWebsiteCompareConfig = this.getDefaultWebsiteCompareConfig();
     const defaultMcpPageConfig = this.getDefaultMcpPageConfig();
+    const defaultFigmaPageConfig = this.getDefaultFigmaPageConfig();
 
     const defaultHotArticlesConfig = {
       enabled: true,
@@ -2361,6 +2397,7 @@ class SettingService extends Service {
       articleTopics: this.normalizeArticleTopicsConfig(articleTopicsConfig || {}),
       footerAbout: this.normalizeFooterAboutConfig(footerAboutConfig || defaultFooterAbout),
       mcpPage: this.normalizeMcpPageConfig(mcpPageConfig || defaultMcpPageConfig),
+      figmaPage: this.normalizeFigmaPageConfig(figmaPageConfig || defaultFigmaPageConfig),
       websiteCompare: this.normalizeWebsiteCompareConfig(websiteCompareConfig || defaultWebsiteCompareConfig),
     };
   }

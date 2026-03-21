@@ -362,6 +362,13 @@ export interface McpPageConfig {
   detailShowVersionTag: boolean;
 }
 
+export interface FigmaPageConfig {
+  enabled: boolean;
+  listPageSize: number;
+  cardClickAction: 'detail' | 'official_first';
+  cardClickNewWindow: boolean;
+}
+
 // 登录/注册/个人中心配置
 export interface AuthConfig {
   enable_register: number;
@@ -387,6 +394,7 @@ export interface PublicSettings {
   article: ArticleConfig;
   articleTopics: ArticleTopicsConfig;
   mcpPage: McpPageConfig;
+  figmaPage: FigmaPageConfig;
   websiteCompare: WebsiteCompareConfig;
 }
 
@@ -404,6 +412,7 @@ interface PublicSettingsPayload {
   article?: ArticleConfig;
   articleTopics?: ArticleTopicsConfig;
   mcpPage?: McpPageConfig;
+  figmaPage?: FigmaPageConfig;
   websiteCompare?: WebsiteCompareConfig;
   popup?: ExitModalConfig;
 }
@@ -742,6 +751,13 @@ export const DEFAULT_MCP_PAGE: McpPageConfig = {
   detailShowCommand: true,
   detailCommandTemplate: '',
   detailShowVersionTag: true,
+};
+
+export const DEFAULT_FIGMA_PAGE: FigmaPageConfig = {
+  enabled: true,
+  listPageSize: 24,
+  cardClickAction: 'official_first',
+  cardClickNewWindow: true,
 };
 
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
@@ -1275,6 +1291,25 @@ export const publicSettingService = {
     };
   },
 
+  /**
+   * 规范化 Figma 页面配置，确保卡片点击交互与分页参数可控。
+   */
+  normalizeFigmaPageConfig: (config: unknown): FigmaPageConfig => {
+    const source = (config && typeof config === 'object')
+      ? (config as Partial<FigmaPageConfig>)
+      : {};
+    const merged = { ...DEFAULT_FIGMA_PAGE, ...source };
+    const cardClickAction = String(merged.cardClickAction || '').trim().toLowerCase();
+    return {
+      enabled: merged.enabled !== false,
+      listPageSize: Number.isFinite(Number(merged.listPageSize))
+        ? Math.max(6, Math.min(72, Number(merged.listPageSize)))
+        : DEFAULT_FIGMA_PAGE.listPageSize,
+      cardClickAction: cardClickAction === 'detail' ? 'detail' : 'official_first',
+      cardClickNewWindow: merged.cardClickNewWindow !== false,
+    };
+  },
+
   getFrontendConfig: async (): Promise<FrontendConfigPayload> => {
     try {
       const response = await api.get('/settings/frontend-config');
@@ -1335,6 +1370,7 @@ export const publicSettingService = {
         article: publicSettingService.normalizeArticleConfig(data.article),
         articleTopics: publicSettingService.normalizeArticleTopicsConfig(data.articleTopics),
         mcpPage: publicSettingService.normalizeMcpPageConfig(data.mcpPage),
+        figmaPage: publicSettingService.normalizeFigmaPageConfig(data.figmaPage),
         websiteCompare: publicSettingService.normalizeWebsiteCompareConfig(data.websiteCompare),
       };
     } catch (error) {
@@ -1354,6 +1390,7 @@ export const publicSettingService = {
         article: DEFAULT_ARTICLE_SETTING,
         articleTopics: DEFAULT_ARTICLE_TOPICS,
         mcpPage: DEFAULT_MCP_PAGE,
+        figmaPage: DEFAULT_FIGMA_PAGE,
         websiteCompare: DEFAULT_WEBSITE_COMPARE,
       };
     }

@@ -12,8 +12,137 @@
 'use strict';
 
 const Service = require('egg').Service;
+const crypto = require('crypto');
 
 class UiedFigmaService extends Service {
+  /**
+   * 生成远程资源缓存哈希（用于唯一索引）。
+   * @param {string} value 原始 URL
+   * @return {string}
+   */
+  buildAssetCacheHash(value = '') {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return crypto.createHash('sha1').update(raw).digest('hex');
+  }
+
+  /**
+   * 判断是否为本地素材地址（已转存）。
+   * @param {string} url 资源地址
+   * @return {boolean}
+   */
+  isLocalAssetUrl(url = '') {
+    const value = String(url || '').trim();
+    if (!value) return false;
+    if (value.startsWith('/public/uploads/')) return true;
+    if (value.startsWith('/api/uploads/')) return true;
+    if (/^https?:\/\//i.test(value) && value.includes('/public/uploads/')) return true;
+    if (/^https?:\/\//i.test(value) && value.includes('/api/uploads/')) return true;
+    return false;
+  }
+
+  /**
+   * 将远程图片转存到本地并缓存结果（同 URL 不重复下载）。
+   * @param {string} remoteUrl 远程资源地址
+   * @param {number} cid 素材分类 ID（可选）
+   * @return {Promise<string>} 返回可写入数据库的资源 URL（优先本地 URI）
+   */
+  async cacheRemoteAssetToLocal(remoteUrl = '', cid = 0) {
+    await this.ensureTables();
+    const sourceUrl = String(remoteUrl || '').trim();
+    if (!sourceUrl) return '';
+    if (!/^https?:\/\//i.test(sourceUrl)) return sourceUrl;
+    if (this.isLocalAssetUrl(sourceUrl)) return sourceUrl;
+
+    const { app, ctx } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const sourceHash = this.buildAssetCacheHash(sourceUrl);
+    if (!sourceHash) return sourceUrl;
+
+    const [ cacheRow ] = await app.model.query(
+      `SELECT id, local_uri AS localUri, local_url AS localUrl, status, update_time AS updateTime
+       FROM uied_figma_asset_cache
+       WHERE source_url_hash = ? AND is_delete = 0
+       LIMIT 1`,
+      {
+        replacements: [ sourceHash ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    /**
+     * 命中成功缓存：直接复用本地资源路径，并累计命中次数。
+     */
+    if (cacheRow && String(cacheRow.status || '').trim() === 'success') {
+      await app.model.query(
+        `UPDATE uied_figma_asset_cache
+         SET hit_count = hit_count + 1, update_time = ?
+         WHERE id = ?`,
+        {
+          replacements: [ now, Number(cacheRow.id || 0) ],
+          type: app.Sequelize.QueryTypes.UPDATE,
+        }
+      );
+      const localUri = String(cacheRow.localUri || '').trim();
+      const localUrl = String(cacheRow.localUrl || '').trim();
+      return localUri || localUrl || sourceUrl;
+    }
+
+    /**
+     * 命中失败缓存且仍在冷却窗口内：跳过重复下载，降低慢请求风险。
+     */
+    if (
+      cacheRow
+      && String(cacheRow.status || '').trim() === 'failed'
+      && Number(cacheRow.updateTime || 0) > (now - 6 * 3600)
+    ) {
+      return sourceUrl;
+    }
+
+    try {
+      const saved = await ctx.service.album.saveRemoteImageToAlbum(sourceUrl, Number(cid || 0));
+      const localUri = String(saved?.uri || '').trim();
+      const localUrl = String(saved?.to || '').trim();
+      await app.model.query(
+        `INSERT INTO uied_figma_asset_cache
+         (source_url_hash, source_url, local_uri, local_url, status, error_msg, hit_count, is_delete, create_time, update_time)
+         VALUES (?, ?, ?, ?, 'success', '', 1, 0, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           source_url = VALUES(source_url),
+           local_uri = VALUES(local_uri),
+           local_url = VALUES(local_url),
+           status = 'success',
+           error_msg = '',
+           hit_count = hit_count + 1,
+           is_delete = 0,
+           update_time = VALUES(update_time)`,
+        {
+          replacements: [ sourceHash, sourceUrl, localUri, localUrl, now, now ],
+          type: app.Sequelize.QueryTypes.INSERT,
+        }
+      );
+      return localUri || localUrl || sourceUrl;
+    } catch (error) {
+      const errorMessage = String(error?.message || 'download_failed').slice(0, 250);
+      ctx.logger.warn('[uied.figma] 远程图片转存失败，保留原地址: %s -> %s', sourceUrl, errorMessage);
+      await app.model.query(
+        `INSERT INTO uied_figma_asset_cache
+         (source_url_hash, source_url, local_uri, local_url, status, error_msg, hit_count, is_delete, create_time, update_time)
+         VALUES (?, ?, '', '', 'failed', ?, 0, 0, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           source_url = VALUES(source_url),
+           status = 'failed',
+           error_msg = VALUES(error_msg),
+           update_time = VALUES(update_time)`,
+        {
+          replacements: [ sourceHash, sourceUrl, errorMessage, now, now ],
+          type: app.Sequelize.QueryTypes.INSERT,
+        }
+      );
+      return sourceUrl;
+    }
+  }
+
   /**
    * 规范化域名白名单（支持数组 / 逗号文本 / 换行文本）。
    * @param {Array<string>|string} input 原始域名配置
@@ -225,6 +354,26 @@ class UiedFigmaService extends Service {
         KEY \`idx_figma_plugin_item_tag_tag\` (\`tag_id\`),
         KEY \`idx_figma_plugin_item_tag_delete\` (\`is_delete\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Figma 插件标签关联表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_figma_asset_cache\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`source_url_hash\` CHAR(40) NOT NULL DEFAULT '' COMMENT '来源URL哈希',
+        \`source_url\` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '来源URL',
+        \`local_uri\` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '本地URI',
+        \`local_url\` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '绝对URL',
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '状态 success/failed/pending',
+        \`error_msg\` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '失败原因',
+        \`hit_count\` INT NOT NULL DEFAULT 0 COMMENT '命中次数',
+        \`is_delete\` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否删除',
+        \`create_time\` BIGINT NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`uk_figma_asset_cache_hash\` (\`source_url_hash\`),
+        KEY \`idx_figma_asset_cache_status\` (\`status\`),
+        KEY \`idx_figma_asset_cache_update\` (\`update_time\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Figma 远程资源缓存表'`,
       { type: app.Sequelize.QueryTypes.RAW }
     );
 
@@ -925,6 +1074,7 @@ class UiedFigmaService extends Service {
       transportType: String(data.transportType || data.transport_type || '').trim() || 'http',
       runtime: String(data.runtime || '').trim() || 'other',
       protocolVersion: String(data.protocolVersion || data.protocol_version || '').trim(),
+      assetCid: this.parsePositiveInt(data.assetCid ?? data.asset_cid ?? data.cid, 0),
       categoryId: this.parsePositiveInt(data.categoryId ?? data.category_id, 0) || null,
       status,
       isRecommended: Number(data.isRecommended ?? data.is_recommended ?? 0) === 1 ? 1 : 0,
@@ -983,6 +1133,137 @@ class UiedFigmaService extends Service {
       seoTitle,
       seoDescription,
     };
+  }
+
+  /**
+   * 批量应用已缓存的本地资源地址（仅替换已命中缓存的远程 URL）。
+   * @param {Array<Record<string, any>>} rows 条目列表
+   * @return {Promise<Array<Record<string, any>>>}
+   */
+  async applyCachedAssetUrls(rows = []) {
+    await this.ensureTables();
+    const list = Array.isArray(rows) ? rows : [];
+    if (list.length === 0) return [];
+
+    const { app } = this;
+    const remoteUrlMap = new Map();
+
+    /**
+     * 收集可缓存的远程资源 URL，并建立 URL -> hash 映射。
+     * @param {string} value 资源地址
+     */
+    const collectRemoteAssetUrl = (value = '') => {
+      const sourceUrl = String(value || '').trim();
+      if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl) || this.isLocalAssetUrl(sourceUrl)) {
+        return;
+      }
+      const sourceHash = this.buildAssetCacheHash(sourceUrl);
+      if (!sourceHash) return;
+      remoteUrlMap.set(sourceUrl, sourceHash);
+    };
+
+    list.forEach(row => {
+      collectRemoteAssetUrl(row?.iconUrl || row?.icon_url || '');
+      collectRemoteAssetUrl(row?.coverUrl || row?.cover_url || '');
+    });
+
+    const hashList = Array.from(new Set(Array.from(remoteUrlMap.values())));
+    if (hashList.length === 0) {
+      return list.map(item => ({ ...item }));
+    }
+
+    const placeholders = hashList.map(() => '?').join(', ');
+    const cacheRows = await app.model.query(
+      `SELECT source_url_hash AS sourceHash, local_uri AS localUri, local_url AS localUrl
+       FROM uied_figma_asset_cache
+       WHERE is_delete = 0
+         AND status = 'success'
+         AND source_url_hash IN (${placeholders})`,
+      {
+        replacements: hashList,
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const cacheMap = new Map();
+    (Array.isArray(cacheRows) ? cacheRows : []).forEach(item => {
+      const sourceHash = String(item?.sourceHash || '').trim();
+      const localUri = String(item?.localUri || '').trim();
+      const localUrl = String(item?.localUrl || '').trim();
+      const resolved = localUri || localUrl;
+      if (sourceHash && resolved) {
+        cacheMap.set(sourceHash, resolved);
+      }
+    });
+
+    if (cacheMap.size === 0) {
+      return list.map(item => ({ ...item }));
+    }
+
+    return list.map(item => {
+      const next = { ...item };
+      const iconUrl = String(next.iconUrl || '').trim();
+      const coverUrl = String(next.coverUrl || '').trim();
+
+      if (iconUrl) {
+        const iconHash = remoteUrlMap.get(iconUrl);
+        const iconCached = iconHash ? String(cacheMap.get(iconHash) || '').trim() : '';
+        if (iconCached) {
+          next.iconUrl = iconCached;
+        }
+      }
+
+      if (coverUrl) {
+        const coverHash = remoteUrlMap.get(coverUrl);
+        const coverCached = coverHash ? String(cacheMap.get(coverHash) || '').trim() : '';
+        if (coverCached) {
+          next.coverUrl = coverCached;
+        }
+      }
+
+      return next;
+    });
+  }
+
+  /**
+   * 渐进式将远程图片转存为本地地址（用于历史数据平滑迁移）。
+   * @param {Array<Record<string, any>>} rows 条目列表
+   * @param {{cid?:number,maxTransfer?:number}} options 转存参数
+   * @return {Promise<Array<Record<string, any>>>}
+   */
+  async hydrateAssetUrlsToLocal(rows = [], options = {}) {
+    const list = await this.applyCachedAssetUrls(rows);
+    if (!Array.isArray(list) || list.length === 0) return [];
+
+    const cid = this.parsePositiveInt(options.cid, 0);
+    const maxTransfer = this.clamp(this.parsePositiveInt(options.maxTransfer, 0), 0, 24);
+    if (maxTransfer <= 0) {
+      return list.map(item => ({ ...item }));
+    }
+
+    let remainTransfer = maxTransfer;
+    const nextList = [];
+
+    for (const row of list) {
+      const next = { ...row };
+      if (remainTransfer > 0) {
+        const rawIconUrl = String(next.iconUrl || '').trim();
+        if (rawIconUrl && /^https?:\/\//i.test(rawIconUrl) && !this.isLocalAssetUrl(rawIconUrl)) {
+          next.iconUrl = await this.cacheRemoteAssetToLocal(rawIconUrl, cid);
+          remainTransfer -= 1;
+        }
+      }
+      if (remainTransfer > 0) {
+        const rawCoverUrl = String(next.coverUrl || '').trim();
+        if (rawCoverUrl && /^https?:\/\//i.test(rawCoverUrl) && !this.isLocalAssetUrl(rawCoverUrl)) {
+          next.coverUrl = await this.cacheRemoteAssetToLocal(rawCoverUrl, cid);
+          remainTransfer -= 1;
+        }
+      }
+      nextList.push(next);
+    }
+
+    return nextList;
   }
 
   /**
@@ -1115,7 +1396,8 @@ class UiedFigmaService extends Service {
       }
     );
 
-    const lists = (Array.isArray(rows) ? rows : []).map(item => ({
+    const rowsWithCache = await this.hydrateAssetUrlsToLocal(rows, { maxTransfer: 6 });
+    const lists = (Array.isArray(rowsWithCache) ? rowsWithCache : []).map(item => ({
       ...this.normalizePluginOutputFields(item),
       tags: String(item.tagNames || '')
         .split(',')
@@ -1180,8 +1462,10 @@ class UiedFigmaService extends Service {
       }
     );
 
+    const [ detailRow ] = await this.hydrateAssetUrlsToLocal([ row ], { maxTransfer: 2 });
+
     return {
-      ...this.normalizePluginOutputFields(row),
+      ...this.normalizePluginOutputFields(detailRow || row),
       tagIds: (Array.isArray(tags) ? tags : []).map(item => Number(item.id || 0)).filter(Boolean),
       tags: Array.isArray(tags) ? tags : [],
     };
@@ -1213,6 +1497,8 @@ class UiedFigmaService extends Service {
     const publishTime = payload.status === 'published'
       ? (payload.publishTime || now)
       : null;
+    const safeIconUrl = await this.cacheRemoteAssetToLocal(payload.iconUrl, payload.assetCid);
+    const safeCoverUrl = await this.cacheRemoteAssetToLocal(payload.coverUrl || payload.iconUrl, payload.assetCid);
 
     const [ result ] = await app.model.query(
       `INSERT INTO uied_figma_plugin
@@ -1231,8 +1517,8 @@ class UiedFigmaService extends Service {
           slug,
           payload.summary,
           payload.content,
-          payload.iconUrl || null,
-          payload.coverUrl || null,
+          safeIconUrl || payload.iconUrl || null,
+          safeCoverUrl || payload.coverUrl || safeIconUrl || payload.iconUrl || null,
           payload.officialUrl || null,
           payload.docsUrl || null,
           payload.githubUrl || null,
@@ -1293,6 +1579,8 @@ class UiedFigmaService extends Service {
     const publishTime = payload.status === 'published'
       ? (payload.publishTime || Number(existing.publish_time || 0) || now)
       : null;
+    const safeIconUrl = await this.cacheRemoteAssetToLocal(payload.iconUrl, payload.assetCid);
+    const safeCoverUrl = await this.cacheRemoteAssetToLocal(payload.coverUrl || payload.iconUrl, payload.assetCid);
 
     await app.model.query(
       `UPDATE uied_figma_plugin
@@ -1311,8 +1599,8 @@ class UiedFigmaService extends Service {
           slug,
           payload.summary,
           payload.content,
-          payload.iconUrl || null,
-          payload.coverUrl || null,
+          safeIconUrl || payload.iconUrl || null,
+          safeCoverUrl || payload.coverUrl || safeIconUrl || payload.iconUrl || null,
           payload.officialUrl || null,
           payload.docsUrl || null,
           payload.githubUrl || null,
@@ -2159,6 +2447,7 @@ class UiedFigmaService extends Service {
     const defaultSortOrder = Number.isFinite(Number(payload.sortOrder ?? payload.sort_order))
       ? Number(payload.sortOrder ?? payload.sort_order)
       : 0;
+    const assetCid = this.parsePositiveInt(payload.assetCid ?? payload.asset_cid ?? payload.cid, 0);
     const now = Math.floor(Date.now() / 1000);
     const { app, ctx } = this;
     let targetCategoryId = categoryId;
@@ -2217,8 +2506,10 @@ class UiedFigmaService extends Service {
         const cnSummary = await this.translateToChinese(summaryRaw, 'summary', shouldTranslate);
         const safeTitle = cnTitle || titleRaw;
         const safeSummary = cnSummary || summaryRaw || `${safeTitle} 的 Figma 插件介绍，详情请查看官方页面。`;
-        const safeIconUrl = parsed.iconUrl || parsed.coverUrl || null;
-        const safeCoverUrl = parsed.coverUrl || parsed.iconUrl || null;
+        const safeIconUrl = await this.cacheRemoteAssetToLocal(parsed.iconUrl || parsed.coverUrl || '', assetCid);
+        const safeCoverUrl = await this.cacheRemoteAssetToLocal(parsed.coverUrl || parsed.iconUrl || '', assetCid);
+        const finalIconUrl = safeIconUrl || parsed.iconUrl || parsed.coverUrl || null;
+        const finalCoverUrl = safeCoverUrl || parsed.coverUrl || parsed.iconUrl || finalIconUrl || null;
         const slug = await this.resolveUniqueSlug('', `${safeTitle}-${parsed.pluginId || ''}`, 0, 'item');
 
         const [ existing ] = await app.model.query(
@@ -2250,8 +2541,8 @@ class UiedFigmaService extends Service {
               replacements: [
                 safeTitle,
                 safeSummary,
-                safeIconUrl,
-                safeCoverUrl,
+                finalIconUrl,
+                finalCoverUrl,
                 pluginUrl,
                 parsed.pluginId || '',
                 targetCategoryId,
@@ -2286,8 +2577,8 @@ class UiedFigmaService extends Service {
               slug,
               safeSummary,
               safeSummary,
-              safeIconUrl,
-              safeCoverUrl,
+              finalIconUrl,
+              finalCoverUrl,
               pluginUrl,
               parsed.pluginId || '',
               sourceUrl,
@@ -2336,6 +2627,7 @@ class UiedFigmaService extends Service {
     const keyword = String(params.keyword || params.q || '').trim();
     const categorySlug = String(params.categorySlug || params.category || '').trim();
     const tagSlug = String(params.tagSlug || params.tag || '').trim();
+    const sortByRaw = String(params.sort || params.sortBy || '').trim().toLowerCase();
 
     let whereSql = 'i.is_delete = 0 AND i.status = \'published\'';
     const replacements = [];
@@ -2361,6 +2653,27 @@ class UiedFigmaService extends Service {
       )`;
       replacements.push(tagSlug);
     }
+
+    /**
+     * 构建排序 SQL，仅允许受控枚举避免注入风险。
+     * - latest: 最新发布
+     * - hot: 热度优先（推荐+浏览+点击）
+     * - users: 使用人数优先
+     * - likes: 收藏关注优先
+     */
+    const resolveOrderSql = sortBy => {
+      if (sortBy === 'hot') {
+        return 'i.is_recommended DESC, i.view_count DESC, i.click_count DESC, COALESCE(i.publish_time, i.update_time) DESC, i.id DESC';
+      }
+      if (sortBy === 'users') {
+        return 'i.user_count DESC, i.like_count DESC, COALESCE(i.publish_time, i.update_time) DESC, i.id DESC';
+      }
+      if (sortBy === 'likes') {
+        return 'i.like_count DESC, i.user_count DESC, COALESCE(i.publish_time, i.update_time) DESC, i.id DESC';
+      }
+      return 'COALESCE(i.publish_time, i.update_time) DESC, i.id DESC';
+    };
+    const orderSql = resolveOrderSql(sortByRaw);
 
     const [ countRow ] = await app.model.query(
       `SELECT COUNT(*) AS total FROM uied_figma_plugin i WHERE ${whereSql}`,
@@ -2390,7 +2703,7 @@ class UiedFigmaService extends Service {
        FROM uied_figma_plugin i
        LEFT JOIN uied_figma_plugin_category c ON c.id = i.category_id AND c.is_delete = 0
        WHERE ${whereSql}
-       ORDER BY i.is_recommended DESC, i.sort_order ASC, COALESCE(i.publish_time, i.update_time) DESC, i.id DESC
+       ORDER BY ${orderSql}
        LIMIT ? OFFSET ?`,
       {
         replacements: [ ...replacements, pageSize, offset ],
@@ -2399,7 +2712,8 @@ class UiedFigmaService extends Service {
     );
 
     const total = Number(countRow?.total || 0);
-    const lists = (Array.isArray(rows) ? rows : []).map(item => ({
+    const rowsWithCache = await this.hydrateAssetUrlsToLocal(rows, { maxTransfer: 8 });
+    const lists = (Array.isArray(rowsWithCache) ? rowsWithCache : []).map(item => ({
       ...this.normalizePluginOutputFields(item),
       tags: String(item.tagNames || '')
         .split(',')
@@ -2500,10 +2814,13 @@ class UiedFigmaService extends Service {
       }
     );
 
+    const [ detailRow ] = await this.hydrateAssetUrlsToLocal([ row ], { maxTransfer: 4 });
+    const relatedRows = await this.hydrateAssetUrlsToLocal(related, { maxTransfer: 4 });
+
     return {
-      ...this.normalizePluginOutputFields(row),
+      ...this.normalizePluginOutputFields(detailRow || row),
       tags: Array.isArray(tags) ? tags : [],
-      related: (Array.isArray(related) ? related : []).map(item => this.normalizePluginOutputFields(item)),
+      related: (Array.isArray(relatedRows) ? relatedRows : []).map(item => this.normalizePluginOutputFields(item)),
     };
   }
 

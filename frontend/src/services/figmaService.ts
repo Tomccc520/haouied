@@ -10,6 +10,7 @@
 
 import api from './api';
 import { unwrapApiList, unwrapApiResponse } from '../utils/apiResponse';
+import type { AxiosError } from 'axios';
 
 export interface FigmaListParams {
   page?: number;
@@ -17,6 +18,7 @@ export interface FigmaListParams {
   keyword?: string;
   category?: string;
   tag?: string;
+  sort?: 'latest' | 'hot' | 'users' | 'likes';
 }
 
 export interface FigmaCategoryMeta {
@@ -61,6 +63,23 @@ export interface FigmaListItem {
   seoTitle?: string;
   seoKeywords?: string;
   seoDescription?: string;
+}
+
+export interface FigmaDetailTag {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface FigmaDetail extends Omit<FigmaListItem, 'tags'> {
+  content?: string;
+  transportType?: string;
+  runtime?: string;
+  protocolVersion?: string;
+  createTime?: number;
+  updateTime?: number;
+  tags?: FigmaDetailTag[];
+  related?: FigmaListItem[];
 }
 
 export interface FigmaListResponse {
@@ -110,10 +129,65 @@ export const getFigmaTags = async (): Promise<FigmaTagMeta[]> => {
   return unwrapApiList<FigmaTagMeta>(response.data);
 };
 
+/**
+ * 获取 Figma 插件详情。
+ */
+export const getFigmaDetail = async (idOrSlug: string | number): Promise<FigmaDetail | null> => {
+  const value = String(idOrSlug || '').trim();
+  if (!value) return null;
+  const normalizeDetailPayload = (rawDetail: unknown): FigmaDetail | null => {
+    if (!rawDetail || typeof rawDetail !== 'object') return null;
+    const detail = rawDetail as FigmaDetail;
+    return {
+      ...detail,
+      tags: Array.isArray(detail.tags) ? detail.tags : [],
+      related: Array.isArray(detail.related) ? detail.related : [],
+    };
+  };
+
+  const fetchByIdentity = async (identity: string): Promise<FigmaDetail | null> => {
+    const response = await api.get(`/figma/${encodeURIComponent(identity)}`);
+    return normalizeDetailPayload(unwrapApiResponse<FigmaDetail | null>(response.data, null));
+  };
+
+  /**
+   * 兜底方案：详情接口暂时不可用时，使用列表卡片数据构造最小详情，保证页面可读。
+   */
+  const loadFallbackDetailByList = async (): Promise<FigmaDetail | null> => {
+    const lookup = await getFigmaList({ page: 1, pageSize: 500 });
+    const matched = (Array.isArray(lookup.lists) ? lookup.lists : []).find((item) => {
+      return String(item.slug || '').trim() === value || String(item.id || '') === value;
+    });
+    if (!matched) return null;
+    const tags = Array.isArray(matched.tags)
+      ? matched.tags.map((tagName, index) => ({ id: index + 1, name: String(tagName || ''), slug: String(tagName || '') }))
+      : [];
+    return {
+      ...matched,
+      content: matched.summary || '',
+      tags,
+      related: [],
+    };
+  };
+
+  try {
+    const detail = await fetchByIdentity(value);
+    if (detail) return detail;
+    return await loadFallbackDetailByList();
+  } catch (error) {
+    const status = Number((error as AxiosError)?.response?.status || 0);
+    if (status === 404) return null;
+    const fallback = await loadFallbackDetailByList().catch(() => null);
+    if (fallback) return fallback;
+    throw error;
+  }
+};
+
 const figmaService = {
   getFigmaList,
   getFigmaCategories,
   getFigmaTags,
+  getFigmaDetail,
 };
 
 export default figmaService;

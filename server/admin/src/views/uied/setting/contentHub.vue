@@ -360,6 +360,42 @@
                         </el-form>
                     </el-card>
                 </el-tab-pane>
+                <el-tab-pane label="Figma中心" name="figma" lazy>
+                    <el-card shadow="never">
+                        <template #header>
+                            <div class="content-hub-setting__daily-new-head">
+                                <span>Figma 前端页面配置（/figma）</span>
+                                <div class="content-hub-setting__daily-new-actions">
+                                    <el-button :loading="figmaPageLoading" @click="loadFigmaPageConfig">刷新</el-button>
+                                    <el-button type="primary" :loading="figmaPageSaving" @click="saveFigmaPageConfig">保存配置</el-button>
+                                </div>
+                            </div>
+                        </template>
+                        <el-form :model="figmaPageForm" label-width="160px">
+                            <el-form-item label="启用 Figma 页面">
+                                <el-switch v-model="figmaPageForm.enabled" />
+                            </el-form-item>
+                            <el-form-item label="每页插件卡片数">
+                                <div class="content-hub-setting__inline-column">
+                                    <el-input-number v-model="figmaPageForm.listPageSize" :min="6" :max="72" :disabled="!figmaPageForm.enabled" />
+                                    <span class="content-hub-setting__tip">控制 /figma 页列表分页条数，建议 18-30。</span>
+                                </div>
+                            </el-form-item>
+                            <el-form-item label="卡片点击行为">
+                                <el-radio-group v-model="figmaPageForm.cardClickAction" :disabled="!figmaPageForm.enabled">
+                                    <el-radio-button label="official_first">优先原链接</el-radio-button>
+                                    <el-radio-button label="detail">进入详情页</el-radio-button>
+                                </el-radio-group>
+                            </el-form-item>
+                            <el-form-item label="新窗口打开">
+                                <el-switch
+                                    v-model="figmaPageForm.cardClickNewWindow"
+                                    :disabled="!figmaPageForm.enabled || figmaPageForm.cardClickAction !== 'official_first'"
+                                />
+                            </el-form-item>
+                        </el-form>
+                    </el-card>
+                </el-tab-pane>
             </el-tabs>
         </el-card>
     </div>
@@ -380,7 +416,7 @@ import HotArticlesSetting from './hotArticles.vue'
 import DailyHotSetting from '../dailyHot/index.vue'
 import RankBoardSetting from '../rankBoard/index.vue'
 
-type ContentHubTab = 'hot' | 'rankings' | 'dailyHot' | 'dailyNew' | 'websiteCompare' | 'mcp'
+type ContentHubTab = 'hot' | 'rankings' | 'dailyHot' | 'dailyNew' | 'websiteCompare' | 'mcp' | 'figma'
 
 type WebsiteCompareMetricKey =
     | 'category'
@@ -476,6 +512,13 @@ interface McpPageFormState {
     detailShowVersionTag: boolean
 }
 
+interface FigmaPageFormState {
+    enabled: boolean
+    listPageSize: number
+    cardClickAction: 'detail' | 'official_first'
+    cardClickNewWindow: boolean
+}
+
 const route = useRoute()
 const activeTab = ref<ContentHubTab>('hot')
 const dailyNewLoading = ref(false)
@@ -487,6 +530,9 @@ const websiteCompareInited = ref(false)
 const mcpPageLoading = ref(false)
 const mcpPageSaving = ref(false)
 const mcpPageInited = ref(false)
+const figmaPageLoading = ref(false)
+const figmaPageSaving = ref(false)
+const figmaPageInited = ref(false)
 
 const dailyNewForm = reactive<DailyNewFormState>({
     enabled: true,
@@ -597,6 +643,18 @@ const getDefaultMcpPageConfig = (): McpPageFormState => ({
 const mcpPageForm = reactive<McpPageFormState>(getDefaultMcpPageConfig())
 
 /**
+ * 获取 Figma 页面默认配置，和后端默认值保持一致。
+ */
+const getDefaultFigmaPageConfig = (): FigmaPageFormState => ({
+    enabled: true,
+    listPageSize: 24,
+    cardClickAction: 'official_first',
+    cardClickNewWindow: true,
+})
+
+const figmaPageForm = reactive<FigmaPageFormState>(getDefaultFigmaPageConfig())
+
+/**
  * 规范化 HEX 色值，避免输入非法值导致前端样式异常。
  */
 const normalizeHexColor = (value: unknown, fallback: string): string => {
@@ -614,6 +672,7 @@ const normalizeTab = (value: unknown): ContentHubTab => {
     if (text === 'dailyNew') return 'dailyNew'
     if (text === 'websiteCompare') return 'websiteCompare'
     if (text === 'mcp') return 'mcp'
+    if (text === 'figma') return 'figma'
     return 'hot'
 }
 
@@ -751,6 +810,20 @@ const applyMcpPageForm = (config: Record<string, any>) => {
 }
 
 /**
+ * 回填 Figma 页面配置表单。
+ */
+const applyFigmaPageForm = (config: Record<string, any>) => {
+    const defaults = getDefaultFigmaPageConfig()
+    const cardClickAction = String(config?.cardClickAction || '').trim().toLowerCase()
+    figmaPageForm.enabled = config?.enabled !== false
+    figmaPageForm.listPageSize = Number.isFinite(Number(config?.listPageSize))
+        ? Math.max(6, Math.min(72, Number(config?.listPageSize)))
+        : defaults.listPageSize
+    figmaPageForm.cardClickAction = cardClickAction === 'detail' ? 'detail' : defaults.cardClickAction
+    figmaPageForm.cardClickNewWindow = config?.cardClickNewWindow !== false
+}
+
+/**
  * 加载“最新上新”配置，来源 homepageConfig。
  */
 const loadDailyNewConfig = async () => {
@@ -801,6 +874,24 @@ const loadMcpPageConfig = async () => {
         feedback.msgError('加载MCP页面配置失败')
     } finally {
         mcpPageLoading.value = false
+    }
+}
+
+/**
+ * 加载 Figma 页面配置。
+ */
+const loadFigmaPageConfig = async () => {
+    figmaPageLoading.value = true
+    try {
+        const data = await uiedSettingGet({ key: 'figmaPageConfig' })
+        const config = data && typeof data === 'object' ? data : {}
+        applyFigmaPageForm(config as Record<string, any>)
+        figmaPageInited.value = true
+    } catch (error) {
+        console.error('加载Figma页面配置失败:', error)
+        feedback.msgError('加载Figma页面配置失败')
+    } finally {
+        figmaPageLoading.value = false
     }
 }
 
@@ -954,6 +1045,29 @@ const saveMcpPageConfig = async () => {
 }
 
 /**
+ * 保存 Figma 页面配置。
+ */
+const saveFigmaPageConfig = async () => {
+    figmaPageSaving.value = true
+    try {
+        const payload: FigmaPageFormState = {
+            enabled: figmaPageForm.enabled !== false,
+            listPageSize: Math.max(6, Math.min(72, Number(figmaPageForm.listPageSize || 24))),
+            cardClickAction: figmaPageForm.cardClickAction === 'detail' ? 'detail' : 'official_first',
+            cardClickNewWindow: figmaPageForm.cardClickNewWindow !== false,
+        }
+        await uiedSettingSave({ figmaPageConfig: payload })
+        feedback.msgSuccess('Figma页面配置保存成功')
+        figmaPageInited.value = true
+    } catch (error) {
+        console.error('保存Figma页面配置失败:', error)
+        feedback.msgError('保存Figma页面配置失败')
+    } finally {
+        figmaPageSaving.value = false
+    }
+}
+
+/**
  * 恢复网站对比默认配置。
  */
 const resetWebsiteCompareToDefault = async () => {
@@ -1004,6 +1118,9 @@ watch(
         if (value === 'mcp' && !mcpPageLoading.value && !mcpPageInited.value) {
             loadMcpPageConfig()
         }
+        if (value === 'figma' && !figmaPageLoading.value && !figmaPageInited.value) {
+            loadFigmaPageConfig()
+        }
     },
     { immediate: true }
 )
@@ -1017,6 +1134,9 @@ onMounted(() => {
     }
     if (activeTab.value === 'mcp') {
         loadMcpPageConfig()
+    }
+    if (activeTab.value === 'figma') {
+        loadFigmaPageConfig()
     }
 })
 </script>
