@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-03-21T15:43:16.323Z",
+  "apply": true,
+  "scope": "all_nondetail",
+  "unresolvedTotal": 18,
+  "mappedTotal": 18,
+  "updatedTotal": 18,
+  "unresolvedNoPoolTotal": 0,
+  "pools": {
+    "categoryPoolCount": 25,
+    "globalPoolCount": 1982
+  },
+  "categoryStats": {
+    "mobile": {
+      "categoryId": 4,
+      "categorySlug": "mobile",
+      "categoryName": "移动端",
+      "unresolved": 3,
+      "mapped": 3,
+      "strategy": "category_pool"
+    },
+    "color": {
+      "categoryId": 5,
+      "categorySlug": "color",
+      "categoryName": "颜色",
+      "unresolved": 3,
+      "mapped": 3,
+      "strategy": "category_pool"
+    },
+    "charts": {
+      "categoryId": 8,
+      "categorySlug": "charts",
+      "categoryName": "图表",
+      "unresolved": 3,
+      "mapped": 3,
+      "strategy": "category_pool"
+    },
+    "chinese": {
+      "categoryId": 9,
+      "categorySlug": "chinese",
+      "categoryName": "中文",
+      "unresolved": 3,
+      "mapped": 3,
+      "strategy": "category_pool"
+    },
+    "components": {
+      "categoryId": 10,
+      "categorySlug": "components",
+      "categoryName": "组件",
+      "unresolved": 3,
+      "mapped": 3,
+      "strategy": "category_pool"
+    },
+    "animation-gif": {
+      "categoryId": 16,
+      "categorySlug": "animation-gif",
+      "categoryName": "动画GIF",
+      "unresolved": 3,
+      "mapped": 3,
+      "strategy": "category_pool"
+    }
+  },
+  "unresolvedNoPool": []
+}

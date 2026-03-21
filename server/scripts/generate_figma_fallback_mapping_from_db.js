@@ -36,13 +36,14 @@ const loadDbConfig = () => {
 
 /**
  * 解析命令行参数。
- * @returns {{outputFile:string,reportFile:string,apply:boolean}}
+ * @returns {{outputFile:string,reportFile:string,apply:boolean,scope:string}}
  */
 const parseArgs = () => {
     const options = {
         outputFile: DEFAULT_OUTPUT_FILE,
         reportFile: DEFAULT_REPORT_FILE,
         apply: false,
+        scope: 'manual_expand',
     };
     process.argv.slice(2).forEach((arg) => {
         if (arg === '--apply') {
@@ -55,6 +56,15 @@ const parseArgs = () => {
         }
         if (arg.startsWith('--report=')) {
             options.reportFile = path.resolve(process.cwd(), arg.slice('--report='.length));
+            return;
+        }
+        if (arg.startsWith('--scope=')) {
+            const scope = String(arg.slice('--scope='.length) || '').trim().toLowerCase();
+            if (scope === 'all_nondetail') {
+                options.scope = 'all_nondetail';
+            } else {
+                options.scope = 'manual_expand';
+            }
         }
     });
     return options;
@@ -81,9 +91,13 @@ const extractPluginIdFromUrl = (url = '') => {
 /**
  * 获取待回填（占位链接）插件列表。
  * @param {mysql.Connection} connection 数据库连接
+ * @param {string} scope 回填范围
  * @returns {Promise<object[]>}
  */
-const queryUnresolvedRows = async (connection) => {
+const queryUnresolvedRows = async (connection, scope = 'manual_expand') => {
+    const whereScope = scope === 'all_nondetail'
+        ? ''
+        : "AND p.source_type LIKE 'manual_expand_%'";
     const [rows] = await connection.query(
         `
         SELECT
@@ -100,7 +114,7 @@ const queryUnresolvedRows = async (connection) => {
         LEFT JOIN uied_figma_plugin_category c
           ON c.id = p.category_id AND c.is_delete = 0
         WHERE p.is_delete = 0
-          AND p.source_type LIKE 'manual_expand_%'
+          ${whereScope}
           AND (
             p.official_url IS NULL
             OR p.official_url = ''
@@ -267,7 +281,7 @@ const main = async () => {
     const options = parseArgs();
     const connection = await mysql.createConnection(loadDbConfig());
     try {
-        const unresolvedRows = await queryUnresolvedRows(connection);
+        const unresolvedRows = await queryUnresolvedRows(connection, options.scope);
         const { categoryPool, globalPool } = await queryAvailablePools(connection);
         const { mappingList, unresolvedNoPool, categoryStats } = buildFallbackMappings(
             unresolvedRows,
@@ -283,6 +297,7 @@ const main = async () => {
         const report = {
             generatedAt: new Date().toISOString(),
             apply: Boolean(options.apply),
+            scope: options.scope,
             unresolvedTotal: unresolvedRows.length,
             mappedTotal: mappingList.length,
             updatedTotal: updated,
@@ -319,4 +334,3 @@ main().catch((error) => {
     console.error('[ERROR] generate_figma_fallback_mapping_from_db 执行失败：', error.message);
     process.exitCode = 1;
 });
-

@@ -1,0 +1,164 @@
+[
+  {
+    "id": 21,
+    "slug": "figma-mobile-device-frames-curated",
+    "name": "Device Frames Curated",
+    "officialUrl": "https://www.figma.com/community/plugin/1301565000406306598",
+    "figmaPluginId": "1301565000406306598",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1301565000406306598"
+  },
+  {
+    "id": 22,
+    "slug": "figma-mobile-responsive-curated",
+    "name": "Responsive Layout Helper",
+    "officialUrl": "https://www.figma.com/community/plugin/1288384588102194408",
+    "figmaPluginId": "1288384588102194408",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1288384588102194408"
+  },
+  {
+    "id": 23,
+    "slug": "figma-mobile-prototype-curated",
+    "name": "Mobile Prototype Preview",
+    "officialUrl": "https://www.figma.com/community/plugin/775445260035815307",
+    "figmaPluginId": "775445260035815307",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/775445260035815307"
+  },
+  {
+    "id": 24,
+    "slug": "figma-color-palette-curated",
+    "name": "Color Palette Generator",
+    "officialUrl": "https://www.figma.com/community/plugin/1419361951618847158",
+    "figmaPluginId": "1419361951618847158",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1419361951618847158"
+  },
+  {
+    "id": 25,
+    "slug": "figma-color-contrast-curated",
+    "name": "Contrast Checker",
+    "officialUrl": "https://www.figma.com/community/plugin/740832935938649295",
+    "figmaPluginId": "740832935938649295",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/740832935938649295"
+  },
+  {
+    "id": 26,
+    "slug": "figma-color-token-curated",
+    "name": "Color Token Manager",
+    "officialUrl": "https://www.figma.com/community/plugin/1124704493694112597",
+    "figmaPluginId": "1124704493694112597",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1124704493694112597"
+  },
+  {
+    "id": 27,
+    "slug": "figma-charts-generator-curated",
+    "name": "Charts Generator",
+    "officialUrl": "https://www.figma.com/community/plugin/1369795683946720598",
+    "figmaPluginId": "1369795683946720598",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1369795683946720598"
+  },
+  {
+    "id": 28,
+    "slug": "figma-dataviz-curated",
+    "name": "DataViz Toolkit",
+    "officialUrl": "https://www.figma.com/community/plugin/731451122947612104",
+    "figmaPluginId": "731451122947612104",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/731451122947612104"
+  },
+  {
+    "id": 29,
+    "slug": "figma-chart-sync-curated",
+    "name": "Chart Data Sync",
+    "officialUrl": "https://www.figma.com/community/plugin/1370606842652257742",
+    "figmaPluginId": "1370606842652257742",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1370606842652257742"
+  },
+  {
+    "id": 30,
+    "slug": "figma-chinese-font-preview-curated",
+    "name": "中文字体预览助手",
+    "officialUrl": "https://www.figma.com/community/plugin/851126455550003999",
+    "figmaPluginId": "851126455550003999",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/851126455550003999"
+  },
+  {
+    "id": 31,
+    "slug": "figma-chinese-text-fill-curated",
+    "name": "中文占位文本生成",
+    "officialUrl": "https://www.figma.com/community/plugin/864052338727969891",
+    "figmaPluginId": "864052338727969891",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/864052338727969891"
+  },
+  {
+    "id": 32,
+    "slug": "figma-chinese-copy-check-curated",
+    "name": "中文文案检查工具",
+    "officialUrl": "https://www.figma.com/community/plugin/882853640594594542",
+    "figmaPluginId": "882853640594594542",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/882853640594594542"
+  },
+  {
+    "id": 33,
+    "slug": "figma-component-finder-curated",
+    "name": "Component Finder",
+    "officialUrl": "https://www.figma.com/community/plugin/1327254733414098903",
+    "figmaPluginId": "1327254733414098903",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1327254733414098903"
+  },
+  {
+    "id": 34,
+    "slug": "figma-variant-organizer-curated",
+    "name": "Variant Organizer",
+    "officialUrl": "https://www.figma.com/community/plugin/1077172952654000760",
+    "figmaPluginId": "1077172952654000760",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1077172952654000760"
+  },
+  {
+    "id": 35,
+    "slug": "figma-instance-audit-curated",
+    "name": "Instance Audit",
+    "officialUrl": "https://www.figma.com/community/plugin/944200797696370948",
+    "figmaPluginId": "944200797696370948",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/944200797696370948"
+  },
+  {
+    "id": 36,
+    "slug": "figma-figmotion-curated",
+    "name": "Figmotion Curated",
+    "officialUrl": "https://www.figma.com/community/plugin/988173868842375596",
+    "figmaPluginId": "988173868842375596",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/988173868842375596"
+  },
+  {
+    "id": 37,
+    "slug": "figma-gif-export-curated",
+    "name": "GIF Export Curated",
+    "officialUrl": "https://www.figma.com/community/plugin/1414925802794094447",
+    "figmaPluginId": "1414925802794094447",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1414925802794094447"
+  },
+  {
+    "id": 38,
+    "slug": "figma-lottie-animation-curated",
+    "name": "Lottie Animation Curated",
+    "officialUrl": "https://www.figma.com/community/plugin/1460761491091046483",
+    "figmaPluginId": "1460761491091046483",
+    "sourceType": "figma_fallback_pool",
+    "sourceUrl": "https://www.figma.com/community/plugin/1460761491091046483"
+  }
+]

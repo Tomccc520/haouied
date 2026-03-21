@@ -1,0 +1,413 @@
+{
+  "generatedAt": "2026-03-21T15:55:57.494Z",
+  "total": 2000,
+  "published": 2000,
+  "urlQuality": {
+    "officialDetailOk": 2000,
+    "officialEmpty": 0,
+    "officialNonDetail": 0
+  },
+  "fieldQuality": {
+    "iconEmpty": 1980,
+    "coverEmpty": 1980,
+    "summaryEmpty": 0,
+    "categoryEmpty": 0,
+    "slugEmpty": 0,
+    "pluginIdEmpty": 0
+  },
+  "mismatch": {
+    "officialUrlVsPluginId": 0
+  },
+  "topDuplicatePluginId": [
+    {
+      "pluginId": "1140011001001001005",
+      "count": 27
+    },
+    {
+      "pluginId": "1140011001001001006",
+      "count": 27
+    },
+    {
+      "pluginId": "1140011001001001007",
+      "count": 27
+    },
+    {
+      "pluginId": "1140011001001001008",
+      "count": 27
+    },
+    {
+      "pluginId": "1164215352089931055",
+      "count": 27
+    },
+    {
+      "pluginId": "733902567457592893",
+      "count": 27
+    },
+    {
+      "pluginId": "1140011001001001015",
+      "count": 26
+    },
+    {
+      "pluginId": "1140011001001001016",
+      "count": 26
+    },
+    {
+      "pluginId": "1195520409884202405",
+      "count": 26
+    },
+    {
+      "pluginId": "744098704933821409",
+      "count": 22
+    },
+    {
+      "pluginId": "1201574158914021598",
+      "count": 19
+    },
+    {
+      "pluginId": "791103617505812222",
+      "count": 15
+    },
+    {
+      "pluginId": "1077172952654000760",
+      "count": 14
+    },
+    {
+      "pluginId": "1293850942618899708",
+      "count": 14
+    },
+    {
+      "pluginId": "1301565000406306598",
+      "count": 14
+    },
+    {
+      "pluginId": "1538762409667609508",
+      "count": 14
+    },
+    {
+      "pluginId": "1201269652729830351",
+      "count": 13
+    },
+    {
+      "pluginId": "1268207252459866296",
+      "count": 13
+    },
+    {
+      "pluginId": "1468960997787343280",
+      "count": 13
+    },
+    {
+      "pluginId": "1576787863169478138",
+      "count": 13
+    }
+  ],
+  "topDuplicateOfficialUrl": [
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/733902567457592893/autoflow",
+      "count": 27
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1164215352089931055/prototype-flow-helper",
+      "count": 27
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1140011001001001005/campaign-landing-blocks",
+      "count": 27
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1140011001001001006/growth-metric-cards",
+      "count": 27
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1140011001001001007/ai-copy-to-ui",
+      "count": 27
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1140011001001001008/prompt-layout-painter",
+      "count": 27
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1195520409884202405/interactive-preview-modes",
+      "count": 26
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1140011001001001015/campaign-timeline-blocks",
+      "count": 26
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1140011001001001016/ai-section-rewriter",
+      "count": 26
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/744098704933821409",
+      "count": 21
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1201574158914021598",
+      "count": 19
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1301565000406306598",
+      "count": 14
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1077172952654000760",
+      "count": 14
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/791103617505812222",
+      "count": 14
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1293850942618899708",
+      "count": 14
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1538762409667609508",
+      "count": 14
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1576787863169478138",
+      "count": 13
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1468960997787343280",
+      "count": 13
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/1268207252459866296",
+      "count": 13
+    },
+    {
+      "officialUrl": "https://www.figma.com/community/plugin/819335598581469537",
+      "count": 13
+    }
+  ],
+  "sourceTypeStats": [
+    {
+      "sourceType": "manual_expand_round5",
+      "total": 1515
+    },
+    {
+      "sourceType": "figma_fallback_pool",
+      "total": 309
+    },
+    {
+      "sourceType": "manual_expand_round4",
+      "total": 85
+    },
+    {
+      "sourceType": "manual_import",
+      "total": 37
+    },
+    {
+      "sourceType": "manual_expand_round3",
+      "total": 34
+    },
+    {
+      "sourceType": "figma_community",
+      "total": 20
+    }
+  ],
+  "categoryStats": [
+    {
+      "slug": "3d",
+      "name": "3D",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "ai-design",
+      "name": "AI设计",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "animation-gif",
+      "name": "动画GIF",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "charts",
+      "name": "图表",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "chinese",
+      "name": "中文",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "code",
+      "name": "代码",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 77,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "color",
+      "name": "颜色",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "components",
+      "name": "组件",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "design-system",
+      "name": "设计系统",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "ecommerce",
+      "name": "电商运营",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "essentials",
+      "name": "装机必备",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "growth-ops",
+      "name": "运营增长",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "handoff",
+      "name": "交付",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "icons",
+      "name": "图标",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 77,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "illustration",
+      "name": "插画",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "image",
+      "name": "图像",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 77,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "layout",
+      "name": "布局",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "mobile",
+      "name": "移动端",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "mockup",
+      "name": "样机",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "presentation",
+      "name": "演示提案",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "productivity",
+      "name": "效率工具",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "prototype",
+      "name": "原型",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "svg",
+      "name": "SVG",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 79,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "typography",
+      "name": "文字",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 78,
+      "summaryEmpty": 0
+    },
+    {
+      "slug": "ui-kits",
+      "name": "UI组件库",
+      "total": 80,
+      "detailOk": 80,
+      "iconEmpty": 80,
+      "summaryEmpty": 0
+    }
+  ]
+}
