@@ -19,12 +19,13 @@ class PageController extends baseController {
   async list() {
     const { ctx } = this;
     try {
-      const { pageNo = 1, pageSize = 20, keyword = '', isActive = '' } = ctx.query;
+      const { pageNo = 1, pageSize = 20, keyword = '', isActive = '', pageGroup = '' } = ctx.query;
       const result = await ctx.service.uied.page.list({
         page: parseInt(pageNo),
         pageSize: parseInt(pageSize),
         keyword: String(keyword || '').trim(),
         isActive,
+        pageGroup: String(pageGroup || '').trim().toLowerCase(),
       });
       this.result({ data: result });
     } catch (error) {

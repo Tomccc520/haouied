@@ -287,6 +287,66 @@ class ArticleCategoryService extends Service {
   }
 
   /**
+   * 获取前端可用分类名称（分类表优先，仅返回“有已发布文章”的分类）
+   * 返回结构保持 string[]，兼容现有前端消费。
+   * @return {Promise<string[]>}
+   */
+  async publicPublishedCategoryNames() {
+    const { app } = this;
+    const articleCategoryColumn = await this.getArticleCategoryColumn();
+
+    try {
+      const rows = articleCategoryColumn
+        ? await app.model.query(
+          `SELECT c.name
+           FROM uied_article_category c
+           INNER JOIN uied_article a
+             ON a.\`${articleCategoryColumn}\` = c.id
+            AND a.is_delete = 0
+            AND a.status = 'published'
+           WHERE c.is_delete = 0
+           GROUP BY c.id, c.name, c.sort_order
+           ORDER BY c.sort_order ASC, c.id ASC`,
+          { type: app.Sequelize.QueryTypes.SELECT }
+        )
+        : await app.model.query(
+          `SELECT c.name
+           FROM uied_article_category c
+           INNER JOIN uied_article a
+             ON BINARY a.category = BINARY c.name
+            AND a.is_delete = 0
+            AND a.status = 'published'
+           WHERE c.is_delete = 0
+           GROUP BY c.id, c.name, c.sort_order
+           ORDER BY c.sort_order ASC, c.id ASC`,
+          { type: app.Sequelize.QueryTypes.SELECT }
+        );
+
+      const names = Array.from(new Set(
+        (Array.isArray(rows) ? rows : [])
+          .map(item => String(item?.name || '').trim())
+          .filter(Boolean)
+      ));
+      if (names.length > 0) {
+        return names;
+      }
+    } catch (error) {
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      this.ctx.logger.warn('[articleCategory] publicPublishedCategoryNames 降级到文章表读取:', error.message);
+    }
+
+    const fallbackRows = await this.fallbackAllFromArticleTable();
+    return Array.from(new Set(
+      fallbackRows
+        .filter(item => this.parsePositiveInt(item?.articleCount, 0) > 0)
+        .map(item => String(item?.name || '').trim())
+        .filter(Boolean)
+    ));
+  }
+
+  /**
    * 添加分类
    * @param {Object} data - 分类数据
    */

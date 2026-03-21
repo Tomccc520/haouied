@@ -11,6 +11,12 @@ import { Link, useParams } from 'react-router-dom';
 import SEO from '../../components/SEO';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import api from '../../services/api';
+import {
+  DEFAULT_WEBSITE_COMPARE,
+  WebsiteCompareConfig,
+  WebsiteCompareMetricKey,
+} from '../../services/publicSettingService';
+import { usePublicSettings } from '../../hooks/usePublicSettings';
 import { unwrapApiList, unwrapApiResponse } from '../../utils/apiResponse';
 import { getFullImageUrl } from '../../utils/urlUtils';
 import './index.css';
@@ -90,6 +96,13 @@ interface CompareAiAnalysisState {
   data: CompareAiAnalysisResult | null;
 }
 
+interface CompareRow {
+  key: WebsiteCompareMetricKey;
+  label: string;
+  left: string;
+  right: string;
+}
+
 /**
  * 解析 VS 路由参数，兼容两种形式：
  * 1. /vs/:left/:right
@@ -121,7 +134,7 @@ function resolveCompareParams(params: {
 }
 
 /**
- * 构建对比页路径
+ * 构建对比页路径。
  */
 function buildComparePath(left: string, right: string): string {
   const leftId = String(left || '').trim();
@@ -131,7 +144,17 @@ function buildComparePath(left: string, right: string): string {
 }
 
 /**
- * 规范化截图数组
+ * 模板变量替换（{left}/{right}）。
+ */
+function applyNameTemplate(template: string, leftName: string, rightName: string): string {
+  return String(template || '')
+    .replace(/\{left\}/g, leftName)
+    .replace(/\{right\}/g, rightName)
+    .trim();
+}
+
+/**
+ * 规范化截图数组。
  */
 function normalizeScreenshots(value: CompareWebsiteDetail['screenshots']): string[] {
   if (Array.isArray(value)) {
@@ -144,7 +167,7 @@ function normalizeScreenshots(value: CompareWebsiteDetail['screenshots']): strin
 }
 
 /**
- * 格式化日期
+ * 格式化日期。
  */
 function formatDateLabel(value?: string): string {
   if (!value) return '未知';
@@ -157,7 +180,7 @@ function formatDateLabel(value?: string): string {
 }
 
 /**
- * 提取域名显示
+ * 提取域名显示。
  */
 function getHostLabel(url?: string): string {
   if (!url) return '';
@@ -169,7 +192,7 @@ function getHostLabel(url?: string): string {
 }
 
 /**
- * 获取协议显示
+ * 获取协议显示。
  */
 function getProtocolLabel(url?: string): string {
   if (!url) return '未知';
@@ -182,7 +205,7 @@ function getProtocolLabel(url?: string): string {
 }
 
 /**
- * 缩略图兜底：优先上传图，否则使用 mShots 免费截图
+ * 缩略图兜底：优先上传图，否则使用 mShots 免费截图。
  */
 function getComparePreviewImage(detail: CompareWebsiteDetail | null): string {
   if (!detail) return '';
@@ -196,7 +219,7 @@ function getComparePreviewImage(detail: CompareWebsiteDetail | null): string {
 }
 
 /**
- * HTML 转义，避免直接渲染 AI 文本导致标签注入
+ * HTML 转义，避免直接渲染 AI 文本导致标签注入。
  */
 function escapeHtml(text: string): string {
   return String(text || '')
@@ -208,7 +231,7 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * 将 AI 返回的 Markdown 做轻量渲染（无额外依赖）
+ * 将 AI 返回的 Markdown 做轻量渲染（无额外依赖）。
  */
 function renderAiMarkdown(content: string): string {
   const escaped = escapeHtml(content || '');
@@ -230,7 +253,7 @@ function renderAiMarkdown(content: string): string {
 }
 
 /**
- * 拉取某个网站的“同分类 + 同标签”候选，用于对比页内链
+ * 拉取某个网站的“同分类 + 同标签”候选，用于对比页内链。
  */
 async function fetchCompareRelatedCandidates(
   websiteId: string,
@@ -263,7 +286,7 @@ async function fetchCompareRelatedCandidates(
 }
 
 /**
- * 生成网站对比卡片的标签集合（详情 tags + 标签接口）
+ * 生成网站对比卡片的标签集合（详情 tags + 标签接口）。
  */
 function getCompareTagNames(detail: CompareWebsiteDetail | null, tags: CompareWebsiteTag[]): string[] {
   const fromDetail = Array.isArray(detail?.tags) ? detail?.tags || [] : [];
@@ -272,7 +295,7 @@ function getCompareTagNames(detail: CompareWebsiteDetail | null, tags: CompareWe
 }
 
 /**
- * 生成“优点”模板文案（SEO 内容块）
+ * 生成“优点”模板文案（SEO 内容块）。
  */
 function buildCompareStrengths(detail: CompareWebsiteDetail, tagNames: string[]): string[] {
   const result: string[] = [];
@@ -295,7 +318,7 @@ function buildCompareStrengths(detail: CompareWebsiteDetail, tagNames: string[])
 }
 
 /**
- * 生成“注意点”模板文案（SEO 内容块）
+ * 生成“注意点”模板文案（SEO 内容块）。
  */
 function buildCompareCautions(detail: CompareWebsiteDetail, tagNames: string[]): string[] {
   const result: string[] = [];
@@ -318,7 +341,7 @@ function buildCompareCautions(detail: CompareWebsiteDetail, tagNames: string[]):
 }
 
 /**
- * 生成“适用人群”模板文案（SEO 内容块）
+ * 生成“适用人群”模板文案（SEO 内容块）。
  */
 function buildAudienceHints(detail: CompareWebsiteDetail, tagNames: string[]): string[] {
   const audience: string[] = [];
@@ -341,7 +364,7 @@ function buildAudienceHints(detail: CompareWebsiteDetail, tagNames: string[]): s
 }
 
 /**
- * 拉取单个网站详情 + 标签，用于对比页左右卡片
+ * 拉取单个网站详情 + 标签，用于对比页左右卡片。
  */
 async function fetchCompareWebsite(identifier: string): Promise<{ detail: CompareWebsiteDetail | null; tags: CompareWebsiteTag[] }> {
   if (!identifier) return { detail: null, tags: [] };
@@ -361,21 +384,65 @@ async function fetchCompareWebsite(identifier: string): Promise<{ detail: Compar
 }
 
 /**
- * 拉取网站对比 AI 分析结果（需要商业版 AI 能力）
+ * 拉取网站对比 AI 分析结果（需要商业版 AI 能力）。
  */
 async function fetchCompareAiAnalysis(leftIdOrSlug: string, rightIdOrSlug: string): Promise<CompareAiAnalysisResult> {
   const response = await api.post('/compare/websites/ai-analysis', {
     leftIdOrSlug,
     rightIdOrSlug,
   }, {
-    // AI 对比分析可能超过默认 10 秒，单独放宽超时
     timeout: 90000,
   });
   return unwrapApiResponse<CompareAiAnalysisResult>(response.data, {});
 }
 
 /**
- * 对比页主组件
+ * 生成对比指标映射表，供后台配置指标项动态渲染。
+ */
+function buildMetricValueMap(
+  leftWebsite: CompareWebsiteDetail,
+  rightWebsite: CompareWebsiteDetail,
+  leftTags: string[],
+  rightTags: string[]
+): Record<WebsiteCompareMetricKey, { left: string; right: string }> {
+  return {
+    category: {
+      left: leftWebsite?.category?.name || '未分类',
+      right: rightWebsite?.category?.name || '未分类',
+    },
+    domain: {
+      left: getHostLabel(leftWebsite?.url) || '未知',
+      right: getHostLabel(rightWebsite?.url) || '未知',
+    },
+    protocol: {
+      left: getProtocolLabel(leftWebsite?.url),
+      right: getProtocolLabel(rightWebsite?.url),
+    },
+    tag_count: {
+      left: `${leftTags.length}`,
+      right: `${rightTags.length}`,
+    },
+    screenshot_count: {
+      left: `${normalizeScreenshots(leftWebsite?.screenshots).length}`,
+      right: `${normalizeScreenshots(rightWebsite?.screenshots).length}`,
+    },
+    comment_count: {
+      left: `${leftWebsite?.commentsCount || 0}`,
+      right: `${rightWebsite?.commentsCount || 0}`,
+    },
+    rating_count: {
+      left: `${leftWebsite?.totalRatings || 0}`,
+      right: `${rightWebsite?.totalRatings || 0}`,
+    },
+    updated_at: {
+      left: formatDateLabel(leftWebsite?.updatedAt || leftWebsite?.createdAt),
+      right: formatDateLabel(rightWebsite?.updatedAt || rightWebsite?.createdAt),
+    },
+  };
+}
+
+/**
+ * 对比页主组件。
  */
 const WebsiteComparePage: React.FC = () => {
   const params = useParams<{
@@ -384,6 +451,7 @@ const WebsiteComparePage: React.FC = () => {
     pair?: string;
   }>();
   const { left, right } = resolveCompareParams(params);
+  const { data: publicSettings } = usePublicSettings();
 
   const [leftState, setLeftState] = useState<CompareState>({
     detail: null,
@@ -411,7 +479,7 @@ const WebsiteComparePage: React.FC = () => {
   }, [left, right]);
 
   /**
-   * 切换对比对象时重置 AI 分析结果，避免串内容
+   * 切换对比对象时重置 AI 分析结果，避免串内容。
    */
   useEffect(() => {
     setAiAnalysis({
@@ -422,7 +490,7 @@ const WebsiteComparePage: React.FC = () => {
   }, [left, right]);
 
   /**
-   * 拉取左右对比对象的数据
+   * 拉取左右对比对象的数据。
    */
   useEffect(() => {
     let cancelled = false;
@@ -475,7 +543,7 @@ const WebsiteComparePage: React.FC = () => {
   }, [left, right]);
 
   /**
-   * 拉取左右网站的更多候选对比列表（同分类 + 同标签），用于 SEO 内链扩展
+   * 拉取左右网站的更多候选对比列表（同分类 + 同标签），用于 SEO 内链扩展。
    */
   useEffect(() => {
     let cancelled = false;
@@ -519,8 +587,49 @@ const WebsiteComparePage: React.FC = () => {
   const leftWebsite = leftState.detail;
   const rightWebsite = rightState.detail;
 
+  const compareConfig = useMemo<WebsiteCompareConfig>(() => {
+    const raw = publicSettings?.websiteCompare;
+    const normalizedSections = {
+      ...DEFAULT_WEBSITE_COMPARE.sections,
+      ...(raw?.sections || {}),
+    };
+    const normalizedCopywriting = {
+      ...DEFAULT_WEBSITE_COMPARE.copywriting,
+      ...(raw?.copywriting || {}),
+    };
+    const normalizedMetrics = Array.isArray(raw?.metrics) && raw?.metrics.length > 0
+      ? raw.metrics
+      : DEFAULT_WEBSITE_COMPARE.metrics;
+    const normalizedFaqItems = Array.isArray(raw?.faqItems) && raw?.faqItems.length > 0
+      ? raw.faqItems
+      : DEFAULT_WEBSITE_COMPARE.faqItems;
+    return {
+      sections: {
+        coreDiff: normalizedSections.coreDiff !== false,
+        guide: normalizedSections.guide !== false,
+        faq: normalizedSections.faq !== false,
+        internalLinks: normalizedSections.internalLinks !== false,
+        aiAnalysis: normalizedSections.aiAnalysis !== false,
+      },
+      copywriting: {
+        heroTitleTemplate: String(normalizedCopywriting.heroTitleTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.heroTitleTemplate),
+        heroDescriptionTemplate: String(normalizedCopywriting.heroDescriptionTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.heroDescriptionTemplate),
+        coreDiffTitle: String(normalizedCopywriting.coreDiffTitle || DEFAULT_WEBSITE_COMPARE.copywriting.coreDiffTitle),
+        guideTitle: String(normalizedCopywriting.guideTitle || DEFAULT_WEBSITE_COMPARE.copywriting.guideTitle),
+        guideDescription: String(normalizedCopywriting.guideDescription || DEFAULT_WEBSITE_COMPARE.copywriting.guideDescription),
+        faqTitle: String(normalizedCopywriting.faqTitle || DEFAULT_WEBSITE_COMPARE.copywriting.faqTitle),
+        internalLinksTitle: String(normalizedCopywriting.internalLinksTitle || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksTitle),
+        internalLinksDescription: String(normalizedCopywriting.internalLinksDescription || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksDescription),
+        aiAnalysisTitle: String(normalizedCopywriting.aiAnalysisTitle || DEFAULT_WEBSITE_COMPARE.copywriting.aiAnalysisTitle),
+        aiAnalysisDescription: String(normalizedCopywriting.aiAnalysisDescription || DEFAULT_WEBSITE_COMPARE.copywriting.aiAnalysisDescription),
+      },
+      metrics: normalizedMetrics,
+      faqItems: normalizedFaqItems,
+    };
+  }, [publicSettings?.websiteCompare]);
+
   /**
-   * 触发 AI 对比分析（手动触发，避免页面首开直接消耗调用）
+   * 触发 AI 对比分析（手动触发，避免页面首开直接消耗调用）。
    */
   const handleGenerateAiAnalysis = useCallback(async () => {
     const leftIdentifier = String(leftWebsite?.slug || leftWebsite?.id || '').trim();
@@ -548,7 +657,7 @@ const WebsiteComparePage: React.FC = () => {
         data,
       });
     } catch (error) {
-      const axiosError = error as AxiosError<{ message?: string; error?: string; data?: { featureKey?: string; edition?: string } }>;
+      const axiosError = error as AxiosError<{ message?: string; error?: string; data?: { featureKey?: string } }>;
       const status = Number(axiosError.response?.status || 0);
       let message = axiosError.response?.data?.message || axiosError.response?.data?.error || axiosError.message || '生成 AI 分析失败';
       if (status === 403) {
@@ -563,92 +672,22 @@ const WebsiteComparePage: React.FC = () => {
     }
   }, [leftWebsite?.id, leftWebsite?.slug, rightWebsite?.id, rightWebsite?.slug]);
 
+  const leftName = String(leftWebsite?.name || '左侧网站');
+  const rightName = String(rightWebsite?.name || '右侧网站');
+
   /**
-   * 生成对比页 SEO 标题与描述
+   * 生成对比页 SEO 标题与描述（后台模板驱动）。
    */
   const seoMeta = useMemo(() => {
-    const leftName = leftWebsite?.name || '左侧网站';
-    const rightName = rightWebsite?.name || '右侧网站';
-    const title = `${leftName} 和 ${rightName} 哪个好？有什么区别和优缺点？`;
-    const description = `对比 ${leftName} 和 ${rightName} 的基础信息、分类、标签、截图与更新时间，帮助你更快判断哪个网站更适合你的使用场景。`;
+    const fallbackTitle = `${leftName} 和 ${rightName} 哪个好？有什么区别和优缺点？`;
+    const fallbackDescription = `对比 ${leftName} 和 ${rightName} 的基础信息、分类、标签、截图与更新时间，帮助你更快判断哪个网站更适合你的使用场景。`;
+    const title = applyNameTemplate(compareConfig.copywriting.heroTitleTemplate, leftName, rightName) || fallbackTitle;
+    const description = applyNameTemplate(compareConfig.copywriting.heroDescriptionTemplate, leftName, rightName) || fallbackDescription;
     return { title, description };
-  }, [leftWebsite?.name, rightWebsite?.name]);
+  }, [compareConfig.copywriting.heroDescriptionTemplate, compareConfig.copywriting.heroTitleTemplate, leftName, rightName]);
 
   /**
-   * 生成对比表格数据项
-   */
-  const compareRows = useMemo(() => {
-    const leftTags = getCompareTagNames(leftState.detail, leftState.tags).slice(0, 8);
-    const rightTags = getCompareTagNames(rightState.detail, rightState.tags).slice(0, 8);
-    return [
-      {
-        label: '分类',
-        left: leftWebsite?.category?.name || '未分类',
-        right: rightWebsite?.category?.name || '未分类',
-      },
-      {
-        label: '域名',
-        left: getHostLabel(leftWebsite?.url),
-        right: getHostLabel(rightWebsite?.url),
-      },
-      {
-        label: '协议',
-        left: getProtocolLabel(leftWebsite?.url),
-        right: getProtocolLabel(rightWebsite?.url),
-      },
-      {
-        label: '标签数量',
-        left: `${leftTags.length}`,
-        right: `${rightTags.length}`,
-      },
-      {
-        label: '截图数量',
-        left: `${normalizeScreenshots(leftWebsite?.screenshots).length}`,
-        right: `${normalizeScreenshots(rightWebsite?.screenshots).length}`,
-      },
-      {
-        label: '评论数',
-        left: `${leftWebsite?.commentsCount || 0}`,
-        right: `${rightWebsite?.commentsCount || 0}`,
-      },
-      {
-        label: '评分人数',
-        left: `${leftWebsite?.totalRatings || 0}`,
-        right: `${rightWebsite?.totalRatings || 0}`,
-      },
-      {
-        label: '最近更新',
-        left: formatDateLabel(leftWebsite?.updatedAt || leftWebsite?.createdAt),
-        right: formatDateLabel(rightWebsite?.updatedAt || rightWebsite?.createdAt),
-      },
-    ];
-  }, [leftState, rightState, leftWebsite, rightWebsite]);
-
-  /**
-   * 对比页 FAQ（SEO 文案）
-   */
-  const compareFaqItems = useMemo(() => {
-    if (!leftWebsite || !rightWebsite) return [];
-    const leftName = leftWebsite.name;
-    const rightName = rightWebsite.name;
-    return [
-      {
-        q: `${leftName} 和 ${rightName} 哪个更适合新手？`,
-        a: `建议先从功能定位、界面复杂度和你的使用目标来判断。你可以重点看本页的分类、标签、截图和更新时间对比，再点击访问官网实际体验。`,
-      },
-      {
-        q: `${leftName} 和 ${rightName} 的主要区别是什么？`,
-        a: `通常差异会体现在功能定位、内容风格、更新频率与使用门槛上。本页通过基础信息、标签与截图对比帮助你快速判断。`,
-      },
-      {
-        q: `怎么选择 ${leftName} 或 ${rightName}？`,
-        a: `如果你更看重某一类功能或场景，优先选择标签和分类更匹配的站点；如果你追求稳定性和长期使用，建议优先看更新频率和实际体验。`,
-      },
-    ];
-  }, [leftWebsite, rightWebsite]);
-
-  /**
-   * 对比页“优缺点/适用人群/选择建议”内容（模板生成）
+   * 对比页“优缺点/适用人群/选择建议”内容（模板生成）。
    */
   const compareGuide = useMemo(() => {
     if (!leftWebsite || !rightWebsite) {
@@ -666,7 +705,7 @@ const WebsiteComparePage: React.FC = () => {
     const leftScore = (leftWebsite.totalRatings || 0) + (leftWebsite.commentsCount || 0) + leftTags.length;
     const rightScore = (rightWebsite.totalRatings || 0) + (rightWebsite.commentsCount || 0) + rightTags.length;
     const recommendation = leftScore === rightScore
-      ? `两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。`
+      ? '两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。'
       : (leftScore > rightScore
         ? `从当前收录信息完整度看，${leftWebsite.name} 的公开信息更丰富，适合先作为优先试用方案。`
         : `从当前收录信息完整度看，${rightWebsite.name} 的公开信息更丰富，适合先作为优先试用方案。`);
@@ -683,12 +722,56 @@ const WebsiteComparePage: React.FC = () => {
   }, [leftWebsite, rightWebsite, leftState.tags, rightState.tags]);
 
   /**
-   * 对比页结构化数据（FAQ + WebPage）
+   * 动态构建指标对比行（后台配置 metrics 控制）。
+   */
+  const compareRows = useMemo<CompareRow[]>(() => {
+    if (!leftWebsite || !rightWebsite) return [];
+    const leftTags = getCompareTagNames(leftState.detail, leftState.tags).slice(0, 8);
+    const rightTags = getCompareTagNames(rightState.detail, rightState.tags).slice(0, 8);
+    const valueMap = buildMetricValueMap(leftWebsite, rightWebsite, leftTags, rightTags);
+    const enabledMetrics = (Array.isArray(compareConfig.metrics) ? compareConfig.metrics : [])
+      .filter((item) => item.enabled !== false)
+      .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0));
+    const rows = enabledMetrics.map((item) => ({
+      key: item.key,
+      label: item.label,
+      left: valueMap[item.key]?.left || '—',
+      right: valueMap[item.key]?.right || '—',
+    }));
+    return rows.length > 0
+      ? rows
+      : [
+        {
+          key: 'category',
+          label: '分类',
+          left: leftWebsite?.category?.name || '未分类',
+          right: rightWebsite?.category?.name || '未分类',
+        },
+      ];
+  }, [compareConfig.metrics, leftState.detail, leftState.tags, leftWebsite, rightState.detail, rightState.tags, rightWebsite]);
+
+  /**
+   * 对比页 FAQ（后台配置 + 模板替换）。
+   */
+  const compareFaqItems = useMemo(() => {
+    const rawItems = Array.isArray(compareConfig.faqItems) ? compareConfig.faqItems : [];
+    const enabledItems = rawItems
+      .filter((item) => item.enabled !== false)
+      .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0));
+    const baseItems = enabledItems.length > 0 ? enabledItems : DEFAULT_WEBSITE_COMPARE.faqItems;
+    return baseItems.map((item) => ({
+      q: applyNameTemplate(item.question, leftName, rightName),
+      a: applyNameTemplate(item.answer, leftName, rightName),
+    })).filter((item) => item.q && item.a);
+  }, [compareConfig.faqItems, leftName, rightName]);
+
+  /**
+   * 对比页结构化数据（FAQ + WebPage）。
    */
   const schemaBlocks = useMemo(() => {
     if (!leftWebsite || !rightWebsite) return [];
     const canonicalUrl = `https://hao.uied.cn/vs/${leftWebsite.slug || leftWebsite.id}/${rightWebsite.slug || rightWebsite.id}`;
-    return [
+    const blocks: Record<string, unknown>[] = [
       {
         '@context': 'https://schema.org',
         '@type': 'WebPage',
@@ -697,7 +780,9 @@ const WebsiteComparePage: React.FC = () => {
         url: canonicalUrl,
         inLanguage: 'zh-CN',
       },
-      {
+    ];
+    if (compareConfig.sections.faq && compareFaqItems.length > 0) {
+      blocks.push({
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
         mainEntity: compareFaqItems.map(item => ({
@@ -708,19 +793,20 @@ const WebsiteComparePage: React.FC = () => {
             text: item.a,
           },
         })),
-      },
-    ];
-  }, [leftWebsite, rightWebsite, seoMeta.title, seoMeta.description, compareFaqItems]);
+      });
+    }
+    return blocks;
+  }, [compareConfig.sections.faq, compareFaqItems, leftWebsite, rightWebsite, seoMeta.description, seoMeta.title]);
 
   /**
-   * 预渲染 AI 分析 Markdown，减少 JSX 中重复处理
+   * 预渲染 AI 分析 Markdown，减少 JSX 中重复处理。
    */
   const aiAnalysisHtml = useMemo(() => {
     return renderAiMarkdown(String(aiAnalysis.data?.markdown || ''));
   }, [aiAnalysis.data?.markdown]);
 
   /**
-   * 预渲染 AI 推理过程（如果模型返回 reasoning_content）
+   * 预渲染 AI 推理过程（如果模型返回 reasoning_content）。
    */
   const aiReasoningHtml = useMemo(() => {
     return renderAiMarkdown(String(aiAnalysis.data?.reasoningContent || ''));
@@ -830,27 +916,32 @@ const WebsiteComparePage: React.FC = () => {
           </article>
         </section>
 
-        <section className="website-compare-table-wrap">
-          <h3 className="website-compare-section-title">核心差异对比</h3>
-          <div className="website-compare-table">
-            <div className="website-compare-table__head">
-              <div>{leftWebsite.name}</div>
-              <div>对比项</div>
-              <div>{rightWebsite.name}</div>
-            </div>
-            {compareRows.map((row) => (
-              <div className="website-compare-table__row" key={row.label}>
-                <div title={row.left}>{row.left || '—'}</div>
-                <div className="website-compare-table__label">{row.label}</div>
-                <div title={row.right}>{row.right || '—'}</div>
+        {compareConfig.sections.coreDiff && (
+          <section className="website-compare-table-wrap">
+            <h3 className="website-compare-section-title">{compareConfig.copywriting.coreDiffTitle}</h3>
+            <div className="website-compare-table">
+              <div className="website-compare-table__head">
+                <div>{leftWebsite.name}</div>
+                <div>对比项</div>
+                <div>{rightWebsite.name}</div>
               </div>
-            ))}
-          </div>
-        </section>
+              {compareRows.map((row) => (
+                <div className="website-compare-table__row" key={row.key}>
+                  <div title={row.left}>{row.left || '—'}</div>
+                  <div className="website-compare-table__label">{row.label}</div>
+                  <div title={row.right}>{row.right || '—'}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-        {compareGuide && (
+        {compareConfig.sections.guide && compareGuide && (
           <section className="website-compare-guide">
-            <h3 className="website-compare-section-title">优缺点速览与适用人群</h3>
+            <h3 className="website-compare-section-title">{compareConfig.copywriting.guideTitle}</h3>
+            {compareConfig.copywriting.guideDescription ? (
+              <p className="website-compare-guide__desc">{compareConfig.copywriting.guideDescription}</p>
+            ) : null}
 
             <div className="website-compare-guide__recommendation">
               <div className="website-compare-guide__recommendation-label">选择建议</div>
@@ -891,148 +982,152 @@ const WebsiteComparePage: React.FC = () => {
           </section>
         )}
 
-        <section className="website-compare-ai">
-          <div className="website-compare-ai__header">
-            <div>
-              <h3 className="website-compare-section-title">AI 分析对比（可选）</h3>
-              <p className="website-compare-ai__desc">
-                基于当前公开信息生成对比结论、适用人群与选择建议。未授权 AI 功能时会显示升级提示。
-              </p>
+        {compareConfig.sections.aiAnalysis && (
+          <section className="website-compare-ai">
+            <div className="website-compare-ai__header">
+              <div>
+                <h3 className="website-compare-section-title">{compareConfig.copywriting.aiAnalysisTitle}</h3>
+                <p className="website-compare-ai__desc">{compareConfig.copywriting.aiAnalysisDescription}</p>
+              </div>
+              <button
+                type="button"
+                className="website-compare-ai__action"
+                onClick={handleGenerateAiAnalysis}
+                disabled={aiAnalysis.loading}
+              >
+                {aiAnalysis.loading ? '生成中...' : aiAnalysis.data?.markdown ? '重新生成' : '生成 AI 分析'}
+              </button>
             </div>
-            <button
-              type="button"
-              className="website-compare-ai__action"
-              onClick={handleGenerateAiAnalysis}
-              disabled={aiAnalysis.loading}
-            >
-              {aiAnalysis.loading ? '生成中...' : aiAnalysis.data?.markdown ? '重新生成' : '生成 AI 分析'}
-            </button>
-          </div>
 
-          {aiAnalysis.error && (
-            <div className="website-compare-ai__error">{aiAnalysis.error}</div>
-          )}
+            {aiAnalysis.error && (
+              <div className="website-compare-ai__error">{aiAnalysis.error}</div>
+            )}
 
-          {aiAnalysis.loading && (
-            <div className="website-compare-ai__loading">AI 正在分析两个网站的公开信息，请稍候...</div>
-          )}
+            {aiAnalysis.loading && (
+              <div className="website-compare-ai__loading">AI 正在分析两个网站的公开信息，请稍候...</div>
+            )}
 
-          {!aiAnalysis.loading && aiAnalysisHtml && (
-            <div className="website-compare-ai__content">
-              <div
-                className="website-compare-ai__markdown"
-                dangerouslySetInnerHTML={{ __html: aiAnalysisHtml }}
-              />
+            {!aiAnalysis.loading && aiAnalysisHtml && (
+              <div className="website-compare-ai__content">
+                <div
+                  className="website-compare-ai__markdown"
+                  dangerouslySetInnerHTML={{ __html: aiAnalysisHtml }}
+                />
 
-              {aiAnalysis.data?.usage && (
-                <div className="website-compare-ai__usage">
-                  Tokens：{Number(aiAnalysis.data.usage.totalTokens || 0)}（Prompt {Number(aiAnalysis.data.usage.promptTokens || 0)} / Completion {Number(aiAnalysis.data.usage.completionTokens || 0)}）
-                </div>
-              )}
+                {aiAnalysis.data?.usage && (
+                  <div className="website-compare-ai__usage">
+                    Tokens：{Number(aiAnalysis.data.usage.totalTokens || 0)}（Prompt {Number(aiAnalysis.data.usage.promptTokens || 0)} / Completion {Number(aiAnalysis.data.usage.completionTokens || 0)}）
+                  </div>
+                )}
 
-              {aiReasoningHtml && (
-                <details className="website-compare-ai__reasoning">
-                  <summary>查看推理过程（如果模型支持）</summary>
-                  <div
-                    className="website-compare-ai__reasoning-body"
-                    dangerouslySetInnerHTML={{ __html: aiReasoningHtml }}
-                  />
+                {aiReasoningHtml && (
+                  <details className="website-compare-ai__reasoning">
+                    <summary>查看推理过程（如果模型支持）</summary>
+                    <div
+                      className="website-compare-ai__reasoning-body"
+                      dangerouslySetInnerHTML={{ __html: aiReasoningHtml }}
+                    />
+                  </details>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {compareConfig.sections.faq && compareFaqItems.length > 0 && (
+          <section className="website-compare-faq">
+            <h3 className="website-compare-section-title">{compareConfig.copywriting.faqTitle}</h3>
+            <div className="website-compare-faq__list">
+              {compareFaqItems.map((item, index) => (
+                <details className="website-compare-faq__item" key={`${item.q}-${index}`} open={index === 0}>
+                  <summary>{item.q}</summary>
+                  <div>{item.a}</div>
                 </details>
-              )}
+              ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
-        <section className="website-compare-faq">
-          <h3 className="website-compare-section-title">常见问题</h3>
-          <div className="website-compare-faq__list">
-            {compareFaqItems.map((item, index) => (
-              <details className="website-compare-faq__item" key={`${item.q}-${index}`} open={index === 0}>
-                <summary>{item.q}</summary>
-                <div>{item.a}</div>
-              </details>
-            ))}
-          </div>
-        </section>
+        {compareConfig.sections.internalLinks && (
+          <section className="website-compare-more">
+            <div className="website-compare-more__header">
+              <h3 className="website-compare-section-title">{compareConfig.copywriting.internalLinksTitle}</h3>
+              <p>{compareConfig.copywriting.internalLinksDescription}</p>
+            </div>
 
-        <section className="website-compare-more">
-          <div className="website-compare-more__header">
-            <h3 className="website-compare-section-title">更多候选对比（内链）</h3>
-            <p>基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。</p>
-          </div>
-
-          <div className="website-compare-more__grid">
-            <div className="website-compare-more__column">
-              <div className="website-compare-more__column-title">继续对比 {leftWebsite.name}</div>
-              {moreCandidatesLoading && leftMoreCandidates.length === 0 ? (
-                <div className="website-compare-more__empty">加载候选中...</div>
-              ) : leftMoreCandidates.length > 0 ? (
-                <div className="website-compare-more__list">
-                  {leftMoreCandidates.map((candidate) => {
-                    const comparePath = buildComparePath(
-                      String(leftWebsite.slug || leftWebsite.id),
-                      String(candidate.slug || candidate.id)
-                    );
-                    if (!comparePath) return null;
-                    return (
-                      <Link key={`left-candidate-${candidate.id}`} className="website-compare-more__item" to={comparePath}>
-                        <WebsiteFavicon
-                          websiteUrl={candidate.url}
-                          iconUrl={candidate.iconUrl}
-                          name={candidate.name}
-                          size={28}
-                        />
-                        <div className="website-compare-more__item-text">
-                          <div className="website-compare-more__item-name">{leftWebsite.name} vs {candidate.name}</div>
-                          <div className="website-compare-more__item-desc">
-                            {candidate.description || '查看与当前网站的差异、优缺点和适用场景'}
+            <div className="website-compare-more__grid">
+              <div className="website-compare-more__column">
+                <div className="website-compare-more__column-title">继续对比 {leftWebsite.name}</div>
+                {moreCandidatesLoading && leftMoreCandidates.length === 0 ? (
+                  <div className="website-compare-more__empty">加载候选中...</div>
+                ) : leftMoreCandidates.length > 0 ? (
+                  <div className="website-compare-more__list">
+                    {leftMoreCandidates.map((candidate) => {
+                      const comparePath = buildComparePath(
+                        String(leftWebsite.slug || leftWebsite.id),
+                        String(candidate.slug || candidate.id)
+                      );
+                      if (!comparePath) return null;
+                      return (
+                        <Link key={`left-candidate-${candidate.id}`} className="website-compare-more__item" to={comparePath}>
+                          <WebsiteFavicon
+                            websiteUrl={candidate.url}
+                            iconUrl={candidate.iconUrl}
+                            name={candidate.name}
+                            size={28}
+                          />
+                          <div className="website-compare-more__item-text">
+                            <div className="website-compare-more__item-name">{leftWebsite.name} vs {candidate.name}</div>
+                            <div className="website-compare-more__item-desc">
+                              {candidate.description || '查看与当前网站的差异、优缺点和适用场景'}
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="website-compare-more__empty">暂无候选对比</div>
-              )}
-            </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="website-compare-more__empty">暂无候选对比</div>
+                )}
+              </div>
 
-            <div className="website-compare-more__column">
-              <div className="website-compare-more__column-title">继续对比 {rightWebsite.name}</div>
-              {moreCandidatesLoading && rightMoreCandidates.length === 0 ? (
-                <div className="website-compare-more__empty">加载候选中...</div>
-              ) : rightMoreCandidates.length > 0 ? (
-                <div className="website-compare-more__list">
-                  {rightMoreCandidates.map((candidate) => {
-                    const comparePath = buildComparePath(
-                      String(rightWebsite.slug || rightWebsite.id),
-                      String(candidate.slug || candidate.id)
-                    );
-                    if (!comparePath) return null;
-                    return (
-                      <Link key={`right-candidate-${candidate.id}`} className="website-compare-more__item" to={comparePath}>
-                        <WebsiteFavicon
-                          websiteUrl={candidate.url}
-                          iconUrl={candidate.iconUrl}
-                          name={candidate.name}
-                          size={28}
-                        />
-                        <div className="website-compare-more__item-text">
-                          <div className="website-compare-more__item-name">{rightWebsite.name} vs {candidate.name}</div>
-                          <div className="website-compare-more__item-desc">
-                            {candidate.description || '查看与当前网站的差异、优缺点和适用场景'}
+              <div className="website-compare-more__column">
+                <div className="website-compare-more__column-title">继续对比 {rightWebsite.name}</div>
+                {moreCandidatesLoading && rightMoreCandidates.length === 0 ? (
+                  <div className="website-compare-more__empty">加载候选中...</div>
+                ) : rightMoreCandidates.length > 0 ? (
+                  <div className="website-compare-more__list">
+                    {rightMoreCandidates.map((candidate) => {
+                      const comparePath = buildComparePath(
+                        String(rightWebsite.slug || rightWebsite.id),
+                        String(candidate.slug || candidate.id)
+                      );
+                      if (!comparePath) return null;
+                      return (
+                        <Link key={`right-candidate-${candidate.id}`} className="website-compare-more__item" to={comparePath}>
+                          <WebsiteFavicon
+                            websiteUrl={candidate.url}
+                            iconUrl={candidate.iconUrl}
+                            name={candidate.name}
+                            size={28}
+                          />
+                          <div className="website-compare-more__item-text">
+                            <div className="website-compare-more__item-name">{rightWebsite.name} vs {candidate.name}</div>
+                            <div className="website-compare-more__item-desc">
+                              {candidate.description || '查看与当前网站的差异、优缺点和适用场景'}
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="website-compare-more__empty">暂无候选对比</div>
-              )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="website-compare-more__empty">暂无候选对比</div>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
       </div>
     </div>
   );

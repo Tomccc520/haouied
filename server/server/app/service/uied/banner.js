@@ -498,9 +498,16 @@ class BannerService extends Service {
 
     const currentOldId = String(currentRow.old_id || '').trim();
     const isCurrentMultiGroup = this.isMultiPositionGroup(currentOldId);
-    const nextPositionList = this.normalizePositionList(
+    let nextPositionList = this.normalizePositionList(
       data.positionList?.length ? data.positionList : data.position
     );
+    /**
+     * 编辑单条广告时，避免因为历史逗号串位置或前端误传多位置导致“编辑变新增”。
+     * 仅当当前记录本身是多位置组时，才允许保留多位置编辑能力。
+     */
+    if (!isCurrentMultiGroup && nextPositionList.length > 1) {
+      nextPositionList = [ nextPositionList[0] ];
+    }
     const positions = nextPositionList.length > 0
       ? nextPositionList
       : [ this.normalizePosition(currentRow.position || 'top') || 'home' ];

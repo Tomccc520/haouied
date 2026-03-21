@@ -316,6 +316,13 @@
   padding: 14px;
 }
 
+.website-compare-guide__desc {
+  margin: -2px 0 12px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 .website-compare-ai {
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 16px;

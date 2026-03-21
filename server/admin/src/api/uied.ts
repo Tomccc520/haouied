@@ -242,6 +242,97 @@ export function uiedMcpTagDelete(params: any) {
     return request.post({ url: '/uied/mcp/tag/del', params })
 }
 
+// ==================== Figma插件中心 ====================
+
+// Figma插件列表
+export function uiedFigmaList(params?: any) {
+    return request.get({ url: '/uied/figma/list', params })
+}
+
+// Figma插件详情
+export function uiedFigmaDetail(params: any) {
+    return request.get({ url: '/uied/figma/detail', params })
+}
+
+// 添加Figma插件
+export function uiedFigmaAdd(params: any) {
+    return request.post({ url: '/uied/figma/add', params })
+}
+
+// 编辑Figma插件
+export function uiedFigmaEdit(params: any) {
+    return request.post({ url: '/uied/figma/edit', params })
+}
+
+// 删除Figma插件
+export function uiedFigmaDelete(params: any) {
+    return request.post({ url: '/uied/figma/del', params })
+}
+
+// Figma插件分类列表
+export function uiedFigmaCategoryList(params?: any) {
+    return request.get({ url: '/uied/figma/category/list', params })
+}
+
+// Figma插件分类全量
+export function uiedFigmaCategoryAll(params?: any) {
+    return request.get({ url: '/uied/figma/category/all', params })
+}
+
+// 添加Figma插件分类
+export function uiedFigmaCategoryAdd(params: any) {
+    return request.post({ url: '/uied/figma/category/add', params })
+}
+
+// 编辑Figma插件分类
+export function uiedFigmaCategoryEdit(params: any) {
+    return request.post({ url: '/uied/figma/category/edit', params })
+}
+
+// 删除Figma插件分类
+export function uiedFigmaCategoryDelete(params: any) {
+    return request.post({ url: '/uied/figma/category/del', params })
+}
+
+// Figma插件标签列表
+export function uiedFigmaTagList(params?: any) {
+    return request.get({ url: '/uied/figma/tag/list', params })
+}
+
+// Figma插件标签全量
+export function uiedFigmaTagAll(params?: any) {
+    return request.get({ url: '/uied/figma/tag/all', params })
+}
+
+// 添加Figma插件标签
+export function uiedFigmaTagAdd(params: any) {
+    return request.post({ url: '/uied/figma/tag/add', params })
+}
+
+// 编辑Figma插件标签
+export function uiedFigmaTagEdit(params: any) {
+    return request.post({ url: '/uied/figma/tag/edit', params })
+}
+
+// 删除Figma插件标签
+export function uiedFigmaTagDelete(params: any) {
+    return request.post({ url: '/uied/figma/tag/del', params })
+}
+
+// 从 Figma 官方社区采集插件
+export function uiedFigmaImportOfficial(params: any) {
+    return request.post(
+        {
+            url: '/uied/figma/importOfficial',
+            params,
+            timeout: 3 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
+}
+
 // 网站标签（全部）
 export function uiedWebsiteTagAll() {
     return request.get({ url: '/uied/websiteTag/all' })

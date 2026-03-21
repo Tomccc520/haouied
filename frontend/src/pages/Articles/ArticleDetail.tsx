@@ -1,8 +1,12 @@
 /**
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-03-20
+ */
+/**
  * @file pages/Articles/ArticleDetail.tsx
  * @description 文章详情页组件 - 沉浸式阅读设计
- * @author Tomda
- * @copyright 版权所有 (c) 2026 UIED技术团队
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';

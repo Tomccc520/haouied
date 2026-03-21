@@ -121,6 +121,12 @@ module.exports = app => {
       defaultValue: 1,
       comment: '是否启用搜索: 0=否, 1=是',
     },
+    show_banner: {
+      type: SMALLINT.UNSIGNED,
+      allowNull: false,
+      defaultValue: 1,
+      comment: '是否显示Banner模块: 0=否, 1=是',
+    },
     // 页面配置
     show_hot_recommendations: {
       type: SMALLINT.UNSIGNED,

@@ -11,12 +11,102 @@
 'use strict';
 
 const Service = require('egg').Service;
+const NAVIGATION_PAGE_SLUGS = [ 'uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font' ];
+const NAVIGATION_PAGE_TYPE_SET = new Set([ 'navigation', 'nav', 'channel', 'home' ]);
 
 class PageService extends Service {
   /**
+   * 判断页面是否属于“导航页面”分组。
+   * @param {unknown} type 页面类型字段
+   * @param {unknown} slug 页面 slug
+   * @return {boolean}
+   */
+  isNavigationPage(type, slug) {
+    const normalizedType = String(type || '').trim().toLowerCase();
+    if (NAVIGATION_PAGE_TYPE_SET.has(normalizedType)) return true;
+    const normalizedSlug = String(slug || '').trim().toLowerCase();
+    return NAVIGATION_PAGE_SLUGS.includes(normalizedSlug);
+  }
+
+  /**
+   * 解析页面分组（navigation/custom）。
+   * @param {unknown} type 页面类型
+   * @param {unknown} slug 页面 slug
+   * @return {'navigation'|'custom'}
+   */
+  resolvePageGroup(type, slug) {
+    return this.isNavigationPage(type, slug) ? 'navigation' : 'custom';
+  }
+
+  /**
+   * 返回页面分组中文文案。
+   * @param {string} pageGroup 页面分组值
+   * @return {string}
+   */
+  resolvePageGroupLabel(pageGroup) {
+    return String(pageGroup || '') === 'navigation' ? '导航页面' : '系统页面';
+  }
+
+  /**
+   * 规范化页面类型入库值，避免空值导致后台分组混乱。
+   * @param {unknown} type 页面类型
+   * @param {unknown} slug 页面 slug
+   * @return {string}
+   */
+  normalizePageTypeForStorage(type, slug) {
+    const normalized = String(type || '').trim().toLowerCase();
+    if (normalized) {
+      return normalized.slice(0, 50);
+    }
+    return this.isNavigationPage('', slug) ? 'navigation' : 'custom';
+  }
+
+  /**
+   * 构建页面分组筛选 SQL 片段，支持导航页/自定义页。
+   * @param {unknown} pageGroup 筛选值
+   * @return {{ sql: string, replacements: string[] }}
+   */
+  buildPageGroupFilterSql(pageGroup) {
+    const normalizedGroup = String(pageGroup || '').trim().toLowerCase();
+    if (![ 'navigation', 'custom' ].includes(normalizedGroup)) {
+      return { sql: '', replacements: [] };
+    }
+    const navigationTypeList = Array.from(NAVIGATION_PAGE_TYPE_SET);
+    const navigationSlugList = NAVIGATION_PAGE_SLUGS;
+    const typePlaceholders = navigationTypeList.map(() => '?').join(',');
+    const slugPlaceholders = navigationSlugList.map(() => '?').join(',');
+    const navigationCondition = `((LOWER(COALESCE(type, '')) IN (${typePlaceholders})) OR (LOWER(slug) IN (${slugPlaceholders})))`;
+    return {
+      sql: normalizedGroup === 'navigation' ? navigationCondition : `NOT ${navigationCondition}`,
+      replacements: [ ...navigationTypeList, ...navigationSlugList ],
+    };
+  }
+
+  /**
+   * 确保页面表存在 show_banner 字段，避免历史库未打补丁导致查询报错。
+   */
+  async ensureShowBannerColumn() {
+    if (this._showBannerColumnReady) return;
+    const { app, ctx } = this;
+    try {
+      await app.model.query(
+        'ALTER TABLE `uied_page` ADD COLUMN `show_banner` tinyint(1) unsigned NOT NULL DEFAULT 1 COMMENT \'是否显示Banner\' AFTER `search_enabled`',
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (!/Duplicate column name/i.test(message)) {
+        ctx.logger.warn('[uied.page] 自动补齐 show_banner 字段失败，请手动执行 SQL 补丁: %s', message);
+      }
+    }
+    this._showBannerColumnReady = true;
+  }
+
+  /**
    * 获取页面列表（分页）
    */
-  async list({ page = 1, pageSize = 20, keyword = '', isActive = '' }) {
+  async list({ page = 1, pageSize = 20, keyword = '', isActive = '', pageGroup = '' }) {
+    await this.ensureShowBannerColumn();
     const { app } = this;
     const offset = (page - 1) * pageSize;
     const whereSql = [];
@@ -44,6 +134,15 @@ class PageService extends Service {
       whereSql.push('is_show = 0');
     }
 
+    /**
+     * 支持按页面分组筛选（导航页面/系统页面）。
+     */
+    const pageGroupFilter = this.buildPageGroupFilterSql(pageGroup);
+    if (pageGroupFilter.sql) {
+      whereSql.push(pageGroupFilter.sql);
+      replacements.push(...pageGroupFilter.replacements);
+    }
+
     const whereClause = whereSql.join(' AND ');
 
     // 获取总数
@@ -61,6 +160,7 @@ class PageService extends Service {
               hero_bg_type as heroBgType, hero_bg_value as heroBgValue,
               hero_display_mode as heroDisplayMode, hero_scroll_websites as heroScrollWebsites,
               search_placeholder as searchPlaceholder, search_enabled as searchEnabled,
+              show_banner as showBanner,
               show_hot_recommendations as showHotRecommendations, show_categories as showCategories,
               show_sidebar as showSidebar, theme_color as themeColor,
               sort as sortOrder, is_show as isActive, create_time as createdAt
@@ -73,8 +173,11 @@ class PageService extends Service {
 
     const lists = pages.map(p => ({
       ...p,
+      pageGroup: this.resolvePageGroup(p.type, p.slug),
+      pageGroupLabel: this.resolvePageGroupLabel(this.resolvePageGroup(p.type, p.slug)),
       isActive: p.isActive === 1,
       searchEnabled: p.searchEnabled === 1,
+      showBanner: p.showBanner === 1,
       showHotRecommendations: p.showHotRecommendations === 1,
       showCategories: p.showCategories === 1,
       showSidebar: p.showSidebar === 1,
@@ -89,6 +192,7 @@ class PageService extends Service {
    * 获取所有页面
    */
   async all() {
+    await this.ensureShowBannerColumn();
     const { app } = this;
     const pages = await app.model.query(
       `SELECT id, name, slug, type, icon, sort as sortOrder
@@ -104,6 +208,7 @@ class PageService extends Service {
    * 获取页面详情
    */
   async detail(id, slug) {
+    await this.ensureShowBannerColumn();
     const { app } = this;
 
     let whereClause = 'is_delete = 0';
@@ -141,10 +246,13 @@ class PageService extends Service {
       heroScrollWebsites: page.hero_scroll_websites ? this.safeJsonParse(page.hero_scroll_websites, []) : [],
       searchPlaceholder: page.search_placeholder,
       searchEnabled: page.search_enabled === 1,
+      showBanner: page.show_banner === 1,
       showHotRecommendations: page.show_hot_recommendations === 1,
       showCategories: page.show_categories === 1,
       showSidebar: page.show_sidebar === 1,
       themeColor: page.theme_color,
+      pageGroup: this.resolvePageGroup(page.type, page.slug),
+      pageGroupLabel: this.resolvePageGroupLabel(this.resolvePageGroup(page.type, page.slug)),
       sortOrder: page.sort,
       isActive: page.is_show === 1,
       createdAt: page.create_time,
@@ -155,6 +263,7 @@ class PageService extends Service {
    * 创建页面
    */
   async add(data) {
+    await this.ensureShowBannerColumn();
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
 
@@ -167,20 +276,22 @@ class PageService extends Service {
       throw new Error('页面别名已存在');
     }
 
+    const normalizedType = this.normalizePageTypeForStorage(data.type, data.slug);
     const [ result ] = await app.model.query(
       `INSERT INTO uied_page (name, slug, type, description, icon, hero_title, hero_highlight_text,
         hero_subtitle, hot_search_tags, hero_bg_type, hero_bg_value, hero_display_mode,
-        hero_scroll_websites, search_placeholder, search_enabled, show_hot_recommendations,
+        hero_scroll_websites, search_placeholder, search_enabled, show_banner, show_hot_recommendations,
         show_categories, show_sidebar, theme_color, sort, is_show, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
-          data.name, data.slug, data.type || '', data.description || '',
+          data.name, data.slug, normalizedType, data.description || '',
           data.icon || '', data.heroTitle || '', data.heroHighlightText || '',
           data.heroSubtitle || '', data.hotSearchTags ? JSON.stringify(data.hotSearchTags) : null,
           data.heroBgType || 'default', data.heroBgValue || '',
           data.heroDisplayMode || 'search', data.heroScrollWebsites ? JSON.stringify(data.heroScrollWebsites) : null,
           data.searchPlaceholder || '', data.searchEnabled !== false ? 1 : 0,
+          data.showBanner !== false ? 1 : 0,
           data.showHotRecommendations !== false ? 1 : 0, data.showCategories !== false ? 1 : 0,
           data.showSidebar !== false ? 1 : 0, data.themeColor || null,
           data.sortOrder || 0, data.isActive !== false ? 1 : 0, now, now,
@@ -196,6 +307,7 @@ class PageService extends Service {
    * 更新页面
    */
   async edit(data) {
+    await this.ensureShowBannerColumn();
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
 
@@ -204,7 +316,10 @@ class PageService extends Service {
 
     if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name); }
     if (data.slug !== undefined) { updates.push('slug = ?'); values.push(data.slug); }
-    if (data.type !== undefined) { updates.push('type = ?'); values.push(data.type); }
+    if (data.type !== undefined) {
+      updates.push('type = ?');
+      values.push(this.normalizePageTypeForStorage(data.type, data.slug));
+    }
     if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description); }
     if (data.icon !== undefined) { updates.push('icon = ?'); values.push(data.icon); }
     if (data.heroTitle !== undefined) { updates.push('hero_title = ?'); values.push(data.heroTitle); }
@@ -217,6 +332,7 @@ class PageService extends Service {
     if (data.heroScrollWebsites !== undefined) { updates.push('hero_scroll_websites = ?'); values.push(JSON.stringify(data.heroScrollWebsites)); }
     if (data.searchPlaceholder !== undefined) { updates.push('search_placeholder = ?'); values.push(data.searchPlaceholder); }
     if (data.searchEnabled !== undefined) { updates.push('search_enabled = ?'); values.push(data.searchEnabled ? 1 : 0); }
+    if (data.showBanner !== undefined) { updates.push('show_banner = ?'); values.push(data.showBanner ? 1 : 0); }
     if (data.showHotRecommendations !== undefined) { updates.push('show_hot_recommendations = ?'); values.push(data.showHotRecommendations ? 1 : 0); }
     if (data.showCategories !== undefined) { updates.push('show_categories = ?'); values.push(data.showCategories ? 1 : 0); }
     if (data.showSidebar !== undefined) { updates.push('show_sidebar = ?'); values.push(data.showSidebar ? 1 : 0); }

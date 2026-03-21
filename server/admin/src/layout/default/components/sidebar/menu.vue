@@ -149,13 +149,14 @@ const MENU_CATEGORY_DEFINITIONS: MenuCategoryDefinition[] = [
     { key: 'page', label: '页面管理', icon: 'el-icon-Document' },
     { key: 'tag', label: '标签管理', icon: 'el-icon-CollectionTag' },
     { key: 'content', label: '内容管理', icon: 'el-icon-Reading' },
-    { key: 'mcp', label: 'MCP中心', icon: 'el-icon-Connection' },
     { key: 'material', label: '素材管理', icon: 'el-icon-PictureFilled' },
     { key: 'frontend', label: '前端配置', icon: 'el-icon-Monitor' },
     { key: 'settings', label: '网站设置', icon: 'el-icon-Setting' },
     { key: 'operation', label: '运营管理', icon: 'el-icon-DataAnalysis' },
     { key: 'seo', label: 'SEO中心', icon: 'el-icon-Compass' },
     { key: 'ai', label: 'AI配置', icon: 'el-icon-MagicStick' },
+    { key: 'mcp', label: 'MCP中心', icon: 'el-icon-Connection' },
+    { key: 'figma', label: 'Figma中心', icon: 'el-icon-Brush' },
     { key: 'license', label: '商业授权', icon: 'el-icon-Key' },
     { key: 'delivery', label: '交付工具', icon: 'el-icon-Suitcase' },
     { key: 'user', label: '用户中心', icon: 'el-icon-UserFilled' },
@@ -196,6 +197,39 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
             '/uied/aiconfig',
             'uied:ai:',
             'uied:prompt:'
+        ]
+    },
+    {
+        key: 'mcp',
+        keywords: [
+            'mcp中心',
+            'mcp配置',
+            'mcp列表',
+            'mcp分类',
+            'mcp标签',
+            '发布mcp',
+            '/mcp',
+            '/mcp-center',
+            '/mcp-list',
+            '/mcp-category',
+            '/mcp-tag',
+            '/mcp-config',
+            'uied:mcp:',
+            'mcp'
+        ]
+    },
+    {
+        key: 'figma',
+        keywords: [
+            'figma中心',
+            'figma插件',
+            '/figma',
+            '/figma-center',
+            '/figma-list',
+            '/figma-category',
+            '/figma-tag',
+            '/figma-publish',
+            'uied:figma:'
         ]
     },
     {
@@ -269,7 +303,8 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
             '备份恢复',
             '/system-setting',
             '/setting',
-            'uied:setting:'
+            'uied:setting:',
+            'settings'
         ]
     },
     {
@@ -301,24 +336,6 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
             'website-manage',
             '/website',
             'uied:website:'
-        ]
-    },
-    {
-        key: 'mcp',
-        keywords: [
-            'mcp中心',
-            'mcp列表',
-            'mcp分类',
-            'mcp标签',
-            '发布mcp',
-            '资源管理',
-            '标签管理',
-            '发布管理',
-            '/mcp-center',
-            '/mcp-list',
-            '/mcp-category',
-            '/mcp-tag',
-            'uied:mcp:'
         ]
     },
     {
@@ -392,6 +409,13 @@ const MENU_FINE_GROUP_RULES: Record<string, MenuFineGroupDefinition[]> = {
         { key: 'seo', label: 'SEO中心', icon: 'el-icon-Compass', keywords: ['seo中心', 'seo', 'sitemap', 'robots', '重定向'], order: 50 },
         { key: 'backup', label: '备份恢复', icon: 'el-icon-RefreshRight', keywords: ['备份恢复', 'backup', 'restore'], order: 60 }
     ],
+    mcp: [
+        { key: 'mcp-list', label: 'MCP列表', icon: 'el-icon-List', keywords: ['mcp列表', '资源管理', '/mcp-list', 'uied:mcp:list'], order: 10 },
+        { key: 'mcp-category', label: 'MCP分类', icon: 'el-icon-Files', keywords: ['mcp分类', '分类管理', '/mcp-category', 'uied:mcp:category:'], order: 20 },
+        { key: 'mcp-tag', label: 'MCP标签', icon: 'el-icon-CollectionTag', keywords: ['mcp标签', '标签管理', '/mcp-tag', 'uied:mcp:tag:'], order: 30 },
+        { key: 'mcp-publish', label: '发布MCP', icon: 'el-icon-EditPen', keywords: ['发布mcp', '发布管理', '/mcp-publish', 'uied:mcp:add'], order: 40 },
+        { key: 'mcp-config', label: 'MCP配置', icon: 'el-icon-Connection', keywords: ['mcp配置', '/mcp-config', 'tab=mcp', 'uied:setting:get'], order: 50 }
+    ],
     operation: [
         { key: 'hot', label: '热门推荐', icon: 'el-icon-Star', keywords: ['热门推荐', '热门文章', 'hot recommendation', 'hot_articles', 'hot'], order: 10 },
         { key: 'daily-hot', label: '每日热榜', icon: 'el-icon-TrendCharts', keywords: ['每日热榜', 'dailyhot', 'daily-hot', 'daily hot'], order: 20 },
@@ -412,13 +436,14 @@ const MENU_SECOND_LEVEL_GROUP_ICON: Record<string, string> = {
     page: 'el-icon-Document',
     tag: 'el-icon-CollectionTag',
     content: 'el-icon-Reading',
-    mcp: 'el-icon-Connection',
     material: 'el-icon-PictureFilled',
     frontend: 'el-icon-Monitor',
     settings: 'el-icon-Setting',
     operation: 'el-icon-DataAnalysis',
     seo: 'el-icon-Compass',
     ai: 'el-icon-MagicStick',
+    mcp: 'el-icon-Connection',
+    figma: 'el-icon-Brush',
     license: 'el-icon-Key',
     delivery: 'el-icon-Suitcase',
     user: 'el-icon-UserFilled',
@@ -517,16 +542,6 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'content:文章专题': 30,
     'content:评论管理': 40,
 
-    'mcp:MCP中心': 10,
-    'mcp:MCP列表': 20,
-    'mcp:MCP分类': 30,
-    'mcp:MCP标签': 40,
-    'mcp:发布MCP': 50,
-    'mcp:资源管理': 20,
-    'mcp:分类管理': 30,
-    'mcp:标签管理': 40,
-    'mcp:发布管理': 50,
-
     'material:素材管理': 10,
     'material:素材中心': 20,
     'material:SVG素材库': 30,
@@ -546,6 +561,16 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'settings:内容中心配置': 20,
     'settings:网站详情页配置': 30,
     'settings:详情页配置': 30,
+    'settings:MCP配置': 35,
+    'settings:MCP中心': 35,
+    'settings:MCP列表': 36,
+    'settings:MCP分类': 37,
+    'settings:MCP标签': 38,
+    'settings:发布MCP': 39,
+    'settings:资源管理': 36,
+    'settings:分类管理': 37,
+    'settings:标签管理': 38,
+    'settings:发布管理': 39,
     'settings:注册登录配置': 40,
     'settings:AI配置': 50,
     'settings:备份恢复': 60,
@@ -569,6 +594,23 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'ai:AI配置': 10,
     'ai:AI配置管理': 20,
     'ai:AI助手管理': 30,
+
+    'mcp:MCP中心': 10,
+    'mcp:MCP列表': 20,
+    'mcp:MCP分类': 30,
+    'mcp:MCP标签': 40,
+    'mcp:发布MCP': 50,
+    'mcp:MCP配置': 60,
+    'mcp:资源管理': 20,
+    'mcp:分类管理': 30,
+    'mcp:标签管理': 40,
+    'mcp:发布管理': 50,
+
+    'figma:Figma中心': 10,
+    'figma:插件列表': 20,
+    'figma:分类管理': 30,
+    'figma:标签管理': 40,
+    'figma:发布插件': 50,
 
     'license:商业授权': 10,
     'license:许可证中心': 20,
@@ -701,8 +743,13 @@ const collectLeafRoutesFromTopLevel = (item: RouteRecordRaw): RouteRecordRaw[] =
  */
 const classifyTopLevelRoute = (item: RouteRecordRaw): string => {
     const text = getRouteGroupText(item)
+    const isMcpContext = hasAnyKeyword(text, ['mcp', '/mcp', 'uied:mcp:', 'mcp配置', 'mcp中心'])
+    const isFigmaContext = hasAnyKeyword(text, ['figma', '/figma-center', 'uied:figma:', 'figma中心'])
+    if (isFigmaContext) {
+        return 'figma'
+    }
     const tagRule = MENU_CATEGORY_RULES.find((rule) => rule.key === 'tag')
-    if (tagRule && hasAnyKeyword(text, tagRule.keywords)) {
+    if (tagRule && hasAnyKeyword(text, tagRule.keywords) && !isMcpContext) {
         return 'tag'
     }
 

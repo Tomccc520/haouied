@@ -354,6 +354,12 @@ export interface McpPageConfig {
   showCategoryCount: boolean;
   listPageSize: number;
   maxWidth: number;
+  detailHeaderStyle: 'classic' | 'market';
+  detailShowRating: boolean;
+  detailRatingValue: number;
+  detailShowCommand: boolean;
+  detailCommandTemplate: string;
+  detailShowVersionTag: boolean;
 }
 
 // 登录/注册/个人中心配置
@@ -730,6 +736,12 @@ export const DEFAULT_MCP_PAGE: McpPageConfig = {
   showCategoryCount: true,
   listPageSize: 12,
   maxWidth: 1280,
+  detailHeaderStyle: 'classic',
+  detailShowRating: true,
+  detailRatingValue: 0,
+  detailShowCommand: true,
+  detailCommandTemplate: '',
+  detailShowVersionTag: true,
 };
 
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
@@ -1211,6 +1223,7 @@ export const publicSettingService = {
     const cardStyle = String(merged.cardStyle || '').trim().toLowerCase();
     const density = String(merged.density || '').trim().toLowerCase();
     const backgroundMode = String(merged.backgroundMode || '').trim().toLowerCase();
+    const detailHeaderStyle = String(merged.detailHeaderStyle || '').trim().toLowerCase();
     /**
      * 规范化十六进制色值，避免注入非法字符串到 CSS 变量。
      */
@@ -1251,6 +1264,14 @@ export const publicSettingService = {
       maxWidth: Number.isFinite(Number(merged.maxWidth))
         ? Math.max(960, Math.min(1800, Number(merged.maxWidth)))
         : DEFAULT_MCP_PAGE.maxWidth,
+      detailHeaderStyle: detailHeaderStyle === 'market' ? 'market' : 'classic',
+      detailShowRating: merged.detailShowRating !== false,
+      detailRatingValue: Number.isFinite(Number(merged.detailRatingValue))
+        ? Math.max(0, Math.min(5, Number(merged.detailRatingValue)))
+        : DEFAULT_MCP_PAGE.detailRatingValue,
+      detailShowCommand: merged.detailShowCommand !== false,
+      detailCommandTemplate: String(merged.detailCommandTemplate || '').trim().slice(0, 400),
+      detailShowVersionTag: merged.detailShowVersionTag !== false,
     };
   },
 

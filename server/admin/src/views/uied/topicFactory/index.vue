@@ -21,7 +21,7 @@
                 </div>
             </template>
             <el-alert
-                title="可一键复制模板创建专题页：AI工具大全 / 设计工具大全 / 跨境工具大全"
+                title="可一键复制模板创建专题页：AI工具大全 / 设计工具大全 / 跨境工具大全（支持自定义扩展）"
                 type="info"
                 :closable="false"
                 class="mb-4"

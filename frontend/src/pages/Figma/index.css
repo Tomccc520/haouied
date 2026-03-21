@@ -1,0 +1,409 @@
+/**
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-03-21
+ */
+
+.figma-list-page {
+  min-height: calc(100vh - var(--header-height));
+  padding: calc(var(--header-height) + var(--spacing-8)) var(--container-padding) var(--spacing-8);
+  background:
+    radial-gradient(780px 420px at 92% -18%, rgba(15, 23, 42, 0.08), transparent 72%),
+    radial-gradient(680px 340px at -10% -15%, rgba(71, 85, 105, 0.08), transparent 70%),
+    #f8fafc;
+  color: #0f172a;
+}
+
+.figma-list-page__container {
+  width: min(var(--container-width), calc(100vw - 2 * var(--container-padding)));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.figma-list-page--layout-wide .figma-list-page__container {
+  width: min(1480px, calc(100vw - 2 * var(--container-padding)));
+}
+
+.figma-list-page--layout-fluid .figma-list-page__container {
+  width: min(1800px, calc(100vw - 2 * var(--container-padding)));
+}
+
+.figma-list-page__hero {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.98));
+  padding: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.figma-list-page__kicker {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #334155;
+  background: #fff;
+}
+
+.figma-list-page__hero h1 {
+  margin: 10px 0 0;
+  font-size: clamp(1.54rem, 2.2vw, 2.1rem);
+  line-height: 1.18;
+  color: #0f172a;
+}
+
+.figma-list-page__hero p {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #475569;
+  max-width: 760px;
+}
+
+.figma-list-page__hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.figma-list-page__hero-stats article {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.figma-list-page__hero-stats strong {
+  font-size: 21px;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.figma-list-page__hero-stats span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.figma-list-page__filters {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.figma-list-page__search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.figma-list-page__search-row input {
+  flex: 1;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 11px;
+  background: #fff;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+}
+
+.figma-list-page__search-row input:focus {
+  border-color: #0f172a;
+}
+
+.figma-list-page__clear-btn {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.figma-list-page__clear-btn:hover {
+  border-color: #0f172a;
+  color: #0f172a;
+}
+
+.figma-list-page__chip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.figma-list-page__chip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.figma-list-page__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.figma-list-page__chips button {
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.figma-list-page__chips button:hover {
+  border-color: #0f172a;
+  color: #0f172a;
+}
+
+.figma-list-page__chips button.is-active {
+  border-color: #0f172a;
+  color: #0f172a;
+  font-weight: 600;
+  background: #f1f5f9;
+}
+
+.figma-list-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.figma-card {
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.figma-card.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.figma-card.is-clickable:hover {
+  border-color: rgba(15, 23, 42, 0.36);
+  transform: translateY(-1px);
+}
+
+.figma-card__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.figma-card__icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+}
+
+.figma-card__title-wrap {
+  min-width: 0;
+}
+
+.figma-card__title-wrap h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.figma-card__meta-line {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.figma-card__badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 83, 9, 0.26);
+  background: #fff8eb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.figma-card__summary {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.68;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 66px;
+}
+
+.figma-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.figma-card__tags span {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.figma-card__footer {
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
+  padding-top: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.figma-list-page__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.figma-list-page__pager button {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  min-width: 36px;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.figma-list-page__pager button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.figma-list-page__pager button.is-active {
+  border-color: #0f172a;
+  color: #0f172a;
+  font-weight: 600;
+  background: #f1f5f9;
+}
+
+.figma-list-page__state {
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  border-radius: 14px;
+  background: #fff;
+  color: #475569;
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+}
+
+@media (max-width: 1200px) {
+  .figma-list-page__hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 768px) {
+  .figma-list-page {
+    padding-top: calc(var(--header-height) + var(--spacing-6));
+    padding-bottom: var(--spacing-6);
+  }
+
+  .figma-list-page__container {
+    gap: 12px;
+  }
+
+  .figma-list-page__hero {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .figma-list-page__hero p {
+    font-size: 13px;
+  }
+
+  .figma-list-page__hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .figma-list-page__hero-stats article {
+    padding: 10px;
+  }
+
+  .figma-list-page__hero-stats strong {
+    font-size: 16px;
+  }
+
+  .figma-list-page__filters {
+    padding: 12px;
+  }
+
+  .figma-list-page__search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .figma-list-page__clear-btn {
+    width: 100%;
+  }
+
+  .figma-list-page__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .figma-card {
+    border-radius: 14px;
+  }
+
+  .figma-card__summary {
+    min-height: 0;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+  }
+}

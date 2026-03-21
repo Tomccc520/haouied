@@ -31,6 +31,7 @@ export interface PageConfig {
   heroBgValue?: string; // 背景值
   searchPlaceholder?: string;
   searchEnabled: boolean;
+  showBanner?: boolean;
   showHotRecommendations: boolean;
   showCategories: boolean;
   showSidebar?: boolean;

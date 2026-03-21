@@ -14,6 +14,8 @@ import type { AxiosError } from 'axios';
 import SEO from '../../components/SEO';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { useSiteInfo } from '../../hooks/useSiteInfo';
+import useDetailLayoutWidthMode from '../../hooks/useDetailLayoutWidthMode';
+import { usePublicSettings } from '../../hooks/usePublicSettings';
 import { McpDetail, getMcpDetail } from '../../services/mcpService';
 import { getFullImageUrl } from '../../utils/urlUtils';
 import './detail.css';
@@ -160,6 +162,26 @@ const buildCapabilityRows = (detail: McpDetail | null): Array<{ label: string; v
 };
 
 /**
+ * 构建 MCP 详情页“使用教程”步骤，强化可执行性。
+ */
+const buildUsageTutorialSteps = (detail: McpDetail | null): string[] => {
+  if (!detail) return [];
+  const runtime = formatRuntimeLabel(detail.runtime);
+  const protocol = formatTransportLabel(detail.transportType);
+  const detailPath = `/mcp/${detail.slug || detail.id}`;
+  const steps = [
+    `在后台 MCP 中心确认条目已发布，完善图标、摘要、分类与标签信息。`,
+    `按照 ${runtime} 运行时准备服务环境，并确认 ${protocol} 协议可连通。`,
+    detail.docsUrl
+      ? `优先阅读官方文档并完成鉴权、参数和回调地址配置。`
+      : '补齐鉴权参数、环境变量与请求示例后再接入业务端。',
+    `上线后访问 ${detailPath} 做详情页可访问与内容核对。`,
+    '发布后 24 小时内复查点击、浏览和外链可用性，持续迭代介绍内容。',
+  ];
+  return steps.slice(0, 5);
+};
+
+/**
  * 解析 MCP 详情图标对应的网址，用于后台 Favicon API 自动兜底。
  */
 const resolveDetailIconWebsiteUrl = (detail: McpDetail | null): string => {
@@ -172,9 +194,49 @@ const resolveDetailIconWebsiteUrl = (detail: McpDetail | null): string => {
   return candidates.find(url => Boolean(url)) || '';
 };
 
+/**
+ * 生成 MCP 接入命令，支持后台模板自定义。
+ */
+const buildAccessCommand = (detail: McpDetail | null, template: string): string => {
+  if (!detail) return '';
+  const transport = formatTransportLabel(detail.transportType).toLowerCase();
+  const runtime = formatRuntimeLabel(detail.runtime).toLowerCase();
+  const officialUrl = String(detail.officialUrl || '').trim();
+  const docsUrl = String(detail.docsUrl || '').trim();
+  const githubUrl = String(detail.githubUrl || '').trim();
+  const targetUrl = officialUrl || docsUrl || githubUrl || '';
+  const normalizedTemplate = String(template || '').trim();
+  if (normalizedTemplate) {
+    return normalizedTemplate
+      .replaceAll('{transport}', transport || 'http')
+      .replaceAll('{runtime}', runtime || 'other')
+      .replaceAll('{official_url}', officialUrl)
+      .replaceAll('{docs_url}', docsUrl)
+      .replaceAll('{github_url}', githubUrl)
+      .replaceAll('{slug}', String(detail.slug || detail.id || ''))
+      .replaceAll('{name}', String(detail.name || ''));
+  }
+  if (targetUrl) {
+    return `mcp connect --transport ${transport || 'http'} --runtime ${runtime || 'other'} --target "${targetUrl}"`;
+  }
+  return `mcp connect --transport ${transport || 'http'} --runtime ${runtime || 'other'} --target "${String(detail.slug || detail.id || '')}"`;
+};
+
+/**
+ * 将评分值转换为星级字符串，便于详情头部快速展示。
+ */
+const buildRatingStars = (rating: number): string => {
+  const value = Math.max(0, Math.min(5, Number(rating || 0)));
+  const full = Math.round(value);
+  return `${'★'.repeat(full)}${'☆'.repeat(Math.max(0, 5 - full))}`;
+};
+
 const MCPDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const { siteInfo } = useSiteInfo();
+  const { data: publicSettings } = usePublicSettings();
+  const mcpPageConfig = publicSettings?.mcpPage;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<McpDetail | null>(null);
@@ -230,7 +292,7 @@ const MCPDetailPage: React.FC = () => {
     if (!detail) return [];
     const detailPath = `/mcp/${detail.slug || detail.id}`;
     const absoluteUrl = `https://hao.uied.cn${detailPath}`;
-    return [
+    const blocks: Record<string, any>[] = [
       {
         '@context': 'https://schema.org',
         '@type': 'WebPage',
@@ -264,10 +326,27 @@ const MCPDetailPage: React.FC = () => {
         ],
       },
     ];
+    const faqSteps = buildQuickStartSteps(detail).slice(0, 3);
+    if (faqSteps.length > 0) {
+      blocks.push({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqSteps.map((step, index) => ({
+          '@type': 'Question',
+          name: `如何接入 ${detail.name}（步骤 ${index + 1}）？`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: step,
+          },
+        })),
+      });
+    }
+    return blocks;
   }, [detail, seoDescription]);
 
   const sourceLinks = useMemo(() => buildSourceLinks(detail), [detail]);
   const quickStartSteps = useMemo(() => buildQuickStartSteps(detail), [detail]);
+  const usageTutorialSteps = useMemo(() => buildUsageTutorialSteps(detail), [detail]);
   const sceneHints = useMemo(() => buildSceneHints(detail), [detail]);
   const capabilityRows = useMemo(() => buildCapabilityRows(detail), [detail]);
   const isContentThin = useMemo(() => {
@@ -275,6 +354,23 @@ const MCPDetailPage: React.FC = () => {
     const summaryLength = String(detail?.summary || '').trim().length;
     return contentLength < 120 && summaryLength < 80;
   }, [detail]);
+  const detailHeaderStyle = useMemo<'classic' | 'market'>(() => {
+    return mcpPageConfig?.detailHeaderStyle === 'market' ? 'market' : 'classic';
+  }, [mcpPageConfig?.detailHeaderStyle]);
+  const detailShowRating = mcpPageConfig?.detailShowRating !== false;
+  const detailRatingValue = useMemo(() => {
+    const value = Number(mcpPageConfig?.detailRatingValue || 0);
+    return Number.isFinite(value) ? Math.max(0, Math.min(5, value)) : 0;
+  }, [mcpPageConfig?.detailRatingValue]);
+  const detailShowCommand = mcpPageConfig?.detailShowCommand !== false;
+  const detailShowVersionTag = mcpPageConfig?.detailShowVersionTag !== false;
+  const accessCommand = useMemo(() => {
+    return buildAccessCommand(detail, String(mcpPageConfig?.detailCommandTemplate || ''));
+  }, [detail, mcpPageConfig?.detailCommandTemplate]);
+  const ratingStars = useMemo(() => buildRatingStars(detailRatingValue), [detailRatingValue]);
+  const protocolVersionLabel = useMemo(() => {
+    return String(detail?.protocolVersion || 'v1').trim() || 'v1';
+  }, [detail?.protocolVersion]);
 
   /**
    * 复制当前详情页链接，方便运营同学分发。
@@ -288,6 +384,21 @@ const MCPDetailPage: React.FC = () => {
       window.setTimeout(() => setCopyTip(''), 1800);
     } catch (copyError) {
       setCopyTip('复制失败，请手动复制地址栏');
+      window.setTimeout(() => setCopyTip(''), 1800);
+    }
+  };
+
+  /**
+   * 复制接入命令，便于开发者快速粘贴使用。
+   */
+  const handleCopyAccessCommand = async () => {
+    if (!accessCommand) return;
+    try {
+      await navigator.clipboard.writeText(accessCommand);
+      setCopyTip('接入命令已复制');
+      window.setTimeout(() => setCopyTip(''), 1800);
+    } catch (copyError) {
+      setCopyTip('命令复制失败，请手动复制');
       window.setTimeout(() => setCopyTip(''), 1800);
     }
   };
@@ -316,7 +427,7 @@ const MCPDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="mcp-detail-page">
+    <div className={`mcp-detail-page mcp-detail-page--header-${detailHeaderStyle} mcp-detail-page--layout-${detailLayoutWidthMode}`}>
       <SEO
         title={seoTitle}
         description={seoDescription}
@@ -354,6 +465,18 @@ const MCPDetailPage: React.FC = () => {
                   alt={`${detail.name} 图标`}
                 />
                 <div className="mcp-detail-page__hero-copy">
+                  {detailHeaderStyle === 'market' ? (
+                    <div className="mcp-detail-page__market-topline">
+                      <span className="mcp-detail-page__market-pill mcp-detail-page__market-pill--version">
+                        版本 {protocolVersionLabel}
+                      </span>
+                      {detailShowRating ? (
+                        <span className="mcp-detail-page__market-pill mcp-detail-page__market-pill--rating">
+                          评分 {detailRatingValue > 0 ? detailRatingValue.toFixed(1) : '暂无'}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <h1>{detail.name}</h1>
                   <p>{detail.summary || '暂无摘要信息'}</p>
                   <div className="mcp-detail-page__meta">
@@ -361,9 +484,30 @@ const MCPDetailPage: React.FC = () => {
                     <span>运行时：{formatRuntimeLabel(detail.runtime)}</span>
                     <span>发布时间：{formatDateLabel(detail.publishTime)}</span>
                     <span>浏览：{Number(detail.viewCount || 0)}</span>
+                    {detailShowVersionTag ? (
+                      <span>版本：{protocolVersionLabel}</span>
+                    ) : null}
                   </div>
                 </div>
               </div>
+              {detailHeaderStyle === 'market' ? (
+                <div className="mcp-detail-page__hero-side">
+                  {detailShowRating ? (
+                    <article className="mcp-detail-page__hero-stat">
+                      <span className="mcp-detail-page__hero-stat-label">评分位</span>
+                      <strong className="mcp-detail-page__hero-stat-value">
+                        {detailRatingValue > 0 ? detailRatingValue.toFixed(1) : '暂无'}
+                      </strong>
+                      <span className="mcp-detail-page__hero-stat-stars">{ratingStars}</span>
+                    </article>
+                  ) : null}
+                  <article className="mcp-detail-page__hero-stat">
+                    <span className="mcp-detail-page__hero-stat-label">浏览热度</span>
+                    <strong className="mcp-detail-page__hero-stat-value">{Number(detail.viewCount || 0)}</strong>
+                    <span className="mcp-detail-page__hero-stat-desc">近7天持续更新</span>
+                  </article>
+                </div>
+              ) : null}
               <div className="mcp-detail-page__hero-actions">
                 {detail.officialUrl ? (
                   <a href={detail.officialUrl} target="_blank" rel="noopener noreferrer">访问官网</a>
@@ -376,6 +520,15 @@ const MCPDetailPage: React.FC = () => {
                 ) : null}
                 <button type="button" onClick={handleCopyDetailLink}>复制链接</button>
               </div>
+              {detailShowCommand ? (
+                <div className="mcp-detail-page__hero-command">
+                  <div className="mcp-detail-page__hero-command-head">
+                    <span>接入命令</span>
+                    <button type="button" onClick={handleCopyAccessCommand}>复制命令</button>
+                  </div>
+                  <code>{accessCommand || 'mcp connect --transport http --runtime other --target "<your-mcp-endpoint>"'}</code>
+                </div>
+              ) : null}
               {copyTip ? <div className="mcp-detail-page__copy-tip">{copyTip}</div> : null}
             </header>
 
@@ -385,8 +538,18 @@ const MCPDetailPage: React.FC = () => {
               </section>
             ) : null}
 
+            <section className="mcp-detail-page__intro">
+              <h2>产品简介</h2>
+              <p>{detail.summary || '该 MCP 条目暂未填写简介，可先参考下方使用教程与来源链接。'}</p>
+              <div className="mcp-detail-page__intro-meta">
+                <span>分类：{detail.categoryName || '未分类'}</span>
+                <span>协议：{formatTransportLabel(detail.transportType)}</span>
+                <span>运行时：{formatRuntimeLabel(detail.runtime)}</span>
+              </div>
+            </section>
+
             <section className="mcp-detail-page__content">
-              <h2>详细介绍</h2>
+              <h2>详细说明</h2>
               <div
                 className="mcp-detail-page__content-html"
                 dangerouslySetInnerHTML={{ __html: buildContentHtml(detail.content) }}
@@ -396,6 +559,15 @@ const MCPDetailPage: React.FC = () => {
                   当前条目正文较精简，可结合下方接入建议与右侧来源链接快速完成落地。
                 </div>
               ) : null}
+            </section>
+
+            <section className="mcp-detail-page__guide-section">
+              <h2>使用教程</h2>
+              <ol className="mcp-detail-page__guide-steps">
+                {usageTutorialSteps.map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ol>
             </section>
 
             <section className="mcp-detail-page__insight-grid">

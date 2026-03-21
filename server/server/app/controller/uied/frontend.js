@@ -2565,6 +2565,88 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取 Figma 插件列表（前端）
+   * GET /api/figma/list
+   */
+  async figmaList() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const result = await ctx.service.uied.figma.publicList(ctx.query || {});
+      ctx.body = result;
+    } catch (error) {
+      ctx.logger.error('获取 Figma 插件列表失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 Figma 插件列表失败' };
+    }
+  }
+
+  /**
+   * 获取 Figma 插件详情（前端）
+   * GET /api/figma/:idOrSlug
+   */
+  async figmaDetail() {
+    const { ctx } = this;
+    const idOrSlug = String(ctx.params?.idOrSlug || '').trim();
+    try {
+      this.setNoCacheHeaders();
+      if (!idOrSlug) {
+        ctx.status = 400;
+        ctx.body = { error: '缺少 Figma 插件标识' };
+        return;
+      }
+      const detail = await ctx.service.uied.figma.publicDetail(idOrSlug);
+      if (!detail) {
+        ctx.status = 404;
+        ctx.body = { error: 'Figma 插件不存在' };
+        return;
+      }
+      await ctx.service.uied.figma.increaseViewCount(detail.id).catch(err => {
+        ctx.logger.warn(`记录 Figma 插件浏览量失败: ${err?.message || err}`);
+      });
+      ctx.body = detail;
+    } catch (error) {
+      ctx.logger.error('获取 Figma 插件详情失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 Figma 插件详情失败' };
+    }
+  }
+
+  /**
+   * 获取 Figma 插件分类元数据（前端）
+   * GET /api/figma/meta/categories
+   */
+  async figmaCategories() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const rows = await ctx.service.uied.figma.publicCategories();
+      ctx.body = Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      ctx.logger.error('获取 Figma 插件分类元数据失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 Figma 插件分类元数据失败' };
+    }
+  }
+
+  /**
+   * 获取 Figma 插件标签元数据（前端）
+   * GET /api/figma/meta/tags
+   */
+  async figmaTags() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const rows = await ctx.service.uied.figma.publicTags();
+      ctx.body = Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      ctx.logger.error('获取 Figma 插件标签元数据失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: error.message || '获取 Figma 插件标签元数据失败' };
+    }
+  }
+
+  /**
    * 获取文章评论（前端）
    * GET /api/articles/:id/comments
    */

@@ -994,6 +994,12 @@ class SettingService extends Service {
       showCategoryCount: true,
       listPageSize: 12,
       maxWidth: 1280,
+      detailHeaderStyle: 'classic',
+      detailShowRating: true,
+      detailRatingValue: 0,
+      detailShowCommand: true,
+      detailCommandTemplate: '',
+      detailShowVersionTag: true,
     };
   }
 
@@ -1009,6 +1015,7 @@ class SettingService extends Service {
     const cardStyle = String(merged.cardStyle || '').trim().toLowerCase();
     const density = String(merged.density || '').trim().toLowerCase();
     const backgroundMode = String(merged.backgroundMode || '').trim().toLowerCase();
+    const detailHeaderStyle = String(merged.detailHeaderStyle || '').trim().toLowerCase();
     /**
      * 规范化色值，避免非法颜色导致前端样式失效。
      * @param {unknown} value 原始颜色
@@ -1024,6 +1031,9 @@ class SettingService extends Service {
     const normalizedCardStyle = [ 'elevated', 'outline' ].includes(cardStyle) ? cardStyle : defaults.cardStyle;
     const normalizedDensity = [ 'compact', 'comfortable' ].includes(density) ? density : defaults.density;
     const normalizedBackgroundMode = [ 'plain', 'mesh', 'grid' ].includes(backgroundMode) ? backgroundMode : defaults.backgroundMode;
+    const normalizedDetailHeaderStyle = [ 'classic', 'market' ].includes(detailHeaderStyle)
+      ? detailHeaderStyle
+      : defaults.detailHeaderStyle;
     return {
       enabled: merged.enabled !== false,
       heroEnabled: merged.heroEnabled !== false,
@@ -1057,6 +1067,14 @@ class SettingService extends Service {
       maxWidth: Number.isFinite(Number(merged.maxWidth))
         ? Math.max(960, Math.min(1800, Number(merged.maxWidth)))
         : defaults.maxWidth,
+      detailHeaderStyle: normalizedDetailHeaderStyle,
+      detailShowRating: merged.detailShowRating !== false,
+      detailRatingValue: Number.isFinite(Number(merged.detailRatingValue))
+        ? Math.max(0, Math.min(5, Number(merged.detailRatingValue)))
+        : defaults.detailRatingValue,
+      detailShowCommand: merged.detailShowCommand !== false,
+      detailCommandTemplate: String(merged.detailCommandTemplate || defaults.detailCommandTemplate).trim().slice(0, 400),
+      detailShowVersionTag: merged.detailShowVersionTag !== false,
     };
   }
 

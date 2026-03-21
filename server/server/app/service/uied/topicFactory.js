@@ -53,6 +53,26 @@ class TopicFactoryService extends Service {
   }
 
   /**
+   * 确保页面表存在 show_banner 字段，避免专题创建写库时报字段不存在。
+   */
+  async ensurePageShowBannerColumn() {
+    if (this._pageShowBannerColumnReady) return;
+    const { app, ctx } = this;
+    try {
+      await app.model.query(
+        'ALTER TABLE `uied_page` ADD COLUMN `show_banner` tinyint(1) unsigned NOT NULL DEFAULT 1 COMMENT \'是否显示Banner\' AFTER `search_enabled`',
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (!/Duplicate column name/i.test(message)) {
+        ctx.logger.warn('[uied.topicFactory] 自动补齐 uied_page.show_banner 失败，请手动执行 SQL 补丁: %s', message);
+      }
+    }
+    this._pageShowBannerColumnReady = true;
+  }
+
+  /**
    * 获取默认模板
    */
   getDefaultTemplates() {
@@ -71,6 +91,7 @@ class TopicFactoryService extends Service {
         pageConfig: {
           type: 'topic',
           searchEnabled: true,
+          showBanner: true,
           showHotRecommendations: true,
           showCategories: true,
           showSidebar: true,
@@ -97,6 +118,7 @@ class TopicFactoryService extends Service {
         pageConfig: {
           type: 'topic',
           searchEnabled: true,
+          showBanner: true,
           showHotRecommendations: true,
           showCategories: true,
           showSidebar: true,
@@ -123,6 +145,7 @@ class TopicFactoryService extends Service {
         pageConfig: {
           type: 'topic',
           searchEnabled: true,
+          showBanner: true,
           showHotRecommendations: true,
           showCategories: true,
           showSidebar: true,
@@ -509,6 +532,7 @@ class TopicFactoryService extends Service {
           : (Array.isArray(pageConfig.heroScrollWebsites) ? pageConfig.heroScrollWebsites : []),
         searchPlaceholder: String(overrides.searchPlaceholder || pageConfig.searchPlaceholder || '').trim(),
         searchEnabled: this.parseBoolean(overrides.searchEnabled, this.parseBoolean(pageConfig.searchEnabled, true)),
+        showBanner: this.parseBoolean(overrides.showBanner, this.parseBoolean(pageConfig.showBanner, true)),
         showHotRecommendations: this.parseBoolean(overrides.showHotRecommendations, this.parseBoolean(pageConfig.showHotRecommendations, true)),
         showCategories: this.parseBoolean(overrides.showCategories, this.parseBoolean(pageConfig.showCategories, true)),
         showSidebar: this.parseBoolean(overrides.showSidebar, this.parseBoolean(pageConfig.showSidebar, true)),
@@ -541,15 +565,16 @@ class TopicFactoryService extends Service {
   async createFromTemplate(payload = {}) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    await this.ensurePageShowBannerColumn();
     const built = await this.buildTopicCreatePayload(payload);
     const pageData = built.pageData;
 
     const [ insertResult ] = await app.model.query(
       `INSERT INTO uied_page (name, slug, type, description, icon, hero_title, hero_highlight_text,
         hero_subtitle, hot_search_tags, hero_bg_type, hero_bg_value, hero_display_mode,
-        hero_scroll_websites, search_placeholder, search_enabled, show_hot_recommendations,
+        hero_scroll_websites, search_placeholder, search_enabled, show_banner, show_hot_recommendations,
         show_categories, show_sidebar, theme_color, sort, is_show, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           pageData.name,
@@ -567,6 +592,7 @@ class TopicFactoryService extends Service {
           JSON.stringify(Array.isArray(pageData.heroScrollWebsites) ? pageData.heroScrollWebsites : []),
           pageData.searchPlaceholder || '',
           pageData.searchEnabled ? 1 : 0,
+          pageData.showBanner ? 1 : 0,
           pageData.showHotRecommendations ? 1 : 0,
           pageData.showCategories ? 1 : 0,
           pageData.showSidebar ? 1 : 0,

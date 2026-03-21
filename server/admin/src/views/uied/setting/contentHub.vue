@@ -315,11 +315,47 @@
                             <el-form-item label="显示分类数量">
                                 <el-switch v-model="mcpPageForm.showCategoryCount" :disabled="!mcpPageForm.enabled" />
                             </el-form-item>
-                            <el-form-item label="每页数量">
-                                <el-input-number v-model="mcpPageForm.listPageSize" :min="6" :max="48" :disabled="!mcpPageForm.enabled" />
+                            <el-form-item label="每页MCP卡片数">
+                                <div class="content-hub-setting__inline-column">
+                                    <el-input-number v-model="mcpPageForm.listPageSize" :min="6" :max="48" :disabled="!mcpPageForm.enabled" />
+                                    <span class="content-hub-setting__tip">前端 /mcp 列表分页条数，建议 12-24。</span>
+                                </div>
                             </el-form-item>
                             <el-form-item label="内容最大宽度">
                                 <el-input-number v-model="mcpPageForm.maxWidth" :min="960" :max="1800" :step="20" :disabled="!mcpPageForm.enabled" />
+                            </el-form-item>
+                            <el-divider content-position="left">详情页头部样式</el-divider>
+                            <el-form-item label="头部样式">
+                                <el-radio-group v-model="mcpPageForm.detailHeaderStyle" :disabled="!mcpPageForm.enabled">
+                                    <el-radio-button label="classic">经典版</el-radio-button>
+                                    <el-radio-button label="market">市场版</el-radio-button>
+                                </el-radio-group>
+                            </el-form-item>
+                            <el-form-item label="显示评分位">
+                                <el-switch v-model="mcpPageForm.detailShowRating" :disabled="!mcpPageForm.enabled" />
+                            </el-form-item>
+                            <el-form-item label="默认评分值">
+                                <el-input-number
+                                    v-model="mcpPageForm.detailRatingValue"
+                                    :min="0"
+                                    :max="5"
+                                    :step="0.1"
+                                    :precision="1"
+                                    :disabled="!mcpPageForm.enabled || !mcpPageForm.detailShowRating"
+                                />
+                            </el-form-item>
+                            <el-form-item label="显示接入命令">
+                                <el-switch v-model="mcpPageForm.detailShowCommand" :disabled="!mcpPageForm.enabled" />
+                            </el-form-item>
+                            <el-form-item label="命令模板">
+                                <el-input
+                                    v-model="mcpPageForm.detailCommandTemplate"
+                                    :disabled="!mcpPageForm.enabled || !mcpPageForm.detailShowCommand"
+                                    placeholder='可选占位符：{transport} {runtime} {official_url} {docs_url} {github_url} {slug}'
+                                />
+                            </el-form-item>
+                            <el-form-item label="显示版本标签">
+                                <el-switch v-model="mcpPageForm.detailShowVersionTag" :disabled="!mcpPageForm.enabled" />
                             </el-form-item>
                         </el-form>
                     </el-card>
@@ -432,6 +468,12 @@ interface McpPageFormState {
     showCategoryCount: boolean
     listPageSize: number
     maxWidth: number
+    detailHeaderStyle: 'classic' | 'market'
+    detailShowRating: boolean
+    detailRatingValue: number
+    detailShowCommand: boolean
+    detailCommandTemplate: string
+    detailShowVersionTag: boolean
 }
 
 const route = useRoute()
@@ -544,6 +586,12 @@ const getDefaultMcpPageConfig = (): McpPageFormState => ({
     showCategoryCount: true,
     listPageSize: 12,
     maxWidth: 1280,
+    detailHeaderStyle: 'classic',
+    detailShowRating: true,
+    detailRatingValue: 0,
+    detailShowCommand: true,
+    detailCommandTemplate: '',
+    detailShowVersionTag: true,
 })
 
 const mcpPageForm = reactive<McpPageFormState>(getDefaultMcpPageConfig())
@@ -659,6 +707,7 @@ const applyMcpPageForm = (config: Record<string, any>) => {
     const cardStyle = String(config?.cardStyle || '').trim().toLowerCase()
     const density = String(config?.density || '').trim().toLowerCase()
     const backgroundMode = String(config?.backgroundMode || '').trim().toLowerCase()
+    const detailHeaderStyle = String(config?.detailHeaderStyle || '').trim().toLowerCase()
     mcpPageForm.enabled = config?.enabled !== false
     mcpPageForm.heroEnabled = config?.heroEnabled !== false
     mcpPageForm.heroStyle = heroStyle === 'solid' ? 'solid' : defaults.heroStyle
@@ -691,6 +740,14 @@ const applyMcpPageForm = (config: Record<string, any>) => {
     mcpPageForm.maxWidth = Number.isFinite(Number(config?.maxWidth))
         ? Math.max(960, Math.min(1800, Number(config?.maxWidth)))
         : defaults.maxWidth
+    mcpPageForm.detailHeaderStyle = detailHeaderStyle === 'market' ? 'market' : defaults.detailHeaderStyle
+    mcpPageForm.detailShowRating = config?.detailShowRating !== false
+    mcpPageForm.detailRatingValue = Number.isFinite(Number(config?.detailRatingValue))
+        ? Math.max(0, Math.min(5, Number(config?.detailRatingValue)))
+        : defaults.detailRatingValue
+    mcpPageForm.detailShowCommand = config?.detailShowCommand !== false
+    mcpPageForm.detailCommandTemplate = String(config?.detailCommandTemplate || defaults.detailCommandTemplate).trim()
+    mcpPageForm.detailShowVersionTag = config?.detailShowVersionTag !== false
 }
 
 /**
@@ -878,6 +935,12 @@ const saveMcpPageConfig = async () => {
             showCategoryCount: mcpPageForm.showCategoryCount !== false,
             listPageSize: Math.max(6, Math.min(48, Number(mcpPageForm.listPageSize || 12))),
             maxWidth: Math.max(960, Math.min(1800, Number(mcpPageForm.maxWidth || 1280))),
+            detailHeaderStyle: mcpPageForm.detailHeaderStyle === 'market' ? 'market' : 'classic',
+            detailShowRating: mcpPageForm.detailShowRating !== false,
+            detailRatingValue: Math.max(0, Math.min(5, Number(mcpPageForm.detailRatingValue || 0))),
+            detailShowCommand: mcpPageForm.detailShowCommand !== false,
+            detailCommandTemplate: String(mcpPageForm.detailCommandTemplate || '').trim().slice(0, 400),
+            detailShowVersionTag: mcpPageForm.detailShowVersionTag !== false,
         }
         await uiedSettingSave({ mcpPageConfig: payload })
         feedback.msgSuccess('MCP页面配置保存成功')
@@ -1036,5 +1099,18 @@ onMounted(() => {
     align-items: center;
     gap: 12px;
     width: 100%;
+}
+
+.content-hub-setting__inline-column {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.content-hub-setting__tip {
+    font-size: 12px;
+    color: #909399;
+    line-height: 1.5;
 }
 </style>

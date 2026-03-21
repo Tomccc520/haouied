@@ -487,6 +487,82 @@ class ArticleService extends Service {
   }
 
   /**
+   * 解析并回填文章分类（支持“仅输入分类名自动创建分类”）。
+   * @param {Object} payload 文章入参
+   * @param {number} fallbackCategoryId 兜底分类ID（编辑场景）
+   * @param {string} fallbackCategoryName 兜底分类名称（编辑场景）
+   * @return {Promise<{categoryId:number|null, categoryName:string}>}
+   */
+  async resolveArticleCategory(payload = {}, fallbackCategoryId = 0, fallbackCategoryName = '') {
+    const { app, ctx } = this;
+    const now = Math.floor(Date.now() / 1000);
+    let categoryId = this.parsePositiveInt(payload.categoryId, 0);
+    let categoryName = String(payload.category || '').trim();
+
+    /**
+     * 优先以分类 ID 为准，保证文章和分类表引用一致。
+     */
+    if (categoryId > 0) {
+      const [ row ] = await app.model.query(
+        'SELECT id, name FROM uied_article_category WHERE id = ? AND is_delete = 0 LIMIT 1',
+        { replacements: [ categoryId ], type: app.Sequelize.QueryTypes.SELECT }
+      );
+      if (row?.id) {
+        categoryId = this.parsePositiveInt(row.id, 0);
+        categoryName = String(row.name || '').trim() || categoryName;
+      } else {
+        categoryId = 0;
+      }
+    }
+
+    /**
+     * 仅输入分类名称且未选择分类 ID 时：
+     * 自动在分类表中 upsert，并写回 article.category_id。
+     */
+    if (!categoryId && categoryName) {
+      const [ existingByName ] = await app.model.query(
+        'SELECT id, name FROM uied_article_category WHERE BINARY name = BINARY ? AND is_delete = 0 LIMIT 1',
+        { replacements: [ categoryName ], type: app.Sequelize.QueryTypes.SELECT }
+      );
+      if (existingByName?.id) {
+        categoryId = this.parsePositiveInt(existingByName.id, 0);
+        categoryName = String(existingByName.name || categoryName).trim() || categoryName;
+      } else {
+        const slug = await ctx.service.uied.articleCategory.resolveUniqueSlug('', categoryName, 0);
+        const [ insertId ] = await app.model.query(
+          `INSERT INTO uied_article_category
+           (name, slug, description, sort_order, is_delete, create_time, update_time)
+           VALUES (?, ?, '', 0, 0, ?, ?)`,
+          {
+            replacements: [ categoryName, slug, now, now ],
+            type: app.Sequelize.QueryTypes.INSERT,
+          }
+        );
+        categoryId = this.parsePositiveInt(insertId, 0);
+      }
+    }
+
+    if (!categoryName) {
+      categoryName = String(fallbackCategoryName || '').trim();
+    }
+    if (!categoryId) {
+      categoryId = this.parsePositiveInt(fallbackCategoryId, 0);
+    }
+
+    /**
+     * 最终兜底：保证文章至少落到“未分类”。
+     */
+    if (!categoryName) {
+      categoryName = '未分类';
+    }
+
+    return {
+      categoryId: categoryId > 0 ? categoryId : null,
+      categoryName,
+    };
+  }
+
+  /**
    * 创建文章
    */
   async add(data) {
@@ -494,16 +570,7 @@ class ArticleService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const payload = this.normalizeArticlePayload(data);
     const articleCategoryColumn = await this.getArticleCategoryColumn();
-    let categoryName = payload.category || '未分类';
-    if (!payload.category && payload.categoryId) {
-      const [ categoryRow ] = await app.model.query(
-        'SELECT name FROM uied_article_category WHERE id = ? AND is_delete = 0',
-        { replacements: [ payload.categoryId ], type: app.Sequelize.QueryTypes.SELECT }
-      );
-      if (categoryRow && categoryRow.name) {
-        categoryName = String(categoryRow.name);
-      }
-    }
+    const categoryResolved = await this.resolveArticleCategory(payload);
 
     // 生成 slug
     const slug = payload.slug || this.generateSlug(payload.title);
@@ -539,7 +606,7 @@ class ArticleService extends Service {
       payload.excerpt || (payload.content || '').slice(0, 200),
       payload.coverImage || null,
       payload.author || '管理员',
-      categoryName,
+      categoryResolved.categoryName,
       slug,
       payload.status || 'draft',
       payload.seoTitle || payload.title,
@@ -550,7 +617,7 @@ class ArticleService extends Service {
     ];
     if (articleCategoryColumn) {
       insertColumns.splice(6, 0, `\`${articleCategoryColumn}\``);
-      insertValues.splice(6, 0, payload.categoryId || null);
+      insertValues.splice(6, 0, categoryResolved.categoryId || null);
     }
     const placeholders = insertColumns.map(() => '?').join(', ');
     const [ result ] = await app.model.query(
@@ -580,20 +647,10 @@ class ArticleService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const payload = this.normalizeArticlePayload(data);
     const articleCategoryColumn = await this.getArticleCategoryColumn();
-    let categoryName = payload.category || '未分类';
-    if (!payload.category && payload.categoryId) {
-      const [ categoryRow ] = await app.model.query(
-        'SELECT name FROM uied_article_category WHERE id = ? AND is_delete = 0',
-        { replacements: [ payload.categoryId ], type: app.Sequelize.QueryTypes.SELECT }
-      );
-      if (categoryRow && categoryRow.name) {
-        categoryName = String(categoryRow.name);
-      }
-    }
 
     // 检查文章是否存在
     const [ existing ] = await app.model.query(
-      `SELECT id, status, published_at, ${articleCategoryColumn ? `\`${articleCategoryColumn}\`` : 'NULL'} AS category_id, slug
+      `SELECT id, status, published_at, category, ${articleCategoryColumn ? `\`${articleCategoryColumn}\`` : 'NULL'} AS category_id, slug
        FROM uied_article
        WHERE id = ? AND is_delete = 0`,
       { replacements: [ id ], type: app.Sequelize.QueryTypes.SELECT }
@@ -602,6 +659,11 @@ class ArticleService extends Service {
     if (!existing) {
       throw new Error('文章不存在');
     }
+    const categoryResolved = await this.resolveArticleCategory(
+      payload,
+      this.parsePositiveInt(existing.category_id, 0),
+      String(existing.category || '').trim()
+    );
 
     // 如果修改了 slug，检查唯一性
     if (payload.slug) {
@@ -640,7 +702,7 @@ class ArticleService extends Service {
       payload.excerpt || '',
       payload.coverImage || null,
       payload.author || '管理员',
-      categoryName,
+      categoryResolved.categoryName,
       payload.slug || existing.slug,
       payload.status || existing.status,
       payload.seoTitle || payload.title,
@@ -650,7 +712,13 @@ class ArticleService extends Service {
     ];
     if (articleCategoryColumn) {
       updateSetSql.splice(6, 0, `\`${articleCategoryColumn}\` = ?`);
-      updateValues.splice(6, 0, payload.categoryId !== null ? payload.categoryId : existing.category_id || null);
+      updateValues.splice(
+        6,
+        0,
+        categoryResolved.categoryId !== null
+          ? categoryResolved.categoryId
+          : this.parsePositiveInt(existing.category_id, 0) || null
+      );
     }
     updateValues.push(id);
 

@@ -336,6 +336,24 @@ module.exports = app => {
   // GET /mcp/:idOrSlug - 兼容旧前端无 /api 前缀
   getLegacy('/mcp/:idOrSlug', controller.uied.frontend.mcpDetail);
 
+  // ==================== Figma插件中心 ====================
+  // GET /api/figma/list - 获取 Figma 插件列表
+  get('/api/figma/list', controller.uied.frontend.figmaList);
+  // GET /api/figma/meta/categories - 获取 Figma 插件分类元数据
+  get('/api/figma/meta/categories', controller.uied.frontend.figmaCategories);
+  // GET /api/figma/meta/tags - 获取 Figma 插件标签元数据
+  get('/api/figma/meta/tags', controller.uied.frontend.figmaTags);
+  // GET /api/figma/:idOrSlug - 获取 Figma 插件详情
+  get('/api/figma/:idOrSlug', controller.uied.frontend.figmaDetail);
+  // GET /figma/list - 兼容旧前端无 /api 前缀
+  getLegacy('/figma/list', controller.uied.frontend.figmaList);
+  // GET /figma/meta/categories - 兼容旧前端无 /api 前缀
+  getLegacy('/figma/meta/categories', controller.uied.frontend.figmaCategories);
+  // GET /figma/meta/tags - 兼容旧前端无 /api 前缀
+  getLegacy('/figma/meta/tags', controller.uied.frontend.figmaTags);
+  // GET /figma/:idOrSlug - 兼容旧前端无 /api 前缀
+  getLegacy('/figma/:idOrSlug', controller.uied.frontend.figmaDetail);
+
   // ==================== 文章相关（前端） ====================
   // GET /api/articles - 获取文章列表
   get('/api/articles', controller.uied.frontend.articles);

@@ -20,6 +20,7 @@ import {
   getMcpList,
   getMcpTags,
 } from '../../services/mcpService';
+import useDetailLayoutWidthMode from '../../hooks/useDetailLayoutWidthMode';
 import { usePublicSettings } from '../../hooks/usePublicSettings';
 import './index.css';
 
@@ -62,6 +63,7 @@ const resolveCardIconWebsiteUrl = (item: McpListItem): string => {
 
 const MCPListPage: React.FC = () => {
   const navigate = useNavigate();
+  const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const { data: publicSettings } = usePublicSettings();
   const siteInfo = publicSettings?.siteInfo;
   const mcpPageConfig = publicSettings?.mcpPage;
@@ -222,9 +224,10 @@ const MCPListPage: React.FC = () => {
       `mcp-list-page--card-${cardStyle}`,
       `mcp-list-page--density-${density}`,
       `mcp-list-page--bg-${backgroundMode}`,
+      `mcp-list-page--layout-${detailLayoutWidthMode}`,
       cardShadowEnabled ? 'mcp-list-page--shadow-on' : 'mcp-list-page--shadow-off',
     ].join(' ');
-  }, [heroStyle, visualPreset, cardStyle, density, backgroundMode, cardShadowEnabled]);
+  }, [heroStyle, visualPreset, cardStyle, density, backgroundMode, detailLayoutWidthMode, cardShadowEnabled]);
 
   /**
    * 写入 MCP 页面的主题变量，支持后台实时切换视觉样式。
@@ -283,7 +286,7 @@ const MCPListPage: React.FC = () => {
       <div className="mcp-list-page__container">
         {isPageEnabled ? null : (
           <div className="mcp-list-page__state">
-            MCP 页面暂未启用，请在后台「内容中心配置 到 MCP中心」开启后查看。
+            MCP 页面暂未启用，请在后台「网站设置 - MCP配置」中开启后查看。
           </div>
         )}
 
@@ -328,8 +331,19 @@ const MCPListPage: React.FC = () => {
           </header>
         ) : null}
 
-        <div className="mcp-list-page__body">
-          <section id="mcp-filters" className="mcp-list-page__filters" aria-label="MCP筛选器">
+        <div className="mcp-list-page__content-layout">
+          <aside id="mcp-filters" className="mcp-list-page__toolbar" aria-label="MCP筛选器">
+            <div className="mcp-list-page__toolbar-top">
+              <div className="mcp-list-page__chips-title">筛选面板</div>
+              {activeFilterSummary ? (
+                <button
+                  className="mcp-list-page__clear-btn"
+                  onClick={() => updateParams({ q: null, category: null, tag: null, page: 1 })}
+                >
+                  清空筛选
+                </button>
+              ) : null}
+            </div>
             <div className="mcp-list-page__search-row">
               <input
                 value={keyword}
@@ -337,8 +351,12 @@ const MCPListPage: React.FC = () => {
                 onChange={(event) => updateParams({ q: event.target.value })}
               />
             </div>
-            <div className="mcp-list-page__chips-block">
-              <div className="mcp-list-page__chips-title">分类筛选</div>
+            <div className="mcp-list-page__toolbar-summary">
+              {activeFilterSummary ? `筛选中：${activeFilterSummary}` : `全部结果：${pagination.total} 条`}
+            </div>
+
+            <div className="mcp-list-page__toolbar-group">
+              <div className="mcp-list-page__chips-title">分类</div>
               {categories.length > 0 ? (
                 <div className="mcp-list-page__chips">
                   <button
@@ -362,9 +380,10 @@ const MCPListPage: React.FC = () => {
                 <div className="mcp-list-page__chips-empty">暂无分类，请在后台 MCP 中心创建分类</div>
               )}
             </div>
+
             {showTagFilter ? (
-              <div className="mcp-list-page__chips-block">
-                <div className="mcp-list-page__chips-title">标签筛选</div>
+              <div className="mcp-list-page__toolbar-group">
+                <div className="mcp-list-page__chips-title">标签</div>
                 {tags.length > 0 ? (
                   <div className="mcp-list-page__chips mcp-list-page__chips--tags">
                     <button
@@ -388,14 +407,15 @@ const MCPListPage: React.FC = () => {
                 )}
               </div>
             ) : null}
-          </section>
+          </aside>
 
           <section className="mcp-list-page__results" aria-label="MCP 结果列表">
             {isPageEnabled ? (
               <header className="mcp-list-page__results-head">
-                <div className="mcp-list-page__results-title">共 {pagination.total} 个 MCP 条目</div>
+                <div className="mcp-list-page__results-title">MCP 服务市场</div>
                 <div className="mcp-list-page__results-subtitle">
-                  {activeFilterSummary ? `筛选中：${activeFilterSummary}` : '当前为全部结果'}
+                  共 {pagination.total} 个条目
+                  {activeFilterSummary ? ` · ${activeFilterSummary}` : ' · 按分类、标签和关键词快速筛选'}
                 </div>
               </header>
             ) : null}
@@ -442,11 +462,11 @@ const MCPListPage: React.FC = () => {
                       <span>{formatTransport(item.transportType)}</span>
                       <span>{String(item.runtime || 'other').toUpperCase()}</span>
                       {item.categoryName ? <span>{item.categoryName}</span> : null}
-                      {Array.isArray(item.tags) ? (
-                        item.tags.slice(0, 2).map((itemTag, itemTagIndex) => (
+                      {Array.isArray(item.tags)
+                        ? item.tags.slice(0, 2).map((itemTag, itemTagIndex) => (
                           <span key={`${item.id}-tag-${itemTagIndex}`}>#{itemTag}</span>
                         ))
-                      ) : null}
+                        : null}
                       {formatPublishDate(item.publishTime) ? <span>{formatPublishDate(item.publishTime)}</span> : null}
                     </div>
                     <div className="mcp-list-card__actions">
@@ -465,7 +485,7 @@ const MCPListPage: React.FC = () => {
                         )
                       ) : null}
                       <Link to={`/mcp/${item.slug || item.id}`} onClick={(event) => event.stopPropagation()}>
-                        查看详情
+                        进入详情
                       </Link>
                     </div>
                   </article>

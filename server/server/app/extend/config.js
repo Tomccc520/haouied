@@ -213,6 +213,11 @@ const rsa = {
     'mcp:meta:categories',
     'mcp:meta:tags',
     'mcp:*',
+    // Figma 插件中心公开接口
+    'figma:list',
+    'figma:meta:categories',
+    'figma:meta:tags',
+    'figma:*',
     // 前台用户中心（账号与个人中心）
     'user:register',
     'user:login',

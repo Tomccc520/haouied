@@ -81,6 +81,22 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         ]
     },
     {
+        path: '/figma-center',
+        component: LAYOUT,
+        children: [
+            {
+                path: 'figma-publish',
+                name: Symbol(),
+                component: () => import('@/views/uied/figma/publish.vue'),
+                meta: {
+                    title: '发布插件',
+                    hidden: true,
+                    activeMenu: '/figma-center/figma-list'
+                }
+            }
+        ]
+    },
+    {
         path: '/system-setting/base-config',
         component: LAYOUT,
         children: [

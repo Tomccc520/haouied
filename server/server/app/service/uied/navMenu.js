@@ -35,6 +35,7 @@ class NavMenuService extends Service {
       rankings: '/p/hot?tab=rankings',
       submit: '/submit',
       articles: '/articles',
+      figma: '/figma',
       mcp_center: '/mcp',
     };
   }

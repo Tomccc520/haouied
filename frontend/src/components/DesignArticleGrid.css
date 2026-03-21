@@ -230,12 +230,11 @@
   }
 }
 
-/* 文章网格布局 - 响应式设计 */
+/* 文章网格布局 - 响应式自适应（不固定 6 列） */
 .design-article-grid-container .article-grid {
   display: grid;
   gap: 0.875rem;
-  /* 桌面端固定一行 6 卡，间距使用 rem 固定，避免超大屏被拉得过散 */
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   align-items: stretch;
 }
 
@@ -245,71 +244,35 @@
   display: contents; /* 继承父级网格布局 */
 }
 
-/* 大屏幕优化 */
-@media (min-width: 1440px) {
+/* 超大屏提升密度，避免卡片过宽 */
+@media (min-width: 1680px) {
   .design-article-grid-container .article-grid {
-    gap: 1.125rem;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: 1rem;
   }
 }
 
-/* 超大屏幕优化 */
-@media (min-width: 1920px) {
+/* 中屏过渡 */
+@media (max-width: 1200px) {
   .design-article-grid-container .article-grid {
-    gap: 1.25rem;
-  }
-}
-
-/* 大平板/小桌面 */
-@media (max-width: 1280px) {
-  .design-article-grid-container .article-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
     gap: 0.75rem;
   }
 }
 
-/* 平板端：3列网格 */
-@media (max-width: 1100px) {
-  .design-article-grid-container .article-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.875rem;
-  }
-}
-
-/* 移动端过渡区：提前切换到 2 列，避免窄屏横向挤压 */
+/* 平板 */
 @media (max-width: 900px) {
   .design-article-grid-container .article-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.875rem;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.6875rem;
   }
 }
 
-/* 移动端：2列网格 */
+/* 移动端保持自然换行，不再横向滚动 */
 @media (max-width: 768px) {
   .design-article-grid-container .article-grid {
-    display: flex;
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
     gap: 0.625rem;
-    margin: 0 -0.125rem;
-    padding: 0 0.125rem 0.375rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .design-article-grid-container .article-grid::-webkit-scrollbar {
-    display: none;
-  }
-
-  .design-article-grid-container .articles-grid,
-  .design-article-grid-container .skeleton-grid {
-    display: flex;
-    gap: 0.625rem;
-  }
-
-  .design-article-grid-container .article-card {
-    flex: 0 0 min(66vw, 220px);
-    min-height: 9.5rem;
-    scroll-snap-align: start;
   }
 
   .design-article-grid-container {
@@ -326,23 +289,19 @@
     padding-left: 0;
     min-height: auto;
   }
-
 }
 
+/* 小屏固定双列，确保信息密度与可读性平衡 */
 @media (max-width: 480px) {
   .design-article-grid-container .article-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
 
   .design-article-grid-container .article-card,
   .home-design-section .design-article-grid-container .article-card {
-    flex-basis: min(72vw, 200px) !important;
     min-height: 8.75rem;
     padding: 0.4375rem;
-  }
-
-  .design-article-grid-container .article-card {
-    scroll-snap-align: start;
   }
 
   .design-article-grid-container .article-title {

@@ -69,6 +69,26 @@ module.exports = app => {
   router.all('/api/uied/mcp/tag/edit', controller.uied.mcp.tagEdit);
   router.all('/api/uied/mcp/tag/del', controller.uied.mcp.tagDel);
 
+  // ==================== Figma插件中心 ====================
+  router.all('/api/uied/figma/list', controller.uied.figma.list);
+  router.all('/api/uied/figma/detail', controller.uied.figma.detail);
+  router.all('/api/uied/figma/add', controller.uied.figma.add);
+  router.all('/api/uied/figma/edit', controller.uied.figma.edit);
+  router.all('/api/uied/figma/del', controller.uied.figma.del);
+  router.all('/api/uied/figma/importOfficial', controller.uied.figma.importOfficial);
+
+  router.all('/api/uied/figma/category/list', controller.uied.figma.categoryList);
+  router.all('/api/uied/figma/category/all', controller.uied.figma.categoryAll);
+  router.all('/api/uied/figma/category/add', controller.uied.figma.categoryAdd);
+  router.all('/api/uied/figma/category/edit', controller.uied.figma.categoryEdit);
+  router.all('/api/uied/figma/category/del', controller.uied.figma.categoryDel);
+
+  router.all('/api/uied/figma/tag/list', controller.uied.figma.tagList);
+  router.all('/api/uied/figma/tag/all', controller.uied.figma.tagAll);
+  router.all('/api/uied/figma/tag/add', controller.uied.figma.tagAdd);
+  router.all('/api/uied/figma/tag/edit', controller.uied.figma.tagEdit);
+  router.all('/api/uied/figma/tag/del', controller.uied.figma.tagDel);
+
   // ==================== 页面管理 ====================
   router.all('/api/uied/page/list', controller.uied.page.list);
   router.all('/api/uied/page/all', controller.uied.page.all);

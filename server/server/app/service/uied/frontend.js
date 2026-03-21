@@ -106,9 +106,30 @@ class FrontendService extends Service {
   }
 
   /**
+   * 确保页面表存在 show_banner 字段，避免历史库未执行补丁时前台接口报错。
+   */
+  async ensurePageShowBannerColumn() {
+    if (this._pageShowBannerColumnReady) return;
+    const { app, ctx } = this;
+    try {
+      await app.model.query(
+        'ALTER TABLE `uied_page` ADD COLUMN `show_banner` tinyint(1) unsigned NOT NULL DEFAULT 1 COMMENT \'是否显示Banner\' AFTER `search_enabled`',
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (!/Duplicate column name/i.test(message)) {
+        ctx.logger.warn('[uied.frontend] 自动补齐 uied_page.show_banner 失败，请手动执行 SQL 补丁: %s', message);
+      }
+    }
+    this._pageShowBannerColumnReady = true;
+  }
+
+  /**
    * 获取所有页面配置
    */
   async getAllPages() {
+    await this.ensurePageShowBannerColumn();
     const { app } = this;
     const pages = await app.model.query(
       `SELECT id, name, slug, type, description, icon,
@@ -120,6 +141,7 @@ class FrontendService extends Service {
               hero_bg_type as heroBgType, hero_bg_value as heroBgValue,
               search_placeholder as searchPlaceholder,
               search_enabled as searchEnabled,
+              show_banner as showBanner,
               show_hot_recommendations as showHotRecommendations,
               show_categories as showCategories,
               show_sidebar as showSidebar,
@@ -134,6 +156,7 @@ class FrontendService extends Service {
     return pages.map(p => ({
       ...p,
       searchEnabled: p.searchEnabled === 1,
+      showBanner: p.showBanner === 1,
       showHotRecommendations: p.showHotRecommendations === 1,
       showCategories: p.showCategories === 1,
       showSidebar: p.showSidebar === 1,
@@ -147,6 +170,7 @@ class FrontendService extends Service {
    */
   async getPageFullData(slug) {
     const { app } = this;
+    await this.ensurePageShowBannerColumn();
     await this.ensureWebsiteCategoryTable();
 
     // 获取页面配置
@@ -318,6 +342,7 @@ class FrontendService extends Service {
         heroBgValue: page.hero_bg_value,
         searchPlaceholder: page.search_placeholder,
         searchEnabled: page.search_enabled === 1,
+        showBanner: page.show_banner === 1,
         showHotRecommendations: page.show_hot_recommendations === 1,
         showCategories: page.show_categories === 1,
         showSidebar: page.show_sidebar === 1,
@@ -1363,6 +1388,7 @@ class FrontendService extends Service {
       { path: '/changelog', title: this.buildSeoTitle('更新日志', siteName), description: siteDescription },
       { path: '/p/hot', title: this.buildSeoTitle('热门内容', siteName), description: siteDescription },
       { path: '/hot', canonicalPath: '/p/hot', title: this.buildSeoTitle('热门内容', siteName), description: siteDescription, noindex: true },
+      { path: '/figma', title: this.buildSeoTitle('Figma 插件', siteName), description: siteDescription },
       { path: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription },
       { path: '/categories', canonicalPath: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription, noindex: true },
       { path: '/p/category', canonicalPath: '/category', title: this.buildSeoTitle('全部分类', siteName), description: siteDescription, noindex: true },
@@ -1389,7 +1415,7 @@ class FrontendService extends Service {
          ORDER BY sort ASC, id ASC`,
         { type: app.Sequelize.QueryTypes.SELECT }
       );
-      const fixedSlugSet = new Set([ 'uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font' ]);
+      const fixedSlugSet = new Set([ 'uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font', 'figma' ]);
       const frontendConfig = await ctx.service.uied.setting.get('homepageConfig').catch(() => ({}));
       const homePageSlug = String(frontendConfig?.homePageSlug || 'uiux').trim().toLowerCase() || 'uiux';
 

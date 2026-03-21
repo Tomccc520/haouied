@@ -2,101 +2,94 @@
  * @copyright Tomda (https://www.tomda.top)
  * @copyright UIED技术团队 (https://fsuied.com)
  * @author UIED技术团队
- * @createDate 2026-03-05
+ * @createDate 2026-03-21
  */
 /**
  * @file index.css
- * @description 404 Block 页面样式
+ * @description 404 页面样式
  */
 
-.not-found-block-page {
+.not-found-page {
   min-height: 100vh;
   margin-top: calc(var(--header-height) * -1);
   padding: calc(var(--header-height) + 28px) 12px 24px;
   background:
-    radial-gradient(circle at 12% 0%, rgba(59, 130, 246, 0.18), transparent 48%),
-    radial-gradient(circle at 88% 16%, rgba(14, 165, 233, 0.14), transparent 44%),
-    #f7faff;
+    radial-gradient(circle at 14% 2%, rgba(37, 99, 235, 0.12), transparent 42%),
+    radial-gradient(circle at 88% 10%, rgba(15, 23, 42, 0.08), transparent 46%),
+    #f6f8fc;
 }
 
-.not-found-block {
+.not-found-card {
   margin: 0 auto;
   width: min(1180px, 100%);
-  border: 1px solid #dbe6fb;
-  border-radius: 22px;
-  background: #fff;
-  padding: 28px;
+  border: 1px solid #dde4f0;
+  border-radius: 20px;
+  background: #ffffff;
+  padding: 26px;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  gap: 26px;
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  gap: 24px;
+  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.08);
 }
 
-.not-found-block__code-wrap {
-  border-radius: 18px;
-  border: 1px solid #e6eefc;
-  background: linear-gradient(160deg, #f8fbff 2%, #f1f6ff 100%);
-  padding: 18px 14px;
+.not-found-card__code-wrap {
+  border-radius: 16px;
+  border: 1px solid #e6ecf5;
+  background: linear-gradient(160deg, #fbfcff 6%, #f2f5fb 100%);
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
-.not-found-block__code {
+.not-found-card__code {
   display: block;
-  font-size: clamp(72px, 10vw, 128px);
+  font-size: clamp(76px, 10vw, 130px);
   letter-spacing: 0.06em;
   font-weight: 800;
   line-height: 1;
-  color: #1e3a8a;
+  color: #0f172a;
 }
 
-.not-found-block__line {
-  width: 100%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.45), transparent);
+.not-found-card__code-sub {
+  font-size: 12px;
+  color: #64748b;
+  letter-spacing: 0.12em;
+  font-weight: 700;
 }
 
-.not-found-block__content {
+.not-found-card__content {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.not-found-block__kicker {
-  margin: 0;
-  font-size: 12px;
-  color: #475569;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
-.not-found-block__content h1 {
+.not-found-card__content h1 {
   margin: 0;
   color: #0f172a;
   font-size: clamp(28px, 4vw, 42px);
-  line-height: 1.1;
+  line-height: 1.12;
   letter-spacing: -0.02em;
 }
 
-.not-found-block__desc {
+.not-found-card__desc {
   margin: 0;
   color: #475569;
   font-size: 15px;
-  line-height: 1.7;
-  max-width: 680px;
+  line-height: 1.72;
+  max-width: 700px;
 }
 
-.not-found-block__redirect {
+.not-found-card__redirect {
   margin: 0;
-  color: #1d4ed8;
+  color: #2563eb;
   font-size: 13px;
   font-weight: 600;
 }
 
-.not-found-block__actions {
+.not-found-card__actions {
   margin-top: 10px;
   display: flex;
   align-items: center;
@@ -104,10 +97,10 @@
   flex-wrap: wrap;
 }
 
-.not-found-block__btn {
+.not-found-card__btn {
   height: 38px;
   border-radius: 10px;
-  border: 1px solid #d7dfef;
+  border: 1px solid #d6deea;
   background: #fff;
   color: #334155;
   font-size: 13px;
@@ -120,37 +113,37 @@
   justify-content: center;
 }
 
-.not-found-block__btn:hover {
-  border-color: #c2d3f5;
-  background: #f4f7ff;
+.not-found-card__btn:hover {
+  border-color: #c3d1e7;
+  background: #f8fafd;
 }
 
-.not-found-block__btn--primary {
+.not-found-card__btn--primary {
   border-color: #2563eb;
   background: #2563eb;
   color: #fff;
 }
 
-.not-found-block__btn--primary:hover {
+.not-found-card__btn--primary:hover {
   border-color: #1d4ed8;
   background: #1d4ed8;
   color: #fff;
 }
 
-.not-found-block__quick-links {
+.not-found-card__quick-links {
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.not-found-block__quick-link {
+.not-found-card__quick-link {
   height: 32px;
-  padding: 0 11px;
+  padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid #d9e4fb;
-  background: #f7faff;
-  color: #35528a;
+  border: 1px solid #d7dfeb;
+  background: #f8fafd;
+  color: #334155;
   text-decoration: none;
   font-size: 12px;
   font-weight: 600;
@@ -158,34 +151,34 @@
   align-items: center;
 }
 
-.not-found-block__quick-link:hover {
-  border-color: #c3d5fa;
-  background: #edf4ff;
-  color: #1d4ed8;
+.not-found-card__quick-link:hover {
+  border-color: #c6d2e6;
+  background: #f0f4fa;
+  color: #0f172a;
 }
 
 @media (max-width: 900px) {
-  .not-found-block-page {
+  .not-found-page {
     padding-top: calc(var(--header-height) + 16px);
   }
 
-  .not-found-block {
+  .not-found-card {
     border-radius: 16px;
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 14px;
     padding: 14px;
   }
 
-  .not-found-block__code-wrap {
+  .not-found-card__code-wrap {
     border-radius: 12px;
     padding: 12px;
   }
 
-  .not-found-block__actions {
+  .not-found-card__actions {
     width: 100%;
   }
 
-  .not-found-block__btn {
+  .not-found-card__btn {
     flex: 1;
     min-width: 112px;
   }
