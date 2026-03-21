@@ -9,7 +9,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { AxiosError } from 'axios';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import api from '../../services/api';
+import api, { recordWebsiteClick } from '../../services/api';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { useUser } from '../../contexts/UserContext';
 import SEO from '../../components/SEO';
@@ -1095,7 +1095,7 @@ const WebsiteDetailPage: React.FC = () => {
    * 上报网站点击，失败时静默处理，不阻断用户访问外部网址。
    */
   const reportWebsiteClick = (websiteId: string) => {
-    void api.post(`/websites/${websiteId}/click`).catch(() => {});
+    void recordWebsiteClick(websiteId);
   };
   const displayAverageRating = typeof website.averageRating === 'number'
     ? Number(website.averageRating).toFixed(1)

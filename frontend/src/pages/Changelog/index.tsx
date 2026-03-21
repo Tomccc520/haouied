@@ -75,6 +75,9 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-03-20',
     title: '正式版1.0.9：MCP中心导航归位 + 官网MCP页重构',
     changes: [
+      { type: 'fix', scope: 'backend', text: '【点击统计】补齐前台点击服务兼容方法 `ctx.service.uied.website.click`，统一转发到 `incrementClick`，修复公开接口 `/api/websites/:id/click` 在部分环境下漏计问题' },
+      { type: 'improve', scope: 'frontend', text: '【点击统计】网站点击上报升级为 `sendBeacon + fetch keepalive + axios` 三层兜底策略，降低跳转外链时请求被取消导致的点击丢失' },
+      { type: 'improve', scope: 'frontend', text: '【点击统计】分类页/标签页/搜索页/网址详情页统一改为 `recordWebsiteClick` 公共上报方法，前端点击埋点链路一致化' },
       { type: 'improve', scope: 'frontend', text: '【404页面】重构 404 页面视觉：统一站点主色与卡片层级，优化回首页/返回上页操作区与常用入口布局，移动端断点同步适配' },
       { type: 'feature', scope: 'fullstack', text: '【Figma独立页】新增前端独立路由 `/figma`，固定绑定后台自定义页面 slug=`figma`，不再依赖“页面管理一键创建”入口' },
       { type: 'improve', scope: 'backend', text: '【页面管理】新增“页面分组（导航页面/自定义页面）”筛选与列表标签；编辑弹窗可直接设置页面分组，系统页统一按自定义页管理' },

@@ -15,7 +15,7 @@ import HeroBanner from '../../components/HeroBanner';
 import AdBanner from '../../components/AdBanner';
 import ToolCard from '../../components/ToolCard';
 import AISearchSidebar from '../../components/AISearchSidebar';
-import api from '../../services/api';
+import api, { recordWebsiteClick } from '../../services/api';
 import searchService from '../../services/searchService';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalinkConfig';
@@ -745,7 +745,7 @@ const SearchPage: React.FC = () => {
    * 上报网站点击，失败时静默处理，不阻断页面跳转。
    */
   const reportWebsiteClick = useCallback((websiteId: string) => {
-    void api.post(`/websites/${websiteId}/click`).catch(() => {});
+    void recordWebsiteClick(websiteId);
   }, []);
 
   // 直达箭头点击回调

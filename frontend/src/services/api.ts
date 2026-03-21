@@ -213,8 +213,31 @@ api.interceptors.response.use(
 
 // 记录网站点击
 export const recordWebsiteClick = async (websiteId: string): Promise<void> => {
+  /**
+   * 优先使用 sendBeacon/keepalive，降低页面跳转时请求被中断导致的漏计。
+   */
+  const normalizedId = String(websiteId || '').trim();
+  if (!normalizedId) return;
+  const endpoint = `/api/websites/${normalizedId}/click`;
   try {
-    await api.post(`/websites/${websiteId}/click`);
+    if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const payload = new Blob([ '{}' ], { type: 'application/json' });
+      const sent = navigator.sendBeacon(endpoint, payload);
+      if (sent) return;
+    }
+
+    if (typeof window !== 'undefined' && typeof fetch === 'function') {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: '{}',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        credentials: 'same-origin',
+      });
+      if (response.ok) return;
+    }
+
+    await api.post(`/websites/${normalizedId}/click`);
   } catch (error) {
     // 静默失败，不影响用户体验
     console.error('记录点击失败:', error);

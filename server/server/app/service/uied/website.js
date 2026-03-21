@@ -1766,6 +1766,23 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 前台点击上报入口（兼容旧调用：ctx.service.uied.website.click）。
+   * @param {number|string} id 网站ID
+   * @return {Promise<{success:boolean, websiteId:number}>}
+   */
+  async click(id) {
+    const websiteId = Number.parseInt(String(id || 0), 10);
+    if (!Number.isInteger(websiteId) || websiteId <= 0) {
+      throw new Error('网站ID无效');
+    }
+    await this.incrementClick(websiteId);
+    return {
+      success: true,
+      websiteId,
+    };
+  }
+
+  /**
    * 搜索网站
    */
   async search({ keyword, pageSlug, page = 1, pageSize = 20 }) {

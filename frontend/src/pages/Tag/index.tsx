@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import api from '../../services/api';
+import api, { recordWebsiteClick } from '../../services/api';
 import { AxiosError } from 'axios';
 import ToolCard from '../../components/ToolCard';
 import SEO from '../../components/SEO';
@@ -223,7 +223,7 @@ const TagDetailView: React.FC<{ slug: string }> = ({ slug }) => {
    * 上报网站点击，失败时静默处理，不阻断页面跳转。
    */
   const reportWebsiteClick = useCallback((websiteId: string) => {
-    void api.post(`/websites/${websiteId}/click`).catch(() => {});
+    void recordWebsiteClick(websiteId);
   }, []);
 
   // 处理网站点击
