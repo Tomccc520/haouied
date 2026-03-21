@@ -320,11 +320,11 @@
                 <el-form-item label="位置" prop="positionList">
                     <el-select
                         v-model="editData.positionList"
-                        multiple
-                        collapse-tags
-                        collapse-tags-tooltip
+                        :multiple="allowMultiPositionSelection"
+                        :collapse-tags="allowMultiPositionSelection"
+                        :collapse-tags-tooltip="allowMultiPositionSelection"
                         style="width: 100%"
-                        placeholder="至少选择一个广告位置"
+                        :placeholder="allowMultiPositionSelection ? '至少选择一个广告位置' : '请选择一个广告位置'"
                     >
                         <el-option-group
                             v-for="group in bannerPositionOptionGroups"
@@ -339,7 +339,12 @@
                             />
                         </el-option-group>
                     </el-select>
-                    <div class="text-xs text-gray-400 mt-1">支持多选，保存后会在所有选中位置生效；与“导航页面限制”互不依赖。</div>
+                    <div v-if="allowMultiPositionSelection" class="text-xs text-gray-400 mt-1">
+                        支持多选，保存后会在所有选中位置生效；与“导航页面限制”互不依赖。
+                    </div>
+                    <div v-else class="text-xs text-gray-400 mt-1">
+                        当前为单条广告编辑模式，仅允许选择一个位置；如需多位置联投，请新建广告时直接多选位置。
+                    </div>
                 </el-form-item>
                 <el-form-item label="页面范围">
                     <el-switch
@@ -850,6 +855,15 @@ const resolveContentTypeTagType = (value: unknown): '' | 'success' | 'warning' |
  */
 const isPageBannerSelected = computed<boolean>(() =>
     normalizePositionList(editData.positionList).includes('page_banner')
+)
+
+/**
+ * 控制“广告位置”是否允许多选：
+ * - 新增广告时允许多选；
+ * - 编辑单条广告时默认单选，避免误操作引发“编辑变新增”。
+ */
+const allowMultiPositionSelection = computed<boolean>(() =>
+    !Number(editData.id || 0) || editingMultiPositionGroup.value
 )
 
 /**
@@ -1409,6 +1423,18 @@ watch(
             return
         }
         editData.pageSlugList = ['all']
+    }
+)
+
+/**
+ * 当切换到“单条编辑模式”时，自动兜底为首个位置，避免残留多位置值。
+ */
+watch(
+    () => allowMultiPositionSelection.value,
+    (enabled) => {
+        if (enabled) return
+        const normalized = normalizePositionList(editData.positionList)
+        editData.positionList = [normalized[0] || 'home']
     }
 )
 

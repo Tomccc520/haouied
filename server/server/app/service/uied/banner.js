@@ -494,7 +494,9 @@ class BannerService extends Service {
         type: app.Sequelize.QueryTypes.SELECT,
       }
     );
-    if (!currentRow) return;
+    if (!currentRow) {
+      throw new Error('广告不存在或已删除');
+    }
 
     const currentOldId = String(currentRow.old_id || '').trim();
     const isCurrentMultiGroup = this.isMultiPositionGroup(currentOldId);
@@ -530,17 +532,28 @@ class BannerService extends Service {
       ...(Array.isArray(siblingRows) ? siblingRows.map(item => Number(item.id || 0)) : []).filter(Boolean),
     ];
 
-    for (let i = 0; i < positions.length; i++) {
+    /**
+     * 编辑流程不允许自动新增记录，避免“编辑变新增”的误操作。
+     * 如需新增广告位，请通过“添加广告”或“四卡批量编辑”入口处理。
+     */
+    const editableCount = Math.min(positions.length, reusableIds.length);
+    for (let i = 0; i < editableCount; i++) {
       const position = positions[i];
       const recordId = reusableIds[i];
-      if (recordId) {
-        await this.updateBannerRecord(recordId, payload, groupId, position, now);
-      } else {
-        await this.insertBannerRecord(payload, groupId, position, now);
-      }
+      if (!recordId) continue;
+      await this.updateBannerRecord(recordId, payload, groupId, position, now);
     }
 
-    const removeIds = reusableIds.slice(positions.length).filter(Boolean);
+    if (positions.length > reusableIds.length) {
+      this.ctx.logger.warn(
+        '[uied.banner.edit] 编辑请求包含额外位置，已忽略新增行为: id=%s, positions=%j, reusableIds=%j',
+        data.id,
+        positions,
+        reusableIds
+      );
+    }
+
+    const removeIds = reusableIds.slice(editableCount).filter(Boolean);
     if (removeIds.length > 0) {
       await app.model.query(
         `UPDATE uied_banner SET is_delete = 1, delete_time = ?, update_time = ? WHERE id IN (${removeIds.map(() => '?').join(',')})`,

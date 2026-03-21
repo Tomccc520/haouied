@@ -274,9 +274,19 @@ const AdBanner: React.FC<AdBannerProps> = ({
                 className="page-banner-grid__item"
                 onClick={() => handleClick(banner)}
               >
-                <img src={banner.imageUrl} alt={banner.title} />
+                <div className="page-banner-grid__media">
+                  <img src={banner.imageUrl} alt={banner.title} />
+                </div>
                 <div className="page-banner-grid__content">
-                  {banner.title && <div className="page-banner-grid__title">{banner.title}</div>}
+                  <div className="page-banner-grid__title-row">
+                    <div className="page-banner-grid__title">{banner.title || '广告推荐'}</div>
+                    <span className="page-banner-grid__arrow" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M9 6h9v9" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                        <path d="M18 6 6 18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                      </svg>
+                    </span>
+                  </div>
                   {banner.description && <div className="page-banner-grid__desc">{banner.description}</div>}
                 </div>
               </div>
@@ -294,10 +304,19 @@ const AdBanner: React.FC<AdBannerProps> = ({
                 onClick={() => handleClick(banner)}
               >
                 <div className="page-banner-grid__text-title">
-                  {banner.title}
+                  {banner.title || '广告推荐'}
                   {banner.badgeText && <span className="page-banner-grid__text-badge">{banner.badgeText}</span>}
                 </div>
                 {banner.description && <div className="page-banner-grid__text-desc">{banner.description}</div>}
+                <div className="page-banner-grid__text-footer">
+                  <span>查看详情</span>
+                  <span className="page-banner-grid__arrow page-banner-grid__arrow--light" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M9 6h9v9" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                      <path d="M18 6 6 18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                    </svg>
+                  </span>
+                </div>
               </div>
             ))}
           </div>

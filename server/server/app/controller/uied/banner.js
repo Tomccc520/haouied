@@ -48,7 +48,7 @@ class BannerController extends baseController {
       this.result({ data: result, message: '添加成功' });
     } catch (error) {
       ctx.logger.error('添加广告失败:', error);
-      this.result({ code: 500, message: '添加广告失败' });
+      this.result({ code: 500, message: error?.message || '添加广告失败' });
     }
   }
 
@@ -63,7 +63,7 @@ class BannerController extends baseController {
       this.result({ message: '编辑成功' });
     } catch (error) {
       ctx.logger.error('编辑广告失败:', error);
-      this.result({ code: 500, message: '编辑广告失败' });
+      this.result({ code: 500, message: error?.message || '编辑广告失败' });
     }
   }
 
