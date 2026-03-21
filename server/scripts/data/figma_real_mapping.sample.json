@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "slug": "example-plugin-slug",
+    "name": "Example Plugin Name",
+    "figmaPluginId": "123456789012345678",
+    "officialUrl": "https://www.figma.com/community/plugin/123456789012345678/example-plugin-name",
+    "iconUrl": "https://www.figma.com/community/icon/123456789012345678/abcdef1234567890",
+    "coverUrl": "",
+    "summary": "这里填写真实插件简介（可选）",
+    "sourceType": "figma_verified_manual",
+    "sourceUrl": "https://www.figma.com/community/plugin/123456789012345678/example-plugin-name"
+  }
+]
+
