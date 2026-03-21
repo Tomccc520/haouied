@@ -39,6 +39,15 @@ const formatPublishDate = (timestamp?: number): string => {
 };
 
 /**
+ * 格式化统计数字，统一显示为千分位。
+ */
+const formatCountLabel = (value?: number): string => {
+  const count = Number(value || 0);
+  if (!Number.isFinite(count) || count <= 0) return '0';
+  return count.toLocaleString('zh-CN');
+};
+
+/**
  * 获取插件卡片可跳转的外链地址。
  */
 const resolvePluginExternalUrl = (item: FigmaListItem): string => {
@@ -72,6 +81,7 @@ const FigmaPage: React.FC = () => {
   const category = String(searchParams.get('category') || '').trim();
   const tag = String(searchParams.get('tag') || '').trim();
   const page = Math.max(1, Number(searchParams.get('page') || 1) || 1);
+  const [keywordInput, setKeywordInput] = useState(keyword);
 
   /**
    * 更新 URL 筛选参数。
@@ -139,6 +149,10 @@ const FigmaPage: React.FC = () => {
   }, [page, keyword, category, tag]);
 
   useEffect(() => {
+    setKeywordInput(keyword);
+  }, [keyword]);
+
+  useEffect(() => {
     loadMeta().catch(() => {
       setCategories([]);
       setTags([]);
@@ -180,6 +194,22 @@ const FigmaPage: React.FC = () => {
   const pageDescription = '收录常用 Figma 插件，支持按分类与标签快速筛选，点击即可跳转至 Figma 官方插件页。';
 
   /**
+   * 提交关键词搜索。
+   */
+  const handleKeywordSearchSubmit = useCallback((event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    updateParams({ q: String(keywordInput || '').trim(), page: 1 });
+  }, [keywordInput, updateParams]);
+
+  /**
+   * 清空全部筛选项。
+   */
+  const handleResetFilters = useCallback(() => {
+    setKeywordInput('');
+    updateParams({ q: null, category: null, tag: null, page: 1 });
+  }, [updateParams]);
+
+  /**
    * 打开 Figma 插件外链。
    */
   const openPluginExternal = useCallback((item: FigmaListItem) => {
@@ -208,44 +238,52 @@ const FigmaPage: React.FC = () => {
 
       <div className="figma-list-page__container">
         <header className="figma-list-page__hero">
-          <div>
+          <div className="figma-list-page__hero-main">
             <div className="figma-list-page__kicker">FIGMA COMMUNITY</div>
             <h1>{pageTitle}</h1>
             <p>{pageDescription}</p>
+            <form className="figma-list-page__hero-search" onSubmit={handleKeywordSearchSubmit}>
+              <input
+                type="text"
+                value={keywordInput}
+                placeholder="搜索插件名称、功能、关键词"
+                onChange={(event) => setKeywordInput(event.target.value)}
+              />
+              <button type="submit">搜索</button>
+            </form>
+            <div className="figma-list-page__hero-hint">
+              {activeFilterSummary ? `当前筛选：${activeFilterSummary}` : '当前展示全部 Figma 插件'}
+            </div>
           </div>
           <div className="figma-list-page__hero-stats">
             <article>
-              <strong>{pagination.total}</strong>
+              <strong>{formatCountLabel(pagination.total)}</strong>
               <span>插件总数</span>
             </article>
             <article>
-              <strong>{categories.length}</strong>
+              <strong>{formatCountLabel(categories.length)}</strong>
               <span>分类数量</span>
             </article>
             <article>
-              <strong>{tags.length}</strong>
+              <strong>{formatCountLabel(tags.length)}</strong>
               <span>标签数量</span>
             </article>
           </div>
         </header>
 
         <section className="figma-list-page__filters" aria-label="Figma 插件筛选">
-          <div className="figma-list-page__search-row">
-            <input
-              type="text"
-              value={keyword}
-              placeholder="搜索插件名称、摘要、功能关键词"
-              onChange={(event) => updateParams({ q: event.target.value })}
-            />
-            {activeFilterSummary ? (
-              <button
-                type="button"
-                className="figma-list-page__clear-btn"
-                onClick={() => updateParams({ q: null, category: null, tag: null, page: 1 })}
-              >
-                清空筛选
-              </button>
-            ) : null}
+          <div className="figma-list-page__filters-head">
+            <div className="figma-list-page__filters-summary">
+              {activeFilterSummary ? activeFilterSummary : '可按分类和标签组合筛选'}
+            </div>
+            <button
+              type="button"
+              className="figma-list-page__clear-btn"
+              onClick={handleResetFilters}
+              disabled={!activeFilterSummary}
+            >
+              清空筛选
+            </button>
           </div>
 
           <div className="figma-list-page__chip-group">
@@ -333,7 +371,9 @@ const FigmaPage: React.FC = () => {
                       <div className="figma-card__meta-line">
                         {item.categoryName ? <span>{item.categoryName}</span> : null}
                         {publishDate ? <span>{publishDate}</span> : null}
-                        {Number(item.viewCount || 0) > 0 ? <span>{item.viewCount} 浏览</span> : null}
+                        {Number(item.userCount || 0) > 0 ? <span>{formatCountLabel(item.userCount)} users</span> : null}
+                        {Number(item.likeCount || 0) > 0 ? <span>{formatCountLabel(item.likeCount)} 关注</span> : null}
+                        {Number(item.viewCount || 0) > 0 ? <span>{formatCountLabel(item.viewCount)} 浏览</span> : null}
                       </div>
                     </div>
                     {Number(item.isRecommended || 0) === 1 ? <span className="figma-card__badge">推荐</span> : null}

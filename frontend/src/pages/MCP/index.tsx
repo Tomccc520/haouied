@@ -50,6 +50,15 @@ const formatPublishDate = (timestamp?: number): string => {
 };
 
 /**
+ * 格式化统计数字，统一使用千分位。
+ */
+const formatCountLabel = (value?: number): string => {
+  const count = Number(value || 0);
+  if (!Number.isFinite(count) || count <= 0) return '0';
+  return count.toLocaleString('zh-CN');
+};
+
+/**
  * 解析 MCP 卡片用于拉取 favicon 的网址。
  */
 const resolveCardIconWebsiteUrl = (item: McpListItem): string => {
@@ -118,7 +127,7 @@ const MCPListPage: React.FC = () => {
   /**
    * 更新 URL 查询参数。
    */
-  const updateParams = (patch: Record<string, string | number | null | undefined>) => {
+  const updateParams = useCallback((patch: Record<string, string | number | null | undefined>) => {
     const next = new URLSearchParams(searchParams);
     Object.entries(patch).forEach(([key, value]) => {
       if (value === null || value === undefined || value === '' || value === 0) {
@@ -131,7 +140,7 @@ const MCPListPage: React.FC = () => {
       next.set('page', '1');
     }
     setSearchParams(next);
-  };
+  }, [searchParams, setSearchParams]);
 
   /**
    * 拉取分类与标签元数据。
@@ -257,6 +266,13 @@ const MCPListPage: React.FC = () => {
   }, [list]);
 
   /**
+   * 清空筛选条件并回到第一页。
+   */
+  const handleResetFilters = useCallback(() => {
+    updateParams({ q: null, category: null, tag: null, page: 1 });
+  }, [updateParams]);
+
+  /**
    * 跳转到 MCP 详情页（整卡点击入口）。
    */
   const openMcpDetail = useCallback((item: McpListItem) => {
@@ -294,8 +310,8 @@ const MCPListPage: React.FC = () => {
           <header className="mcp-list-page__hero">
             <span className="mcp-list-page__hero-glow mcp-list-page__hero-glow--one" aria-hidden="true" />
             <span className="mcp-list-page__hero-glow mcp-list-page__hero-glow--two" aria-hidden="true" />
-            <div className="mcp-list-page__hero-main">
-              <div>
+            <div className="mcp-list-page__hero-grid">
+              <div className="mcp-list-page__hero-main">
                 <div className="mcp-list-page__hero-kicker">{resolvedKicker}</div>
                 <h1>{pageTitle}</h1>
                 <p>{pageDescription}</p>
@@ -307,27 +323,45 @@ const MCPListPage: React.FC = () => {
                   )}
                 </div>
               </div>
+              {showHeroStats ? (
+                <div className="mcp-list-page__hero-stats-wrap">
+                  <div className="mcp-list-page__hero-stats">
+                    <article>
+                      <strong>{formatCountLabel(pagination.total)}</strong>
+                      <span>收录总数</span>
+                    </article>
+                    <article>
+                      <strong>{formatCountLabel(categories.length)}</strong>
+                      <span>分类数量</span>
+                    </article>
+                    <article>
+                      <strong>{formatCountLabel(tags.length)}</strong>
+                      <span>标签数量</span>
+                    </article>
+                    <article>
+                      <strong>{formatCountLabel(currentRecommendedCount)}</strong>
+                      <span>本页推荐</span>
+                    </article>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            {showHeroStats ? (
-              <div className="mcp-list-page__hero-stats">
-                <article>
-                  <strong>{pagination.total}</strong>
-                  <span>收录总数</span>
-                </article>
-                <article>
-                  <strong>{categories.length}</strong>
-                  <span>分类数量</span>
-                </article>
-                <article>
-                  <strong>{tags.length}</strong>
-                  <span>标签数量</span>
-                </article>
-                <article>
-                  <strong>{currentRecommendedCount}</strong>
-                  <span>本页推荐</span>
-                </article>
-              </div>
-            ) : null}
+            <div className="mcp-list-page__hero-actions">
+              <a className="mcp-list-page__hero-link" href="#mcp-filters">
+                查看分类
+              </a>
+              {activeFilterSummary ? (
+                <button
+                  type="button"
+                  className="mcp-list-page__hero-clear-btn"
+                  onClick={handleResetFilters}
+                >
+                  清空筛选
+                </button>
+              ) : (
+                <span className="mcp-list-page__hero-tip">支持关键词 + 分类 + 标签组合筛选</span>
+              )}
+            </div>
           </header>
         ) : null}
 
@@ -338,7 +372,7 @@ const MCPListPage: React.FC = () => {
               {activeFilterSummary ? (
                 <button
                   className="mcp-list-page__clear-btn"
-                  onClick={() => updateParams({ q: null, category: null, tag: null, page: 1 })}
+                  onClick={handleResetFilters}
                 >
                   清空筛选
                 </button>

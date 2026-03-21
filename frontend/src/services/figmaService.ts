@@ -56,6 +56,8 @@ export interface FigmaListItem {
   publishTime?: number;
   viewCount?: number;
   clickCount?: number;
+  userCount?: number;
+  likeCount?: number;
   seoTitle?: string;
   seoKeywords?: string;
   seoDescription?: string;

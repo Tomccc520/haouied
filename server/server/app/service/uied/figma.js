@@ -189,6 +189,8 @@ class UiedFigmaService extends Service {
         \`publish_time\` BIGINT DEFAULT NULL COMMENT '发布时间',
         \`click_count\` BIGINT NOT NULL DEFAULT 0 COMMENT '点击量',
         \`view_count\` BIGINT NOT NULL DEFAULT 0 COMMENT '浏览量',
+        \`user_count\` BIGINT NOT NULL DEFAULT 0 COMMENT '使用人数',
+        \`like_count\` BIGINT NOT NULL DEFAULT 0 COMMENT '关注量',
         \`seo_title\` VARCHAR(220) NOT NULL DEFAULT '' COMMENT 'SEO标题',
         \`seo_keywords\` VARCHAR(1000) NOT NULL DEFAULT '' COMMENT 'SEO关键词',
         \`seo_description\` VARCHAR(2000) NOT NULL DEFAULT '' COMMENT 'SEO描述',
@@ -225,6 +227,31 @@ class UiedFigmaService extends Service {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Figma 插件标签关联表'`,
       { type: app.Sequelize.QueryTypes.RAW }
     );
+
+    /**
+     * 兼容历史库：补齐 user_count / like_count 字段。
+     */
+    const pluginColumns = await app.model.query('SHOW COLUMNS FROM `uied_figma_plugin`', {
+      type: app.Sequelize.QueryTypes.SELECT,
+    });
+    const pluginColumnSet = new Set(
+      (Array.isArray(pluginColumns) ? pluginColumns : [])
+        .map(item => String(item?.Field || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const alterColumnSqlList = [];
+    if (!pluginColumnSet.has('user_count')) {
+      alterColumnSqlList.push('ADD COLUMN `user_count` BIGINT NOT NULL DEFAULT 0 COMMENT \'使用人数\' AFTER `view_count`');
+    }
+    if (!pluginColumnSet.has('like_count')) {
+      alterColumnSqlList.push('ADD COLUMN `like_count` BIGINT NOT NULL DEFAULT 0 COMMENT \'关注量\' AFTER `user_count`');
+    }
+    if (alterColumnSqlList.length > 0) {
+      await app.model.query(`ALTER TABLE \`uied_figma_plugin\` ${alterColumnSqlList.join(', ')}`, {
+        type: app.Sequelize.QueryTypes.RAW,
+      });
+    }
+
     this._figmaTablesReady = true;
   }
 
@@ -575,6 +602,140 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 从文本中提取插件图标地址（优先 Figma 社区 icon 接口）。
+   * @param {string} text 原始文本
+   * @return {string}
+   */
+  extractPluginIconUrlFromText(text = '') {
+    const source = String(text || '');
+    if (!source) return '';
+    const matched = source.match(/https?:\/\/(?:www\.)?figma\.com\/community\/icon\?resource_id=\d+&resource_type=plugin[^\s)"']*/i);
+    return matched && matched[0] ? String(matched[0]).trim() : '';
+  }
+
+  /**
+   * 从文本中提取插件封面地址（优先插件预览图）。
+   * @param {string} text 原始文本
+   * @return {string}
+   */
+  extractPluginCoverUrlFromText(text = '') {
+    const source = String(text || '');
+    if (!source) return '';
+    const previewMatched = source.match(/!\[[^\]]*preview[^\]]*]\((https?:\/\/[^)\s]+)\)/i);
+    if (previewMatched && previewMatched[1]) return String(previewMatched[1]).trim();
+    const s3Matched = source.match(/https?:\/\/s3-figma-plugin-images[^)\s"'<>]+/i);
+    if (s3Matched && s3Matched[0]) return String(s3Matched[0]).trim();
+    return this.extractFirstImageUrlFromText(source);
+  }
+
+  /**
+   * 从插件正文中提取 “About” 区块摘要。
+   * @param {string} text 原始文本
+   * @return {string}
+   */
+  extractSummaryFromAboutSection(text = '') {
+    const source = String(text || '').replace(/\r/g, '\n');
+    if (!source) return '';
+    const lines = source.split('\n');
+    const aboutIndex = lines.findIndex((line) => /^\s*about\s*$/i.test(String(line || '').trim()));
+    if (aboutIndex < 0) return '';
+    const stopReg = /^(comments?\s*\d*|version history|see all|post|###\s*tags|share|for figma|support:|no network access|\*\s*\*\s*\*)$/i;
+    const resultLines = [];
+    for (let index = aboutIndex + 1; index < lines.length; index += 1) {
+      const rawLine = String(lines[index] || '').trim();
+      if (!rawLine) {
+        if (resultLines.length > 0) break;
+        continue;
+      }
+      if (stopReg.test(rawLine)) break;
+      if (/^!\[[^\]]*]\(/.test(rawLine)) continue;
+      if (/^#+\s+/.test(rawLine)) continue;
+      const normalizedLine = rawLine
+        .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+        .replace(/^[•\-*\s]+/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!normalizedLine) continue;
+      resultLines.push(normalizedLine);
+      if (resultLines.length >= 3) break;
+    }
+    return resultLines.join(' ').slice(0, 260);
+  }
+
+  /**
+   * 由插件详情链接提取插件名称兜底值。
+   * @param {string} url 插件详情链接
+   * @return {string}
+   */
+  extractPluginNameFromUrl(url = '') {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    const matched = raw.match(/\/community\/plugin\/\d+\/([^/?#]+)/i);
+    if (!matched || !matched[1]) return '';
+    let decodedName = String(matched[1] || '');
+    try {
+      decodedName = decodeURIComponent(decodedName);
+    } catch (error) {
+      decodedName = String(matched[1] || '');
+    }
+    return this.sanitizeFigmaTitle(
+      this.decodeHtmlEntities(
+        decodedName
+          .replace(/[-_]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      )
+    );
+  }
+
+  /**
+   * 解析紧凑数字（支持 k/m 缩写）。
+   * @param {string|number} value 原始数值
+   * @return {number}
+   */
+  parseCompactNumber(value) {
+    const raw = String(value || '').trim().toLowerCase().replace(/,/g, '');
+    if (!raw) return 0;
+    const matched = raw.match(/^(\d+(?:\.\d+)?)([km]?)$/i);
+    if (!matched) return 0;
+    const base = Number(matched[1] || 0);
+    if (!Number.isFinite(base) || base <= 0) return 0;
+    const unit = String(matched[2] || '').toLowerCase();
+    if (unit === 'k') return Math.round(base * 1000);
+    if (unit === 'm') return Math.round(base * 1000000);
+    return Math.round(base);
+  }
+
+  /**
+   * 从插件详情文本提取“关注量 + 使用人数”统计。
+   * @param {string} text 原始文本
+   * @return {{userCount:number,likeCount:number}}
+   */
+  extractPluginStatsFromText(text = '') {
+    const source = String(text || '');
+    if (!source) return { userCount: 0, likeCount: 0 };
+    const flatText = source.replace(/\s+/g, ' ').trim();
+    let userCount = 0;
+    let likeCount = 0;
+
+    const pairMatched = flatText.match(/\bplugin\b[^]{0,120}?[•·]\s*([0-9][0-9.,kKmM]*)\s*[•·]\s*([0-9][0-9.,kKmM]*)\s*users?\b/i);
+    if (pairMatched) {
+      likeCount = this.parseCompactNumber(pairMatched[1]);
+      userCount = this.parseCompactNumber(pairMatched[2]);
+    }
+
+    if (!userCount) {
+      const userMatched = flatText.match(/([0-9][0-9.,kKmM]*)\s*users?\b/i);
+      userCount = this.parseCompactNumber(userMatched && userMatched[1] ? userMatched[1] : 0);
+    }
+
+    return {
+      userCount,
+      likeCount,
+    };
+  }
+
+  /**
    * 清洗 Figma 页面标题，移除站点尾缀。
    * @param {string} value 原始标题
    * @return {string}
@@ -771,10 +932,56 @@ class UiedFigmaService extends Service {
         ? Number(data.sortOrder ?? data.sort_order)
         : 0,
       publishTime: this.parsePositiveInt(data.publishTime ?? data.publish_time, 0) || null,
+      userCount: this.parseCompactNumber(data.userCount ?? data.user_count),
+      likeCount: this.parseCompactNumber(data.likeCount ?? data.like_count),
       seoTitle: String(data.seoTitle || data.seo_title || '').trim(),
       seoKeywords: String(data.seoKeywords || data.seo_keywords || '').trim(),
       seoDescription: String(data.seoDescription || data.seo_description || '').trim(),
       tagIds,
+    };
+  }
+
+  /**
+   * 规范化插件输出字段，兜底标题/摘要/图标，避免前台出现空白卡片。
+   * @param {Record<string, any>} row 数据库原始行
+   * @return {Record<string, any>}
+   */
+  normalizePluginOutputFields(row = {}) {
+    const source = row && typeof row === 'object' ? row : {};
+    const officialUrl = String(source.officialUrl || source.official_url || '').trim();
+    const pluginId = String(source.figmaPluginId || source.figma_plugin_id || '').trim()
+      || this.parsePluginIdByUrl(officialUrl);
+    const idText = String(source.id || '').trim();
+    const fallbackName = this.extractPluginNameFromUrl(officialUrl);
+    const name = String(source.name || '').trim()
+      || fallbackName
+      || `Figma 插件 ${pluginId || idText || ''}`.trim();
+    const summary = String(source.summary || '').trim()
+      || `${name} 的插件介绍，详情请查看官方页面。`;
+    const fallbackIconUrl = pluginId
+      ? `https://www.figma.com/community/icon?resource_id=${pluginId}&resource_type=plugin`
+      : '';
+    const iconUrl = String(source.iconUrl || source.icon_url || '').trim()
+      || String(source.coverUrl || source.cover_url || '').trim()
+      || fallbackIconUrl;
+    const coverUrl = String(source.coverUrl || source.cover_url || '').trim()
+      || iconUrl;
+    const content = String(source.content || '').trim() || summary;
+    const userCount = this.parseCompactNumber(source.userCount ?? source.user_count);
+    const likeCount = this.parseCompactNumber(source.likeCount ?? source.like_count);
+    const seoTitle = String(source.seoTitle || source.seo_title || '').trim() || name;
+    const seoDescription = String(source.seoDescription || source.seo_description || '').trim() || summary;
+    return {
+      ...source,
+      name,
+      summary,
+      content,
+      iconUrl,
+      coverUrl,
+      userCount,
+      likeCount,
+      seoTitle,
+      seoDescription,
     };
   }
 
@@ -887,6 +1094,7 @@ class UiedFigmaService extends Service {
               i.status, i.is_recommended AS isRecommended,
               i.sort_order AS sortOrder, i.publish_time AS publishTime,
               i.view_count AS viewCount, i.click_count AS clickCount,
+              i.user_count AS userCount, i.like_count AS likeCount,
               i.seo_title AS seoTitle, i.seo_keywords AS seoKeywords, i.seo_description AS seoDescription,
               i.create_time AS createTime, i.update_time AS updateTime,
               c.id AS categoryId, c.name AS categoryName, c.slug AS categorySlug,
@@ -908,7 +1116,7 @@ class UiedFigmaService extends Service {
     );
 
     const lists = (Array.isArray(rows) ? rows : []).map(item => ({
-      ...item,
+      ...this.normalizePluginOutputFields(item),
       tags: String(item.tagNames || '')
         .split(',')
         .map(tag => String(tag || '').trim())
@@ -943,6 +1151,7 @@ class UiedFigmaService extends Service {
               i.transport_type AS transportType, i.runtime, i.protocol_version AS protocolVersion,
               i.status, i.is_recommended AS isRecommended, i.sort_order AS sortOrder,
               i.publish_time AS publishTime, i.view_count AS viewCount, i.click_count AS clickCount,
+              i.user_count AS userCount, i.like_count AS likeCount,
               i.seo_title AS seoTitle, i.seo_keywords AS seoKeywords, i.seo_description AS seoDescription,
               i.category_id AS categoryId,
               c.name AS categoryName, c.slug AS categorySlug,
@@ -972,7 +1181,7 @@ class UiedFigmaService extends Service {
     );
 
     return {
-      ...row,
+      ...this.normalizePluginOutputFields(row),
       tagIds: (Array.isArray(tags) ? tags : []).map(item => Number(item.id || 0)).filter(Boolean),
       tags: Array.isArray(tags) ? tags : [],
     };
@@ -1011,11 +1220,11 @@ class UiedFigmaService extends Service {
         figma_plugin_id, author_name, source_type, source_url,
         transport_type, runtime, protocol_version,
         category_id, status, is_recommended, sort_order, publish_time,
-        click_count, view_count,
+        click_count, view_count, user_count, like_count,
         seo_title, seo_keywords, seo_description,
         is_delete, create_time, update_time)
        VALUES
-       (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, 0, ?, ?)`,
+       (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, 0, ?, ?)`,
       {
         replacements: [
           payload.name,
@@ -1039,6 +1248,8 @@ class UiedFigmaService extends Service {
           payload.isRecommended,
           payload.sortOrder,
           publishTime,
+          payload.userCount,
+          payload.likeCount,
           payload.seoTitle || payload.name,
           payload.seoKeywords || '',
           payload.seoDescription || payload.summary,
@@ -1090,6 +1301,7 @@ class UiedFigmaService extends Service {
            figma_plugin_id = ?, author_name = ?, source_type = ?, source_url = ?,
            transport_type = ?, runtime = ?, protocol_version = ?,
            category_id = ?, status = ?, is_recommended = ?, sort_order = ?, publish_time = ?,
+           user_count = ?, like_count = ?,
            seo_title = ?, seo_keywords = ?, seo_description = ?,
            update_time = ?
        WHERE id = ?`,
@@ -1116,6 +1328,8 @@ class UiedFigmaService extends Service {
           payload.isRecommended,
           payload.sortOrder,
           publishTime,
+          payload.userCount,
+          payload.likeCount,
           payload.seoTitle || payload.name,
           payload.seoKeywords || '',
           payload.seoDescription || payload.summary,
@@ -1582,10 +1796,43 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 官方采集“应急插件链接种子”。
+   * 说明：当社区页动态渲染/网络抖动导致未提取到任何链接时，使用官方插件详情链接兜底。
+   * @param {number} limit 最大数量
+   * @return {string[]}
+   */
+  getEmergencyPluginSeedLinks(limit = 20) {
+    const maxCount = this.clamp(this.parsePositiveInt(limit, 20), 1, 120);
+    const seedLinks = [
+      'https://www.figma.com/community/plugin/1159123024924461424/html-to-design-by-divriots-import-websites-to-figma-designs-web-html-css',
+      'https://www.figma.com/community/plugin/1592951406757461439/json-exporter-importer',
+      'https://www.figma.com/community/plugin/762070688792833472/arc-bend-your-type',
+      'https://www.figma.com/community/plugin/733902567457592893/autoflow',
+      'https://www.figma.com/community/plugin/741472919529947576/skewdat',
+      'https://www.figma.com/community/plugin/1521307608615567073/uixx-ai-review-for-ui-ux-design',
+      'https://www.figma.com/community/plugin/735098390272716381/iconify',
+      'https://www.figma.com/community/plugin/738454987945972471/unsplash',
+      'https://www.figma.com/community/plugin/842128343887142055/figma-to-code-html-tailwind-flutter-swiftui',
+      'https://www.figma.com/community/plugin/791103617505812222/icons8-icons-illustrations-photos',
+      'https://www.figma.com/community/plugin/857346721138427857/anima-figma-to-code-react-html-css-tailwind-mui-devmode-inspect-react-html-vue-css',
+      'https://www.figma.com/community/plugin/738992712906748191/remove-bg',
+      'https://www.figma.com/community/plugin/740272380439725040/material-design-icons',
+      'https://www.figma.com/community/plugin/817043359134136295/mockup-plugin-devices-mockups-print-mockups-warp-and-distort-transformation',
+      'https://www.figma.com/community/plugin/997643096679511216/icons8-background-remover',
+      'https://www.figma.com/community/plugin/747985167520967365/builder-io-figma-to-code-ai-apps-react-vue-tailwind-etc',
+      'https://www.figma.com/community/plugin/736000994034548392/lorem-ipsum-by-divriots',
+      'https://www.figma.com/community/plugin/1146185659935567786/open-iconic-icon-set-by-iconduck',
+      'https://www.figma.com/community/plugin/744098704933821409/iconscout-icons-illustrations-3d-assets-lottie-animations',
+      'https://www.figma.com/community/plugin/736737028347625415/get-waves',
+    ];
+    return Array.from(new Set(seedLinks)).slice(0, maxCount);
+  }
+
+  /**
    * 从插件详情 HTML 中提取结构化字段。
    * @param {string} pluginUrl 插件链接
    * @param {string} html 插件详情 HTML
-   * @return {{pluginId:string,name:string,summary:string,coverUrl:string}}
+   * @return {{pluginId:string,name:string,summary:string,iconUrl:string,coverUrl:string,userCount:number,likeCount:number}}
    */
   parsePluginDetailFromHtml(pluginUrl, html) {
     const source = String(html || '');
@@ -1596,17 +1843,24 @@ class UiedFigmaService extends Service {
     const markdownHeading = this.extractFirstMarkdownHeading(source);
     const htmlTitle = this.extractHtmlTitle(source);
     const name = this.sanitizeFigmaTitle(
-      ogTitle || lineTitle || markdownHeading || htmlTitle || `Figma Plugin ${pluginId || ''}`
+      ogTitle || lineTitle || markdownHeading || htmlTitle || this.extractPluginNameFromUrl(sourcePluginUrl) || `Figma Plugin ${pluginId || ''}`
     );
     const summary = this.extractMetaContent(source, [ 'og:description', 'description', 'twitter:description' ])
+      || this.extractSummaryFromAboutSection(source)
       || this.extractSummaryFromText(source);
-    const coverUrl = this.extractMetaContent(source, [ 'og:image', 'twitter:image' ])
-      || this.extractFirstImageUrlFromText(source);
+    const iconUrl = this.extractPluginIconUrlFromText(source)
+      || this.extractMetaContent(source, [ 'og:image', 'twitter:image' ]);
+    const coverUrl = this.extractPluginCoverUrlFromText(source)
+      || this.extractMetaContent(source, [ 'og:image', 'twitter:image' ]);
+    const stats = this.extractPluginStatsFromText(source);
     return {
       pluginId,
       name,
       summary,
+      iconUrl,
       coverUrl,
+      userCount: Number(stats.userCount || 0),
+      likeCount: Number(stats.likeCount || 0),
     };
   }
 
@@ -1645,6 +1899,13 @@ class UiedFigmaService extends Service {
     if (pluginLinks.length === 0) {
       pluginLinks = await this.collectPluginLinksByFallbackSources(sourceUrl, limit);
     }
+    /**
+     * 最终兜底：仍未提取到链接时，使用应急官方插件详情链接集合，避免“扫描 0”。
+     */
+    if (pluginLinks.length === 0) {
+      pluginLinks = this.getEmergencyPluginSeedLinks(limit);
+      ctx.logger.warn('[uied.figma] 未提取到插件链接，已启用应急官方链接种子，数量: %s', pluginLinks.length);
+    }
     pluginLinks = pluginLinks.slice(0, limit);
     const result = {
       sourceUrl,
@@ -1669,7 +1930,9 @@ class UiedFigmaService extends Service {
         const cnTitle = await this.translateToChinese(titleRaw, 'title', shouldTranslate);
         const cnSummary = await this.translateToChinese(summaryRaw, 'summary', shouldTranslate);
         const safeTitle = cnTitle || titleRaw;
-        const safeSummary = cnSummary || summaryRaw;
+        const safeSummary = cnSummary || summaryRaw || `${safeTitle} 的 Figma 插件介绍，详情请查看官方页面。`;
+        const safeIconUrl = parsed.iconUrl || parsed.coverUrl || null;
+        const safeCoverUrl = parsed.coverUrl || parsed.iconUrl || null;
         const slug = await this.resolveUniqueSlug('', `${safeTitle}-${parsed.pluginId || ''}`, 0, 'item');
 
         const [ existing ] = await app.model.query(
@@ -1693,6 +1956,7 @@ class UiedFigmaService extends Service {
             `UPDATE uied_figma_plugin
              SET name = ?, summary = ?, icon_url = ?, cover_url = ?,
                  official_url = ?, figma_plugin_id = ?, category_id = COALESCE(?, category_id),
+                 user_count = ?, like_count = ?,
                  status = ?, seo_title = ?, seo_description = ?, source_type = 'figma_community',
                  source_url = ?, publish_time = COALESCE(publish_time, ?), update_time = ?
              WHERE id = ?`,
@@ -1700,11 +1964,13 @@ class UiedFigmaService extends Service {
               replacements: [
                 safeTitle,
                 safeSummary,
-                parsed.coverUrl || null,
-                parsed.coverUrl || null,
+                safeIconUrl,
+                safeCoverUrl,
                 pluginUrl,
                 parsed.pluginId || '',
                 categoryId,
+                Number(parsed.userCount || 0),
+                Number(parsed.likeCount || 0),
                 status,
                 safeTitle,
                 safeSummary,
@@ -1726,16 +1992,16 @@ class UiedFigmaService extends Service {
            (name, slug, summary, content, icon_url, cover_url, official_url, docs_url, github_url,
             figma_plugin_id, author_name, source_type, source_url,
             transport_type, runtime, protocol_version, category_id, status, is_recommended, sort_order, publish_time,
-            click_count, view_count, seo_title, seo_keywords, seo_description, is_delete, create_time, update_time)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, '', 'figma_community', ?, 'http', 'other', '', ?, ?, 0, ?, ?, 0, 0, ?, '', ?, 0, ?, ?)`,
+            click_count, view_count, user_count, like_count, seo_title, seo_keywords, seo_description, is_delete, create_time, update_time)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, '', 'figma_community', ?, 'http', 'other', '', ?, ?, 0, ?, ?, 0, 0, ?, ?, ?, '', ?, 0, ?, ?)`,
           {
             replacements: [
               safeTitle,
               slug,
               safeSummary,
               safeSummary,
-              parsed.coverUrl || null,
-              parsed.coverUrl || null,
+              safeIconUrl,
+              safeCoverUrl,
               pluginUrl,
               parsed.pluginId || '',
               sourceUrl,
@@ -1743,6 +2009,8 @@ class UiedFigmaService extends Service {
               status,
               defaultSortOrder,
               now,
+              Number(parsed.userCount || 0),
+              Number(parsed.likeCount || 0),
               safeTitle,
               safeSummary,
               now,
@@ -1821,6 +2089,7 @@ class UiedFigmaService extends Service {
               i.transport_type AS transportType, i.runtime, i.protocol_version AS protocolVersion,
               i.is_recommended AS isRecommended, i.sort_order AS sortOrder,
               i.publish_time AS publishTime, i.view_count AS viewCount, i.click_count AS clickCount,
+              i.user_count AS userCount, i.like_count AS likeCount,
               i.seo_title AS seoTitle, i.seo_keywords AS seoKeywords, i.seo_description AS seoDescription,
               c.id AS categoryId, c.name AS categoryName, c.slug AS categorySlug,
               (
@@ -1842,7 +2111,7 @@ class UiedFigmaService extends Service {
 
     const total = Number(countRow?.total || 0);
     const lists = (Array.isArray(rows) ? rows : []).map(item => ({
-      ...item,
+      ...this.normalizePluginOutputFields(item),
       tags: String(item.tagNames || '')
         .split(',')
         .map(tag => String(tag || '').trim())
@@ -1882,6 +2151,7 @@ class UiedFigmaService extends Service {
               i.transport_type AS transportType, i.runtime, i.protocol_version AS protocolVersion,
               i.is_recommended AS isRecommended, i.sort_order AS sortOrder,
               i.publish_time AS publishTime, i.view_count AS viewCount, i.click_count AS clickCount,
+              i.user_count AS userCount, i.like_count AS likeCount,
               i.seo_title AS seoTitle, i.seo_keywords AS seoKeywords, i.seo_description AS seoDescription,
               i.update_time AS updateTime, i.create_time AS createTime,
               c.id AS categoryId, c.name AS categoryName, c.slug AS categorySlug
@@ -1914,7 +2184,8 @@ class UiedFigmaService extends Service {
     const related = await app.model.query(
       `SELECT i.id, i.name, i.slug, i.summary, i.icon_url AS iconUrl,
               i.official_url AS officialUrl,
-              i.transport_type AS transportType, i.runtime, i.publish_time AS publishTime
+              i.transport_type AS transportType, i.runtime, i.publish_time AS publishTime,
+              i.user_count AS userCount, i.like_count AS likeCount
        FROM uied_figma_plugin i
        WHERE i.is_delete = 0
          AND i.status = 'published'
@@ -1941,9 +2212,9 @@ class UiedFigmaService extends Service {
     );
 
     return {
-      ...row,
+      ...this.normalizePluginOutputFields(row),
       tags: Array.isArray(tags) ? tags : [],
-      related: Array.isArray(related) ? related : [],
+      related: (Array.isArray(related) ? related : []).map(item => this.normalizePluginOutputFields(item)),
     };
   }
 

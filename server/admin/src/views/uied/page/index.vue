@@ -49,72 +49,6 @@
                     {{ queryParams.pageGroup === 'navigation' ? '导航页面' : '系统页面' }}
                 </el-tag>
             </div>
-            <div
-                v-if="queryParams.pageGroup === 'custom'"
-                class="system-page-catalog mb-4"
-                v-loading="systemPageCatalogLoading"
-            >
-                <div class="system-page-catalog__header">
-                    <div>
-                        <div class="system-page-catalog__title">系统页面快捷管理</div>
-                        <div class="system-page-catalog__desc">
-                            已将“菜单管理 -> 系统页面”的入口统一收口到这里，支持一键接入页面配置并编辑前端内容。
-                        </div>
-                    </div>
-                    <el-button @click="loadSystemPageCatalog">刷新状态</el-button>
-                </div>
-                <div class="system-page-catalog__grid">
-                    <div
-                        v-for="item in systemPageCatalogView"
-                        :key="item.key"
-                        class="system-page-catalog__item"
-                    >
-                        <div class="system-page-catalog__item-head">
-                            <span class="system-page-catalog__item-name">{{ item.label }}</span>
-                            <el-tag size="small" type="info">{{ item.path }}</el-tag>
-                        </div>
-                        <div class="system-page-catalog__item-tags">
-                            <el-tag
-                                size="small"
-                                :type="item.boundPage ? 'success' : 'warning'"
-                            >
-                                {{ item.boundPage ? '已接入页面配置' : '未接入页面配置' }}
-                            </el-tag>
-                            <el-tag v-if="item.inNav" size="small">已在导航菜单</el-tag>
-                        </div>
-                        <div class="system-page-catalog__item-actions">
-                            <el-button type="primary" link @click="openFrontendPath(item.path)">
-                                查看前端
-                            </el-button>
-                            <el-button
-                                v-if="item.settingPath"
-                                type="primary"
-                                link
-                                @click="openSystemPageSetting(item)"
-                            >
-                                前往配置
-                            </el-button>
-                            <el-button
-                                v-if="item.boundPage"
-                                type="primary"
-                                link
-                                @click="handleEdit(item.boundPage)"
-                            >
-                                编辑页面
-                            </el-button>
-                            <el-button
-                                v-else
-                                type="primary"
-                                link
-                                :loading="systemPageSeedingKey === item.key"
-                                @click="seedSystemPageAndEdit(item)"
-                            >
-                                接入并编辑
-                            </el-button>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div class="mb-4 flex justify-between">
                 <div class="flex items-center gap-2">
                     <el-button
@@ -127,7 +61,7 @@
                     </el-button>
                     <el-tooltip
                         v-else
-                        content="系统页面暂不支持手动新增，请在上方“接入并编辑”管理"
+                        content="系统页面为内置页，请通过对应功能模块配置内容"
                         placement="top"
                     >
                         <el-button type="primary" disabled>
@@ -924,8 +858,7 @@ import {
     uiedWordpressTagDel,
     uiedWordpressWidgetAdd,
     uiedWordpressWidgetEdit,
-    uiedWordpressWidgetList,
-    uiedNavMenuAll
+    uiedWordpressWidgetList
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
@@ -1010,20 +943,6 @@ interface HotPresetTaxonomySeed {
     id: number
 }
 
-interface SystemPageCatalogSourceItem {
-    key: string
-    label: string
-    path: string
-    settingPath?: string
-    builtinKeys: string[]
-    pageSlugs: string[]
-}
-
-interface SystemPageCatalogViewItem extends SystemPageCatalogSourceItem {
-    boundPage: any | null
-    inNav: boolean
-}
-
 /**
  * Hot 预设映射库（用于一键导入 WordPress 分类/标签配置）。
  */
@@ -1072,19 +991,6 @@ const HOT_PRESET_TAXONOMY_LIBRARY: HotPresetTaxonomySeed[] = [
     { key: 'aikaifa', name: 'AI开发', type: 'tag', id: 3486 },
     { key: 'aishuziren', name: 'AI数字人', type: 'tag', id: 3487 }
 ]
-
-/**
- * 系统页面配置跳转映射（由菜单内置 key 驱动）。
- */
-const SYSTEM_PAGE_SETTING_PATH_MAP: Record<string, string> = {
-    hot_articles: '/system-setting/base-config/content-hub?tab=hot',
-    daily_hot: '/system-setting/base-config/content-hub?tab=dailyHot',
-    daily_new: '/system-setting/base-config/content-hub?tab=dailyNew',
-    rankings: '/system-setting/base-config/content-hub?tab=rankings',
-    mcp_center: '/system-setting/base-config/content-hub?tab=mcp',
-    figma: '/figma-center/figma-list',
-    articles: '/article-manage/article/lists'
-}
 
 const FRONTEND_PAGE_PATH_MAP: Record<string, string> = {
     uiux: '/',
@@ -1174,10 +1080,6 @@ const displayPageRows = computed(() => {
 
 const rowSortMap = reactive<Record<number, number>>({})
 const rowSortSavingMap = reactive<Record<number, boolean>>({})
-const systemPageCatalogLoading = ref(false)
-const systemPageSeedingKey = ref('')
-const systemPageRows = ref<any[]>([])
-const systemNavMenuRows = ref<any[]>([])
 
 const showEdit = ref(false)
 const editLoading = ref(false)
@@ -1315,215 +1217,6 @@ const filteredWpTagRows = computed(() => {
         return haystack.includes(keyword)
     })
 })
-
-/**
- * 归一化路径（保留 query），用于菜单链接与系统页面路径比对。
- */
-const normalizePagePath = (value: unknown): string => {
-    const raw = String(value || '').trim()
-    if (!raw) return ''
-    try {
-        const parsed = /^https?:\/\//i.test(raw)
-            ? new URL(raw)
-            : new URL(raw.startsWith('/') ? raw : `/${raw}`, 'https://uied.local')
-        const pathname = parsed.pathname.replace(/\/+$/, '') || '/'
-        return `${pathname}${parsed.search}`
-    } catch (_error) {
-        const [pathname, query = ''] = raw.split('?')
-        const normalizedPath = (pathname || '/').replace(/\/+$/, '') || '/'
-        return query ? `${normalizedPath}?${query}` : normalizedPath
-    }
-}
-
-/**
- * 扁平化导航菜单树，便于快速判断系统页面是否已挂载在前端菜单中。
- */
-const flattenNavMenus = (rows: any[]): any[] => {
-    const flatRows: any[] = []
-    const walk = (list: any[]) => {
-        ;(Array.isArray(list) ? list : []).forEach((item) => {
-            if (!item || typeof item !== 'object') return
-            flatRows.push(item)
-            walk(Array.isArray(item.children) ? item.children : [])
-        })
-    }
-    walk(rows)
-    return flatRows
-}
-
-/**
- * 规范化菜单内置 key。
- */
-const normalizeBuiltinKey = (value: unknown): string =>
-    String(value || '')
-        .trim()
-        .toLowerCase()
-
-/**
- * 解析路径对应的页面 slug 候选，用于定位“页面管理”中的可编辑页面。
- */
-const resolvePageSlugsByPath = (path: string): string[] => {
-    const normalizedPath = normalizePagePath(path)
-    if (!normalizedPath || normalizedPath === '/') return []
-    const [pathnameRaw, queryRaw = ''] = normalizedPath.split('?')
-    const pathname = String(pathnameRaw || '').trim()
-    const query = new URLSearchParams(queryRaw)
-    if (pathname === '/p/hot') return [ 'hot' ]
-    if (pathname === '/mcp') return [ 'mcp' ]
-    if (pathname === '/figma') return [ 'figma' ]
-    if (pathname === '/articles') return [ 'articles' ]
-    if (pathname === '/search') return [ 'search' ]
-    if (pathname === '/submit') return [ 'submit' ]
-    if (pathname.startsWith('/p/')) {
-        const slug = String(pathname.slice(3) || '').trim().toLowerCase()
-        return slug ? [ slug ] : []
-    }
-    if (pathname === '/category' || pathname.startsWith('/category/')) return []
-    if (query.get('tab') && pathname === '/p/hot') return [ 'hot' ]
-    return []
-}
-
-/**
- * 根据菜单内置 key 与路径，推导系统页配置入口。
- */
-const resolveSystemPageSettingPath = (builtinKey: string, path: string): string => {
-    const keyPath = SYSTEM_PAGE_SETTING_PATH_MAP[builtinKey]
-    if (keyPath) return keyPath
-    const normalizedPath = normalizePagePath(path)
-    if (normalizedPath === '/p/hot?tab=daily-hot') return '/system-setting/base-config/content-hub?tab=dailyHot'
-    if (normalizedPath === '/p/hot?tab=daily-new') return '/system-setting/base-config/content-hub?tab=dailyNew'
-    if (normalizedPath === '/p/hot?tab=rankings') return '/system-setting/base-config/content-hub?tab=rankings'
-    if (normalizedPath === '/p/hot') return '/system-setting/base-config/content-hub?tab=hot'
-    if (normalizedPath === '/mcp') return '/system-setting/base-config/content-hub?tab=mcp'
-    if (normalizedPath === '/figma') return '/figma-center/figma-list'
-    if (normalizedPath === '/articles') return '/article-manage/article/lists'
-    return ''
-}
-
-/**
- * 由“菜单管理”动态生成系统页面目录，避免写死列表。
- */
-const buildSystemPageCatalogSource = (rows: any[]): SystemPageCatalogSourceItem[] => {
-    const normalizedRows = flattenNavMenus(rows)
-    const dedupMap = new Map<string, SystemPageCatalogSourceItem>()
-    normalizedRows.forEach((row) => {
-        const rawLink = String(row?.url || row?.link || '').trim()
-        if (!rawLink || /^https?:\/\//i.test(rawLink)) return
-        const normalizedPath = normalizePagePath(rawLink)
-        if (!normalizedPath || normalizedPath === '/') return
-        const builtinKey = normalizeBuiltinKey(row?.builtinKey)
-        if (builtinKey === 'home') return
-        const pageSlugs = resolvePageSlugsByPath(normalizedPath)
-        if (pageSlugs.length === 0) return
-        const key = builtinKey || `path:${normalizedPath}`
-        const current = dedupMap.get(key)
-        const label = String(row?.name || row?.text || '').trim() || `系统页面 ${dedupMap.size + 1}`
-        const settingPath = resolveSystemPageSettingPath(builtinKey, normalizedPath)
-        if (current) {
-            if (builtinKey && !current.builtinKeys.includes(builtinKey)) {
-                current.builtinKeys = [ ...current.builtinKeys, builtinKey ]
-            }
-            return
-        }
-        dedupMap.set(key, {
-            key,
-            label,
-            path: normalizedPath,
-            settingPath: settingPath || undefined,
-            builtinKeys: builtinKey ? [ builtinKey ] : [],
-            pageSlugs
-        })
-    })
-    return Array.from(dedupMap.values()).sort((left, right) => left.label.localeCompare(right.label, 'zh-Hans-CN'))
-}
-
-/**
- * 通过 slug 候选集找到已接入的系统页面记录。
- */
-const findSystemPageBySlugs = (slugs: string[]): any | null => {
-    const slugSet = new Set(
-        (Array.isArray(slugs) ? slugs : [])
-            .map((item) => String(item || '').trim().toLowerCase())
-            .filter(Boolean)
-    )
-    if (slugSet.size === 0) return null
-    return (
-        systemPageRows.value.find((row) =>
-            slugSet.has(String(row?.slug || '').trim().toLowerCase())
-        ) || null
-    )
-}
-
-/**
- * 系统页面目录来源（动态读取导航菜单）。
- */
-const systemPageCatalogSource = computed<SystemPageCatalogSourceItem[]>(() =>
-    buildSystemPageCatalogSource(systemNavMenuRows.value)
-)
-
-/**
- * 系统页面目录视图：融合“页面接入状态 + 导航挂载状态”。
- */
-const systemPageCatalogView = computed<SystemPageCatalogViewItem[]>(() => {
-    const normalizedNavRows = flattenNavMenus(systemNavMenuRows.value)
-    return systemPageCatalogSource.value.map((item) => {
-        const boundPage = findSystemPageBySlugs(item.pageSlugs)
-        const builtinKeySet = new Set(
-            item.builtinKeys
-                .map((key) => String(key || '').trim().toLowerCase())
-                .filter(Boolean)
-        )
-        const targetPath = normalizePagePath(item.path)
-        const inNav = normalizedNavRows.some((menuItem: any) => {
-            const menuBuiltinKey = String(menuItem?.builtinKey || '')
-                .trim()
-                .toLowerCase()
-            if (menuBuiltinKey && builtinKeySet.has(menuBuiltinKey)) return true
-            const menuPath = normalizePagePath(menuItem?.url || menuItem?.link)
-            return Boolean(targetPath) && menuPath === targetPath
-        })
-        return {
-            ...item,
-            boundPage,
-            inNav
-        }
-    })
-})
-
-/**
- * 拉取“系统页面快捷管理”状态数据。
- */
-const loadSystemPageCatalog = async () => {
-    if (systemPageCatalogLoading.value) return
-    systemPageCatalogLoading.value = true
-    try {
-        const [pageRes, navRes] = await Promise.all([
-            uiedPageList({ pageNo: 1, pageSize: 500, pageGroup: 'custom' }),
-            uiedNavMenuAll()
-        ])
-        const pageRows = Array.isArray((pageRes as any)?.lists)
-            ? (pageRes as any).lists
-            : Array.isArray(pageRes)
-            ? pageRes
-            : []
-        systemPageRows.value = pageRows
-            .map((item: any) => {
-                const pageGroup = resolvePageGroupByRow(item)
-                return {
-                    ...item,
-                    pageGroup,
-                    pageGroupLabel: pageGroup === 'navigation' ? '导航页面' : '系统页面'
-                }
-            })
-            .filter((item: any) => item.pageGroup === 'custom')
-        systemNavMenuRows.value = Array.isArray(navRes) ? navRes : []
-    } catch (error) {
-        console.error('加载系统页面快捷管理数据失败:', error)
-        feedback.msgWarning('系统页面快捷管理数据加载失败，请稍后重试')
-    } finally {
-        systemPageCatalogLoading.value = false
-    }
-}
 
 /**
  * 统一解析 WordPress 分类/标签列表返回值，兼容不同接口结构。
@@ -2144,9 +1837,6 @@ const handlePageGroupSwitch = () => {
     if (isPageGroupLocked.value) return
     pager.page = 1
     getLists()
-    if (queryParams.pageGroup === 'custom') {
-        loadSystemPageCatalog()
-    }
 }
 
 /**
@@ -2227,24 +1917,6 @@ const openFrontendPage = (row: any) => {
 }
 
 /**
- * 新窗口打开系统页面前端地址（用于快捷管理卡片）。
- */
-const openFrontendPath = (path: string) => {
-    const normalizedPath = normalizePagePath(path) || '/'
-    window.open(`${getFrontendPreviewBaseUrl()}${normalizedPath}`, '_blank')
-}
-
-/**
- * 打开系统页面对应的后台设置页（有配置路由时可跳转）。
- */
-const openSystemPageSetting = (item: SystemPageCatalogSourceItem | SystemPageCatalogViewItem) => {
-    const settingPath = String(item?.settingPath || '').trim()
-    if (!settingPath) return
-    const normalizedSettingPath = settingPath.startsWith('/') ? settingPath : `/${settingPath}`
-    window.open(`${window.location.origin}${normalizedSettingPath}`, '_blank')
-}
-
-/**
  * 从页面列表直接跳转系统页配置入口。
  */
 const openSystemPageSettingByRow = (row: any) => {
@@ -2252,82 +1924,6 @@ const openSystemPageSettingByRow = (row: any) => {
     if (!settingPath) return
     const normalizedSettingPath = settingPath.startsWith('/') ? settingPath : `/${settingPath}`
     window.open(`${window.location.origin}${normalizedSettingPath}`, '_blank')
-}
-
-/**
- * 构建系统页面一键接入时的默认页面数据。
- */
-const buildSystemPageSeedPayload = (
-    item: SystemPageCatalogSourceItem | SystemPageCatalogViewItem
-) => {
-    const fallbackSlug = resolvePageSlugsByPath(item.path)[0] || buildSlugFromName(item.label) || `page-${Date.now()}`
-    const normalizedSlug = String(fallbackSlug || '')
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, '')
-        .slice(0, 80) || `page-${Date.now()}`
-    const descriptionBySlug: Record<string, string> = {
-        hot: '聚合热门内容与更新信息的系统页面。',
-        articles: '文章频道首页。',
-        mcp: 'MCP 中心系统页面。',
-        figma: 'Figma 页面系统页。',
-        search: '全站搜索系统页面。',
-        submit: '投稿系统页面。'
-    }
-    const pageDescription = descriptionBySlug[normalizedSlug] || `${item.label}系统页面`
-    const sortOrder = normalizedSlug === 'hot' ? 60 : 80
-    return {
-        name: item.label,
-        slug: normalizedSlug,
-        type: 'custom',
-        description: pageDescription,
-        sortOrder,
-        isActive: true,
-        heroTitle: '',
-        heroHighlightText: '',
-        heroSubtitle: '',
-        hotSearchTags: [],
-        heroBgType: 'default',
-        heroBgValue: '',
-        heroDisplayMode: 'search',
-        heroScrollWebsites: [],
-        searchPlaceholder: '搜索内容',
-        searchEnabled: true,
-        showBanner: true,
-        showHotRecommendations: false,
-        showCategories: false,
-        showSidebar: true,
-        themeColor: ''
-    }
-}
-
-/**
- * 系统页面“接入并编辑”：不存在则创建，存在则直接打开编辑弹窗。
- */
-const seedSystemPageAndEdit = async (
-    item: SystemPageCatalogSourceItem | SystemPageCatalogViewItem
-) => {
-    const key = String(item?.key || '').trim()
-    if (!key || systemPageSeedingKey.value) return
-    systemPageSeedingKey.value = key
-    try {
-        await uiedPageAdd(buildSystemPageSeedPayload(item))
-        feedback.msgSuccess('系统页面已接入，已为你打开编辑')
-    } catch (error: any) {
-        const message = String(error?.message || '')
-        if (!message.includes('页面别名已存在')) {
-            throw error
-        }
-        feedback.msgWarning('页面已存在，已切换到编辑模式')
-    } finally {
-        await loadSystemPageCatalog()
-        systemPageSeedingKey.value = ''
-    }
-    const target = systemPageCatalogView.value.find((catalogItem) => catalogItem.key === key)
-    if (target?.boundPage) {
-        handleEdit(target.boundPage)
-    }
-    getLists()
 }
 
 /**
@@ -2502,7 +2098,7 @@ const resetEditData = () => {
 
 const handleAdd = () => {
     if (queryParams.pageGroup === 'custom') {
-        feedback.msgWarning('系统页面暂不支持手动新增，请使用上方“接入并编辑”入口')
+        feedback.msgWarning('系统页面为内置页，请通过对应功能模块配置内容')
         return
     }
     resetEditData()
@@ -2667,7 +2263,7 @@ const handleSubmit = async () => {
         delete (submitData as any).hotSearchTagsStr
 
         /**
-         * 系统页面不保存导航页模板字段，避免“接入并编辑”后出现导航内容。
+         * 系统页面不保存导航页模板字段，避免系统页混入导航页模板内容。
          */
         if (normalizedPageType !== 'navigation') {
             submitData.heroTitle = ''
@@ -2696,9 +2292,6 @@ const handleSubmit = async () => {
         feedback.msgSuccess(isEditing ? '编辑成功' : '添加成功')
         showEdit.value = false
         getLists()
-        if (queryParams.pageGroup === 'custom') {
-            loadSystemPageCatalog()
-        }
     } finally {
         editLoading.value = false
     }
@@ -2716,9 +2309,6 @@ const handleDelete = async (row: any) => {
     await uiedPageDelete({ id })
     feedback.msgSuccess('删除成功')
     getLists()
-    if (queryParams.pageGroup === 'custom') {
-        loadSystemPageCatalog()
-    }
 }
 
 // 分类配置
@@ -3066,9 +2656,6 @@ watch(
             pager.page = 1
             getLists()
         }
-        if (nextGroup === 'custom') {
-            loadSystemPageCatalog()
-        }
     },
     { immediate: true }
 )
@@ -3132,78 +2719,6 @@ getLists()
 .page-group-switch__label {
     font-size: 13px;
     color: var(--el-text-color-secondary);
-}
-
-.system-page-catalog {
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 10px;
-    padding: 14px;
-    background: var(--el-fill-color-light);
-}
-
-.system-page-catalog__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 12px;
-}
-
-.system-page-catalog__title {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-}
-
-.system-page-catalog__desc {
-    margin-top: 4px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    line-height: 1.5;
-}
-
-.system-page-catalog__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 10px;
-}
-
-.system-page-catalog__item {
-    border: 1px solid var(--el-border-color);
-    border-radius: 8px;
-    background: var(--el-bg-color);
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-}
-
-.system-page-catalog__item-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.system-page-catalog__item-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-}
-
-.system-page-catalog__item-tags {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.system-page-catalog__item-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 .w-100 {
@@ -3509,15 +3024,6 @@ getLists()
 }
 
 @media (max-width: 960px) {
-    .system-page-catalog__header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .system-page-catalog__grid {
-        grid-template-columns: 1fr;
-    }
-
     .page-category-config {
         grid-template-columns: 1fr;
     }

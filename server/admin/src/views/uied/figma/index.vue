@@ -65,6 +65,7 @@
                         <div class="figma-list-page__title">{{ row.name }}</div>
                         <div class="figma-list-page__sub">
                             /{{ row.slug }}
+                            <span class="figma-list-page__path">前端路径：{{ resolveFrontendFigmaPath(row) }}</span>
                             <a
                                 v-if="row.officialUrl"
                                 class="figma-list-page__link"
@@ -95,14 +96,25 @@
                         <span v-else>-</span>
                     </template>
                 </el-table-column>
+                <el-table-column label="用户量" width="100">
+                    <template #default="{ row }">
+                        {{ Number(row.userCount || 0).toLocaleString('zh-CN') }}
+                    </template>
+                </el-table-column>
+                <el-table-column label="关注量" width="100">
+                    <template #default="{ row }">
+                        {{ Number(row.likeCount || 0).toLocaleString('zh-CN') }}
+                    </template>
+                </el-table-column>
                 <el-table-column label="浏览" prop="viewCount" width="90" />
                 <el-table-column label="更新时间" min-width="170">
                     <template #default="{ row }">
                         {{ formatUnixTime(row.updateTime || row.publishTime || row.createTime) }}
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="170" fixed="right">
+                <el-table-column label="操作" width="250" fixed="right">
                     <template #default="{ row }">
+                        <el-button type="primary" link @click="openFrontendFigma(row)">查看前端</el-button>
                         <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
                         <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
                     </template>
@@ -248,6 +260,34 @@ const handleEdit = (row: any) => {
 }
 
 /**
+ * 计算前台预览基地址：本地环境默认使用 3003，线上环境沿用当前域名。
+ */
+const getFrontendPreviewBaseUrl = (): string => {
+    const { protocol, hostname, origin } = window.location
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `${protocol}//${hostname}:3003`
+    }
+    return origin
+}
+
+/**
+ * 解析 Figma 插件在前端的筛选路径，便于运营快速定位。
+ */
+const resolveFrontendFigmaPath = (row: any): string => {
+    const keyword = String(row?.slug || row?.name || '').trim()
+    if (!keyword) return '/figma'
+    return `/figma?q=${encodeURIComponent(keyword)}`
+}
+
+/**
+ * 在新窗口打开插件对应的前端页。
+ */
+const openFrontendFigma = (row: any) => {
+    const targetPath = resolveFrontendFigmaPath(row)
+    window.open(`${getFrontendPreviewBaseUrl()}${targetPath}`, '_blank')
+}
+
+/**
  * 删除插件条目。
  */
 const handleDelete = async (id: number) => {
@@ -320,10 +360,15 @@ onMounted(async () => {
 .figma-list-page__sub {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
     font-size: 12px;
     color: #6b7280;
     margin-top: 2px;
+}
+
+.figma-list-page__path {
+    color: #9ca3af;
 }
 
 .figma-list-page__link {

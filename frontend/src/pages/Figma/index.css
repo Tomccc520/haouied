@@ -42,6 +42,12 @@
   align-items: end;
 }
 
+.figma-list-page__hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .figma-list-page__kicker {
   display: inline-flex;
   align-items: center;
@@ -69,6 +75,51 @@
   line-height: 1.75;
   color: #475569;
   max-width: 760px;
+}
+
+.figma-list-page__hero-search {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.figma-list-page__hero-search input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 13px;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+}
+
+.figma-list-page__hero-search input:focus {
+  border-color: #0f172a;
+}
+
+.figma-list-page__hero-search button {
+  height: 40px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 12px;
+  background: #0f172a;
+  color: #fff;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.figma-list-page__hero-search button:hover {
+  opacity: 0.92;
+}
+
+.figma-list-page__hero-hint {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .figma-list-page__hero-stats {
@@ -108,25 +159,19 @@
   gap: 12px;
 }
 
-.figma-list-page__search-row {
+.figma-list-page__filters-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
-.figma-list-page__search-row input {
-  flex: 1;
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  border-radius: 11px;
-  background: #fff;
-  padding: 10px 12px;
-  font-size: 14px;
-  color: #0f172a;
-  outline: none;
-}
-
-.figma-list-page__search-row input:focus {
-  border-color: #0f172a;
+.figma-list-page__filters-summary {
+  min-height: 20px;
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
 }
 
 .figma-list-page__clear-btn {
@@ -137,6 +182,11 @@
   padding: 9px 12px;
   font-size: 13px;
   cursor: pointer;
+}
+
+.figma-list-page__clear-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .figma-list-page__clear-btn:hover {
@@ -367,6 +417,15 @@
     font-size: 13px;
   }
 
+  .figma-list-page__hero-search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .figma-list-page__hero-search button {
+    width: 100%;
+  }
+
   .figma-list-page__hero-stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
@@ -384,13 +443,13 @@
     padding: 12px;
   }
 
-  .figma-list-page__search-row {
+  .figma-list-page__filters-head {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
   }
 
   .figma-list-page__clear-btn {
-    width: 100%;
+    width: auto;
   }
 
   .figma-list-page__grid {
