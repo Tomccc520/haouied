@@ -1,0 +1,79 @@
+{
+  "generatedAt": "2026-03-21T14:44:36.759Z",
+  "apply": true,
+  "unresolvedTotal": 291,
+  "mappedTotal": 291,
+  "updatedTotal": 291,
+  "unresolvedNoPoolTotal": 0,
+  "pools": {
+    "categoryPoolCount": 25,
+    "globalPoolCount": 1691
+  },
+  "categoryStats": {
+    "icons": {
+      "categoryId": 2,
+      "categorySlug": "icons",
+      "categoryName": "图标",
+      "unresolved": 12,
+      "mapped": 12,
+      "strategy": "category_pool"
+    },
+    "mobile": {
+      "categoryId": 4,
+      "categorySlug": "mobile",
+      "categoryName": "移动端",
+      "unresolved": 12,
+      "mapped": 12,
+      "strategy": "category_pool"
+    },
+    "prototype": {
+      "categoryId": 17,
+      "categorySlug": "prototype",
+      "categoryName": "原型",
+      "unresolved": 77,
+      "mapped": 77,
+      "strategy": "category_pool"
+    },
+    "svg": {
+      "categoryId": 19,
+      "categorySlug": "svg",
+      "categoryName": "SVG",
+      "unresolved": 12,
+      "mapped": 12,
+      "strategy": "category_pool"
+    },
+    "growth-ops": {
+      "categoryId": 22,
+      "categorySlug": "growth-ops",
+      "categoryName": "运营增长",
+      "unresolved": 77,
+      "mapped": 77,
+      "strategy": "category_pool"
+    },
+    "ai-design": {
+      "categoryId": 23,
+      "categorySlug": "ai-design",
+      "categoryName": "AI设计",
+      "unresolved": 77,
+      "mapped": 77,
+      "strategy": "category_pool"
+    },
+    "presentation": {
+      "categoryId": 24,
+      "categorySlug": "presentation",
+      "categoryName": "演示提案",
+      "unresolved": 12,
+      "mapped": 12,
+      "strategy": "category_pool"
+    },
+    "ui-kits": {
+      "categoryId": 25,
+      "categorySlug": "ui-kits",
+      "categoryName": "UI组件库",
+      "unresolved": 12,
+      "mapped": 12,
+      "strategy": "category_pool"
+    }
+  },
+  "unresolvedNoPool": []
+}
