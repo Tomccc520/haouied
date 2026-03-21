@@ -123,7 +123,9 @@
             <el-form :model="importForm" label-width="120px">
                 <el-form-item label="来源地址">
                     <el-input v-model="importForm.sourceUrl" placeholder="https://www.figma.com/community/plugins" />
-                    <div class="figma-list-page__hint">建议使用 Figma Community 官方地址或其搜索结果页地址。</div>
+                    <div class="figma-list-page__hint">
+                        仅采集公开元信息（封面/标题/简介）并保留来源链接；若官方页面被风控拦截，将自动降级只读通道继续采集。
+                    </div>
                 </el-form-item>
                 <el-form-item label="采集数量">
                     <el-input-number v-model="importForm.limit" :min="1" :max="120" />

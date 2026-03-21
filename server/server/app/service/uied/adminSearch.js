@@ -11,6 +11,20 @@ const Service = require('egg').Service;
 
 class AdminSearchService extends Service {
   /**
+   * 根据页面 slug 解析后台“页面管理”入口路径。
+   * @param {string} slug 页面别名
+   * @returns {string}
+   */
+  resolvePageManageRouteBySlug(slug = '') {
+    const normalizedSlug = String(slug || '').trim().toLowerCase();
+    const systemSlugSet = new Set([ 'hot', 'daily-hot', 'daily-new', 'rankings', 'mcp', 'figma', 'articles', 'search', 'submit' ]);
+    if (systemSlugSet.has(normalizedSlug)) {
+      return '/uied/website-manage/page-system?pageGroup=custom';
+    }
+    return '/uied/website-manage/page-navigation?pageGroup=navigation';
+  }
+
+  /**
    * 后台管理全局搜索
    */
   async globalSearch({ keyword, page = 1, pageSize = 20, type = 'all' }) {
@@ -266,7 +280,7 @@ class AdminSearchService extends Service {
         title: item.name,
         subtitle: item.slug,
         type: 'page',
-        route: '/uied/page',
+        route: this.resolvePageManageRouteBySlug(item.slug),
       });
     });
 

@@ -36,12 +36,18 @@
                     <el-button @click="handleResetSearch">重置</el-button>
                 </el-form-item>
             </el-form>
-            <div class="page-group-switch mb-4">
+            <div v-if="!isPageGroupLocked" class="page-group-switch mb-4">
                 <span class="page-group-switch__label">页面分区</span>
                 <el-radio-group v-model="queryParams.pageGroup" @change="handlePageGroupSwitch">
                     <el-radio-button label="navigation">导航页面</el-radio-button>
                     <el-radio-button label="custom">系统页面</el-radio-button>
                 </el-radio-group>
+            </div>
+            <div v-else class="page-group-lock mb-4">
+                <span class="page-group-switch__label">当前分区</span>
+                <el-tag size="small" :type="queryParams.pageGroup === 'navigation' ? 'success' : 'info'">
+                    {{ queryParams.pageGroup === 'navigation' ? '导航页面' : '系统页面' }}
+                </el-tag>
             </div>
             <div
                 v-if="queryParams.pageGroup === 'custom'"
@@ -111,10 +117,24 @@
             </div>
             <div class="mb-4 flex justify-between">
                 <div class="flex items-center gap-2">
-                    <el-button type="primary" @click="handleAdd">
+                    <el-button
+                        v-if="queryParams.pageGroup === 'navigation'"
+                        type="primary"
+                        @click="handleAdd"
+                    >
                         <template #icon><icon name="el-icon-Plus" /></template>
-                        添加页面
+                        添加导航页面
                     </el-button>
+                    <el-tooltip
+                        v-else
+                        content="系统页面暂不支持手动新增，请在上方“接入并编辑”管理"
+                        placement="top"
+                    >
+                        <el-button type="primary" disabled>
+                            <template #icon><icon name="el-icon-Plus" /></template>
+                            系统页面暂不支持新增
+                        </el-button>
+                    </el-tooltip>
                     <el-button @click="openWpTaxonomyDialog">
                         <template #icon><icon name="el-icon-SetUp" /></template>
                         WordPress 分类/标签配置
@@ -122,7 +142,7 @@
                 </div>
                 <div class="text-gray-400">共 {{ pager.count }} 个页面</div>
             </div>
-            <el-table size="large" v-loading="pager.loading" :data="pager.lists">
+            <el-table size="large" v-loading="pager.loading" :data="displayPageRows">
                 <el-table-column label="ID" prop="id" width="80" />
                 <el-table-column label="页面名称" prop="name" min-width="120" />
                 <el-table-column label="别名" prop="slug" min-width="100" />
@@ -138,15 +158,22 @@
                     prop="heroTitle"
                     min-width="150"
                     show-overflow-tooltip
-                />
+                >
+                    <template #default="{ row }">
+                        <span v-if="row.pageGroup === 'navigation'">{{ row.heroTitle || '-' }}</span>
+                        <span v-else class="text-gray-400">系统页无 Hero 模板</span>
+                    </template>
+                </el-table-column>
                 <el-table-column label="显示模式" width="100">
                     <template #default="{ row }">
                         <el-tag
+                            v-if="row.pageGroup === 'navigation'"
                             size="small"
                             :type="row.heroDisplayMode === 'iconScroll' ? 'warning' : ''"
                         >
                             {{ row.heroDisplayMode === 'iconScroll' ? '图标滚动' : '搜索框' }}
                         </el-tag>
+                        <span v-else class="text-gray-400">系统模板</span>
                     </template>
                 </el-table-column>
                 <el-table-column label="排序" width="140">
@@ -185,14 +212,41 @@
                                 查看前端
                             </el-button>
                         </el-tooltip>
-                        <el-button type="primary" link @click="handleCategories(row)"
+                        <el-button
+                            v-if="row.pageGroup === 'navigation'"
+                            type="primary"
+                            link
+                            @click="handleCategories(row)"
                             >分类配置</el-button
                         >
                         <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-                        <el-button type="primary" link @click="handleEdit(row, 'config')">
+                        <el-button
+                            v-if="row.pageGroup === 'navigation'"
+                            type="primary"
+                            link
+                            @click="handleEdit(row, 'config')"
+                        >
                             设计文章配置
                         </el-button>
-                        <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
+                        <el-button
+                            v-if="row.pageGroup === 'custom' && resolveSystemPageSettingPathByRow(row)"
+                            type="primary"
+                            link
+                            @click="openSystemPageSettingByRow(row)"
+                        >
+                            前往配置
+                        </el-button>
+                        <el-button
+                            v-if="row.pageGroup === 'navigation'"
+                            type="danger"
+                            link
+                            @click="handleDelete(row)"
+                        >
+                            删除
+                        </el-button>
+                        <el-tooltip v-else content="系统页面暂不支持删除" placement="top">
+                            <el-button type="info" link disabled>删除</el-button>
+                        </el-tooltip>
                     </template>
                 </el-table-column>
             </el-table>
@@ -204,7 +258,7 @@
         <!-- 编辑弹窗 -->
         <el-dialog
             v-model="showEdit"
-            :title="editData.id ? '编辑页面' : '添加页面'"
+            :title="editData.id ? (editData.type === 'navigation' ? '编辑导航页面' : '编辑系统页面') : '添加导航页面'"
             width="700px"
             top="5vh"
         >
@@ -222,16 +276,19 @@
                                 @input="handleSlugInput"
                             />
                             <div class="text-gray-400 text-xs mt-1">
-                                前台路径预览：<code>/p/{{ editData.slug || 'your-page-slug' }}</code>
+                                前台路径预览：<code>{{ resolveEditPreviewPath(editData.slug) }}</code>
                             </div>
                         </el-form-item>
                         <el-form-item label="页面分组">
-                            <el-radio-group v-model="editData.type">
-                                <el-radio-button label="navigation">导航页面</el-radio-button>
-                                <el-radio-button label="custom">系统页面</el-radio-button>
-                            </el-radio-group>
+                            <el-tag :type="editData.type === 'navigation' ? 'success' : 'info'">
+                                {{ editData.type === 'navigation' ? '导航页面' : '系统页面' }}
+                            </el-tag>
                             <div class="text-gray-400 text-xs mt-1">
-                                导航页面用于顶部频道入口；系统页、专题页、活动页请归入系统页面。
+                                {{
+                                    editData.type === 'navigation'
+                                        ? '导航页面使用固定模板，支持频道 Hero 与分类能力。'
+                                        : '系统页面用于统一管理系统模板入口，当前仅支持配置与编辑，不支持手动新增/删除。'
+                                }}
                             </div>
                         </el-form-item>
                         <el-form-item label="页面描述">
@@ -246,7 +303,7 @@
                     </el-tab-pane>
 
                     <!-- Hero 横幅配置 -->
-                    <el-tab-pane label="Hero横幅" name="hero">
+                    <el-tab-pane v-if="editData.type === 'navigation'" label="Hero横幅" name="hero">
                         <el-form-item label="Hero标题">
                             <el-input v-model="editData.heroTitle" placeholder="首屏大标题" />
                         </el-form-item>
@@ -343,7 +400,7 @@
                     </el-tab-pane>
 
                     <!-- 页面配置 -->
-                    <el-tab-pane label="页面配置" name="config">
+                    <el-tab-pane v-if="editData.type === 'navigation'" label="页面配置" name="config">
                         <el-form-item label="搜索占位符">
                             <el-input
                                 v-model="editData.searchPlaceholder"
@@ -508,6 +565,39 @@
                             <div class="text-gray-400 text-xs mt-1">
                                 用于前端设计文章模块“查看更多”按钮；留空则走前端默认值。
                             </div>
+                        </el-form-item>
+                        <el-form-item label="主题色">
+                            <el-color-picker v-model="editData.themeColor" />
+                            <span class="ml-2 text-gray-400">{{
+                                editData.themeColor || '未设置'
+                            }}</span>
+                        </el-form-item>
+                    </el-tab-pane>
+                    <el-tab-pane v-else label="系统配置" name="config-system">
+                        <el-alert
+                            type="info"
+                            show-icon
+                            :closable="false"
+                            title="系统页面采用独立模板能力，仅保留系统级配置项。"
+                            class="mb-4"
+                        />
+                        <el-form-item label="搜索占位符">
+                            <el-input
+                                v-model="editData.searchPlaceholder"
+                                placeholder="搜索框占位文本"
+                            />
+                        </el-form-item>
+                        <el-form-item label="启用搜索">
+                            <el-switch v-model="editData.searchEnabled" />
+                        </el-form-item>
+                        <el-form-item label="显示置顶banner广告">
+                            <el-switch v-model="editData.showBanner" />
+                            <div class="text-gray-400 text-xs mt-1">
+                                置顶banner广告独立开关；前台展示位置在“热门推荐”上方。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="显示侧边栏">
+                            <el-switch v-model="editData.showSidebar" />
                         </el-form-item>
                         <el-form-item label="主题色">
                             <el-color-picker v-model="editData.themeColor" />
@@ -996,15 +1086,90 @@ const SYSTEM_PAGE_SETTING_PATH_MAP: Record<string, string> = {
     articles: '/article-manage/article/lists'
 }
 
+const FRONTEND_PAGE_PATH_MAP: Record<string, string> = {
+    uiux: '/',
+    home: '/',
+    index: '/',
+    figma: '/figma',
+    mcp: '/mcp',
+    hot: '/p/hot',
+    articles: '/articles',
+    search: '/search',
+    submit: '/submit'
+}
+const NAVIGATION_PAGE_SLUGS = ['uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font']
+const SYSTEM_PAGE_SLUGS = ['hot', 'daily-hot', 'daily-new', 'rankings', 'mcp', 'figma', 'articles', 'search', 'submit']
+const NAVIGATION_PAGE_TYPE_SET = new Set(['navigation', 'nav', 'channel', 'home'])
+const route = useRoute()
+
+/**
+ * 规范化页面分区参数：兼容 navigation/nav/custom/system 多种写法。
+ * @param value 页面分区参数
+ * @returns {'navigation'|'custom'|''}
+ */
+const normalizePageGroupParam = (value: unknown): 'navigation' | 'custom' | '' => {
+    const normalized = String(value ?? '')
+        .trim()
+        .toLowerCase()
+    if (!normalized) return ''
+    if (['navigation', 'nav', 'channel'].includes(normalized)) return 'navigation'
+    if (['custom', 'system'].includes(normalized)) return 'custom'
+    return ''
+}
+
+const lockedPageGroup = computed(() => normalizePageGroupParam(route.query?.pageGroup))
+const isPageGroupLocked = computed(() => Boolean(lockedPageGroup.value))
+
 const queryParams = reactive({
     keyword: '',
     isActive: '',
-    pageGroup: 'navigation'
+    pageGroup: lockedPageGroup.value || 'navigation'
 })
 
 const { pager, getLists } = usePaging({
     fetchFun: uiedPageList,
     params: queryParams
+})
+
+/**
+ * 根据页面记录解析页面分组，避免历史脏数据导致系统页/导航页显示错位。
+ */
+const resolvePageGroupByRow = (row: any): 'navigation' | 'custom' => {
+    const slug = String(row?.slug || '')
+        .trim()
+        .toLowerCase()
+    if (SYSTEM_PAGE_SLUGS.includes(slug)) return 'custom'
+    const normalizedType = String(row?.type || row?.pageGroup || '')
+        .trim()
+        .toLowerCase()
+    if (NAVIGATION_PAGE_TYPE_SET.has(normalizedType) || NAVIGATION_PAGE_SLUGS.includes(slug)) {
+        return 'navigation'
+    }
+    return 'custom'
+}
+
+/**
+ * 规范化列表行数据并按当前分区做前端二次兜底过滤。
+ */
+const displayPageRows = computed(() => {
+    const sourceRows = Array.isArray(pager.lists) ? pager.lists : []
+    const currentGroup = String(queryParams.pageGroup || '')
+        .trim()
+        .toLowerCase()
+    return sourceRows
+        .map((item: any) => {
+            const pageGroup = resolvePageGroupByRow(item)
+            return {
+                ...item,
+                pageGroup,
+                pageGroupLabel: pageGroup === 'navigation' ? '导航页面' : '系统页面'
+            }
+        })
+        .filter((item: any) => {
+            if (currentGroup === 'navigation') return item.pageGroup === 'navigation'
+            if (currentGroup === 'custom') return item.pageGroup === 'custom'
+            return true
+        })
 })
 
 const rowSortMap = reactive<Record<number, number>>({})
@@ -1336,11 +1501,21 @@ const loadSystemPageCatalog = async () => {
             uiedPageList({ pageNo: 1, pageSize: 500, pageGroup: 'custom' }),
             uiedNavMenuAll()
         ])
-        systemPageRows.value = Array.isArray((pageRes as any)?.lists)
+        const pageRows = Array.isArray((pageRes as any)?.lists)
             ? (pageRes as any).lists
             : Array.isArray(pageRes)
             ? pageRes
             : []
+        systemPageRows.value = pageRows
+            .map((item: any) => {
+                const pageGroup = resolvePageGroupByRow(item)
+                return {
+                    ...item,
+                    pageGroup,
+                    pageGroupLabel: pageGroup === 'navigation' ? '导航页面' : '系统页面'
+                }
+            })
+            .filter((item: any) => item.pageGroup === 'custom')
         systemNavMenuRows.value = Array.isArray(navRes) ? navRes : []
     } catch (error) {
         console.error('加载系统页面快捷管理数据失败:', error)
@@ -1966,6 +2141,7 @@ const handleSearch = () => {
  * 切换页面分区（导航页面 / 系统页面），并刷新列表。
  */
 const handlePageGroupSwitch = () => {
+    if (isPageGroupLocked.value) return
     pager.page = 1
     getLists()
     if (queryParams.pageGroup === 'custom') {
@@ -1979,7 +2155,7 @@ const handlePageGroupSwitch = () => {
 const handleResetSearch = () => {
     queryParams.keyword = ''
     queryParams.isActive = ''
-    queryParams.pageGroup = 'navigation'
+    queryParams.pageGroup = lockedPageGroup.value || 'navigation'
     pager.page = 1
     getLists()
 }
@@ -1990,18 +2166,45 @@ const handleResetSearch = () => {
 const resolveFrontendPagePath = (row: any): string => {
     const slug = String(row?.slug || '').trim().toLowerCase()
     if (!slug) return '/'
-    const fixedPathMap: Record<string, string> = {
-        uiux: '/',
-        home: '/',
-        index: '/',
-        figma: '/figma',
-        mcp: '/mcp',
-        hot: '/p/hot',
-        articles: '/articles',
-        search: '/search',
-        submit: '/submit'
+    return FRONTEND_PAGE_PATH_MAP[slug] || `/p/${slug}`
+}
+
+/**
+ * 解析编辑弹窗中的前端路径预览文案。
+ */
+const resolveEditPreviewPath = (slug: string): string => {
+    const normalizedSlug = String(slug || '')
+        .trim()
+        .toLowerCase()
+    if (!normalizedSlug) return '/p/your-page-slug'
+    return FRONTEND_PAGE_PATH_MAP[normalizedSlug] || `/p/${normalizedSlug}`
+}
+
+/**
+ * 通过页面 slug 反查系统页面配置入口。
+ */
+const resolveSystemPageSettingPathBySlug = (slug: string): string => {
+    const normalizedSlug = String(slug || '')
+        .trim()
+        .toLowerCase()
+    if (!normalizedSlug) return ''
+    const mapping: Record<string, string> = {
+        hot: '/system-setting/base-config/content-hub?tab=hot',
+        mcp: '/system-setting/base-config/content-hub?tab=mcp',
+        figma: '/figma-center/figma-list',
+        articles: '/article-manage/article/lists',
+        search: '/system-setting/base-config/content-hub?tab=hot',
+        submit: '/system-setting/base-config/content-hub?tab=hot'
     }
-    return fixedPathMap[slug] || `/p/${slug}`
+    return mapping[normalizedSlug] || ''
+}
+
+/**
+ * 通过列表行解析系统页面配置入口。
+ */
+const resolveSystemPageSettingPathByRow = (row: any): string => {
+    if (!row || typeof row !== 'object') return ''
+    return resolveSystemPageSettingPathBySlug(String(row.slug || ''))
 }
 
 /**
@@ -2042,6 +2245,16 @@ const openSystemPageSetting = (item: SystemPageCatalogSourceItem | SystemPageCat
 }
 
 /**
+ * 从页面列表直接跳转系统页配置入口。
+ */
+const openSystemPageSettingByRow = (row: any) => {
+    const settingPath = resolveSystemPageSettingPathByRow(row)
+    if (!settingPath) return
+    const normalizedSettingPath = settingPath.startsWith('/') ? settingPath : `/${settingPath}`
+    window.open(`${window.location.origin}${normalizedSettingPath}`, '_blank')
+}
+
+/**
  * 构建系统页面一键接入时的默认页面数据。
  */
 const buildSystemPageSeedPayload = (
@@ -2070,19 +2283,19 @@ const buildSystemPageSeedPayload = (
         description: pageDescription,
         sortOrder,
         isActive: true,
-        heroTitle: item.label,
+        heroTitle: '',
         heroHighlightText: '',
-        heroSubtitle: pageDescription,
+        heroSubtitle: '',
         hotSearchTags: [],
         heroBgType: 'default',
         heroBgValue: '',
         heroDisplayMode: 'search',
         heroScrollWebsites: [],
-        searchPlaceholder: '搜索你需要的内容',
+        searchPlaceholder: '搜索内容',
         searchEnabled: true,
         showBanner: true,
-        showHotRecommendations: true,
-        showCategories: true,
+        showHotRecommendations: false,
+        showCategories: false,
         showSidebar: true,
         themeColor: ''
     }
@@ -2251,7 +2464,7 @@ const resetEditData = () => {
         id: 0,
         name: '',
         slug: '',
-        type: 'custom',
+        type: 'navigation',
         description: '',
         sortOrder: 0,
         isActive: true,
@@ -2288,10 +2501,28 @@ const resetEditData = () => {
 }
 
 const handleAdd = () => {
+    if (queryParams.pageGroup === 'custom') {
+        feedback.msgWarning('系统页面暂不支持手动新增，请使用上方“接入并编辑”入口')
+        return
+    }
     resetEditData()
+    editData.type = 'navigation'
     loadScrollCategories()
     loadDesignArticleFilterOptions()
     showEdit.value = true
+}
+
+/**
+ * 统一解析编辑弹窗默认激活标签，避免系统页面落到导航页配置项。
+ */
+const resolveInitialEditTab = (
+    initialTab: 'basic' | 'hero' | 'config',
+    pageType: 'navigation' | 'custom'
+): string => {
+    if (pageType !== 'navigation') {
+        return initialTab === 'config' ? 'config-system' : 'basic'
+    }
+    return initialTab
 }
 
 /**
@@ -2302,9 +2533,7 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
     slugTouched.value = true
     selectedScrollCategoryIds.value = []
     selectedScrollWebsites.value = []
-    const normalizedPageType = String(row?.type || row?.pageGroup || '').trim().toLowerCase() === 'navigation'
-        ? 'navigation'
-        : 'custom'
+    const normalizedPageType = resolvePageGroupByRow(row)
     // 转换热门标签数组为字符串
     const hotSearchTagsStr = Array.isArray(row.hotSearchTags)
         ? row.hotSearchTags.join(',')
@@ -2337,8 +2566,23 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         showSidebar: row.showSidebar !== false
     })
 
-    await loadDesignArticleWidgetConfig(String(row.slug || ''))
-    await loadDesignArticleFilterOptions()
+    if (normalizedPageType === 'navigation') {
+        await loadDesignArticleWidgetConfig(String(row.slug || ''))
+        await loadDesignArticleFilterOptions()
+    } else {
+        editData.heroTitle = ''
+        editData.heroHighlightText = ''
+        editData.heroSubtitle = ''
+        editData.hotSearchTagsStr = ''
+        editData.heroBgType = 'default'
+        editData.heroBgValue = ''
+        editData.heroDisplayMode = 'search'
+        editData.heroScrollWebsites = []
+        editData.showHotRecommendations = false
+        editData.showCategories = false
+        editData.designArticleWidgetId = 0
+        editData.designArticleEnabled = false
+    }
 
     // 加载分类列表
     await loadScrollCategories()
@@ -2393,7 +2637,7 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         selectedScrollCategoryIds.value = []
     }
 
-    editTab.value = initialTab
+    editTab.value = resolveInitialEditTab(initialTab, normalizedPageType)
     showEdit.value = true
     isEditLoading.value = false
 }
@@ -2422,6 +2666,22 @@ const handleSubmit = async () => {
         }
         delete (submitData as any).hotSearchTagsStr
 
+        /**
+         * 系统页面不保存导航页模板字段，避免“接入并编辑”后出现导航内容。
+         */
+        if (normalizedPageType !== 'navigation') {
+            submitData.heroTitle = ''
+            submitData.heroHighlightText = ''
+            submitData.heroSubtitle = ''
+            submitData.hotSearchTags = []
+            submitData.heroBgType = 'default'
+            submitData.heroBgValue = ''
+            submitData.heroDisplayMode = 'search'
+            submitData.heroScrollWebsites = []
+            submitData.showHotRecommendations = false
+            submitData.showCategories = false
+        }
+
         let savedPage: any = null
         const isEditing = Boolean(editData.id)
         if (isEditing) {
@@ -2430,7 +2690,9 @@ const handleSubmit = async () => {
             savedPage = await uiedPageAdd(submitData)
         }
         const savedSlug = String(savedPage?.slug || submitData.slug || '').trim()
-        await syncDesignArticleWidgetConfig(savedSlug)
+        if (normalizedPageType === 'navigation') {
+            await syncDesignArticleWidgetConfig(savedSlug)
+        }
         feedback.msgSuccess(isEditing ? '编辑成功' : '添加成功')
         showEdit.value = false
         getLists()
@@ -2442,7 +2704,14 @@ const handleSubmit = async () => {
     }
 }
 
-const handleDelete = async (id: number) => {
+const handleDelete = async (row: any) => {
+    const id = Number.parseInt(String(row?.id || 0), 10)
+    if (!Number.isInteger(id) || id <= 0) return
+    const pageGroup = resolvePageGroupByRow(row)
+    if (pageGroup === 'custom') {
+        feedback.msgWarning('系统页面暂不支持删除，请在导航菜单或系统配置中调整显示状态')
+        return
+    }
     await feedback.confirm('确定要删除该页面吗？')
     await uiedPageDelete({ id })
     feedback.msgSuccess('删除成功')
@@ -2787,7 +3056,25 @@ const handleQuickSortSave = async (row: any) => {
 }
 
 watch(
-    () => pager.lists,
+    () => route.query?.pageGroup,
+    (value) => {
+        const nextGroup = normalizePageGroupParam(value)
+        if (!nextGroup) return
+        const groupChanged = queryParams.pageGroup !== nextGroup
+        if (groupChanged) {
+            queryParams.pageGroup = nextGroup
+            pager.page = 1
+            getLists()
+        }
+        if (nextGroup === 'custom') {
+            loadSystemPageCatalog()
+        }
+    },
+    { immediate: true }
+)
+
+watch(
+    () => displayPageRows.value,
     (rows) => {
         const rowList = Array.isArray(rows) ? rows : []
         rowList.forEach((item: any) => {
@@ -2831,6 +3118,12 @@ getLists()
 }
 
 .page-group-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-group-lock {
     display: flex;
     align-items: center;
     gap: 10px;

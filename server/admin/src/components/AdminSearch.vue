@@ -123,7 +123,7 @@
                                         <el-button
                                             type="primary"
                                             size="small"
-                                            @click="handleEdit('page', row.id)"
+                                            @click="handleEdit('page', row)"
                                         >
                                             编辑
                                         </el-button>
@@ -239,7 +239,7 @@
                                     <el-button
                                         type="primary"
                                         size="small"
-                                        @click="handleEdit('page', row.id)"
+                                        @click="handleEdit('page', row)"
                                     >
                                         编辑
                                     </el-button>
@@ -427,10 +427,36 @@ const handleTabChange = (tab) => {
 
 // 编辑
 const handleEdit = (type, id) => {
+    /**
+     * 根据页面 slug 跳转到对应分区菜单：
+     * - 系统页面 => /website-manage/page-system
+     * - 导航页面 => /website-manage/page-navigation
+     */
+    const resolvePageRoute = (payload) => {
+        const normalizedSlug = String(payload?.slug || '')
+            .trim()
+            .toLowerCase()
+        const systemSlugSet = new Set([
+            'hot',
+            'daily-hot',
+            'daily-new',
+            'rankings',
+            'mcp',
+            'figma',
+            'articles',
+            'search',
+            'submit'
+        ])
+        if (systemSlugSet.has(normalizedSlug)) {
+            return '/uied/website-manage/page-system?pageGroup=custom'
+        }
+        return '/uied/website-manage/page-navigation?pageGroup=navigation'
+    }
+
     const routes = {
         website: `/uied/website/edit?id=${id}`,
         category: '/uied/category',
-        page: '/uied/page',
+        page: resolvePageRoute(id),
         article: '/uied/article'
     }
 

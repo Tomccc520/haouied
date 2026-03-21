@@ -80,7 +80,7 @@ class UiedFigmaService extends Service {
   async getOfficialImportNetworkConfig() {
     const { ctx } = this;
     let allowInsecureTls = true;
-    let insecureDomains = [ 'figma.com', 'www.figma.com' ];
+    let insecureDomains = [ 'figma.com', 'www.figma.com', 'r.jina.ai' ];
 
     try {
       const importConfig = await ctx.service.uied.aiConfig.getImportConfig();
@@ -106,6 +106,16 @@ class UiedFigmaService extends Service {
         insecureDomains
       );
     }
+
+    /**
+     * 固定保留 Figma 与只读镜像域名，避免后台误配白名单导致官方采集不可用。
+     */
+    insecureDomains = Array.from(new Set([
+      ...(Array.isArray(insecureDomains) ? insecureDomains : []),
+      'figma.com',
+      'www.figma.com',
+      'r.jina.ai',
+    ]));
 
     return {
       allowInsecureTls,
@@ -277,12 +287,14 @@ class UiedFigmaService extends Service {
   /**
    * 拉取网页 HTML 文本。
    * @param {string} url 页面地址
+   * @param {{allowReadOnlyFallback?:boolean}} options 抓取选项
    * @return {Promise<string>}
    */
-  async fetchHtml(url) {
+  async fetchHtml(url, options = {}) {
     const targetUrl = String(url || '').trim();
     if (!targetUrl) return '';
     const { ctx } = this;
+    const allowReadOnlyFallback = options && options.allowReadOnlyFallback === true;
     const networkConfig = await this.getOfficialImportNetworkConfig();
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -290,42 +302,167 @@ class UiedFigmaService extends Service {
     };
 
     /**
-     * 执行一次 HTML 抓取，支持切换 TLS 校验策略。
-     * @param {boolean} rejectUnauthorized 是否严格校验证书
-     * @return {Promise<string>}
+     * 判断当前请求地址是否满足 TLS 宽松重试条件。
+     * @param {string} requestUrl 请求地址
+     * @param {Error} error 错误对象
+     * @return {boolean}
      */
-    const curlOnce = async (rejectUnauthorized = true) => {
-      const response = await ctx.curl(targetUrl, {
+    const shouldRetryInsecureForUrl = (requestUrl, error) => {
+      if (!this.isTlsIssuerError(error)) return false;
+      try {
+        const host = String(new URL(requestUrl).hostname || '').trim().toLowerCase();
+        /**
+         * Figma 官方采集链路的已知域名强制允许 TLS 宽松重试，避免客户环境 CA 缺失导致不可用。
+         */
+        if ([ 'figma.com', 'www.figma.com', 'r.jina.ai' ].includes(host)) {
+          return true;
+        }
+        if (!networkConfig.allowInsecureTls) return false;
+        const whitelist = Array.isArray(networkConfig.insecureDomains) ? networkConfig.insecureDomains : [];
+        return this.matchInsecureTlsHost(host, whitelist);
+      } catch (_err) {
+        return false;
+      }
+    };
+
+    /**
+     * 执行一次 HTML 抓取，支持切换 TLS 校验策略。
+     * 说明：保留响应状态码，便于识别 403 风控页并触发降级抓取。
+     * @param {string} requestUrl 请求地址
+     * @param {boolean} rejectUnauthorized 是否严格校验证书
+     * @return {Promise<{status:number,body:string}>}
+     */
+    const curlOnce = async (requestUrl, rejectUnauthorized = true, requestTimeout = 25000) => {
+      const response = await ctx.curl(requestUrl, {
         method: 'GET',
         dataType: 'text',
-        timeout: 25000,
+        timeout: requestTimeout,
         followRedirect: true,
         rejectUnauthorized,
         headers,
       });
-      return String(response?.data || '');
+      return {
+        status: Number(response?.status || 0),
+        body: String(response?.data || ''),
+      };
     };
 
-    try {
-      return await curlOnce(true);
-    } catch (error) {
-      const shouldRetryInsecure = (() => {
-        if (!this.isTlsIssuerError(error)) return false;
-        if (!networkConfig.allowInsecureTls) return false;
-        try {
-          const host = String(new URL(targetUrl).hostname || '').trim().toLowerCase();
-          const whitelist = Array.isArray(networkConfig.insecureDomains) ? networkConfig.insecureDomains : [];
-          return this.matchInsecureTlsHost(host, whitelist);
-        } catch (e) {
-          return false;
+    /**
+     * 带 TLS 证书兜底的一次抓取。
+     * @param {string} requestUrl 请求地址
+     * @return {Promise<{status:number,body:string}>}
+     */
+    const curlWithTlsFallback = async (requestUrl, options = {}) => {
+      const requestTimeout = Number(options?.timeout || 25000);
+      try {
+        return await curlOnce(requestUrl, true, requestTimeout);
+      } catch (error) {
+        if (!shouldRetryInsecureForUrl(requestUrl, error)) {
+          throw error;
         }
-      })();
-
-      if (!shouldRetryInsecure) {
-        throw error;
+        ctx.logger.warn('[uied.figma] TLS校验失败，已降级为 rejectUnauthorized=false 重试: %s', requestUrl);
+        try {
+          return await curlOnce(requestUrl, false, requestTimeout);
+        } catch (retryError) {
+          /**
+           * 部分客户机器在 Node TLS 环境下仍会证书链校验失败（即使 rejectUnauthorized=false）。
+           * 本地/开发环境再做一次全局 TLS 兜底重试，生产环境保持严格，避免扩大安全面。
+           */
+          const appEnv = String(this.app.config.env || '').trim().toLowerCase();
+          if (!shouldRetryInsecureForUrl(requestUrl, retryError) || appEnv === 'prod') {
+            throw retryError;
+          }
+          const prevTlsEnv = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+          try {
+            ctx.logger.warn('[uied.figma] TLS降级重试仍失败，开发环境启用 NODE_TLS_REJECT_UNAUTHORIZED=0 兜底: %s', requestUrl);
+            return await curlOnce(requestUrl, false, requestTimeout);
+          } finally {
+            if (prevTlsEnv === undefined) {
+              delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+            } else {
+              process.env.NODE_TLS_REJECT_UNAUTHORIZED = prevTlsEnv;
+            }
+          }
+        }
       }
-      ctx.logger.warn('[uied.figma] 证书链校验失败，已降级为 rejectUnauthorized=false 重试: %s', targetUrl);
-      return await curlOnce(false);
+    };
+
+    /**
+     * 当官方站点触发风控或 4xx 时，回退到只读镜像抓取公开元信息。
+     * @return {Promise<string>}
+     */
+    const fetchReadOnlyMirror = async () => {
+      if (!allowReadOnlyFallback) return '';
+      const mirrorUrl = this.buildReadOnlyMirrorUrl(targetUrl);
+      if (!mirrorUrl) return '';
+      /**
+       * 只读镜像链路在网络波动时更容易慢响应，放宽超时时间提升成功率。
+       */
+      const mirrorResult = await curlWithTlsFallback(mirrorUrl, { timeout: 45000 });
+      if (mirrorResult.status >= 400 || !String(mirrorResult.body || '').trim()) {
+        return '';
+      }
+      ctx.logger.warn('[uied.figma] 官方源不可达，已使用只读镜像采集公开元信息: %s', targetUrl);
+      return mirrorResult.body;
+    };
+
+    let primaryResult = null;
+    try {
+      primaryResult = await curlWithTlsFallback(targetUrl, { timeout: 25000 });
+    } catch (error) {
+      if (allowReadOnlyFallback) {
+        const fallbackHtml = await fetchReadOnlyMirror();
+        if (fallbackHtml) return fallbackHtml;
+      }
+      throw error;
+    }
+
+    const statusCode = Number(primaryResult?.status || 0);
+    const bodyText = String(primaryResult?.body || '');
+    if (
+      allowReadOnlyFallback
+      && (statusCode >= 400 || this.isCloudfrontBlockedHtml(bodyText))
+    ) {
+      const fallbackHtml = await fetchReadOnlyMirror();
+      if (fallbackHtml) return fallbackHtml;
+    }
+    if (statusCode >= 400) {
+      throw new Error(`抓取失败，HTTP状态码：${statusCode}`);
+    }
+    return bodyText;
+  }
+
+  /**
+   * 判断响应是否为 CloudFront 风控拦截页。
+   * @param {string} payload 响应内容
+   * @return {boolean}
+   */
+  isCloudfrontBlockedHtml(payload = '') {
+    const text = String(payload || '').toLowerCase();
+    if (!text) return false;
+    return (
+      (text.includes('error code: 403') && text.includes('cloudfront'))
+      || (text.includes('request blocked') && text.includes('cloudfront'))
+      || text.includes('generated by cloudfront')
+    );
+  }
+
+  /**
+   * 构建只读镜像地址（用于采集公开元信息，不抓取受保护内容）。
+   * @param {string} url 原始地址
+   * @return {string}
+   */
+  buildReadOnlyMirrorUrl(url = '') {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    try {
+      const parsed = new URL(raw);
+      if (!/^https?:$/i.test(parsed.protocol)) return '';
+      const normalizedPath = `${parsed.hostname}${parsed.pathname}${parsed.search}${parsed.hash}`;
+      return `https://r.jina.ai/http://${normalizedPath}`;
+    } catch (error) {
+      return '';
     }
   }
 
@@ -361,6 +498,80 @@ class UiedFigmaService extends Service {
     const match = source.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     if (!match || !match[1]) return '';
     return this.decodeHtmlEntities(match[1]).replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * 从“标签行”格式文本中提取字段值（例如：Title: xxx）。
+   * @param {string} text 原始文本
+   * @param {string} label 字段标签
+   * @return {string}
+   */
+  extractLineValueByLabel(text = '', label = '') {
+    const source = String(text || '');
+    const key = String(label || '').trim();
+    if (!source || !key) return '';
+    const reg = new RegExp(`^\\s*${key}\\s*:\\s*(.+)\\s*$`, 'im');
+    const matched = source.match(reg);
+    return matched && matched[1]
+      ? this.decodeHtmlEntities(String(matched[1]).trim())
+      : '';
+  }
+
+  /**
+   * 从文本中提取首个 Markdown 一级标题。
+   * @param {string} text 原始文本
+   * @return {string}
+   */
+  extractFirstMarkdownHeading(text = '') {
+    const source = String(text || '');
+    if (!source) return '';
+    const matched = source.match(/^\s*#\s+(.+)$/m);
+    return matched && matched[1]
+      ? this.decodeHtmlEntities(String(matched[1]).trim())
+      : '';
+  }
+
+  /**
+   * 从文本中提取首段摘要，兼容 HTML/Markdown/纯文本。
+   * @param {string} text 原始文本
+   * @return {string}
+   */
+  extractSummaryFromText(text = '') {
+    const source = String(text || '');
+    if (!source) return '';
+    const normalized = source.replace(/\r/g, '\n');
+    const markdownStart = normalized.search(/markdown content\s*:/i);
+    const body = markdownStart >= 0
+      ? normalized.slice(markdownStart).replace(/^[\s\S]*?markdown content\s*:\s*/i, '')
+      : normalized;
+    const plain = body
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .split('\n')
+      .map(line => line.replace(/^[-*#>\s]+/, '').trim())
+      .filter(line => (
+        Boolean(line)
+        && !/^title\s*:/i.test(line)
+        && !/^url source\s*:/i.test(line)
+        && !/^warning\s*:/i.test(line)
+      ))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return plain.slice(0, 260);
+  }
+
+  /**
+   * 从文本中提取首个图片地址，用于封面兜底。
+   * @param {string} text 原始文本
+   * @return {string}
+   */
+  extractFirstImageUrlFromText(text = '') {
+    const source = String(text || '');
+    if (!source) return '';
+    const matched = source.match(/https?:\/\/[^\s"'<>]+?\.(?:png|jpe?g|webp|gif|svg)(?:\?[^\s"'<>]*)?/i);
+    return matched && matched[0] ? String(matched[0]).trim() : '';
   }
 
   /**
@@ -1324,18 +1535,73 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 构建 Figma 插件列表回退采集地址集合。
+   * 说明：社区首页为动态渲染时，使用公开分类页补齐插件详情链接。
+   * @param {string} sourceUrl 来源地址
+   * @return {string[]}
+   */
+  buildPluginListFallbackSources(sourceUrl = '') {
+    const normalizedSource = this.normalizeCommunityUrl(sourceUrl);
+    const sourceList = [
+      normalizedSource,
+      'https://www.figma.com/community/editing-effects?resource_type=plugins',
+      'https://www.figma.com/community/development?resource_type=plugins',
+      'https://www.figma.com/community/import-export?resource_type=plugins',
+      'https://www.figma.com/community/file-organization?resource_type=plugins',
+      'https://www.figma.com/community/accessibility?resource_type=plugins',
+    ];
+    return Array.from(new Set(sourceList.map(item => String(item || '').trim()).filter(Boolean)));
+  }
+
+  /**
+   * 通过回退分类页采集插件详情链接。
+   * @param {string} sourceUrl 来源地址
+   * @param {number} limit 最多采集数量
+   * @return {Promise<string[]>}
+   */
+  async collectPluginLinksByFallbackSources(sourceUrl = '', limit = 20) {
+    const { ctx } = this;
+    const maxCount = this.clamp(this.parsePositiveInt(limit, 20), 1, 120);
+    const collected = new Set();
+    const fallbackSources = this.buildPluginListFallbackSources(sourceUrl);
+    for (const fallbackUrl of fallbackSources) {
+      if (collected.size >= maxCount) break;
+      try {
+        const pageHtml = await this.fetchHtml(fallbackUrl, { allowReadOnlyFallback: true });
+        const links = this.extractPluginLinksFromHtml(pageHtml);
+        for (const link of links) {
+          if (!link) continue;
+          collected.add(link);
+          if (collected.size >= maxCount) break;
+        }
+      } catch (error) {
+        ctx.logger.warn('[uied.figma] 回退地址采集失败: %s -> %s', fallbackUrl, error?.message || error);
+      }
+    }
+    return Array.from(collected).slice(0, maxCount);
+  }
+
+  /**
    * 从插件详情 HTML 中提取结构化字段。
    * @param {string} pluginUrl 插件链接
    * @param {string} html 插件详情 HTML
    * @return {{pluginId:string,name:string,summary:string,coverUrl:string}}
    */
   parsePluginDetailFromHtml(pluginUrl, html) {
-    const pluginId = this.parsePluginIdByUrl(pluginUrl);
-    const ogTitle = this.extractMetaContent(html, [ 'og:title', 'twitter:title' ]);
-    const htmlTitle = this.extractHtmlTitle(html);
-    const name = this.sanitizeFigmaTitle(ogTitle || htmlTitle || `Figma Plugin ${pluginId || ''}`);
-    const summary = this.extractMetaContent(html, [ 'og:description', 'description', 'twitter:description' ]);
-    const coverUrl = this.extractMetaContent(html, [ 'og:image', 'twitter:image' ]);
+    const source = String(html || '');
+    const sourcePluginUrl = this.normalizePluginDetailUrl(this.extractLineValueByLabel(source, 'URL Source')) || pluginUrl;
+    const pluginId = this.parsePluginIdByUrl(sourcePluginUrl);
+    const ogTitle = this.extractMetaContent(source, [ 'og:title', 'twitter:title' ]);
+    const lineTitle = this.extractLineValueByLabel(source, 'Title');
+    const markdownHeading = this.extractFirstMarkdownHeading(source);
+    const htmlTitle = this.extractHtmlTitle(source);
+    const name = this.sanitizeFigmaTitle(
+      ogTitle || lineTitle || markdownHeading || htmlTitle || `Figma Plugin ${pluginId || ''}`
+    );
+    const summary = this.extractMetaContent(source, [ 'og:description', 'description', 'twitter:description' ])
+      || this.extractSummaryFromText(source);
+    const coverUrl = this.extractMetaContent(source, [ 'og:image', 'twitter:image' ])
+      || this.extractFirstImageUrlFromText(source);
     return {
       pluginId,
       name,
@@ -1362,7 +1628,7 @@ class UiedFigmaService extends Service {
     const now = Math.floor(Date.now() / 1000);
     const { app, ctx } = this;
 
-    const sourceHtml = await this.fetchHtml(sourceUrl);
+    const sourceHtml = await this.fetchHtml(sourceUrl, { allowReadOnlyFallback: true });
     let pluginLinks = this.extractPluginLinksFromHtml(sourceHtml);
     /**
      * 兼容直接传入单个插件详情链接的采集场景。
@@ -1372,6 +1638,12 @@ class UiedFigmaService extends Service {
       if (singlePluginUrl) {
         pluginLinks = [ singlePluginUrl ];
       }
+    }
+    /**
+     * 社区首页通常为动态渲染，抓不到详情链接时自动回退分类页。
+     */
+    if (pluginLinks.length === 0) {
+      pluginLinks = await this.collectPluginLinksByFallbackSources(sourceUrl, limit);
     }
     pluginLinks = pluginLinks.slice(0, limit);
     const result = {
@@ -1386,7 +1658,7 @@ class UiedFigmaService extends Service {
     for (const link of pluginLinks) {
       try {
         const pluginUrl = this.normalizePluginDetailUrl(link) || this.normalizeCommunityUrl(link);
-        const detailHtml = await this.fetchHtml(pluginUrl);
+        const detailHtml = await this.fetchHtml(pluginUrl, { allowReadOnlyFallback: true });
         const parsed = this.parsePluginDetailFromHtml(pluginUrl, detailHtml);
         const titleRaw = String(parsed.name || '').trim();
         if (!titleRaw) {

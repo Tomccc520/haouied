@@ -12,7 +12,9 @@
 
 const Service = require('egg').Service;
 const NAVIGATION_PAGE_SLUGS = [ 'uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font' ];
+const SYSTEM_PAGE_SLUGS = [ 'hot', 'daily-hot', 'daily-new', 'rankings', 'mcp', 'figma', 'articles', 'search', 'submit' ];
 const NAVIGATION_PAGE_TYPE_SET = new Set([ 'navigation', 'nav', 'channel', 'home' ]);
+const SYSTEM_PAGE_SLUG_SET = new Set(SYSTEM_PAGE_SLUGS);
 
 class PageService extends Service {
   /**
@@ -22,9 +24,10 @@ class PageService extends Service {
    * @return {boolean}
    */
   isNavigationPage(type, slug) {
+    const normalizedSlug = String(slug || '').trim().toLowerCase();
+    if (SYSTEM_PAGE_SLUG_SET.has(normalizedSlug)) return false;
     const normalizedType = String(type || '').trim().toLowerCase();
     if (NAVIGATION_PAGE_TYPE_SET.has(normalizedType)) return true;
-    const normalizedSlug = String(slug || '').trim().toLowerCase();
     return NAVIGATION_PAGE_SLUGS.includes(normalizedSlug);
   }
 
@@ -54,11 +57,15 @@ class PageService extends Service {
    * @return {string}
    */
   normalizePageTypeForStorage(type, slug) {
+    const normalizedSlug = String(slug || '').trim().toLowerCase();
+    if (SYSTEM_PAGE_SLUG_SET.has(normalizedSlug)) {
+      return 'custom';
+    }
     const normalized = String(type || '').trim().toLowerCase();
     if (normalized) {
       return normalized.slice(0, 50);
     }
-    return this.isNavigationPage('', slug) ? 'navigation' : 'custom';
+    return this.isNavigationPage('', normalizedSlug) ? 'navigation' : 'custom';
   }
 
   /**
@@ -73,12 +80,14 @@ class PageService extends Service {
     }
     const navigationTypeList = Array.from(NAVIGATION_PAGE_TYPE_SET);
     const navigationSlugList = NAVIGATION_PAGE_SLUGS;
+    const systemSlugList = SYSTEM_PAGE_SLUGS;
     const typePlaceholders = navigationTypeList.map(() => '?').join(',');
     const slugPlaceholders = navigationSlugList.map(() => '?').join(',');
-    const navigationCondition = `((LOWER(COALESCE(type, '')) IN (${typePlaceholders})) OR (LOWER(slug) IN (${slugPlaceholders})))`;
+    const systemSlugPlaceholders = systemSlugList.map(() => '?').join(',');
+    const navigationCondition = `((LOWER(COALESCE(type, '')) IN (${typePlaceholders}) AND LOWER(slug) NOT IN (${systemSlugPlaceholders})) OR (LOWER(slug) IN (${slugPlaceholders})))`;
     return {
       sql: normalizedGroup === 'navigation' ? navigationCondition : `NOT ${navigationCondition}`,
-      replacements: [ ...navigationTypeList, ...navigationSlugList ],
+      replacements: [ ...navigationTypeList, ...systemSlugList, ...navigationSlugList ],
     };
   }
 
@@ -358,10 +367,25 @@ class PageService extends Service {
   async del(id) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const targetId = Number.parseInt(String(id || 0), 10);
+    if (!Number.isInteger(targetId) || targetId <= 0) return;
+
+    /**
+     * 系统页面暂不允许删除，避免“系统页面快捷管理”入口被误删导致配置丢失。
+     */
+    const [ page ] = await app.model.query(
+      'SELECT id, slug, type, is_delete FROM uied_page WHERE id = ? LIMIT 1',
+      { replacements: [ targetId ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    if (!page || Number(page.is_delete || 0) === 1) return;
+    const pageGroup = this.resolvePageGroup(page.type, page.slug);
+    if (pageGroup === 'custom') {
+      throw new Error('系统页面暂不支持删除，请在导航菜单中调整入口或在页面配置中隐藏');
+    }
 
     await app.model.query(
       'UPDATE uied_page SET is_delete = 1, delete_time = ? WHERE id = ?',
-      { replacements: [ now, id ], type: app.Sequelize.QueryTypes.UPDATE }
+      { replacements: [ now, targetId ], type: app.Sequelize.QueryTypes.UPDATE }
     );
   }
 

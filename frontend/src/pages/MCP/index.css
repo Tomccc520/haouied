@@ -18,7 +18,7 @@
   --mcp-surface-soft: #f8fafc;
   --mcp-chip-bg: #ffffff;
   min-height: calc(100vh - var(--header-height));
-  padding: calc(var(--header-height) + var(--spacing-8)) var(--container-padding) var(--spacing-8);
+  padding: calc(var(--header-height) + 5rem) var(--container-padding) var(--spacing-8);
   background-color: var(--mcp-page-bg);
   color: var(--mcp-text-main);
 }

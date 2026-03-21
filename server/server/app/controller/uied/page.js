@@ -122,6 +122,9 @@ class PageController extends baseController {
       this.result({ message: '删除成功' });
     } catch (error) {
       ctx.logger.error('删除页面失败:', error);
+      if (String(error?.message || '').includes('暂不支持删除')) {
+        return this.result({ code: 400, message: error.message });
+      }
       this.result({ code: 500, message: '删除页面失败' });
     }
   }
