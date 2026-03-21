@@ -60,6 +60,7 @@ server/.module_report/
 # Egg 运行时/生成文件
 server/server/run/
 server/server/typings/
+server/server/logs/
 
 # 本地数据库备份（按时间戳导出）
 uied_nav_prod_*.sql
