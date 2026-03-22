@@ -644,6 +644,7 @@ interface PageBannerBatchItem {
 const PAGE_BANNER_BATCH_SIZE = 4
 const PAGE_BANNER_SORT_STEP = 10
 const MULTI_POSITION_GROUP_PREFIX = 'multi:banner:'
+const PAGE_BANNER_BATCH_GROUP_PREFIX = 'batch:page_banner:'
 
 const bannerLinkBuiltinOptions: BannerLinkOption[] = [
     { label: '首页（/）', value: '/' },
@@ -950,6 +951,7 @@ const resolveFinalBannerLinkUrl = (): string => {
 
 const pageBannerBatchItems = ref<PageBannerBatchItem[]>([])
 const editingMultiPositionGroup = ref(false)
+const pageBannerBatchGroupOldId = ref('')
 
 /**
  * 判断当前记录是否属于“多位置广告组”。
@@ -1012,7 +1014,8 @@ const fetchPageBannerRows = async () => {
         keyword: '',
         scene: 'page_banner',
         contentType: 'all',
-        status: 'all'
+        status: 'all',
+        raw: 1
     })
     const lists = Array.isArray((result as any)?.lists) ? (result as any).lists : []
     return lists
@@ -1033,6 +1036,10 @@ const openPageBannerBatchDialog = async () => {
     try {
         const rows = await fetchPageBannerRows()
         const topRows = rows.slice(0, PAGE_BANNER_BATCH_SIZE)
+        const firstGroupOldId = String(topRows[0]?.oldId || '').trim()
+        pageBannerBatchGroupOldId.value = firstGroupOldId.startsWith(PAGE_BANNER_BATCH_GROUP_PREFIX)
+            ? firstGroupOldId
+            : `${PAGE_BANNER_BATCH_GROUP_PREFIX}${Date.now()}`
         const hasText = topRows.some((item: any) => String(item?.contentType || 'image').toLowerCase() === 'text')
         pageBannerBatchStyle.value = hasText ? 'text' : 'image'
         pageBannerBatchItems.value = Array.from({ length: PAGE_BANNER_BATCH_SIZE }).map((_, index) => {
@@ -1073,6 +1080,9 @@ const handleSavePageBannerBatch = async () => {
     if (!Array.isArray(items) || items.length === 0) {
         feedback.msgError('请先配置四卡位内容')
         return
+    }
+    if (!String(pageBannerBatchGroupOldId.value || '').trim()) {
+        pageBannerBatchGroupOldId.value = `${PAGE_BANNER_BATCH_GROUP_PREFIX}${Date.now()}`
     }
 
     for (let index = 0; index < items.length; index++) {
@@ -1115,6 +1125,7 @@ const handleSavePageBannerBatch = async () => {
                 image: pageBannerBatchStyle.value === 'image' ? String(item.image || '').trim() : '',
                 url: finalLinkUrl,
                 linkUrl: finalLinkUrl,
+                oldId: pageBannerBatchGroupOldId.value,
                 linkTarget: item.linkTarget || '_blank',
                 contentType: pageBannerBatchStyle.value,
                 htmlContent: '',
@@ -1267,17 +1278,22 @@ const handleAdd = () => {
     showEdit.value = true
 }
 const handleEdit = (row: any) => {
-    currentEditingBannerId.value = Number(row?.id || 0)
-    const isMultiGroupRecord = isMultiPositionGroupRecord(row?.oldId)
-    let normalizedPositionList = normalizePositionList(
+    const normalizedPositionList = normalizePositionList(
         row?.positionList?.length ? row.positionList : row?.position
     )
+    if (normalizedPositionList.includes('page_banner')) {
+        openPageBannerBatchDialog()
+        return
+    }
+    currentEditingBannerId.value = Number(row?.id || 0)
+    const isMultiGroupRecord = isMultiPositionGroupRecord(row?.oldId)
+    let normalizedEditablePositionList = normalizedPositionList
     /**
      * 兼容历史单条记录里 position 存逗号串的情况：
      * 编辑时默认只保留首个位置，避免“保存后自动新增多条”。
      */
-    if (!isMultiGroupRecord && normalizedPositionList.length > 1) {
-        normalizedPositionList = [normalizedPositionList[0]]
+    if (!isMultiGroupRecord && normalizedEditablePositionList.length > 1) {
+        normalizedEditablePositionList = [normalizedEditablePositionList[0]]
     }
     const normalizedLinkUrl = String(row.linkUrl || row.url || '').trim()
     const linkState = resolveBannerLinkState(normalizedLinkUrl)
@@ -1292,7 +1308,7 @@ const handleEdit = (row: any) => {
         htmlContent: row.htmlContent || '',
         pageSlug: row.pageSlug || 'all',
         pageSlugList: normalizePageSlugList(row.pageSlugList?.length ? row.pageSlugList : row.pageSlug),
-        positionList: normalizedPositionList
+        positionList: normalizedEditablePositionList
     })
     editingMultiPositionGroup.value = isMultiGroupRecord
     editData.enablePageScope = !editData.pageSlugList.includes('all')

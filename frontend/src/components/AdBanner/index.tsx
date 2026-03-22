@@ -304,12 +304,10 @@ const AdBanner: React.FC<AdBannerProps> = ({
                 onClick={() => handleClick(banner)}
               >
                 <div className="page-banner-grid__text-title">
-                  {banner.title || '广告推荐'}
-                  {banner.badgeText && <span className="page-banner-grid__text-badge">{banner.badgeText}</span>}
-                </div>
-                {banner.description && <div className="page-banner-grid__text-desc">{banner.description}</div>}
-                <div className="page-banner-grid__text-footer">
-                  <span>查看详情</span>
+                  <span className="page-banner-grid__text-title-main">
+                    {banner.title || '广告推荐'}
+                    {banner.badgeText && <span className="page-banner-grid__text-badge">{banner.badgeText}</span>}
+                  </span>
                   <span className="page-banner-grid__arrow page-banner-grid__arrow--light" aria-hidden="true">
                     <svg viewBox="0 0 24 24" focusable="false">
                       <path d="M9 6h9v9" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
@@ -317,6 +315,7 @@ const AdBanner: React.FC<AdBannerProps> = ({
                     </svg>
                   </span>
                 </div>
+                {banner.description && <div className="page-banner-grid__text-desc">{banner.description}</div>}
               </div>
             ))}
           </div>

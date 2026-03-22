@@ -25,6 +25,11 @@ export interface PageConfig {
   heroSubtitle?: string;
   heroHighlightText?: string;  // 高亮文本
   hotSearchTags?: string | string[];  // 可能是字符串或数组
+  hotSearchMode?: 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' | string;
+  hotSearchFixedCount?: number;
+  hotSearchDynamicCount?: number;
+  hotSearchWindowDays?: number;
+  hotSearchMinScore?: number;
   heroDisplayMode?: string;  // 显示模式: search, iconScroll
   heroScrollWebsites?: string; // 滚动图标的网站ID列表，JSON数组
   heroBgType?: string;  // 背景类型: default, color, gradient, image

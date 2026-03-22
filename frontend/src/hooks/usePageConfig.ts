@@ -13,6 +13,11 @@ interface PageConfig {
   heroSubtitle?: string;
   heroHighlightText?: string;
   hotSearchTags?: string | string[];
+  hotSearchMode?: 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' | string;
+  hotSearchFixedCount?: number;
+  hotSearchDynamicCount?: number;
+  hotSearchWindowDays?: number;
+  hotSearchMinScore?: number;
   heroDisplayMode?: string;
   heroScrollWebsites?: string;
   heroBgType?: string;
@@ -85,11 +90,14 @@ export const usePageConfig = (slug: string, enabled: boolean = true): UsePageCon
       });
   }, [slug, enabled]);
 
-  // 获取动态热门标签（按点击量排序）
+  // 获取动态热门标签（按页面配置策略返回）
   useEffect(() => {
     if (!enabled || !slug) return;
+    const fixedCount = Number(pageConfig?.hotSearchFixedCount || 4);
+    const dynamicCount = Number(pageConfig?.hotSearchDynamicCount || 6);
+    const limit = Math.max(1, Math.min(30, fixedCount + dynamicCount));
 
-    api.get(`/pages/${slug}/hot-tags`, { params: { limit: 10 } })
+    api.get(`/pages/${slug}/hot-tags`, { params: { limit } })
       .then(res => {
         const data = unwrapApiResponse<HotTagsResponse>(res.data, {});
         const tags = data.tags || [];
@@ -99,7 +107,7 @@ export const usePageConfig = (slug: string, enabled: boolean = true): UsePageCon
         debugLog.error('获取热门标签失败:', err);
         // 失败时不影响其他功能
       });
-  }, [slug, enabled]);
+  }, [slug, enabled, pageConfig?.hotSearchFixedCount, pageConfig?.hotSearchDynamicCount]);
 
   // 获取滚动图标墙的网站数据
   useEffect(() => {

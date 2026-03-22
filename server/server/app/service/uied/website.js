@@ -216,6 +216,56 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 确保网站点击日统计表存在（用于热门搜索标签 7 天热度计算）。
+   */
+  async ensureWebsiteClickDailyTable() {
+    if (this._websiteClickDailyTableReady) return;
+    const { app } = this;
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_website_click_daily\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`website_id\` BIGINT UNSIGNED NOT NULL COMMENT '网站ID',
+        \`metric_date\` INT UNSIGNED NOT NULL COMMENT '统计日期(YYYYMMDD)',
+        \`click_count\` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '当日点击数',
+        \`create_time\` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`uniq_website_date\` (\`website_id\`, \`metric_date\`),
+        KEY \`idx_metric_date\` (\`metric_date\`),
+        KEY \`idx_website_date\` (\`website_id\`, \`metric_date\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站点击日统计表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
+    this._websiteClickDailyTableReady = true;
+  }
+
+  /**
+   * 记录网站当日点击（按天聚合），为热门搜索动态标签提供近 7 天热度源。
+   * @param {number} websiteId 网站ID
+   */
+  async recordWebsiteDailyClick(websiteId) {
+    const { app } = this;
+    const normalizedWebsiteId = Number.parseInt(String(websiteId || 0), 10);
+    if (!Number.isInteger(normalizedWebsiteId) || normalizedWebsiteId <= 0) return;
+    await this.ensureWebsiteClickDailyTable();
+    const now = Math.floor(Date.now() / 1000);
+    const date = new Date();
+    const metricDate = Number.parseInt(
+      `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`,
+      10
+    );
+    await app.model.query(
+      `INSERT INTO uied_website_click_daily (website_id, metric_date, click_count, create_time, update_time)
+       VALUES (?, ?, 1, ?, ?)
+       ON DUPLICATE KEY UPDATE click_count = click_count + 1, update_time = VALUES(update_time)`,
+      {
+        replacements: [ normalizedWebsiteId, metricDate, now, now ],
+        type: app.Sequelize.QueryTypes.INSERT,
+      }
+    );
+  }
+
+  /**
    * 保存网站与分类的关联关系（全量覆盖）。
    * @param {number} websiteId 网站ID
    * @param {number[]} categoryIds 分类ID列表
@@ -1759,10 +1809,16 @@ class WebsiteService extends Service {
    */
   async incrementClick(id) {
     const { app } = this;
+    const normalizedId = Number.parseInt(String(id || 0), 10);
     await app.model.query(
       'UPDATE uied_website SET click_count = click_count + 1 WHERE id = ?',
-      { replacements: [ id ], type: app.Sequelize.QueryTypes.UPDATE }
+      { replacements: [ normalizedId ], type: app.Sequelize.QueryTypes.UPDATE }
     );
+    try {
+      await this.recordWebsiteDailyClick(normalizedId);
+    } catch (error) {
+      this.ctx.logger.warn('[uied.website] 记录点击日统计失败（不影响主点击计数）: %s', error?.message || error);
+    }
   }
 
   /**

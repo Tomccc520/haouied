@@ -14,6 +14,161 @@ const Service = require('egg').Service;
 
 class FrontendService extends Service {
   /**
+   * 规范化热门搜索模式，避免异常值影响前台渲染策略。
+   * @param {unknown} mode 热门搜索模式
+   * @return {'custom_only'|'dynamic_only'|'custom_then_dynamic'}
+   */
+  normalizeHotSearchMode(mode) {
+    const normalized = String(mode || '').trim().toLowerCase();
+    if (normalized === 'custom_only') return 'custom_only';
+    if (normalized === 'dynamic_only') return 'dynamic_only';
+    return 'custom_then_dynamic';
+  }
+
+  /**
+   * 规范化热门搜索数值配置（固定词数量/动态补齐数量/窗口天数/阈值）。
+   * @param {unknown} value 配置值
+   * @param {number} fallback 默认值
+   * @param {number} min 最小值
+   * @param {number} max 最大值
+   * @return {number}
+   */
+  normalizeHotSearchNumber(value, fallback, min, max) {
+    const next = Number.parseInt(String(value), 10);
+    if (!Number.isFinite(next)) return fallback;
+    return Math.min(max, Math.max(min, next));
+  }
+
+  /**
+   * 解析页面热门搜索配置，统一兜底并输出可直接用于计算的结构。
+   * @param {Object} page 页面原始记录
+   * @param {number} fallbackLimit 接口 limit 兜底值
+   * @return {{mode:string,fixedCount:number,dynamicCount:number,windowDays:number,minScore:number,totalLimit:number}}
+   */
+  resolvePageHotTagConfig(page = {}, fallbackLimit = 10) {
+    const fixedCount = this.normalizeHotSearchNumber(page?.hot_search_fixed_count, 4, 0, 20);
+    const dynamicCount = this.normalizeHotSearchNumber(page?.hot_search_dynamic_count, 6, 0, 20);
+    const totalLimit = this.normalizeHotSearchNumber(fallbackLimit, Math.max(1, fixedCount + dynamicCount), 1, 30);
+    return {
+      mode: this.normalizeHotSearchMode(page?.hot_search_mode),
+      fixedCount,
+      dynamicCount,
+      windowDays: this.normalizeHotSearchNumber(page?.hot_search_window_days, 7, 1, 30),
+      minScore: this.normalizeHotSearchNumber(page?.hot_search_min_score, 1, 1, 1000000),
+      totalLimit,
+    };
+  }
+
+  /**
+   * 构建页面热门搜索缓存 Key（5 分钟），避免每次刷新都实时重算导致抖动。
+   * @param {string} slug 页面 slug
+   * @param {number[]} categoryIds 页面分类 ID 列表
+   * @param {Object} config 热门搜索配置
+   * @return {string}
+   */
+  buildPageHotTagsCacheKey(slug, categoryIds = [], config = {}) {
+    const categoryKey = this.normalizeCategoryIdList(categoryIds).join('-') || 'none';
+    const mode = this.normalizeHotSearchMode(config.mode);
+    const fixedCount = this.normalizeHotSearchNumber(config.fixedCount, 4, 0, 20);
+    const dynamicCount = this.normalizeHotSearchNumber(config.dynamicCount, 6, 0, 20);
+    const windowDays = this.normalizeHotSearchNumber(config.windowDays, 7, 1, 30);
+    const minScore = this.normalizeHotSearchNumber(config.minScore, 1, 1, 1000000);
+    const totalLimit = this.normalizeHotSearchNumber(config.totalLimit, 10, 1, 30);
+    return [
+      'uied:page-hot-tags:v2',
+      String(slug || '').trim().toLowerCase(),
+      categoryKey,
+      mode,
+      `f${fixedCount}`,
+      `d${dynamicCount}`,
+      `w${windowDays}`,
+      `s${minScore}`,
+      `l${totalLimit}`,
+    ].join(':');
+  }
+
+  /**
+   * 计算“最近 N 天”起始日期（YYYYMMDD）。
+   * @param {number} windowDays 窗口天数
+   * @return {number}
+   */
+  resolveMetricDateLowerBound(windowDays = 7) {
+    const safeWindowDays = this.normalizeHotSearchNumber(windowDays, 7, 1, 30);
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (safeWindowDays - 1));
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return Number.parseInt(`${yyyy}${mm}${dd}`, 10);
+  }
+
+  /**
+   * 确保页面表存在热门搜索策略字段，避免历史库缺字段导致接口报错。
+   */
+  async ensurePageHotSearchColumns() {
+    if (this._pageHotSearchColumnsReady) return;
+    const { app, ctx } = this;
+    const columnPatchList = [
+      {
+        name: 'hot_search_mode',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_mode` varchar(30) NOT NULL DEFAULT 'custom_then_dynamic' COMMENT '热门搜索模式: custom_only/dynamic_only/custom_then_dynamic' AFTER `hot_search_tags`",
+      },
+      {
+        name: 'hot_search_fixed_count',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_fixed_count` int unsigned NOT NULL DEFAULT 4 COMMENT '固定词数量' AFTER `hot_search_mode`",
+      },
+      {
+        name: 'hot_search_dynamic_count',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_dynamic_count` int unsigned NOT NULL DEFAULT 6 COMMENT '动态补齐数量' AFTER `hot_search_fixed_count`",
+      },
+      {
+        name: 'hot_search_window_days',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_window_days` int unsigned NOT NULL DEFAULT 7 COMMENT '动态热词窗口天数' AFTER `hot_search_dynamic_count`",
+      },
+      {
+        name: 'hot_search_min_score',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_min_score` int unsigned NOT NULL DEFAULT 1 COMMENT '动态热词最低阈值' AFTER `hot_search_window_days`",
+      },
+    ];
+    for (const patch of columnPatchList) {
+      try {
+        await app.model.query(patch.sql, { type: app.Sequelize.QueryTypes.RAW });
+      } catch (error) {
+        const message = String(error?.message || '');
+        if (!/Duplicate column name/i.test(message)) {
+          ctx.logger.warn('[uied.frontend] 自动补齐 uied_page.%s 失败，请手动执行 SQL 补丁: %s', patch.name, message);
+        }
+      }
+    }
+    this._pageHotSearchColumnsReady = true;
+  }
+
+  /**
+   * 确保网站点击日表存在（用于热门搜索标签的 7 天窗口统计）。
+   */
+  async ensureWebsiteClickDailyTable() {
+    if (this._websiteClickDailyTableReady) return;
+    const { app } = this;
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_website_click_daily\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`website_id\` BIGINT UNSIGNED NOT NULL COMMENT '网站ID',
+        \`metric_date\` INT UNSIGNED NOT NULL COMMENT '统计日期(YYYYMMDD)',
+        \`click_count\` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '当日点击数',
+        \`create_time\` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`uniq_website_date\` (\`website_id\`, \`metric_date\`),
+        KEY \`idx_metric_date\` (\`metric_date\`),
+        KEY \`idx_website_date\` (\`website_id\`, \`metric_date\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站点击日统计表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
+    this._websiteClickDailyTableReady = true;
+  }
+
+  /**
    * 生成前端可见网站状态 SQL 条件（仅展示已发布状态，兼容历史 normal）
    * @param {string} alias 表别名前缀（可空）
    * @return {string} SQL 片段
@@ -122,6 +277,7 @@ class FrontendService extends Service {
         ctx.logger.warn('[uied.frontend] 自动补齐 uied_page.show_banner 失败，请手动执行 SQL 补丁: %s', message);
       }
     }
+    await this.ensurePageHotSearchColumns();
     this._pageShowBannerColumnReady = true;
   }
 
@@ -136,6 +292,11 @@ class FrontendService extends Service {
               hero_title as heroTitle, hero_subtitle as heroSubtitle,
               hero_highlight_text as heroHighlightText,
               hot_search_tags as hotSearchTags,
+              hot_search_mode as hotSearchMode,
+              hot_search_fixed_count as hotSearchFixedCount,
+              hot_search_dynamic_count as hotSearchDynamicCount,
+              hot_search_window_days as hotSearchWindowDays,
+              hot_search_min_score as hotSearchMinScore,
               hero_display_mode as heroDisplayMode,
               hero_scroll_websites as heroScrollWebsites,
               hero_bg_type as heroBgType, hero_bg_value as heroBgValue,
@@ -161,6 +322,11 @@ class FrontendService extends Service {
       showCategories: p.showCategories === 1,
       showSidebar: p.showSidebar === 1,
       hotSearchTags: p.hotSearchTags ? this.safeJsonParse(p.hotSearchTags, []) : [],
+      hotSearchMode: this.normalizeHotSearchMode(p.hotSearchMode),
+      hotSearchFixedCount: this.normalizeHotSearchNumber(p.hotSearchFixedCount, 4, 0, 20),
+      hotSearchDynamicCount: this.normalizeHotSearchNumber(p.hotSearchDynamicCount, 6, 0, 20),
+      hotSearchWindowDays: this.normalizeHotSearchNumber(p.hotSearchWindowDays, 7, 1, 30),
+      hotSearchMinScore: this.normalizeHotSearchNumber(p.hotSearchMinScore, 1, 1, 1000000),
       heroScrollWebsites: p.heroScrollWebsites ? this.safeJsonParse(p.heroScrollWebsites, []) : [],
     }));
   }
@@ -336,6 +502,11 @@ class FrontendService extends Service {
         heroHighlightText: page.hero_highlight_text,
         heroSubtitle: page.hero_subtitle,
         hotSearchTags: this.safeJsonParse(page.hot_search_tags, []),
+        hotSearchMode: this.normalizeHotSearchMode(page.hot_search_mode),
+        hotSearchFixedCount: this.normalizeHotSearchNumber(page.hot_search_fixed_count, 4, 0, 20),
+        hotSearchDynamicCount: this.normalizeHotSearchNumber(page.hot_search_dynamic_count, 6, 0, 20),
+        hotSearchWindowDays: this.normalizeHotSearchNumber(page.hot_search_window_days, 7, 1, 30),
+        hotSearchMinScore: this.normalizeHotSearchNumber(page.hot_search_min_score, 1, 1, 1000000),
         heroDisplayMode: page.hero_display_mode || 'search',
         heroScrollWebsites: page.hero_scroll_websites ? JSON.stringify(this.safeJsonParse(page.hero_scroll_websites, [])) : null,
         heroBgType: page.hero_bg_type || 'default',
@@ -411,60 +582,100 @@ class FrontendService extends Service {
   async getPageHotTags(slug, limit = 10) {
     const { app } = this;
     await this.ensureWebsiteCategoryTable();
+    await this.ensureWebsiteClickDailyTable();
+    await this.ensurePageShowBannerColumn();
     const safeLimit = Number.isInteger(parseInt(limit, 10))
       ? Math.max(1, Math.min(30, parseInt(limit, 10)))
       : 10;
 
     // 获取页面
     const [ page ] = await app.model.query(
-      'SELECT id, hot_search_tags FROM uied_page WHERE slug = ? AND is_delete = 0',
+      `SELECT id, hot_search_tags, hot_search_mode, hot_search_fixed_count,
+              hot_search_dynamic_count, hot_search_window_days, hot_search_min_score
+       FROM uied_page
+       WHERE slug = ? AND is_delete = 0`,
       { replacements: [ slug ], type: app.Sequelize.QueryTypes.SELECT }
     );
 
     if (!page) return { tags: [], websites: [] };
+    const hotTagConfig = this.resolvePageHotTagConfig(page, safeLimit);
 
     // 获取页面关联的分类ID
     const categoryIds = await this.getPageCategoryIds(page.id);
     if (categoryIds.length === 0) return { tags: [], websites: [] };
     const categoryFilter = this.buildWebsiteCategoryFilterCondition(categoryIds, 'w');
+    const pageCustomTags = this.safeJsonParse(page.hot_search_tags, [])
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    const cacheKey = this.buildPageHotTagsCacheKey(slug, categoryIds, hotTagConfig);
 
-    // 获取点击量最高的网站
+    /**
+     * 热门搜索接口增加 5 分钟缓存，避免频繁刷新引发标签抖动与数据库压力。
+     */
+    try {
+      const cached = await app.redis.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.tags) && Array.isArray(parsed.websites)) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      this.ctx.logger.warn('[uied.frontend] 读取页面热门标签缓存失败（继续实时计算）: %s', error?.message || error);
+    }
+
+    const metricDateStart = this.resolveMetricDateLowerBound(hotTagConfig.windowDays);
+    const dynamicFetchLimit = Math.max(safeLimit * 8, (hotTagConfig.fixedCount + hotTagConfig.dynamicCount) * 6);
+
+    // 按最近 N 天点击数获取候选网站（优先最近热度）
     let topWebsites = await app.model.query(
-      `SELECT w.id, w.name, w.click_count as clickCount, w.tags
+      `SELECT w.id, w.name, w.tags, w.click_count as clickCount,
+              COALESCE(SUM(d.click_count), 0) as recentClicks
        FROM uied_website w
-       WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')} AND w.click_count > 0
-       ORDER BY w.click_count DESC, w.is_hot DESC, w.is_featured DESC
+       LEFT JOIN uied_website_click_daily d
+         ON d.website_id = w.id AND d.metric_date >= ?
+       WHERE ${categoryFilter.sql}
+         AND w.is_delete = 0
+         AND ${this.getPublicWebsiteStatusCondition('w')}
+       GROUP BY w.id, w.name, w.tags, w.click_count
+       HAVING recentClicks > 0 OR clickCount > 0
+       ORDER BY recentClicks DESC, clickCount DESC, w.is_hot DESC, w.is_featured DESC, w.id DESC
        LIMIT ?`,
       {
-        replacements: [ ...categoryFilter.replacements, safeLimit * 4 ],
+        replacements: [ metricDateStart, ...categoryFilter.replacements, dynamicFetchLimit ],
         type: app.Sequelize.QueryTypes.SELECT,
       }
     );
 
-    // 如果没有点击量数据，回退到热门网站
+    // 如果近期点击不足，回退到全量点击 + 运营标记
     if (topWebsites.length === 0) {
       topWebsites = await app.model.query(
-        `SELECT w.id, w.name, w.click_count as clickCount, w.tags
+        `SELECT w.id, w.name, w.click_count as clickCount, w.tags, 0 as recentClicks
          FROM uied_website w
          WHERE ${categoryFilter.sql} AND w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')}
            AND (w.is_hot = 1 OR w.is_featured = 1)
          ORDER BY w.is_hot DESC, w.is_featured DESC, w.sort ASC
          LIMIT ?`,
         {
-          replacements: [ ...categoryFilter.replacements, safeLimit * 4 ],
+          replacements: [ ...categoryFilter.replacements, dynamicFetchLimit ],
           type: app.Sequelize.QueryTypes.SELECT,
         }
       );
     }
 
     /**
-     * 统计页面范围内网站标签热度，优先返回站点标签而非站点名称。
+     * 统计页面范围内标签热度：
+     * - recentClicks 提升近期热词权重；
+     * - clickCount 保留历史热度兜底；
+     * - rankBonus 减少同分并提升头部稳定性。
      */
     const buildDynamicTags = () => {
       const scoreMap = new Map();
       (Array.isArray(topWebsites) ? topWebsites : []).forEach((website, index) => {
+        const recentClicks = Number.parseInt(String(website?.recentClicks || 0), 10) || 0;
         const clickCount = Number.parseInt(String(website?.clickCount || 0), 10) || 0;
-        const weight = Math.max(clickCount, Math.max(safeLimit - index, 1));
+        const rankBonus = Math.max(dynamicFetchLimit - index, 1);
+        const weight = recentClicks * 10 + clickCount + rankBonus;
         const tagBundle = this.parseWebsiteTagBundle(website?.tags);
         const tags = Array.from(new Set((tagBundle?.tags || []).map(item => String(item || '').trim()).filter(Boolean)));
         tags.forEach(tag => {
@@ -473,27 +684,54 @@ class FrontendService extends Service {
         });
       });
       return Array.from(scoreMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, safeLimit)
+        .filter(item => Number(item[1] || 0) >= hotTagConfig.minScore)
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
+        .slice(0, Math.max(safeLimit * 2, hotTagConfig.dynamicCount + hotTagConfig.fixedCount))
         .map(item => String(item[0]));
     };
 
     const dynamicTags = buildDynamicTags();
-    const pageCustomTags = this.safeJsonParse(page.hot_search_tags, [])
-      .map(item => String(item || '').trim())
-      .filter(Boolean);
-    const resolvedTags = dynamicTags.length > 0
-      ? dynamicTags
-      : pageCustomTags.slice(0, safeLimit);
+    const fixedTags = pageCustomTags.slice(0, hotTagConfig.fixedCount);
+    const dynamicQuota = Math.max(0, Math.min(hotTagConfig.dynamicCount, safeLimit));
+    const dynamicOnlyTags = dynamicTags.slice(0, dynamicQuota > 0 ? dynamicQuota : safeLimit);
+    let resolvedTags = [];
 
-    return {
+    if (hotTagConfig.mode === 'custom_only') {
+      resolvedTags = pageCustomTags.slice(0, safeLimit);
+    } else if (hotTagConfig.mode === 'dynamic_only') {
+      resolvedTags = dynamicOnlyTags.slice(0, safeLimit);
+      if (resolvedTags.length === 0) {
+        resolvedTags = pageCustomTags.slice(0, safeLimit);
+      }
+    } else {
+      const dynamicFillTags = dynamicTags
+        .filter(tag => !fixedTags.includes(tag))
+        .slice(0, dynamicQuota);
+      resolvedTags = [ ...fixedTags, ...dynamicFillTags ].slice(0, safeLimit);
+      if (resolvedTags.length === 0) {
+        resolvedTags = dynamicTags.slice(0, safeLimit);
+      }
+      if (resolvedTags.length === 0) {
+        resolvedTags = pageCustomTags.slice(0, safeLimit);
+      }
+    }
+
+    const response = {
       tags: resolvedTags,
-      websites: topWebsites.map(w => ({
+      websites: topWebsites.slice(0, safeLimit * 2).map(w => ({
         id: String(w.id),
         name: w.name,
-        clickCount: w.clickCount || 0,
+        clickCount: Number(w.clickCount || 0),
+        recentClicks: Number(w.recentClicks || 0),
       })),
     };
+
+    try {
+      await app.redis.set(cacheKey, JSON.stringify(response), 'EX', 300);
+    } catch (error) {
+      this.ctx.logger.warn('[uied.frontend] 写入页面热门标签缓存失败（继续返回实时结果）: %s', error?.message || error);
+    }
+    return response;
   }
 
   /**

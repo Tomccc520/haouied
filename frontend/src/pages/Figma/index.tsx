@@ -95,32 +95,10 @@ const resolvePluginExternalUrl = (item: FigmaListItem): string => {
 
 /**
  * 判断是否可直接跳转外部链接。
- * - 批量扩展数据（manual_expand_*）统一走站内详情，避免外链404体验；
- * - fallback 池与可疑 ID 前缀优先走站内详情，降低“跳转即 404”的风险；
- * - 排除 icon 资源链接；
- * - 优先允许 Figma 社区 plugin 详情页直链。
+ * 说明：仅校验链接格式，是否跳转由后台 figmaPageConfig.cardClickAction 决定。
  */
-const isHighRiskOfficialJumpItem = (item: FigmaListItem): boolean => {
-  const sourceType = String(item.sourceType || '').trim().toLowerCase();
-  const pluginId = String(item.figmaPluginId || '').trim();
-  /**
-   * 说明：
-   * - figma_fallback_pool 中存在大量批量映射条目，官方页稳定性不一致；
-   * - 1140011001* 为当前数据审计识别出的高重复风险前缀，优先走站内详情承接。
-   */
-  if (sourceType === 'figma_fallback_pool') return true;
-  if (pluginId.startsWith('1140011001')) return true;
-  return false;
-};
-
-const shouldOpenOfficialUrl = (item: FigmaListItem, targetUrl: string): boolean => {
-  const sourceType = String(item.sourceType || '').trim().toLowerCase();
-  if (sourceType.startsWith('manual_expand_')) return false;
-  if (isHighRiskOfficialJumpItem(item)) return false;
-  if (!/^https?:\/\//i.test(targetUrl)) return false;
-  if (/\/community\/icon\?/i.test(targetUrl)) return false;
-  if (/^https?:\/\/www\.figma\.com\/community\/plugin\/\d+/i.test(targetUrl)) return true;
-  return /^https?:\/\/www\.figma\.com\/community\/plugins/i.test(targetUrl);
+const shouldOpenOfficialUrl = (_item: FigmaListItem, targetUrl: string): boolean => {
+  return /^https?:\/\//i.test(String(targetUrl || '').trim());
 };
 
 /**

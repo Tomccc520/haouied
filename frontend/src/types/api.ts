@@ -118,6 +118,11 @@ export interface PageConfig {
   heroTitle?: string;
   heroSubtitle?: string;
   hotSearchTags?: string | string[];
+  hotSearchMode?: 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' | string;
+  hotSearchFixedCount?: number;
+  hotSearchDynamicCount?: number;
+  hotSearchWindowDays?: number;
+  hotSearchMinScore?: number;
   heroBgType?: 'default' | 'color' | 'gradient' | 'image';
   heroBgValue?: string;
   searchPlaceholder?: string;

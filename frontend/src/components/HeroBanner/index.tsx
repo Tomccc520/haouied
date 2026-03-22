@@ -46,6 +46,8 @@ interface HeroBannerProps {
   apiHotSearchTags?: string | string[];
   // 新增：动态热门标签（按点击量排序）
   dynamicHotTags?: string[];
+  // 新增：热门搜索模式（custom_only / dynamic_only / custom_then_dynamic）
+  hotSearchMode?: 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' | string;
   // 新增：背景配置
   heroBgType?: string;  // default, color, gradient, image
   heroBgValue?: string; // 背景值
@@ -85,6 +87,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   showStats = true,
   apiHotSearchTags,
   dynamicHotTags,
+  hotSearchMode = 'custom_then_dynamic',
   heroBgType,
   heroBgValue,
   highlightText,
@@ -332,16 +335,39 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     return null;
   };
 
+  /**
+   * 规范化热门搜索模式，避免异常配置影响前台渲染链路。
+   */
+  const resolveHotSearchMode = (): 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' => {
+    const normalized = String(hotSearchMode || '').trim().toLowerCase();
+    if (normalized === 'custom_only') return 'custom_only';
+    if (normalized === 'dynamic_only') return 'dynamic_only';
+    return 'custom_then_dynamic';
+  };
+
   // 热门标签优先级：
-  // 1. 传入的 hotTags（旧版本兼容）
-  // 2. API 配置的热门标签（后台页面管理自定义）
-  // 3. 动态热门标签（按后台网站标签热度）
-  // 4. 默认静态标签
-  // 说明：后台填写“热门搜索标签”即使用自定义；留空时自动回退动态标签。
+  // 1. 传入 hotTags（旧版本兼容）
+  // 2. 按 hotSearchMode 选择自定义 / 动态标签
+  // 3. 默认静态标签兜底
   const apiConfiguredHotTags = parseApiHotSearchTags();
+  const normalizedHotSearchMode = resolveHotSearchMode();
+  const hasApiConfiguredHotTags = Boolean(apiConfiguredHotTags && apiConfiguredHotTags.length > 0);
+  const hasDynamicHotTags = Boolean(dynamicHotTags && dynamicHotTags.length > 0);
+  let resolvedModeHotTags: string[] | null = null;
+
+  if (normalizedHotSearchMode === 'custom_only') {
+    resolvedModeHotTags = hasApiConfiguredHotTags ? (apiConfiguredHotTags as string[]) : null;
+  } else if (normalizedHotSearchMode === 'dynamic_only') {
+    resolvedModeHotTags = hasDynamicHotTags ? (dynamicHotTags as string[]) : null;
+  } else {
+    // custom_then_dynamic：后端已完成“固定词置顶 + 动态补齐”拼装，这里优先使用动态返回。
+    resolvedModeHotTags = hasDynamicHotTags
+      ? (dynamicHotTags as string[])
+      : (hasApiConfiguredHotTags ? (apiConfiguredHotTags as string[]) : null);
+  }
+
   const currentHotTags = hotTags ||
-    (apiConfiguredHotTags && apiConfiguredHotTags.length > 0 ? apiConfiguredHotTags : null) ||
-    (dynamicHotTags && dynamicHotTags.length > 0 ? dynamicHotTags : null) ||
+    resolvedModeHotTags ||
     getHotTags();
 
   // 根据页面类型添加主题类名

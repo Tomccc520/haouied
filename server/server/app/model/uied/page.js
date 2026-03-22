@@ -86,6 +86,36 @@ module.exports = app => {
       allowNull: true,
       comment: '热门搜索标签JSON',
     },
+    hot_search_mode: {
+      type: STRING(30),
+      allowNull: false,
+      defaultValue: 'custom_then_dynamic',
+      comment: '热门搜索模式: custom_only, dynamic_only, custom_then_dynamic',
+    },
+    hot_search_fixed_count: {
+      type: INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 4,
+      comment: '固定词数量',
+    },
+    hot_search_dynamic_count: {
+      type: INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 6,
+      comment: '动态补齐数量',
+    },
+    hot_search_window_days: {
+      type: INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 7,
+      comment: '动态热词窗口天数',
+    },
+    hot_search_min_score: {
+      type: INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 1,
+      comment: '动态热词最低阈值',
+    },
     hero_bg_type: {
       type: STRING(20),
       allowNull: false,

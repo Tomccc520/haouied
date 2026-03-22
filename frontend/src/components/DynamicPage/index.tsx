@@ -524,6 +524,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         customDescription={pageConfig?.heroSubtitle}
         apiHotSearchTags={pageConfig?.hotSearchTags}
         dynamicHotTags={dynamicHotTags}
+        hotSearchMode={pageConfig?.hotSearchMode}
         searchPlaceholder={pageConfig?.searchPlaceholder}
         heroBgType={pageConfig?.heroBgType}
         heroBgValue={pageConfig?.heroBgValue}

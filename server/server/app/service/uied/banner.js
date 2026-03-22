@@ -21,6 +21,32 @@ class BannerService extends Service {
   }
 
   /**
+   * 置顶四卡广告组标识前缀（仅用于后台列表聚合展示，不改变前台投放逻辑）。
+   */
+  getPageBannerBatchPrefix() {
+    return 'batch:page_banner:';
+  }
+
+  /**
+   * 判断 old_id 是否为置顶四卡广告组。
+   * @param {unknown} oldId old_id 字段
+   * @return {boolean}
+   */
+  isPageBannerBatchGroup(oldId) {
+    const value = String(oldId || '').trim();
+    return value.startsWith(this.getPageBannerBatchPrefix());
+  }
+
+  /**
+   * 判断 old_id 是否应参与后台列表聚合（多位置组 + 四卡组）。
+   * @param {unknown} oldId old_id 字段
+   * @return {boolean}
+   */
+  isListMergeGroup(oldId) {
+    return this.isMultiPositionGroup(oldId) || this.isPageBannerBatchGroup(oldId);
+  }
+
+  /**
    * 规范化广告位置参数，兼容前后端不同命名
    */
   normalizePosition(position) {
@@ -162,6 +188,19 @@ class BannerService extends Service {
   }
 
   /**
+   * 规范化客户端传入的广告组 old_id，仅允许识别的组前缀。
+   * @param {unknown} value 组标识
+   * @return {string|null}
+   */
+  normalizeGroupOldId(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) return null;
+    if (this.isMultiPositionGroup(normalized)) return normalized;
+    if (this.isPageBannerBatchGroup(normalized)) return normalized;
+    return null;
+  }
+
+  /**
    * 归一化广告写库 payload（位置与 old_id 由外层控制）
    * @param {Object} data 提交数据
    * @return {Object} 入库字段
@@ -280,11 +319,21 @@ class BannerService extends Service {
   mergeListByPositionGroup(items = []) {
     const groupMap = new Map();
     (Array.isArray(items) ? items : []).forEach(item => {
-      const key = this.isMultiPositionGroup(item.oldId) ? `group:${item.oldId}` : `single:${item.id}`;
+      const normalizedPositionList = this.normalizePositionList(item.positionList?.length ? item.positionList : item.position);
+      const isSinglePageBannerCard = normalizedPositionList.length === 1 && normalizedPositionList[0] === 'page_banner';
+      let key = `single:${item.id}`;
+      if (this.isListMergeGroup(item.oldId)) {
+        key = `group:${item.oldId}`;
+      } else if (isSinglePageBannerCard) {
+        /**
+         * 兼容旧数据：未写入 old_id 的四卡位，也按页面+内容类型聚合为一条记录展示。
+         */
+        key = `page-banner:${String(item.pageSlug || 'all').trim()}:${String(item.contentType || 'image').trim()}`;
+      }
       if (!groupMap.has(key)) {
         groupMap.set(key, {
           ...item,
-          positionList: this.normalizePositionList(item.positionList?.length ? item.positionList : item.position),
+          positionList: normalizedPositionList,
         });
         return;
       }
@@ -423,13 +472,14 @@ class BannerService extends Service {
     const page = parseInt(params.pageNo) || 1;
     const pageSize = parseInt(params.pageSize) || 15;
     const offset = (page - 1) * pageSize;
+    const rawMode = String(params.raw || '').trim() === '1' || params.raw === true;
 
     const rows = await app.model.query(
       'SELECT * FROM uied_banner WHERE is_delete = 0 ORDER BY sort ASC, id ASC',
       { type: app.Sequelize.QueryTypes.SELECT }
     );
-    const mergedLists = this
-      .mergeListByPositionGroup(rows.map(item => this.formatItem(item)))
+    const formattedRows = rows.map(item => this.formatItem(item));
+    const mergedLists = (rawMode ? formattedRows : this.mergeListByPositionGroup(formattedRows))
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || Number(a.id || 0) - Number(b.id || 0));
     const keyword = String(params.keyword || '').trim();
     const scene = this.normalizeScene(params.scene);
@@ -468,11 +518,12 @@ class BannerService extends Service {
   async add(data) {
     const now = Math.floor(Date.now() / 1000);
     const payload = this.buildBannerPayload(data);
+    const customGroupOldId = this.normalizeGroupOldId(data.oldId || data.groupOldId);
     const positionList = this.normalizePositionList(data.positionList?.length ? data.positionList : data.position);
     const positions = positionList.length > 0
       ? positionList
       : [ this.normalizePosition(data.position || 'top') || 'home' ];
-    const multiGroupId = positions.length > 1 ? this.buildMultiPositionGroupId() : null;
+    const multiGroupId = positions.length > 1 ? this.buildMultiPositionGroupId() : customGroupOldId;
     const ids = [];
 
     for (const position of positions) {
@@ -499,6 +550,8 @@ class BannerService extends Service {
     }
 
     const currentOldId = String(currentRow.old_id || '').trim();
+    const normalizedCurrentGroupOldId = this.normalizeGroupOldId(currentOldId);
+    const customGroupOldId = this.normalizeGroupOldId(data.oldId || data.groupOldId);
     const isCurrentMultiGroup = this.isMultiPositionGroup(currentOldId);
     let nextPositionList = this.normalizePositionList(
       data.positionList?.length ? data.positionList : data.position
@@ -516,7 +569,7 @@ class BannerService extends Service {
     const useMultiGroup = positions.length > 1;
     const groupId = useMultiGroup
       ? (isCurrentMultiGroup ? currentOldId : this.buildMultiPositionGroupId())
-      : (isCurrentMultiGroup ? null : (currentOldId || null));
+      : (customGroupOldId || (isCurrentMultiGroup ? null : normalizedCurrentGroupOldId));
 
     const siblingRows = isCurrentMultiGroup
       ? await app.model.query(
@@ -569,18 +622,34 @@ class BannerService extends Service {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const [ currentRow ] = await app.model.query(
-      'SELECT old_id FROM uied_banner WHERE id = ? AND is_delete = 0',
+      'SELECT old_id, position, page_slug, content_type FROM uied_banner WHERE id = ? AND is_delete = 0',
       {
         replacements: [ id ],
         type: app.Sequelize.QueryTypes.SELECT,
       }
     );
     const oldId = String(currentRow?.old_id || '').trim();
-    if (this.isMultiPositionGroup(oldId)) {
+    if (this.isListMergeGroup(oldId)) {
       await app.model.query(
         'UPDATE uied_banner SET is_delete = 1, delete_time = ?, update_time = ? WHERE old_id = ? AND is_delete = 0',
         {
           replacements: [ now, now, oldId ],
+          type: app.Sequelize.QueryTypes.UPDATE,
+        }
+      );
+      return;
+    }
+    /**
+     * 兼容历史四卡数据：old_id 为空但位置为 page_banner 时，按“页面范围+内容类型”整组删除。
+     */
+    const normalizedPosition = this.normalizePosition(currentRow?.position || '');
+    if (!oldId && normalizedPosition === 'page_banner') {
+      const normalizedPageSlug = String(currentRow?.page_slug || 'all').trim() || 'all';
+      const normalizedContentType = String(currentRow?.content_type || 'image').trim() || 'image';
+      await app.model.query(
+        'UPDATE uied_banner SET is_delete = 1, delete_time = ?, update_time = ? WHERE position = ? AND page_slug = ? AND content_type = ? AND is_delete = 0',
+        {
+          replacements: [ now, now, 'page_banner', normalizedPageSlug, normalizedContentType ],
           type: app.Sequelize.QueryTypes.UPDATE,
         }
       );

@@ -18,6 +18,47 @@ const SYSTEM_PAGE_SLUG_SET = new Set(SYSTEM_PAGE_SLUGS);
 
 class PageService extends Service {
   /**
+   * 规范化热门搜索模式，避免非法值入库导致前台行为不一致。
+   * @param {unknown} mode 热门搜索模式
+   * @return {'custom_only'|'dynamic_only'|'custom_then_dynamic'}
+   */
+  normalizeHotSearchMode(mode) {
+    const normalized = String(mode || '').trim().toLowerCase();
+    if (normalized === 'custom_only') return 'custom_only';
+    if (normalized === 'dynamic_only') return 'dynamic_only';
+    return 'custom_then_dynamic';
+  }
+
+  /**
+   * 规范化热门搜索数值配置（窗口天数/阈值/条数）。
+   * @param {unknown} value 配置值
+   * @param {number} fallback 默认值
+   * @param {number} min 最小值
+   * @param {number} max 最大值
+   * @return {number}
+   */
+  normalizeHotSearchNumber(value, fallback, min, max) {
+    const next = Number.parseInt(String(value), 10);
+    if (!Number.isFinite(next)) return fallback;
+    return Math.min(max, Math.max(min, next));
+  }
+
+  /**
+   * 构建页面热门搜索配置（用于写库时统一兜底）。
+   * @param {Object} data 页面数据
+   * @return {{hotSearchMode:string,hotSearchFixedCount:number,hotSearchDynamicCount:number,hotSearchWindowDays:number,hotSearchMinScore:number}}
+   */
+  resolveHotSearchConfig(data = {}) {
+    return {
+      hotSearchMode: this.normalizeHotSearchMode(data.hotSearchMode),
+      hotSearchFixedCount: this.normalizeHotSearchNumber(data.hotSearchFixedCount, 4, 0, 20),
+      hotSearchDynamicCount: this.normalizeHotSearchNumber(data.hotSearchDynamicCount, 6, 0, 20),
+      hotSearchWindowDays: this.normalizeHotSearchNumber(data.hotSearchWindowDays, 7, 1, 30),
+      hotSearchMinScore: this.normalizeHotSearchNumber(data.hotSearchMinScore, 1, 1, 1000000),
+    };
+  }
+
+  /**
    * 判断页面是否属于“导航页面”分组。
    * @param {unknown} type 页面类型字段
    * @param {unknown} slug 页面 slug
@@ -108,7 +149,49 @@ class PageService extends Service {
         ctx.logger.warn('[uied.page] 自动补齐 show_banner 字段失败，请手动执行 SQL 补丁: %s', message);
       }
     }
+    await this.ensureHotSearchConfigColumns();
     this._showBannerColumnReady = true;
+  }
+
+  /**
+   * 确保页面表存在热门搜索策略字段，避免历史库未执行补丁导致配置丢失。
+   */
+  async ensureHotSearchConfigColumns() {
+    if (this._hotSearchConfigColumnsReady) return;
+    const { app, ctx } = this;
+    const columnPatchList = [
+      {
+        name: 'hot_search_mode',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_mode` varchar(30) NOT NULL DEFAULT 'custom_then_dynamic' COMMENT '热门搜索模式: custom_only/dynamic_only/custom_then_dynamic' AFTER `hot_search_tags`",
+      },
+      {
+        name: 'hot_search_fixed_count',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_fixed_count` int unsigned NOT NULL DEFAULT 4 COMMENT '固定词数量' AFTER `hot_search_mode`",
+      },
+      {
+        name: 'hot_search_dynamic_count',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_dynamic_count` int unsigned NOT NULL DEFAULT 6 COMMENT '动态补齐数量' AFTER `hot_search_fixed_count`",
+      },
+      {
+        name: 'hot_search_window_days',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_window_days` int unsigned NOT NULL DEFAULT 7 COMMENT '动态热词窗口天数' AFTER `hot_search_dynamic_count`",
+      },
+      {
+        name: 'hot_search_min_score',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_search_min_score` int unsigned NOT NULL DEFAULT 1 COMMENT '动态热词最低阈值' AFTER `hot_search_window_days`",
+      },
+    ];
+    for (const patch of columnPatchList) {
+      try {
+        await app.model.query(patch.sql, { type: app.Sequelize.QueryTypes.RAW });
+      } catch (error) {
+        const message = String(error?.message || '');
+        if (!/Duplicate column name/i.test(message)) {
+          ctx.logger.warn('[uied.page] 自动补齐 %s 字段失败，请手动执行 SQL 补丁: %s', patch.name, message);
+        }
+      }
+    }
+    this._hotSearchConfigColumnsReady = true;
   }
 
   /**
@@ -166,6 +249,11 @@ class PageService extends Service {
       `SELECT id, name, slug, type, description, icon,
               hero_title as heroTitle, hero_highlight_text as heroHighlightText,
               hero_subtitle as heroSubtitle, hot_search_tags as hotSearchTags,
+              hot_search_mode as hotSearchMode,
+              hot_search_fixed_count as hotSearchFixedCount,
+              hot_search_dynamic_count as hotSearchDynamicCount,
+              hot_search_window_days as hotSearchWindowDays,
+              hot_search_min_score as hotSearchMinScore,
               hero_bg_type as heroBgType, hero_bg_value as heroBgValue,
               hero_display_mode as heroDisplayMode, hero_scroll_websites as heroScrollWebsites,
               search_placeholder as searchPlaceholder, search_enabled as searchEnabled,
@@ -191,6 +279,11 @@ class PageService extends Service {
       showCategories: p.showCategories === 1,
       showSidebar: p.showSidebar === 1,
       hotSearchTags: p.hotSearchTags ? this.safeJsonParse(p.hotSearchTags, []) : [],
+      hotSearchMode: this.normalizeHotSearchMode(p.hotSearchMode),
+      hotSearchFixedCount: this.normalizeHotSearchNumber(p.hotSearchFixedCount, 4, 0, 20),
+      hotSearchDynamicCount: this.normalizeHotSearchNumber(p.hotSearchDynamicCount, 6, 0, 20),
+      hotSearchWindowDays: this.normalizeHotSearchNumber(p.hotSearchWindowDays, 7, 1, 30),
+      hotSearchMinScore: this.normalizeHotSearchNumber(p.hotSearchMinScore, 1, 1, 1000000),
       heroScrollWebsites: p.heroScrollWebsites ? this.safeJsonParse(p.heroScrollWebsites, []) : [],
     }));
 
@@ -249,6 +342,11 @@ class PageService extends Service {
       heroHighlightText: page.hero_highlight_text,
       heroSubtitle: page.hero_subtitle,
       hotSearchTags: page.hot_search_tags ? this.safeJsonParse(page.hot_search_tags, []) : [],
+      hotSearchMode: this.normalizeHotSearchMode(page.hot_search_mode),
+      hotSearchFixedCount: this.normalizeHotSearchNumber(page.hot_search_fixed_count, 4, 0, 20),
+      hotSearchDynamicCount: this.normalizeHotSearchNumber(page.hot_search_dynamic_count, 6, 0, 20),
+      hotSearchWindowDays: this.normalizeHotSearchNumber(page.hot_search_window_days, 7, 1, 30),
+      hotSearchMinScore: this.normalizeHotSearchNumber(page.hot_search_min_score, 1, 1, 1000000),
       heroBgType: page.hero_bg_type,
       heroBgValue: page.hero_bg_value,
       heroDisplayMode: page.hero_display_mode,
@@ -275,6 +373,7 @@ class PageService extends Service {
     await this.ensureShowBannerColumn();
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const hotSearchConfig = this.resolveHotSearchConfig(data);
 
     // 检查 slug 是否已存在
     const [ existing ] = await app.model.query(
@@ -288,15 +387,18 @@ class PageService extends Service {
     const normalizedType = this.normalizePageTypeForStorage(data.type, data.slug);
     const [ result ] = await app.model.query(
       `INSERT INTO uied_page (name, slug, type, description, icon, hero_title, hero_highlight_text,
-        hero_subtitle, hot_search_tags, hero_bg_type, hero_bg_value, hero_display_mode,
+        hero_subtitle, hot_search_tags, hot_search_mode, hot_search_fixed_count, hot_search_dynamic_count,
+        hot_search_window_days, hot_search_min_score, hero_bg_type, hero_bg_value, hero_display_mode,
         hero_scroll_websites, search_placeholder, search_enabled, show_banner, show_hot_recommendations,
         show_categories, show_sidebar, theme_color, sort, is_show, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           data.name, data.slug, normalizedType, data.description || '',
           data.icon || '', data.heroTitle || '', data.heroHighlightText || '',
           data.heroSubtitle || '', data.hotSearchTags ? JSON.stringify(data.hotSearchTags) : null,
+          hotSearchConfig.hotSearchMode, hotSearchConfig.hotSearchFixedCount, hotSearchConfig.hotSearchDynamicCount,
+          hotSearchConfig.hotSearchWindowDays, hotSearchConfig.hotSearchMinScore,
           data.heroBgType || 'default', data.heroBgValue || '',
           data.heroDisplayMode || 'search', data.heroScrollWebsites ? JSON.stringify(data.heroScrollWebsites) : null,
           data.searchPlaceholder || '', data.searchEnabled !== false ? 1 : 0,
@@ -335,6 +437,26 @@ class PageService extends Service {
     if (data.heroHighlightText !== undefined) { updates.push('hero_highlight_text = ?'); values.push(data.heroHighlightText); }
     if (data.heroSubtitle !== undefined) { updates.push('hero_subtitle = ?'); values.push(data.heroSubtitle); }
     if (data.hotSearchTags !== undefined) { updates.push('hot_search_tags = ?'); values.push(JSON.stringify(data.hotSearchTags)); }
+    if (data.hotSearchMode !== undefined) {
+      updates.push('hot_search_mode = ?');
+      values.push(this.normalizeHotSearchMode(data.hotSearchMode));
+    }
+    if (data.hotSearchFixedCount !== undefined) {
+      updates.push('hot_search_fixed_count = ?');
+      values.push(this.normalizeHotSearchNumber(data.hotSearchFixedCount, 4, 0, 20));
+    }
+    if (data.hotSearchDynamicCount !== undefined) {
+      updates.push('hot_search_dynamic_count = ?');
+      values.push(this.normalizeHotSearchNumber(data.hotSearchDynamicCount, 6, 0, 20));
+    }
+    if (data.hotSearchWindowDays !== undefined) {
+      updates.push('hot_search_window_days = ?');
+      values.push(this.normalizeHotSearchNumber(data.hotSearchWindowDays, 7, 1, 30));
+    }
+    if (data.hotSearchMinScore !== undefined) {
+      updates.push('hot_search_min_score = ?');
+      values.push(this.normalizeHotSearchNumber(data.hotSearchMinScore, 1, 1, 1000000));
+    }
     if (data.heroBgType !== undefined) { updates.push('hero_bg_type = ?'); values.push(data.heroBgType); }
     if (data.heroBgValue !== undefined) { updates.push('hero_bg_value = ?'); values.push(data.heroBgValue); }
     if (data.heroDisplayMode !== undefined) { updates.push('hero_display_mode = ?'); values.push(data.heroDisplayMode); }

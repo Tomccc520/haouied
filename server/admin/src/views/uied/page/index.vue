@@ -264,7 +264,42 @@
                                 placeholder="标签1,标签2,标签3"
                             />
                             <div class="text-gray-400 text-xs mt-1">
-                                支持两种模式：填写则使用自定义标签；留空则前台按后台网站标签热度自动生成。
+                                固定词（可选）：用于“固定词置顶 + 动态补齐”模式；多个标签用英文逗号分隔。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="热词模式">
+                            <el-select v-model="editData.hotSearchMode" class="w-100">
+                                <el-option label="固定词优先 + 动态补齐（推荐）" value="custom_then_dynamic" />
+                                <el-option label="仅固定词（后台手填）" value="custom_only" />
+                                <el-option label="仅动态词（按近期热度）" value="dynamic_only" />
+                            </el-select>
+                            <div class="text-gray-400 text-xs mt-1">
+                                配合“固定词数量 / 动态补齐数量”控制前台展示稳定度与实时性。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="固定词数量">
+                            <el-input-number v-model="editData.hotSearchFixedCount" :min="0" :max="20" />
+                            <div class="text-gray-400 text-xs mt-1">
+                                仅在“固定词优先 + 动态补齐”模式下生效，默认 4。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="动态补齐数量">
+                            <el-input-number v-model="editData.hotSearchDynamicCount" :min="0" :max="20" />
+                            <div class="text-gray-400 text-xs mt-1">
+                                仅在“固定词优先 + 动态补齐”或“仅动态词”模式下生效，默认 6。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="统计窗口">
+                            <el-input-number v-model="editData.hotSearchWindowDays" :min="1" :max="30" />
+                            <span class="ml-2 text-xs text-gray-500">天</span>
+                            <div class="text-gray-400 text-xs mt-1">
+                                动态热词按最近 N 天点击热度统计，默认 7 天。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="最低阈值">
+                            <el-input-number v-model="editData.hotSearchMinScore" :min="1" :max="1000000" />
+                            <div class="text-gray-400 text-xs mt-1">
+                                动态标签得分低于阈值时不展示，用于减少抖动与噪音词。
                             </div>
                         </el-form-item>
                         <el-form-item label="背景类型">
@@ -1139,6 +1174,11 @@ const editData = reactive({
     heroHighlightText: '',
     heroSubtitle: '',
     hotSearchTagsStr: '', // 用于表单输入，逗号分隔
+    hotSearchMode: 'custom_then_dynamic',
+    hotSearchFixedCount: 4,
+    hotSearchDynamicCount: 6,
+    hotSearchWindowDays: 7,
+    hotSearchMinScore: 1,
     heroBgType: 'default',
     heroBgValue: '',
     heroDisplayMode: 'search',
@@ -2068,6 +2108,11 @@ const resetEditData = () => {
         heroHighlightText: '',
         heroSubtitle: '',
         hotSearchTagsStr: '',
+        hotSearchMode: 'custom_then_dynamic',
+        hotSearchFixedCount: 4,
+        hotSearchDynamicCount: 6,
+        hotSearchWindowDays: 7,
+        hotSearchMinScore: 1,
         heroBgType: 'default',
         heroBgValue: '',
         heroDisplayMode: 'search',
@@ -2122,6 +2167,32 @@ const resolveInitialEditTab = (
 }
 
 /**
+ * 规范化热门搜索模式，避免历史脏值导致编辑态异常。
+ */
+const normalizeHotSearchMode = (value: unknown): 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' => {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+    if (normalized === 'custom_only') return 'custom_only'
+    if (normalized === 'dynamic_only') return 'dynamic_only'
+    return 'custom_then_dynamic'
+}
+
+/**
+ * 规范化热门搜索数值配置（固定词数量/动态补齐数量/窗口天数/阈值）。
+ */
+const normalizeHotSearchNumber = (
+    value: unknown,
+    fallback: number,
+    min: number,
+    max: number
+): number => {
+    const next = Number.parseInt(String(value), 10)
+    if (!Number.isFinite(next)) return fallback
+    return Math.min(max, Math.max(min, next))
+}
+
+/**
  * 打开编辑弹窗；支持通过 initialTab 快速定位到指定配置分区。
  */
 const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'basic') => {
@@ -2154,6 +2225,11 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         ...row,
         type: normalizedPageType,
         hotSearchTagsStr,
+        hotSearchMode: normalizeHotSearchMode(row.hotSearchMode),
+        hotSearchFixedCount: normalizeHotSearchNumber(row.hotSearchFixedCount, 4, 0, 20),
+        hotSearchDynamicCount: normalizeHotSearchNumber(row.hotSearchDynamicCount, 6, 0, 20),
+        hotSearchWindowDays: normalizeHotSearchNumber(row.hotSearchWindowDays, 7, 1, 30),
+        hotSearchMinScore: normalizeHotSearchNumber(row.hotSearchMinScore, 1, 1, 1000000),
         heroScrollWebsites,
         searchEnabled: row.searchEnabled !== false,
         showBanner: row.showBanner !== false,
@@ -2170,6 +2246,11 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         editData.heroHighlightText = ''
         editData.heroSubtitle = ''
         editData.hotSearchTagsStr = ''
+        editData.hotSearchMode = 'custom_then_dynamic'
+        editData.hotSearchFixedCount = 4
+        editData.hotSearchDynamicCount = 6
+        editData.hotSearchWindowDays = 7
+        editData.hotSearchMinScore = 1
         editData.heroBgType = 'default'
         editData.heroBgValue = ''
         editData.heroDisplayMode = 'search'
@@ -2256,6 +2337,11 @@ const handleSubmit = async () => {
                       .map((s) => s.trim())
                       .filter(Boolean)
                 : [],
+            hotSearchMode: normalizeHotSearchMode(editData.hotSearchMode),
+            hotSearchFixedCount: normalizeHotSearchNumber(editData.hotSearchFixedCount, 4, 0, 20),
+            hotSearchDynamicCount: normalizeHotSearchNumber(editData.hotSearchDynamicCount, 6, 0, 20),
+            hotSearchWindowDays: normalizeHotSearchNumber(editData.hotSearchWindowDays, 7, 1, 30),
+            hotSearchMinScore: normalizeHotSearchNumber(editData.hotSearchMinScore, 1, 1, 1000000),
             heroScrollWebsites: isIconScrollMode
                 ? selectedScrollWebsites.value.map((w) => w.id)
                 : []
@@ -2270,6 +2356,11 @@ const handleSubmit = async () => {
             submitData.heroHighlightText = ''
             submitData.heroSubtitle = ''
             submitData.hotSearchTags = []
+            submitData.hotSearchMode = 'custom_then_dynamic'
+            submitData.hotSearchFixedCount = 4
+            submitData.hotSearchDynamicCount = 6
+            submitData.hotSearchWindowDays = 7
+            submitData.hotSearchMinScore = 1
             submitData.heroBgType = 'default'
             submitData.heroBgValue = ''
             submitData.heroDisplayMode = 'search'
