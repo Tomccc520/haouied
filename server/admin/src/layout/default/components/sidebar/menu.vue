@@ -229,6 +229,8 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
             '/figma-category',
             '/figma-tag',
             '/figma-publish',
+            '/figma-recommend',
+            '推荐审核',
             'uied:figma:'
         ]
     },
@@ -610,6 +612,7 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'figma:插件列表': 20,
     'figma:分类管理': 30,
     'figma:标签管理': 40,
+    'figma:推荐审核': 45,
     'figma:发布插件': 50,
 
     'license:商业授权': 10,

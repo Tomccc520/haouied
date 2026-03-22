@@ -89,6 +89,13 @@ module.exports = app => {
   router.all('/api/uied/figma/tag/add', controller.uied.figma.tagAdd);
   router.all('/api/uied/figma/tag/edit', controller.uied.figma.tagEdit);
   router.all('/api/uied/figma/tag/del', controller.uied.figma.tagDel);
+  router.all('/api/uied/figma/tag/autoTagMissing', controller.uied.figma.autoTagMissing);
+  router.all('/api/uied/figma/stats/refreshMissing', controller.uied.figma.refreshMissingStats);
+  router.all('/api/uied/figma/recommend/list', controller.uied.figma.recommendList);
+  router.all('/api/uied/figma/recommend/detail', controller.uied.figma.recommendDetail);
+  router.all('/api/uied/figma/recommend/approve', controller.uied.figma.recommendApprove);
+  router.all('/api/uied/figma/recommend/reject', controller.uied.figma.recommendReject);
+  router.all('/api/uied/figma/recommend/del', controller.uied.figma.recommendDel);
 
   // ==================== 页面管理 ====================
   router.all('/api/uied/page/list', controller.uied.page.list);

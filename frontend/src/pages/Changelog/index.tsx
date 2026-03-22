@@ -75,6 +75,11 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-03-20',
     title: '正式版1.0.9：MCP中心导航归位 + 官网MCP页重构',
     changes: [
+      { type: 'feature', scope: 'fullstack', text: '【Figma推荐】新增前台“推荐插件”入口：/figma 页支持用户提交插件名称、官方链接、分类与说明，提交后进入后台审核队列' },
+      { type: 'feature', scope: 'backend', text: '【Figma推荐】新增推荐审核能力：后端新增推荐记录入库、审核通过入库插件、审核拒绝与删除接口（/api/uied/figma/recommend/*）' },
+      { type: 'feature', scope: 'backend', text: '【数据库补丁】新增 SQL `patch_2026_0322_figma_recommend_review.sql`：创建推荐审核表并安装“Figma中心 -> 推荐审核”菜单与权限' },
+      { type: 'improve', scope: 'frontend', text: '【Figma后台】插件列表页新增“推荐审核”快捷入口，运营可一键跳转审核页进行通过/拒绝操作' },
+      { type: 'improve', scope: 'fullstack', text: '【Figma数据质检】补充 2000 条插件质量审计报告（图标缺失/重复URL/重复PluginID），用于后续分批去重与补图治理' },
       { type: 'feature', scope: 'fullstack', text: '【热门搜索】页面管理新增热词模式配置：`custom_only` / `dynamic_only` / `custom_then_dynamic`，支持固定词与动态词组合策略' },
       { type: 'feature', scope: 'backend', text: '【热门搜索】新增动态热词策略参数：固定词数量、动态补齐数量、统计窗口天数、最低热度阈值，支持后台可视化配置与接口返回' },
       { type: 'improve', scope: 'backend', text: '【热门搜索】动态热词改为“最近N天点击统计 + 5分钟缓存”模式，基于 `uied_website_click_daily` 聚合，降低榜单抖动与重复计算成本' },

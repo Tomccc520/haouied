@@ -343,6 +343,8 @@ module.exports = app => {
   get('/api/figma/meta/categories', controller.uied.frontend.figmaCategories);
   // GET /api/figma/meta/tags - 获取 Figma 插件标签元数据
   get('/api/figma/meta/tags', controller.uied.frontend.figmaTags);
+  // POST /api/figma/recommend - 提交 Figma 插件推荐
+  post('/api/figma/recommend', controller.uied.frontend.figmaRecommendSubmit);
   // GET /api/figma/:idOrSlug - 获取 Figma 插件详情
   get('/api/figma/:idOrSlug', controller.uied.frontend.figmaDetail);
   // GET /figma/list - 兼容旧前端无 /api 前缀
@@ -351,6 +353,8 @@ module.exports = app => {
   getLegacy('/figma/meta/categories', controller.uied.frontend.figmaCategories);
   // GET /figma/meta/tags - 兼容旧前端无 /api 前缀
   getLegacy('/figma/meta/tags', controller.uied.frontend.figmaTags);
+  // POST /figma/recommend - 兼容旧前端无 /api 前缀
+  postLegacy('/figma/recommend', controller.uied.frontend.figmaRecommendSubmit);
   // GET /figma/:idOrSlug - 兼容旧前端无 /api 前缀
   getLegacy('/figma/:idOrSlug', controller.uied.frontend.figmaDetail);
 

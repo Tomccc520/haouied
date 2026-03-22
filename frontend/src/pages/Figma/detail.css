@@ -106,13 +106,13 @@
 }
 
 .figma-detail-page__hero {
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 16px;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.96));
-  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  border-radius: 18px;
+  background: linear-gradient(140deg, #ffffff 0%, #f6f8fc 100%);
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .figma-detail-page__hero-main {
@@ -122,9 +122,9 @@
 }
 
 .figma-detail-page__icon-wrap {
-  width: 64px;
-  height: 64px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: #f8fafc;
   display: inline-flex;
@@ -149,8 +149,8 @@
 }
 
 .figma-detail-page__fallback-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
 }
 
@@ -175,8 +175,25 @@
 .figma-detail-page__hero-copy p {
   margin: 8px 0 0;
   font-size: 14px;
-  line-height: 1.75;
+  line-height: 1.8;
   color: #475569;
+}
+
+.figma-detail-page__hero-badges {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.figma-detail-page__hero-badges span {
+  font-size: 12px;
+  line-height: 1;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  padding: 6px 10px;
 }
 
 .figma-detail-page__meta {
@@ -204,8 +221,8 @@
 .figma-detail-page__hero-actions a {
   border: 1px solid rgba(15, 23, 42, 0.15);
   border-radius: 999px;
-  height: 30px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 13px;
   text-decoration: none;
   color: #334155;
   font-size: 12px;
@@ -220,17 +237,32 @@
   color: #0f172a;
 }
 
-.figma-detail-page__cover {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 16px;
-  background: #fff;
-  overflow: hidden;
+.figma-detail-page__hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.figma-detail-page__cover img {
-  width: 100%;
-  display: block;
-  object-fit: cover;
+.figma-detail-page__hero-stat {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.figma-detail-page__hero-stat span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.figma-detail-page__hero-stat strong {
+  font-size: 18px;
+  line-height: 1.2;
+  color: #0f172a;
+  font-weight: 700;
 }
 
 .figma-detail-page__content {
@@ -254,6 +286,48 @@
 
 .figma-detail-page__content p:last-child {
   margin-bottom: 0;
+}
+
+.figma-detail-page__guide {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 16px;
+  background: #fff;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.figma-detail-page__guide ol {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.figma-detail-page__guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.figma-detail-page__guide-actions a {
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1;
+  padding: 8px 12px;
+}
+
+.figma-detail-page__guide-actions a:hover {
+  border-color: rgba(15, 23, 42, 0.35);
 }
 
 .figma-detail-page__related {
@@ -425,6 +499,28 @@
   font-size: 12px;
 }
 
+.figma-detail-page__entry-links {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.figma-detail-page__entry-links a {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  color: #0f172a;
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.figma-detail-page__entry-links a:hover {
+  border-color: rgba(15, 23, 42, 0.32);
+}
+
 @media (max-width: 1200px) {
   .figma-detail-page__layout {
     grid-template-columns: 1fr;
@@ -448,7 +544,16 @@
     flex-direction: column;
   }
 
+  .figma-detail-page__hero-badges {
+    gap: 6px;
+  }
+
+  .figma-detail-page__hero-stats {
+    grid-template-columns: 1fr;
+  }
+
   .figma-detail-page__content,
+  .figma-detail-page__guide,
   .figma-detail-page__related {
     padding: 14px;
   }

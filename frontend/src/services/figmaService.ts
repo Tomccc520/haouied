@@ -21,6 +21,17 @@ export interface FigmaListParams {
   sort?: 'latest' | 'hot' | 'users' | 'likes';
 }
 
+export interface FigmaRecommendPayload {
+  pluginName: string;
+  officialUrl: string;
+  summary?: string;
+  categoryId?: number;
+  submitterName?: string;
+  submitterEmail?: string;
+  submitterWechat?: string;
+  submitNote?: string;
+}
+
 export interface FigmaCategoryMeta {
   id: number;
   name: string;
@@ -88,6 +99,12 @@ export interface FigmaListResponse {
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+export interface FigmaRecommendResponse {
+  id: number;
+  status: 'pending' | 'approved' | 'rejected';
+  message?: string;
 }
 
 const DEFAULT_LIST_RESPONSE: FigmaListResponse = {
@@ -183,11 +200,31 @@ export const getFigmaDetail = async (idOrSlug: string | number): Promise<FigmaDe
   }
 };
 
+/**
+ * 提交 Figma 插件推荐（前台用户入口）。
+ */
+export const submitFigmaRecommendation = async (payload: FigmaRecommendPayload): Promise<FigmaRecommendResponse> => {
+  const response = await api.post('/figma/recommend', payload);
+  const data = unwrapApiResponse<Partial<FigmaRecommendResponse>>(response.data, {
+    id: 0,
+    status: 'pending',
+    message: '',
+  });
+  return {
+    id: Number(data?.id || 0),
+    status: String(data?.status || 'pending').trim().toLowerCase() === 'approved'
+      ? 'approved'
+      : (String(data?.status || 'pending').trim().toLowerCase() === 'rejected' ? 'rejected' : 'pending'),
+    message: String(data?.message || '').trim(),
+  };
+};
+
 const figmaService = {
   getFigmaList,
   getFigmaCategories,
   getFigmaTags,
   getFigmaDetail,
+  submitFigmaRecommendation,
 };
 
 export default figmaService;

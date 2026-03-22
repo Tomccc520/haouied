@@ -180,6 +180,16 @@ class BannerService extends Service {
   }
 
   /**
+   * 判断位置列表是否包含置顶四卡位。
+   * @param {string[]} positions 位置列表
+   * @return {boolean}
+   */
+  hasPageBannerPosition(positions = []) {
+    const list = Array.isArray(positions) ? positions : [];
+    return list.includes('page_banner');
+  }
+
+  /**
    * 生成多位置广告组标识
    * @return {string} 分组标识
    */
@@ -400,6 +410,58 @@ class BannerService extends Service {
   }
 
   /**
+   * 计算广告记录包含的场景集合。
+   * @param {Object} item 广告项
+   * @return {Set<string>} 场景集合
+   */
+  getBannerSceneSet(item) {
+    const positionList = this.normalizePositionList(item.positionList?.length ? item.positionList : item.position);
+    if (positionList.length === 0) return new Set([ 'other' ]);
+    return new Set(positionList.map(position => this.resolveSceneFromPosition(position)));
+  }
+
+  /**
+   * 规范化后台“分类筛选”参数。
+   * @param {unknown} sceneGroup 分类标识
+   * @return {string} 规范化后的分类
+   */
+  normalizeSceneGroup(sceneGroup) {
+    const value = String(sceneGroup || '').trim().toLowerCase();
+    if (!value) return 'all';
+    const map = {
+      all: 'all',
+      top: 'top_banner',
+      top_banner: 'top_banner',
+      topbanner: 'top_banner',
+      traffic: 'traffic',
+      content: 'content',
+      support: 'support',
+      other: 'other',
+      normal: 'normal',
+    };
+    return map[value] || 'all';
+  }
+
+  /**
+   * 判断广告是否匹配后台“分类筛选”。
+   * @param {Object} item 广告项
+   * @param {string} sceneGroup 分类标识
+   * @return {boolean} 是否匹配
+   */
+  isBannerMatchedSceneGroup(item, sceneGroup) {
+    const normalizedGroup = this.normalizeSceneGroup(sceneGroup);
+    if (normalizedGroup === 'all') return true;
+    const sceneSet = this.getBannerSceneSet(item);
+    if (normalizedGroup === 'top_banner') return sceneSet.has('page_banner');
+    if (normalizedGroup === 'traffic') return sceneSet.has('home') || sceneSet.has('global_strip');
+    if (normalizedGroup === 'content') return sceneSet.has('detail');
+    if (normalizedGroup === 'support') return sceneSet.has('sidebar') || sceneSet.has('footer');
+    if (normalizedGroup === 'other') return sceneSet.has('other');
+    if (normalizedGroup === 'normal') return !sceneSet.has('page_banner');
+    return true;
+  }
+
+  /**
    * 判断广告是否匹配场景筛选。
    * @param {Object} item 广告项
    * @param {string} scene 场景标识
@@ -408,9 +470,7 @@ class BannerService extends Service {
   isBannerMatchedScene(item, scene) {
     const normalizedScene = this.normalizeScene(scene);
     if (normalizedScene === 'all') return true;
-    const positionList = this.normalizePositionList(item.positionList?.length ? item.positionList : item.position);
-    if (positionList.length === 0) return normalizedScene === 'other';
-    const sceneSet = new Set(positionList.map(position => this.resolveSceneFromPosition(position)));
+    const sceneSet = this.getBannerSceneSet(item);
     return sceneSet.has(normalizedScene);
   }
 
@@ -483,10 +543,12 @@ class BannerService extends Service {
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || Number(a.id || 0) - Number(b.id || 0));
     const keyword = String(params.keyword || '').trim();
     const scene = this.normalizeScene(params.scene);
+    const sceneGroup = this.normalizeSceneGroup(params.sceneGroup);
     const contentType = String(params.contentType || '').trim().toLowerCase();
     const status = String(params.status || '').trim().toLowerCase();
     const filteredLists = mergedLists.filter(item => {
       if (!this.isBannerMatchedKeyword(item, keyword)) return false;
+      if (sceneGroup !== 'all' && !this.isBannerMatchedSceneGroup(item, sceneGroup)) return false;
       if (scene !== 'all' && !this.isBannerMatchedScene(item, scene)) return false;
       if ([ 'image', 'html', 'text' ].includes(contentType) && String(item.contentType || 'image').toLowerCase() !== contentType) {
         return false;
@@ -523,6 +585,14 @@ class BannerService extends Service {
     const positions = positionList.length > 0
       ? positionList
       : [ this.normalizePosition(data.position || 'top') || 'home' ];
+    if (this.hasPageBannerPosition(positions)) {
+      if (positions.length !== 1 || positions[0] !== 'page_banner') {
+        throw new Error('置顶banner广告仅支持单独配置 page_banner 位置');
+      }
+      if (!this.isPageBannerBatchGroup(customGroupOldId)) {
+        throw new Error('置顶banner广告请通过“四卡配置器”保存');
+      }
+    }
     const multiGroupId = positions.length > 1 ? this.buildMultiPositionGroupId() : customGroupOldId;
     const ids = [];
 
@@ -547,6 +617,9 @@ class BannerService extends Service {
     );
     if (!currentRow) {
       throw new Error('广告不存在或已删除');
+    }
+    if (this.normalizePosition(currentRow.position || '') === 'page_banner') {
+      throw new Error('置顶banner广告请通过“四卡配置器”维护');
     }
 
     const currentOldId = String(currentRow.old_id || '').trim();

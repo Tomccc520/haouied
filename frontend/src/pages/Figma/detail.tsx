@@ -42,6 +42,30 @@ const formatCountLabel = (value?: number): string => {
 };
 
 /**
+ * 解析运行时名称，统一详情页展示文案。
+ */
+const resolveRuntimeLabel = (runtime?: string): string => {
+  const normalized = String(runtime || '').trim().toLowerCase();
+  if (!normalized) return '未标注';
+  if (normalized === 'node') return 'Node.js';
+  if (normalized === 'python') return 'Python';
+  if (normalized === 'go') return 'Go';
+  return normalized.toUpperCase();
+};
+
+/**
+ * 解析通信协议文案，统一详情页展示。
+ */
+const resolveTransportLabel = (transportType?: string): string => {
+  const normalized = String(transportType || '').trim().toLowerCase();
+  if (!normalized) return '未标注';
+  if (normalized === 'stdio') return 'Stdio';
+  if (normalized === 'sse') return 'SSE';
+  if (normalized === 'http') return 'HTTP';
+  return normalized.toUpperCase();
+};
+
+/**
  * 处理详情正文：支持纯文本自动转段落。
  */
 const buildContentHtml = (content?: string): string => {
@@ -251,29 +275,87 @@ const FigmaDetailPage: React.FC = () => {
                   <div className="figma-detail-page__hero-copy">
                     <h1>{detail.name}</h1>
                     <p>{detail.summary || '暂无简介'}</p>
+                    <div className="figma-detail-page__hero-badges">
+                      <span>{detail.categoryName || '未分类'}</span>
+                      <span>运行时：{resolveRuntimeLabel(detail.runtime)}</span>
+                      <span>协议：{resolveTransportLabel(detail.transportType)}</span>
+                      <span>作者：{detail.authorName || '社区作者'}</span>
+                    </div>
                     <div className="figma-detail-page__meta">
-                      {detail.categoryName ? <span>{detail.categoryName}</span> : null}
                       <span>收录时间：{formatDateLabel(detail.publishTime || detail.createTime)}</span>
                       <span>更新：{formatDateLabel(detail.updateTime || detail.publishTime)}</span>
                       <span>浏览：{formatCountLabel(detail.viewCount)}</span>
                       <span>使用：{formatCountLabel(detail.userCount)}</span>
                       <span>关注：{formatCountLabel(detail.likeCount)}</span>
                     </div>
+                    <div className="figma-detail-page__hero-actions">
+                      {detail.officialUrl ? (
+                        <a href={detail.officialUrl} target="_blank" rel="noopener noreferrer">
+                          前往官方
+                        </a>
+                      ) : null}
+                      {detail.docsUrl ? (
+                        <a href={detail.docsUrl} target="_blank" rel="noopener noreferrer">
+                          使用文档
+                        </a>
+                      ) : null}
+                      {detail.githubUrl ? (
+                        <a href={detail.githubUrl} target="_blank" rel="noopener noreferrer">
+                          开源仓库
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="figma-detail-page__hero-stats">
+                  <div className="figma-detail-page__hero-stat">
+                    <span>使用人数</span>
+                    <strong>{formatCountLabel(detail.userCount)}</strong>
+                  </div>
+                  <div className="figma-detail-page__hero-stat">
+                    <span>关注人数</span>
+                    <strong>{formatCountLabel(detail.likeCount)}</strong>
+                  </div>
+                  <div className="figma-detail-page__hero-stat">
+                    <span>页面浏览</span>
+                    <strong>{formatCountLabel(detail.viewCount)}</strong>
                   </div>
                 </div>
 
               </header>
 
-              {detail.coverUrl ? (
-                <section className="figma-detail-page__cover">
-                  <img src={getFullImageUrl(detail.coverUrl)} alt={detail.name} loading="lazy" />
-                </section>
-              ) : null}
-
               <article className="figma-detail-page__content">
                 <h2>插件介绍</h2>
                 <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
               </article>
+
+              <section className="figma-detail-page__guide">
+                <div className="figma-detail-page__section-head">
+                  <h3>接入指引</h3>
+                </div>
+                <ol>
+                  <li>先阅读“插件介绍”确认适用场景，再进入官方页面查看安装说明。</li>
+                  <li>优先在测试文件中试用，确认版本兼容后再接入正式项目。</li>
+                  <li>若涉及团队协作，建议同步记录使用规范与常见问题。</li>
+                </ol>
+                <div className="figma-detail-page__guide-actions">
+                  {detail.officialUrl ? (
+                    <a href={detail.officialUrl} target="_blank" rel="noopener noreferrer">
+                      打开官方插件页
+                    </a>
+                  ) : null}
+                  {detail.docsUrl ? (
+                    <a href={detail.docsUrl} target="_blank" rel="noopener noreferrer">
+                      查看文档
+                    </a>
+                  ) : null}
+                  {detail.githubUrl ? (
+                    <a href={detail.githubUrl} target="_blank" rel="noopener noreferrer">
+                      查看源码
+                    </a>
+                  ) : null}
+                </div>
+              </section>
 
               {Array.isArray(detail.related) && detail.related.length > 0 ? (
                 <section className="figma-detail-page__related">
@@ -318,6 +400,14 @@ const FigmaDetailPage: React.FC = () => {
                     <strong>{detail.categoryName || '未分类'}</strong>
                   </li>
                   <li>
+                    <span>运行时</span>
+                    <strong>{resolveRuntimeLabel(detail.runtime)}</strong>
+                  </li>
+                  <li>
+                    <span>通信协议</span>
+                    <strong>{resolveTransportLabel(detail.transportType)}</strong>
+                  </li>
+                  <li>
                     <span>插件标识</span>
                     <strong>{detail.slug || detail.figmaPluginId || detail.id}</strong>
                   </li>
@@ -341,6 +431,24 @@ const FigmaDetailPage: React.FC = () => {
                 ) : (
                   <div className="figma-detail-page__empty">暂无标签</div>
                 )}
+              </section>
+
+              <section className="figma-detail-page__panel">
+                <h3>链接入口</h3>
+                <div className="figma-detail-page__entry-links">
+                  {detail.officialUrl ? (
+                    <a href={detail.officialUrl} target="_blank" rel="noopener noreferrer">官方页面</a>
+                  ) : null}
+                  {detail.docsUrl ? (
+                    <a href={detail.docsUrl} target="_blank" rel="noopener noreferrer">文档入口</a>
+                  ) : null}
+                  {detail.githubUrl ? (
+                    <a href={detail.githubUrl} target="_blank" rel="noopener noreferrer">源码仓库</a>
+                  ) : null}
+                  {!detail.officialUrl && !detail.docsUrl && !detail.githubUrl ? (
+                    <div className="figma-detail-page__empty">暂未配置外部入口</div>
+                  ) : null}
+                </div>
               </section>
             </aside>
           </section>

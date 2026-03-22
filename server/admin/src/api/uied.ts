@@ -324,6 +324,34 @@ export function uiedFigmaTagDelete(params: any) {
     return request.post({ url: '/uied/figma/tag/del', params })
 }
 
+// 批量为无标签插件自动补全标签
+export function uiedFigmaTagAutoFill(params?: any) {
+    return request.post(
+        {
+            url: '/uied/figma/tag/autoTagMissing',
+            params: params || {},
+            timeout: 3 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
+}
+
+// 批量补全 Figma 插件“用户量/关注量”
+export function uiedFigmaRefreshMissingStats(params?: any) {
+    return request.post(
+        {
+            url: '/uied/figma/stats/refreshMissing',
+            params: params || {},
+            timeout: 4 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
+}
+
 // 从 Figma 官方社区采集插件
 export function uiedFigmaImportOfficial(params: any) {
     return request.post(
@@ -336,6 +364,31 @@ export function uiedFigmaImportOfficial(params: any) {
             ignoreCancelToken: true
         }
     )
+}
+
+// Figma插件推荐审核列表
+export function uiedFigmaRecommendList(params?: any) {
+    return request.get({ url: '/uied/figma/recommend/list', params })
+}
+
+// Figma插件推荐审核详情
+export function uiedFigmaRecommendDetail(params: any) {
+    return request.get({ url: '/uied/figma/recommend/detail', params })
+}
+
+// Figma插件推荐审核通过
+export function uiedFigmaRecommendApprove(params: any) {
+    return request.post({ url: '/uied/figma/recommend/approve', params })
+}
+
+// Figma插件推荐审核拒绝
+export function uiedFigmaRecommendReject(params: any) {
+    return request.post({ url: '/uied/figma/recommend/reject', params })
+}
+
+// 删除Figma插件推荐记录
+export function uiedFigmaRecommendDelete(params: any) {
+    return request.post({ url: '/uied/figma/recommend/del', params })
 }
 
 // 网站标签（全部）

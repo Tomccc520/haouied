@@ -2647,6 +2647,30 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 提交 Figma 插件推荐（前端）。
+   * POST /api/figma/recommend
+   */
+  async figmaRecommendSubmit() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    try {
+      this.setNoCacheHeaders();
+      const result = await ctx.service.uied.figma.recommendSubmit({
+        ...body,
+        sourceIp: ctx.ip || ctx.request.ip || '',
+      });
+      ctx.body = {
+        ...result,
+        message: '推荐已提交，等待后台审核',
+      };
+    } catch (error) {
+      ctx.logger.error('提交 Figma 插件推荐失败:', error);
+      ctx.status = 400;
+      ctx.body = { error: error.message || '提交推荐失败' };
+    }
+  }
+
+  /**
    * 获取文章评论（前端）
    * GET /api/articles/:id/comments
    */

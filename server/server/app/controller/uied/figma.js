@@ -292,6 +292,105 @@ class UiedFigmaController extends baseController {
   }
 
   /**
+   * 获取插件推荐审核列表（后台）。
+   */
+  async recommendList() {
+    const { ctx } = this;
+    try {
+      const result = await ctx.service.uied.figma.recommendList(ctx.query || {});
+      this.result({ data: result });
+    } catch (error) {
+      ctx.logger.error('获取 Figma 插件推荐审核列表失败:', error);
+      this.result({ code: 500, message: error.message || '获取推荐审核列表失败' });
+    }
+  }
+
+  /**
+   * 获取插件推荐记录详情（后台）。
+   */
+  async recommendDetail() {
+    const { ctx } = this;
+    const id = Number.parseInt(String(ctx.query?.id || 0), 10);
+    if (!id) {
+      return this.result({ code: 400, message: '缺少推荐记录 ID' });
+    }
+    try {
+      const detail = await ctx.service.uied.figma.recommendDetail(id);
+      if (!detail) {
+        return this.result({ code: 404, message: '推荐记录不存在' });
+      }
+      this.result({ data: detail });
+    } catch (error) {
+      ctx.logger.error('获取 Figma 插件推荐记录详情失败:', error);
+      this.result({ code: 500, message: error.message || '获取推荐记录详情失败' });
+    }
+  }
+
+  /**
+   * 审核通过插件推荐（后台）。
+   */
+  async recommendApprove() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    if (!Number.parseInt(String(body.id || 0), 10)) {
+      return this.result({ code: 400, message: '缺少推荐记录 ID' });
+    }
+    try {
+      const auth = ctx.authInfo || {};
+      const result = await ctx.service.uied.figma.recommendApprove({
+        ...body,
+        reviewerId: auth.adminId || auth.id || 0,
+        reviewerName: auth.nickname || auth.username || '',
+      });
+      this.result({ data: result, message: '审核通过并已处理入库' });
+    } catch (error) {
+      ctx.logger.error('审核通过 Figma 插件推荐失败:', error);
+      this.result({ code: 500, message: error.message || '审核通过失败' });
+    }
+  }
+
+  /**
+   * 审核拒绝插件推荐（后台）。
+   */
+  async recommendReject() {
+    const { ctx } = this;
+    const body = ctx.request.body || {};
+    if (!Number.parseInt(String(body.id || 0), 10)) {
+      return this.result({ code: 400, message: '缺少推荐记录 ID' });
+    }
+    try {
+      const auth = ctx.authInfo || {};
+      await ctx.service.uied.figma.recommendReject({
+        ...body,
+        reviewerId: auth.adminId || auth.id || 0,
+        reviewerName: auth.nickname || auth.username || '',
+      });
+      this.result({ message: '已拒绝该推荐' });
+    } catch (error) {
+      ctx.logger.error('拒绝 Figma 插件推荐失败:', error);
+      this.result({ code: 500, message: error.message || '拒绝失败' });
+    }
+  }
+
+  /**
+   * 删除插件推荐记录（后台）。
+   */
+  async recommendDel() {
+    const { ctx } = this;
+    const id = Number.parseInt(String(ctx.request.body?.id || 0), 10);
+    if (!id) {
+      return this.result({ code: 400, message: '缺少推荐记录 ID' });
+    }
+    try {
+      await ctx.service.uied.figma.recommendDel(id);
+      this.result({ message: '删除成功' });
+    } catch (error) {
+      ctx.logger.error('删除 Figma 插件推荐失败:', error);
+      this.result({ code: 500, message: error.message || '删除失败' });
+    }
+  }
+
+  /**
    * 从 Figma 官方社区链接采集插件数据。
    */
   async importOfficial() {
@@ -303,6 +402,36 @@ class UiedFigmaController extends baseController {
     } catch (error) {
       ctx.logger.error('采集 Figma 官方插件失败:', error);
       this.result({ code: 500, message: error.message || '采集失败' });
+    }
+  }
+
+  /**
+   * 批量为无标签 Figma 插件自动补全标签。
+   */
+  async autoTagMissing() {
+    const { ctx } = this;
+    try {
+      const payload = { ...(ctx.query || {}), ...(ctx.request.body || {}) };
+      const result = await ctx.service.uied.figma.autoTagMissing(payload);
+      this.result({ data: result, message: '批量补标签完成' });
+    } catch (error) {
+      ctx.logger.error('批量补 Figma 标签失败:', error);
+      this.result({ code: 500, message: error.message || '批量补标签失败' });
+    }
+  }
+
+  /**
+   * 批量补全 Figma 插件用户量/关注量。
+   */
+  async refreshMissingStats() {
+    const { ctx } = this;
+    try {
+      const payload = { ...(ctx.query || {}), ...(ctx.request.body || {}) };
+      const result = await ctx.service.uied.figma.refreshMissingStats(payload);
+      this.result({ data: result, message: '补全统计完成' });
+    } catch (error) {
+      ctx.logger.error('补全 Figma 统计失败:', error);
+      this.result({ code: 500, message: error.message || '补全统计失败' });
     }
   }
 }

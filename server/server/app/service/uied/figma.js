@@ -389,6 +389,36 @@ class UiedFigmaService extends Service {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Figma 远程资源缓存表'`,
       { type: app.Sequelize.QueryTypes.RAW }
     );
+    await app.model.query(
+      `CREATE TABLE IF NOT EXISTS \`uied_figma_plugin_recommendation\` (
+        \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        \`plugin_name\` VARCHAR(220) NOT NULL DEFAULT '' COMMENT '推荐插件名称',
+        \`official_url\` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '官方链接',
+        \`summary\` TEXT COMMENT '推荐简介',
+        \`category_id\` BIGINT UNSIGNED DEFAULT NULL COMMENT '意向分类ID',
+        \`category_name\` VARCHAR(120) NOT NULL DEFAULT '' COMMENT '意向分类名称',
+        \`submitter_name\` VARCHAR(120) NOT NULL DEFAULT '' COMMENT '推荐人昵称',
+        \`submitter_email\` VARCHAR(160) NOT NULL DEFAULT '' COMMENT '推荐人邮箱',
+        \`submitter_wechat\` VARCHAR(120) NOT NULL DEFAULT '' COMMENT '推荐人微信',
+        \`submit_note\` VARCHAR(1200) NOT NULL DEFAULT '' COMMENT '推荐说明',
+        \`source_ip\` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '来源IP',
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '审核状态 pending/approved/rejected',
+        \`review_note\` VARCHAR(1200) NOT NULL DEFAULT '' COMMENT '审核备注',
+        \`reviewer_id\` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '审核人ID',
+        \`reviewer_name\` VARCHAR(120) NOT NULL DEFAULT '' COMMENT '审核人名称',
+        \`review_time\` BIGINT NOT NULL DEFAULT 0 COMMENT '审核时间',
+        \`approved_item_id\` BIGINT UNSIGNED DEFAULT NULL COMMENT '通过后生成的插件ID',
+        \`is_delete\` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否删除',
+        \`create_time\` BIGINT NOT NULL DEFAULT 0,
+        \`update_time\` BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        KEY \`idx_figma_rec_status\` (\`status\`),
+        KEY \`idx_figma_rec_official\` (\`official_url\`(191)),
+        KEY \`idx_figma_rec_create\` (\`create_time\`),
+        KEY \`idx_figma_rec_approved_item\` (\`approved_item_id\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Figma 插件推荐审核表'`,
+      { type: app.Sequelize.QueryTypes.RAW }
+    );
 
     /**
      * 兼容历史库：补齐 user_count / like_count 字段。
@@ -1105,6 +1135,38 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 规范化推荐审核状态。
+   * @param {unknown} value 原始状态值
+   * @return {'pending'|'approved'|'rejected'}
+   */
+  normalizeRecommendationStatus(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (text === 'approved') return 'approved';
+    if (text === 'rejected') return 'rejected';
+    return 'pending';
+  }
+
+  /**
+   * 规范化 Figma 插件推荐入参。
+   * @param {Record<string, any>} data 原始数据
+   * @return {Record<string, any>}
+   */
+  normalizeRecommendationPayload(data = {}) {
+    return {
+      pluginName: String(data.pluginName || data.plugin_name || data.name || '').trim(),
+      officialUrl: String(data.officialUrl || data.official_url || data.url || '').trim(),
+      summary: String(data.summary || data.description || '').trim(),
+      categoryId: this.parsePositiveInt(data.categoryId ?? data.category_id, 0) || null,
+      categoryName: String(data.categoryName || data.category_name || '').trim(),
+      submitterName: String(data.submitterName || data.submitter_name || '').trim(),
+      submitterEmail: String(data.submitterEmail || data.submitter_email || '').trim(),
+      submitterWechat: String(data.submitterWechat || data.submitter_wechat || '').trim(),
+      submitNote: String(data.submitNote || data.submit_note || data.remark || '').trim(),
+      sourceIp: String(data.sourceIp || data.source_ip || '').trim(),
+    };
+  }
+
+  /**
    * 规范化插件输出字段，兜底标题/摘要/图标，避免前台出现空白卡片。
    * @param {Record<string, any>} row 数据库原始行
    * @return {Record<string, any>}
@@ -1334,6 +1396,345 @@ class UiedFigmaService extends Service {
   }
 
   /**
+   * 获取 Figma 标签自动补全规则（用于“无标签插件”批量回填）。
+   * @return {Array<{slug:string,name:string,description:string,sortOrder:number,keywords:string[]}>}
+   */
+  getAutoTagRuleList() {
+    return [
+      { slug: 'efficiency', name: '效率提速', description: '提升设计执行效率', sortOrder: 10, keywords: [ '效率', '提速', 'batch', 'workflow', 'automation' ] },
+      { slug: 'ecommerce-scene', name: '电商场景', description: '电商详情页与活动场景', sortOrder: 20, keywords: [ '电商', '商品', '详情页', 'sku', 'banner' ] },
+      { slug: 'operations-campaign', name: '运营活动', description: '活动运营与增长投放场景', sortOrder: 30, keywords: [ '运营', '增长', 'campaign', 'marketing', '活动' ] },
+      { slug: 'ai-assistant', name: 'AI辅助', description: 'AI 生成与智能辅助场景', sortOrder: 40, keywords: [ 'ai', '智能', '生成', 'rewrite', 'prompt' ] },
+      { slug: 'presentation-deck', name: '演示汇报', description: '汇报提案与演示文档场景', sortOrder: 50, keywords: [ '演示', '提案', 'deck', 'presentation', 'slide' ] },
+      { slug: 'component-governance', name: '组件规范', description: '组件治理与设计系统场景', sortOrder: 60, keywords: [ '组件', 'design system', 'token', 'variant', '组件库' ] },
+      { slug: 'icon', name: '图标', description: '图标设计与管理插件', sortOrder: 70, keywords: [ 'icon', '图标', 'icons' ] },
+      { slug: 'illustration', name: '插画', description: '插画素材与生成插件', sortOrder: 80, keywords: [ 'illustration', '插画' ] },
+      { slug: 'mobile', name: '移动端', description: '移动端界面与交互插件', sortOrder: 90, keywords: [ 'mobile', 'ios', 'android', '移动端' ] },
+      { slug: 'color', name: '颜色', description: '颜色系统与调色插件', sortOrder: 100, keywords: [ 'color', 'palette', '颜色', '渐变' ] },
+      { slug: 'typography', name: '文字', description: '文字与排版插件', sortOrder: 110, keywords: [ 'font', 'text', 'type', '排版', '文字' ] },
+      { slug: 'mockup', name: '样机', description: '样机展示插件', sortOrder: 120, keywords: [ 'mockup', '样机', 'device frame' ] },
+      { slug: 'chart', name: '图表', description: '图表可视化插件', sortOrder: 130, keywords: [ 'chart', 'graph', '图表', 'data' ] },
+      { slug: 'chinese', name: '中文', description: '中文场景友好插件', sortOrder: 140, keywords: [ '中文', 'china', 'chinese', '汉化' ] },
+      { slug: 'component', name: '组件', description: '组件构建与管理插件', sortOrder: 150, keywords: [ 'component', '组件', 'variant' ] },
+      { slug: 'image', name: '图像', description: '图像处理与优化插件', sortOrder: 160, keywords: [ 'image', 'photo', '图片', '图像' ] },
+      { slug: 'code', name: '代码', description: '代码生成与开发协作插件', sortOrder: 170, keywords: [ 'code', 'dev', 'developer', '代码' ] },
+      { slug: 'layout', name: '布局', description: '布局排版与网格插件', sortOrder: 180, keywords: [ 'layout', 'grid', 'auto layout', '布局' ] },
+      { slug: '3d', name: '3D', description: '3D 设计相关插件', sortOrder: 190, keywords: [ '3d', 'three', '模型' ] },
+      { slug: 'design-system', name: '设计系统', description: '设计系统与 Token 治理插件', sortOrder: 200, keywords: [ 'design system', 'token', '规范', '设计系统' ] },
+      { slug: 'animation-gif', name: '动画GIF', description: '动效与 GIF 插件', sortOrder: 210, keywords: [ 'animation', 'motion', 'gif', '动画' ] },
+      { slug: 'prototype', name: '原型', description: '原型与交互流程插件', sortOrder: 220, keywords: [ 'prototype', 'flow', '原型', '交互' ] },
+      { slug: 'delivery', name: '交付', description: '设计交付与切图标注插件', sortOrder: 230, keywords: [ 'handoff', 'spec', 'delivery', '交付', '标注' ] },
+      { slug: 'svg', name: 'SVG', description: 'SVG 与矢量处理插件', sortOrder: 240, keywords: [ 'svg', 'vector', 'path', '矢量' ] },
+    ];
+  }
+
+  /**
+   * 根据插件分类/文案推断标签 slug 集合。
+   * @param {Record<string, any>} item 插件条目
+   * @param {Array<{slug:string,keywords:string[]}>} rules 标签规则
+   * @return {string[]}
+   */
+  guessAutoTagSlugs(item = {}, rules = []) {
+    const categorySlug = String(item.categorySlug || '').trim().toLowerCase();
+    const categoryName = String(item.categoryName || '').trim().toLowerCase();
+    const text = [
+      String(item.name || '').trim().toLowerCase(),
+      String(item.summary || '').trim().toLowerCase(),
+      categorySlug,
+      categoryName,
+    ].join(' ');
+    const matched = new Set();
+
+    const categoryRuleMap = {
+      productivity: [ 'efficiency', 'layout' ],
+      ecommerce: [ 'ecommerce-scene', 'image' ],
+      'growth-ops': [ 'operations-campaign', 'chart' ],
+      'ai-design': [ 'ai-assistant', 'typography' ],
+      presentation: [ 'presentation-deck', 'chart' ],
+      'ui-kits': [ 'component-governance', 'component' ],
+      development: [ 'code', 'delivery' ],
+      'import-export': [ 'delivery', 'svg' ],
+      'file-organization': [ 'layout', 'component' ],
+      accessibility: [ 'mobile', 'typography' ],
+      'editing-effects': [ 'image', 'animation-gif' ],
+    };
+
+    const categoryHit = categoryRuleMap[categorySlug] || categoryRuleMap[categoryName] || [];
+    categoryHit.forEach(slug => matched.add(slug));
+
+    (Array.isArray(rules) ? rules : []).forEach(rule => {
+      const keywords = Array.isArray(rule.keywords) ? rule.keywords : [];
+      if (!rule.slug || keywords.length === 0) return;
+      const isHit = keywords.some(keyword => {
+        const token = String(keyword || '').trim().toLowerCase();
+        return token && text.includes(token);
+      });
+      if (isHit) matched.add(rule.slug);
+    });
+
+    /**
+     * 避免无标签：兜底打一个“组件”标签，便于前台筛选与 SEO 聚合页收敛。
+     */
+    if (matched.size === 0) {
+      matched.add('component');
+    }
+    return Array.from(matched);
+  }
+
+  /**
+   * 批量为“无标签插件”自动补齐标签（分类映射 + 关键词推断）。
+   * @param {Record<string, any>} params 执行参数
+   * @return {Promise<{processed:number,updated:number,skipped:number,matchedRelations:number,autoCreatedTags:number,limit:number,onlyWithoutTags:boolean}>}
+   */
+  async autoTagMissing(params = {}) {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const limit = this.clamp(this.parsePositiveInt(params.limit, 1000), 1, 5000);
+    const startId = this.parsePositiveInt(params.startId, 0);
+    const onlyWithoutTags = ![ false, 0, '0', 'false', 'off' ].includes(params.onlyWithoutTags);
+    const dryRun = [ true, 1, '1', 'true', 'on' ].includes(params.dryRun);
+
+    const autoTagRules = this.getAutoTagRuleList();
+    const existingTags = await app.model.query(
+      `SELECT id, slug, name
+       FROM uied_figma_plugin_tag
+       WHERE is_delete = 0
+       ORDER BY sort_order ASC, id ASC`,
+      { type: app.Sequelize.QueryTypes.SELECT }
+    );
+    const tagSlugMap = new Map();
+    (Array.isArray(existingTags) ? existingTags : []).forEach(tag => {
+      const slug = String(tag.slug || '').trim().toLowerCase();
+      if (!slug) return;
+      tagSlugMap.set(slug, Number(tag.id || 0));
+    });
+
+    let autoCreatedTags = 0;
+    for (const rule of autoTagRules) {
+      const slug = String(rule.slug || '').trim().toLowerCase();
+      if (!slug || tagSlugMap.has(slug)) continue;
+      if (dryRun) continue;
+      const [ insertedId ] = await app.model.query(
+        `INSERT INTO uied_figma_plugin_tag
+         (name, slug, description, sort_order, is_delete, create_time, update_time)
+         VALUES (?, ?, ?, ?, 0, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name),
+           description = VALUES(description),
+           sort_order = VALUES(sort_order),
+           is_delete = 0,
+           update_time = VALUES(update_time)`,
+        {
+          replacements: [
+            String(rule.name || slug).trim(),
+            slug,
+            String(rule.description || '').trim(),
+            Number(rule.sortOrder || 0),
+            now,
+            now,
+          ],
+          type: app.Sequelize.QueryTypes.INSERT,
+        }
+      );
+      const nextId = Number(insertedId || 0);
+      if (nextId > 0) autoCreatedTags += 1;
+      const [ savedTag ] = await app.model.query(
+        'SELECT id FROM uied_figma_plugin_tag WHERE slug = ? AND is_delete = 0 LIMIT 1',
+        {
+          replacements: [ slug ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      const savedTagId = Number(savedTag?.id || 0);
+      if (savedTagId > 0) {
+        tagSlugMap.set(slug, savedTagId);
+      }
+    }
+
+    let whereSql = 'i.is_delete = 0';
+    if (onlyWithoutTags) {
+      whereSql += ' AND COALESCE(rel.tagCount, 0) = 0';
+    }
+    if (startId > 0) {
+      whereSql += ' AND i.id > ?';
+    }
+
+    const rows = await app.model.query(
+      `SELECT i.id, i.name, i.summary,
+              c.slug AS categorySlug, c.name AS categoryName,
+              COALESCE(rel.tagCount, 0) AS tagCount,
+              rel.tagIds
+       FROM uied_figma_plugin i
+       LEFT JOIN uied_figma_plugin_category c
+         ON c.id = i.category_id AND c.is_delete = 0
+       LEFT JOIN (
+         SELECT item_id,
+                COUNT(*) AS tagCount,
+                GROUP_CONCAT(tag_id ORDER BY tag_id ASC SEPARATOR ',') AS tagIds
+         FROM uied_figma_plugin_item_tag
+         WHERE is_delete = 0
+         GROUP BY item_id
+       ) rel ON rel.item_id = i.id
+       WHERE ${whereSql}
+       ORDER BY i.id ASC
+       LIMIT ?`,
+      {
+        replacements: startId > 0 ? [ startId, limit ] : [ limit ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    let matchedRelations = 0;
+    let nextStartId = startId;
+
+    for (const row of (Array.isArray(rows) ? rows : [])) {
+      const itemId = this.parsePositiveInt(row.id, 0);
+      if (!itemId) continue;
+      nextStartId = Math.max(nextStartId, itemId);
+      processed += 1;
+
+      const guessedTagSlugs = this.guessAutoTagSlugs(row, autoTagRules);
+      const guessedTagIds = guessedTagSlugs
+        .map(slug => Number(tagSlugMap.get(String(slug || '').trim().toLowerCase()) || 0))
+        .filter(Boolean);
+      if (guessedTagIds.length === 0) {
+        skipped += 1;
+        continue;
+      }
+
+      const existingTagIds = String(row.tagIds || '')
+        .split(',')
+        .map(item => this.parsePositiveInt(item, 0))
+        .filter(Boolean);
+      const finalTagIds = onlyWithoutTags
+        ? Array.from(new Set(guessedTagIds))
+        : Array.from(new Set([ ...existingTagIds, ...guessedTagIds ]));
+
+      if (finalTagIds.length === 0) {
+        skipped += 1;
+        continue;
+      }
+
+      const normalizedExistingTagIds = Array.from(new Set(existingTagIds)).sort((a, b) => a - b);
+      const normalizedFinalTagIds = Array.from(new Set(finalTagIds)).sort((a, b) => a - b);
+      if (normalizedExistingTagIds.join(',') === normalizedFinalTagIds.join(',')) {
+        skipped += 1;
+        continue;
+      }
+
+      if (!dryRun) {
+        await this.saveItemTags(itemId, normalizedFinalTagIds);
+      }
+      updated += 1;
+      matchedRelations += normalizedFinalTagIds.length;
+    }
+
+    return {
+      processed,
+      updated,
+      skipped,
+      matchedRelations,
+      autoCreatedTags,
+      limit,
+      startId,
+      nextStartId,
+      hasMore: processed >= limit,
+      onlyWithoutTags,
+      dryRun,
+    };
+  }
+
+  /**
+   * 批量补全缺失的“用户量/关注量”统计（优先补空值，不覆盖已存在数据）。
+   * @param {Record<string, any>} params 执行参数
+   * @return {Promise<{processed:number,updated:number,failed:number,unchanged:number,limit:number,onlyMissing:boolean}>}
+   */
+  async refreshMissingStats(params = {}) {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const limit = this.clamp(this.parsePositiveInt(params.limit, 60), 1, 300);
+    const beforeId = this.parsePositiveInt(params.beforeId, 0);
+    const onlyMissing = ![ false, 0, '0', 'false', 'off' ].includes(params.onlyMissing);
+
+    let whereSql = "i.is_delete = 0 AND i.status = 'published' AND i.official_url IS NOT NULL AND i.official_url != ''";
+    if (onlyMissing) {
+      whereSql += ' AND (COALESCE(i.user_count, 0) = 0 OR COALESCE(i.like_count, 0) = 0)';
+    }
+    if (beforeId > 0) {
+      whereSql += ' AND i.id < ?';
+    }
+
+    const rows = await app.model.query(
+      `SELECT i.id, i.official_url AS officialUrl, i.user_count AS userCount, i.like_count AS likeCount
+       FROM uied_figma_plugin i
+       WHERE ${whereSql}
+       ORDER BY i.id DESC
+       LIMIT ?`,
+      {
+        replacements: beforeId > 0 ? [ beforeId, limit ] : [ limit ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    let processed = 0;
+    let updated = 0;
+    let failed = 0;
+    let unchanged = 0;
+    let nextBeforeId = beforeId;
+
+    for (const row of (Array.isArray(rows) ? rows : [])) {
+      const itemId = this.parsePositiveInt(row.id, 0);
+      const officialUrl = this.normalizePluginDetailUrl(row.officialUrl);
+      if (!itemId || !officialUrl) continue;
+      if (!nextBeforeId || itemId < nextBeforeId) {
+        nextBeforeId = itemId;
+      }
+      processed += 1;
+      try {
+        const html = await this.fetchHtml(officialUrl, { allowReadOnlyFallback: true });
+        const stats = this.extractPluginStatsFromText(html);
+        const currentUserCount = this.parseCompactNumber(row.userCount);
+        const currentLikeCount = this.parseCompactNumber(row.likeCount);
+        const nextUserCount = currentUserCount > 0 ? currentUserCount : this.parseCompactNumber(stats.userCount);
+        const nextLikeCount = currentLikeCount > 0 ? currentLikeCount : this.parseCompactNumber(stats.likeCount);
+        if (nextUserCount === currentUserCount && nextLikeCount === currentLikeCount) {
+          unchanged += 1;
+          continue;
+        }
+        await app.model.query(
+          `UPDATE uied_figma_plugin
+           SET user_count = ?, like_count = ?, update_time = ?
+           WHERE id = ?`,
+          {
+            replacements: [ nextUserCount, nextLikeCount, now, itemId ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+        updated += 1;
+      } catch (error) {
+        failed += 1;
+      }
+    }
+
+    return {
+      processed,
+      updated,
+      failed,
+      unchanged,
+      limit,
+      beforeId,
+      nextBeforeId: nextBeforeId > 0 ? nextBeforeId : beforeId,
+      hasMore: processed >= limit,
+      onlyMissing,
+    };
+  }
+
+  /**
    * 获取后台 Figma插件 条目分页列表。
    * @param {Record<string, any>} params 查询参数
    * @return {Promise<{lists:any[],count:number,page:number,pageSize:number}>}
@@ -1541,7 +1942,7 @@ class UiedFigmaService extends Service {
           payload.sourceUrl || '',
           payload.transportType,
           payload.runtime,
-          payload.protocolVersion || null,
+          payload.protocolVersion || '',
           payload.categoryId,
           payload.status,
           payload.isRecommended,
@@ -1623,7 +2024,7 @@ class UiedFigmaService extends Service {
           payload.sourceUrl || '',
           payload.transportType,
           payload.runtime,
-          payload.protocolVersion || null,
+          payload.protocolVersion || '',
           payload.categoryId,
           payload.status,
           payload.isRecommended,
@@ -1673,6 +2074,456 @@ class UiedFigmaService extends Service {
       }
     );
 
+    return true;
+  }
+
+  /**
+   * 提交 Figma 插件推荐（前台）。
+   * @param {Record<string, any>} data 推荐数据
+   * @return {Promise<{id:number,status:string}>}
+   */
+  async recommendSubmit(data = {}) {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const payload = this.normalizeRecommendationPayload(data);
+    if (!payload.pluginName) {
+      throw new Error('插件名称不能为空');
+    }
+    const normalizedOfficialUrl = this.normalizePluginDetailUrl(payload.officialUrl);
+    if (!normalizedOfficialUrl) {
+      throw new Error('请填写有效的 Figma 插件官方链接');
+    }
+
+    const [ existsPlugin ] = await app.model.query(
+      'SELECT id, name FROM uied_figma_plugin WHERE official_url = ? AND is_delete = 0 LIMIT 1',
+      {
+        replacements: [ normalizedOfficialUrl ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (existsPlugin && Number(existsPlugin.id || 0) > 0) {
+      throw new Error(`该插件已收录（ID: ${existsPlugin.id}，名称：${existsPlugin.name || payload.pluginName}）`);
+    }
+
+    const [ pendingSubmission ] = await app.model.query(
+      `SELECT id
+       FROM uied_figma_plugin_recommendation
+       WHERE official_url = ?
+         AND status = 'pending'
+         AND is_delete = 0
+       ORDER BY id DESC
+       LIMIT 1`,
+      {
+        replacements: [ normalizedOfficialUrl ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (pendingSubmission && Number(pendingSubmission.id || 0) > 0) {
+      throw new Error('该插件已在审核队列中，请勿重复推荐');
+    }
+
+    let categoryId = payload.categoryId;
+    let categoryName = payload.categoryName;
+    if (categoryId) {
+      const [ categoryRow ] = await app.model.query(
+        'SELECT id, name FROM uied_figma_plugin_category WHERE id = ? AND is_delete = 0 LIMIT 1',
+        {
+          replacements: [ categoryId ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      if (categoryRow && Number(categoryRow.id || 0) > 0) {
+        categoryId = Number(categoryRow.id || 0);
+        categoryName = String(categoryRow.name || '').trim() || categoryName;
+      } else {
+        categoryId = null;
+      }
+    }
+
+    const [ insertedId ] = await app.model.query(
+      `INSERT INTO uied_figma_plugin_recommendation
+       (plugin_name, official_url, summary, category_id, category_name,
+        submitter_name, submitter_email, submitter_wechat, submit_note, source_ip,
+        status, review_note, reviewer_id, reviewer_name, review_time, approved_item_id,
+        is_delete, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', '', 0, '', 0, NULL, 0, ?, ?)`,
+      {
+        replacements: [
+          payload.pluginName,
+          normalizedOfficialUrl,
+          payload.summary || '',
+          categoryId,
+          categoryName || '',
+          payload.submitterName || '',
+          payload.submitterEmail || '',
+          payload.submitterWechat || '',
+          payload.submitNote || '',
+          payload.sourceIp || '',
+          now,
+          now,
+        ],
+        type: app.Sequelize.QueryTypes.INSERT,
+      }
+    );
+
+    return {
+      id: Number(insertedId || 0),
+      status: 'pending',
+    };
+  }
+
+  /**
+   * 获取 Figma 插件推荐审核列表（后台）。
+   * @param {Record<string, any>} params 查询参数
+   * @return {Promise<{lists:any[],count:number,page:number,pageSize:number}>}
+   */
+  async recommendList(params = {}) {
+    await this.ensureTables();
+    const { app } = this;
+    const page = this.parsePositiveInt(params.page ?? params.pageNo, 1);
+    const pageSize = this.parsePositiveInt(params.pageSize, 20);
+    const offset = (page - 1) * pageSize;
+    const keyword = String(params.keyword || '').trim();
+    const status = this.normalizeRecommendationStatus(params.status);
+    const categoryId = this.parsePositiveInt(params.categoryId ?? params.category_id, 0);
+
+    let whereSql = 'r.is_delete = 0';
+    const replacements = [];
+    if (keyword) {
+      whereSql += ' AND (r.plugin_name LIKE ? OR r.official_url LIKE ? OR r.submitter_name LIKE ?)';
+      replacements.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+    if (String(params.status || '').trim()) {
+      whereSql += ' AND r.status = ?';
+      replacements.push(status);
+    }
+    if (categoryId > 0) {
+      whereSql += ' AND r.category_id = ?';
+      replacements.push(categoryId);
+    }
+
+    const [ countRow ] = await app.model.query(
+      `SELECT COUNT(*) AS total
+       FROM uied_figma_plugin_recommendation r
+       WHERE ${whereSql}`,
+      {
+        replacements,
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const rows = await app.model.query(
+      `SELECT r.id,
+              r.plugin_name AS pluginName,
+              r.official_url AS officialUrl,
+              r.summary,
+              r.category_id AS categoryId,
+              r.category_name AS categoryName,
+              r.submitter_name AS submitterName,
+              r.submitter_email AS submitterEmail,
+              r.submitter_wechat AS submitterWechat,
+              r.submit_note AS submitNote,
+              r.source_ip AS sourceIp,
+              r.status,
+              r.review_note AS reviewNote,
+              r.reviewer_id AS reviewerId,
+              r.reviewer_name AS reviewerName,
+              r.review_time AS reviewTime,
+              r.approved_item_id AS approvedItemId,
+              r.create_time AS createTime,
+              r.update_time AS updateTime,
+              p.name AS approvedItemName,
+              p.slug AS approvedItemSlug
+       FROM uied_figma_plugin_recommendation r
+       LEFT JOIN uied_figma_plugin p ON p.id = r.approved_item_id
+       WHERE ${whereSql}
+       ORDER BY CASE r.status
+           WHEN 'pending' THEN 1
+           WHEN 'rejected' THEN 2
+           WHEN 'approved' THEN 3
+           ELSE 4
+         END ASC,
+         r.id DESC
+       LIMIT ? OFFSET ?`,
+      {
+        replacements: [ ...replacements, pageSize, offset ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    return {
+      lists: Array.isArray(rows) ? rows : [],
+      count: Number(countRow?.total || 0),
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * 获取单条推荐记录详情（后台）。
+   * @param {number|string} id 推荐记录 ID
+   * @return {Promise<Record<string, any>|null>}
+   */
+  async recommendDetail(id) {
+    await this.ensureTables();
+    const { app } = this;
+    const recommendId = this.parsePositiveInt(id, 0);
+    if (!recommendId) return null;
+
+    const [ row ] = await app.model.query(
+      `SELECT r.id,
+              r.plugin_name AS pluginName,
+              r.official_url AS officialUrl,
+              r.summary,
+              r.category_id AS categoryId,
+              r.category_name AS categoryName,
+              r.submitter_name AS submitterName,
+              r.submitter_email AS submitterEmail,
+              r.submitter_wechat AS submitterWechat,
+              r.submit_note AS submitNote,
+              r.source_ip AS sourceIp,
+              r.status,
+              r.review_note AS reviewNote,
+              r.reviewer_id AS reviewerId,
+              r.reviewer_name AS reviewerName,
+              r.review_time AS reviewTime,
+              r.approved_item_id AS approvedItemId,
+              r.create_time AS createTime,
+              r.update_time AS updateTime,
+              p.name AS approvedItemName,
+              p.slug AS approvedItemSlug
+       FROM uied_figma_plugin_recommendation r
+       LEFT JOIN uied_figma_plugin p ON p.id = r.approved_item_id
+       WHERE r.id = ?
+         AND r.is_delete = 0
+       LIMIT 1`,
+      {
+        replacements: [ recommendId ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    return row || null;
+  }
+
+  /**
+   * 审核通过推荐记录，并可自动入库到 Figma 插件表。
+   * @param {Record<string, any>} data 审核参数
+   * @return {Promise<{approvedItemId:number,status:string}>}
+   */
+  async recommendApprove(data = {}) {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const recommendId = this.parsePositiveInt(data.id, 0);
+    if (!recommendId) {
+      throw new Error('缺少推荐记录 ID');
+    }
+    const [ row ] = await app.model.query(
+      `SELECT *
+       FROM uied_figma_plugin_recommendation
+       WHERE id = ?
+         AND is_delete = 0
+       LIMIT 1`,
+      {
+        replacements: [ recommendId ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (!row) {
+      throw new Error('推荐记录不存在');
+    }
+    if (String(row.status || '').trim() === 'approved') {
+      return {
+        approvedItemId: Number(row.approved_item_id || 0),
+        status: 'approved',
+      };
+    }
+
+    let categoryId = this.parsePositiveInt(data.categoryId ?? data.category_id, 0)
+      || this.parsePositiveInt(row.category_id, 0)
+      || null;
+    if (categoryId) {
+      const [ categoryRow ] = await app.model.query(
+        'SELECT id FROM uied_figma_plugin_category WHERE id = ? AND is_delete = 0 LIMIT 1',
+        {
+          replacements: [ categoryId ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      if (!categoryRow) {
+        categoryId = null;
+      }
+    }
+
+    const publishStatus = String(data.publishStatus || data.publish_status || '').trim().toLowerCase() === 'draft'
+      ? 'draft'
+      : 'published';
+    const pluginName = String(data.pluginName || data.plugin_name || row.plugin_name || '').trim();
+    const pluginSummary = String(data.summary || row.summary || '').trim();
+    const officialUrl = this.normalizePluginDetailUrl(String(data.officialUrl || data.official_url || row.official_url || '').trim());
+    if (!pluginName) {
+      throw new Error('插件名称不能为空');
+    }
+    if (!officialUrl) {
+      throw new Error('插件官方链接无效');
+    }
+    const parsedPluginId = this.parsePluginIdByUrl(officialUrl);
+
+    let approvedItemId = this.parsePositiveInt(row.approved_item_id, 0);
+    if (!approvedItemId) {
+      const [ existingPlugin ] = await app.model.query(
+        `SELECT id
+         FROM uied_figma_plugin
+         WHERE is_delete = 0
+           AND (official_url = ? OR (? != '' AND figma_plugin_id = ?))
+         LIMIT 1`,
+        {
+          replacements: [ officialUrl, parsedPluginId, parsedPluginId ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      if (existingPlugin && Number(existingPlugin.id || 0) > 0) {
+        approvedItemId = Number(existingPlugin.id || 0);
+      }
+    }
+
+    if (approvedItemId > 0) {
+      await app.model.query(
+        `UPDATE uied_figma_plugin
+         SET category_id = COALESCE(?, category_id),
+             status = CASE WHEN ? = 'published' THEN 'published' ELSE status END,
+             publish_time = CASE
+               WHEN ? = 'published' THEN COALESCE(publish_time, ?)
+               ELSE publish_time
+             END,
+             update_time = ?
+         WHERE id = ?`,
+        {
+          replacements: [ categoryId, publishStatus, publishStatus, now, now, approvedItemId ],
+          type: app.Sequelize.QueryTypes.UPDATE,
+        }
+      );
+    } else {
+      approvedItemId = await this.add({
+        name: pluginName,
+        summary: pluginSummary,
+        content: pluginSummary,
+        official_url: officialUrl,
+        docs_url: officialUrl,
+        figma_plugin_id: parsedPluginId,
+        source_type: 'user_recommend',
+        source_url: '/figma',
+        category_id: categoryId,
+        status: publishStatus,
+        is_recommended: 0,
+        seo_title: pluginName,
+        seo_description: pluginSummary || `${pluginName} 的 Figma 插件介绍。`,
+      });
+    }
+
+    const reviewerId = this.parsePositiveInt(data.reviewerId ?? data.reviewer_id, 0);
+    const reviewerName = String(data.reviewerName || data.reviewer_name || '').trim();
+    const reviewNote = String(data.reviewNote || data.review_note || '').trim();
+    await app.model.query(
+      `UPDATE uied_figma_plugin_recommendation
+       SET status = 'approved',
+           review_note = ?,
+           reviewer_id = ?,
+           reviewer_name = ?,
+           review_time = ?,
+           approved_item_id = ?,
+           category_id = COALESCE(?, category_id),
+           category_name = CASE
+             WHEN COALESCE(?, '') != '' THEN ?
+             ELSE category_name
+           END,
+           update_time = ?
+       WHERE id = ?`,
+      {
+        replacements: [
+          reviewNote,
+          reviewerId,
+          reviewerName,
+          now,
+          approvedItemId,
+          categoryId,
+          String(data.categoryName || data.category_name || row.category_name || '').trim(),
+          String(data.categoryName || data.category_name || row.category_name || '').trim(),
+          now,
+          recommendId,
+        ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+
+    return {
+      approvedItemId: Number(approvedItemId || 0),
+      status: 'approved',
+    };
+  }
+
+  /**
+   * 审核拒绝推荐记录。
+   * @param {Record<string, any>} data 审核参数
+   * @return {Promise<boolean>}
+   */
+  async recommendReject(data = {}) {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const recommendId = this.parsePositiveInt(data.id, 0);
+    if (!recommendId) {
+      throw new Error('缺少推荐记录 ID');
+    }
+    const [ row ] = await app.model.query(
+      'SELECT id FROM uied_figma_plugin_recommendation WHERE id = ? AND is_delete = 0 LIMIT 1',
+      {
+        replacements: [ recommendId ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (!row) {
+      throw new Error('推荐记录不存在');
+    }
+    const reviewerId = this.parsePositiveInt(data.reviewerId ?? data.reviewer_id, 0);
+    const reviewerName = String(data.reviewerName || data.reviewer_name || '').trim();
+    const reviewNote = String(data.reviewNote || data.review_note || '').trim() || '不符合收录标准';
+    await app.model.query(
+      `UPDATE uied_figma_plugin_recommendation
+       SET status = 'rejected',
+           review_note = ?,
+           reviewer_id = ?,
+           reviewer_name = ?,
+           review_time = ?,
+           update_time = ?
+       WHERE id = ?`,
+      {
+        replacements: [ reviewNote, reviewerId, reviewerName, now, now, recommendId ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+    return true;
+  }
+
+  /**
+   * 删除推荐记录（软删除）。
+   * @param {number|string} id 推荐记录 ID
+   * @return {Promise<boolean>}
+   */
+  async recommendDel(id) {
+    await this.ensureTables();
+    const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const recommendId = this.parsePositiveInt(id, 0);
+    if (!recommendId) return true;
+    await app.model.query(
+      'UPDATE uied_figma_plugin_recommendation SET is_delete = 1, update_time = ? WHERE id = ? AND is_delete = 0',
+      {
+        replacements: [ now, recommendId ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
     return true;
   }
 

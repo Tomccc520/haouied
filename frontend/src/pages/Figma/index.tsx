@@ -16,10 +16,12 @@ import { usePublicSettings } from '../../hooks/usePublicSettings';
 import {
   FigmaCategoryMeta,
   FigmaListItem,
+  FigmaRecommendPayload,
   FigmaTagMeta,
   getFigmaCategories,
   getFigmaList,
   getFigmaTags,
+  submitFigmaRecommendation,
 } from '../../services/figmaService';
 import { getFullImageUrl } from '../../utils/urlUtils';
 import './index.css';
@@ -28,6 +30,22 @@ interface FigmaCardStatItem {
   key: 'user' | 'like' | 'view';
   title: string;
   value: string;
+}
+
+interface FigmaRecommendFormState {
+  pluginName: string;
+  officialUrl: string;
+  summary: string;
+  categoryId: string;
+  submitterName: string;
+  submitterEmail: string;
+  submitterWechat: string;
+  submitNote: string;
+}
+
+interface FigmaRecommendFeedback {
+  type: 'success' | 'error';
+  message: string;
 }
 
 type FigmaSortBy = 'latest' | 'hot' | 'users' | 'likes';
@@ -39,6 +57,17 @@ const FIGMA_SORT_OPTIONS: Array<{ value: FigmaSortBy; label: string }> = [
   { value: 'likes', label: '最多收藏' },
 ];
 
+const DEFAULT_RECOMMEND_FORM: FigmaRecommendFormState = {
+  pluginName: '',
+  officialUrl: '',
+  summary: '',
+  categoryId: '',
+  submitterName: '',
+  submitterEmail: '',
+  submitterWechat: '',
+  submitNote: '',
+};
+
 /**
  * 规范化排序参数，避免 URL 传入异常值导致排序失效。
  */
@@ -48,6 +77,15 @@ const normalizeFigmaSortBy = (value?: string | null): FigmaSortBy => {
   if (text === 'users') return 'users';
   if (text === 'likes') return 'likes';
   return 'latest';
+};
+
+/**
+ * 校验推荐链接是否为 Figma 社区插件详情地址。
+ */
+const isValidFigmaPluginUrl = (value: string): boolean => {
+  const text = String(value || '').trim();
+  if (!/^https?:\/\//i.test(text)) return false;
+  return /figma\.com\/community\/plugin\/\d+/i.test(text);
 };
 
 /**
@@ -218,6 +256,10 @@ const FigmaPage: React.FC = () => {
   const [keywordInput, setKeywordInput] = useState(keyword);
   const [isKeywordComposing, setIsKeywordComposing] = useState(false);
   const [iconErrorMap, setIconErrorMap] = useState<Record<number, boolean>>({});
+  const [recommendModalOpen, setRecommendModalOpen] = useState(false);
+  const [recommendSubmitting, setRecommendSubmitting] = useState(false);
+  const [recommendFeedback, setRecommendFeedback] = useState<FigmaRecommendFeedback | null>(null);
+  const [recommendForm, setRecommendForm] = useState<FigmaRecommendFormState>(DEFAULT_RECOMMEND_FORM);
 
   /**
    * 更新 URL 筛选参数。
@@ -430,6 +472,79 @@ const FigmaPage: React.FC = () => {
     setIconErrorMap((prev) => (prev[itemId] ? prev : { ...prev, [itemId]: true }));
   }, []);
 
+  /**
+   * 打开推荐插件弹窗，并清空上次反馈提示。
+   */
+  const handleOpenRecommendModal = useCallback(() => {
+    setRecommendFeedback(null);
+    setRecommendModalOpen(true);
+  }, []);
+
+  /**
+   * 关闭推荐插件弹窗，保留已输入内容方便继续修改。
+   */
+  const handleCloseRecommendModal = useCallback(() => {
+    if (recommendSubmitting) return;
+    setRecommendModalOpen(false);
+  }, [recommendSubmitting]);
+
+  /**
+   * 更新推荐表单字段。
+   */
+  const updateRecommendFormField = useCallback(
+    (key: keyof FigmaRecommendFormState, value: string) => {
+      setRecommendForm((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
+  /**
+   * 提交推荐插件到后台审核队列。
+   */
+  const handleSubmitRecommendation = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (recommendSubmitting) return;
+
+    const pluginName = String(recommendForm.pluginName || '').trim();
+    const officialUrl = String(recommendForm.officialUrl || '').trim();
+    if (!pluginName) {
+      setRecommendFeedback({ type: 'error', message: '请先填写插件名称。' });
+      return;
+    }
+    if (!isValidFigmaPluginUrl(officialUrl)) {
+      setRecommendFeedback({ type: 'error', message: '请填写有效的 Figma 插件详情链接。' });
+      return;
+    }
+
+    const payload: FigmaRecommendPayload = {
+      pluginName,
+      officialUrl,
+      summary: String(recommendForm.summary || '').trim() || undefined,
+      categoryId: Number(recommendForm.categoryId || 0) > 0 ? Number(recommendForm.categoryId) : undefined,
+      submitterName: String(recommendForm.submitterName || '').trim() || undefined,
+      submitterEmail: String(recommendForm.submitterEmail || '').trim() || undefined,
+      submitterWechat: String(recommendForm.submitterWechat || '').trim() || undefined,
+      submitNote: String(recommendForm.submitNote || '').trim() || undefined,
+    };
+
+    setRecommendSubmitting(true);
+    setRecommendFeedback(null);
+    try {
+      const result = await submitFigmaRecommendation(payload);
+      setRecommendFeedback({
+        type: 'success',
+        message: result?.message || '推荐已提交，等待后台审核。',
+      });
+      setRecommendForm(DEFAULT_RECOMMEND_FORM);
+    } catch (error: any) {
+      const message = String(error?.response?.data?.error || error?.message || '').trim()
+        || '提交失败，请稍后重试。';
+      setRecommendFeedback({ type: 'error', message });
+    } finally {
+      setRecommendSubmitting(false);
+    }
+  }, [recommendForm, recommendSubmitting]);
+
   return (
     <div className={pageClassName}>
       <SEO
@@ -450,10 +565,19 @@ const FigmaPage: React.FC = () => {
           <div className="figma-list-page__hero-main">
             <div className="figma-list-page__hero-kicker-row">
               <div className="figma-list-page__kicker">FIGMA COMMUNITY</div>
-              <div className="figma-list-page__hero-mini-tags">
-                <span>Plugins</span>
-                <span>Design Workflow</span>
-                <span>Team Efficiency</span>
+              <div className="figma-list-page__hero-kicker-actions">
+                <div className="figma-list-page__hero-mini-tags">
+                  <span>Plugins</span>
+                  <span>Design Workflow</span>
+                  <span>Team Efficiency</span>
+                </div>
+                <button
+                  type="button"
+                  className="figma-list-page__hero-recommend-btn"
+                  onClick={handleOpenRecommendModal}
+                >
+                  推荐插件
+                </button>
               </div>
             </div>
             <h1>{pageTitle}</h1>
@@ -744,6 +868,137 @@ const FigmaPage: React.FC = () => {
             ) : null}
           </section>
         </div>
+
+        {recommendModalOpen ? (
+          <div className="figma-recommend-modal" role="dialog" aria-modal="true" aria-labelledby="figma-recommend-title">
+            <button
+              type="button"
+              className="figma-recommend-modal__mask"
+              onClick={handleCloseRecommendModal}
+              aria-label="关闭推荐插件弹窗"
+            />
+            <div className="figma-recommend-modal__panel">
+              <div className="figma-recommend-modal__header">
+                <div>
+                  <h2 id="figma-recommend-title">推荐 Figma 插件</h2>
+                  <p>提交后会进入后台审核，通过后自动收录到插件中心。</p>
+                </div>
+                <button
+                  type="button"
+                  className="figma-recommend-modal__close"
+                  onClick={handleCloseRecommendModal}
+                  aria-label="关闭"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form className="figma-recommend-modal__form" onSubmit={handleSubmitRecommendation}>
+                <label>
+                  <span>插件名称 *</span>
+                  <input
+                    type="text"
+                    value={recommendForm.pluginName}
+                    onChange={(event) => updateRecommendFormField('pluginName', event.target.value)}
+                    placeholder="例如：Autoflow"
+                    maxLength={120}
+                  />
+                </label>
+                <label>
+                  <span>官方链接 *</span>
+                  <input
+                    type="url"
+                    value={recommendForm.officialUrl}
+                    onChange={(event) => updateRecommendFormField('officialUrl', event.target.value)}
+                    placeholder="https://www.figma.com/community/plugin/..."
+                    maxLength={300}
+                  />
+                </label>
+                <label>
+                  <span>推荐分类</span>
+                  <select
+                    value={recommendForm.categoryId}
+                    onChange={(event) => updateRecommendFormField('categoryId', event.target.value)}
+                  >
+                    <option value="">不指定</option>
+                    {categories.map((item) => (
+                      <option key={`recommend-category-${item.id}`} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>插件简介</span>
+                  <textarea
+                    value={recommendForm.summary}
+                    onChange={(event) => updateRecommendFormField('summary', event.target.value)}
+                    placeholder="简要说明插件的核心用途（可选）"
+                    rows={3}
+                    maxLength={500}
+                  />
+                </label>
+                <div className="figma-recommend-modal__row">
+                  <label>
+                    <span>推荐人</span>
+                    <input
+                      type="text"
+                      value={recommendForm.submitterName}
+                      onChange={(event) => updateRecommendFormField('submitterName', event.target.value)}
+                      placeholder="昵称（可选）"
+                      maxLength={60}
+                    />
+                  </label>
+                  <label>
+                    <span>联系邮箱</span>
+                    <input
+                      type="email"
+                      value={recommendForm.submitterEmail}
+                      onChange={(event) => updateRecommendFormField('submitterEmail', event.target.value)}
+                      placeholder="用于审核反馈（可选）"
+                      maxLength={100}
+                    />
+                  </label>
+                </div>
+                <label>
+                  <span>微信/备注</span>
+                  <input
+                    type="text"
+                    value={recommendForm.submitterWechat}
+                    onChange={(event) => updateRecommendFormField('submitterWechat', event.target.value)}
+                    placeholder="微信号（可选）"
+                    maxLength={80}
+                  />
+                </label>
+                <label>
+                  <span>补充说明</span>
+                  <textarea
+                    value={recommendForm.submitNote}
+                    onChange={(event) => updateRecommendFormField('submitNote', event.target.value)}
+                    placeholder="可选：比如适用场景、是否中文友好等"
+                    rows={2}
+                    maxLength={300}
+                  />
+                </label>
+
+                {recommendFeedback ? (
+                  <div className={`figma-recommend-modal__feedback is-${recommendFeedback.type}`}>
+                    {recommendFeedback.message}
+                  </div>
+                ) : null}
+
+                <div className="figma-recommend-modal__actions">
+                  <button type="button" className="figma-recommend-modal__btn" onClick={handleCloseRecommendModal}>
+                    取消
+                  </button>
+                  <button type="submit" className="figma-recommend-modal__btn is-primary" disabled={recommendSubmitting}>
+                    {recommendSubmitting ? '提交中...' : '提交推荐'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
