@@ -16,6 +16,19 @@ const crypto = require('crypto');
 
 class UiedFigmaService extends Service {
   /**
+   * 生成前台公开接口的低质量数据过滤 SQL 片段。
+   * 说明：
+   * - `figma_fallback_pool` 为批量兜底池，外链稳定性较差，容易出现 404；
+   * - `1140011001*` 为历史高风险重复前缀，前台统一隐藏。
+   * @param {string} alias 表别名
+   * @return {string}
+   */
+  getPublicLowQualityFilterSql(alias = 'i') {
+    const safeAlias = String(alias || 'i').trim() || 'i';
+    return ` AND ${safeAlias}.source_type != 'figma_fallback_pool' AND ${safeAlias}.figma_plugin_id NOT LIKE '1140011001%'`;
+  }
+
+  /**
    * 生成远程资源缓存哈希（用于唯一索引）。
    * @param {string} value 原始 URL
    * @return {string}
@@ -2630,6 +2643,7 @@ class UiedFigmaService extends Service {
     const sortByRaw = String(params.sort || params.sortBy || '').trim().toLowerCase();
 
     let whereSql = 'i.is_delete = 0 AND i.status = \'published\'';
+    whereSql += this.getPublicLowQualityFilterSql('i');
     const replacements = [];
 
     if (keyword) {
@@ -2763,6 +2777,7 @@ class UiedFigmaService extends Service {
        WHERE ${whereSql}
          AND i.is_delete = 0
          AND i.status = 'published'
+         ${this.getPublicLowQualityFilterSql('i')}
        LIMIT 1`,
       {
         replacements,
@@ -2792,6 +2807,7 @@ class UiedFigmaService extends Service {
        FROM uied_figma_plugin i
        WHERE i.is_delete = 0
          AND i.status = 'published'
+         ${this.getPublicLowQualityFilterSql('i')}
          AND i.id != ?
          AND (
            i.category_id = ?
@@ -2858,6 +2874,7 @@ class UiedFigmaService extends Service {
          ON i.category_id = c.id
         AND i.is_delete = 0
         AND i.status = 'published'
+        ${this.getPublicLowQualityFilterSql('i')}
        WHERE c.is_delete = 0
        GROUP BY c.id, c.name, c.slug
        ORDER BY c.sort_order ASC, c.id ASC`,
@@ -2884,6 +2901,7 @@ class UiedFigmaService extends Service {
          ON i.id = rel.item_id
         AND i.is_delete = 0
         AND i.status = 'published'
+        ${this.getPublicLowQualityFilterSql('i')}
        WHERE t.is_delete = 0
        GROUP BY t.id, t.name, t.slug
        ORDER BY t.sort_order ASC, t.id ASC`,
