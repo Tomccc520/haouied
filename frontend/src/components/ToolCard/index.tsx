@@ -35,6 +35,52 @@ export type IconLoadState = 'loading' | 'loaded' | 'fallback' | 'error';
 /** 默认图标 */
 export const DEFAULT_ICON = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect fill="%23f5f5f5" width="64" height="64" rx="8"/%3E%3Ctext x="32" y="38" text-anchor="middle" fill="%23999" font-size="20"%3E?%3C/text%3E%3C/svg%3E';
 
+/**
+ * 清洗字符串中的非法代理对，避免 encodeURIComponent 触发 URI malformed。
+ * @param value 待清洗字符串
+ * @returns 可安全编码的字符串
+ */
+const sanitizeUnicodeForUrl = (value: string): string => {
+  if (!value) return '';
+  let result = '';
+  for (let i = 0; i < value.length; i += 1) {
+    const currentCode = value.charCodeAt(i);
+    // 高代理：必须跟随低代理才视为有效字符
+    if (currentCode >= 0xD800 && currentCode <= 0xDBFF) {
+      const nextCode = value.charCodeAt(i + 1);
+      if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
+        result += value[i] + value[i + 1];
+        i += 1;
+      } else {
+        result += '\uFFFD';
+      }
+      continue;
+    }
+    // 孤立低代理直接替换
+    if (currentCode >= 0xDC00 && currentCode <= 0xDFFF) {
+      result += '\uFFFD';
+      continue;
+    }
+    result += value[i];
+  }
+  return result;
+};
+
+/**
+ * 安全执行 encodeURIComponent，遇到异常时使用兜底值。
+ * @param value 待编码字符串
+ * @param fallback 兜底值
+ * @returns 编码结果
+ */
+const safeEncodeURIComponent = (value: string, fallback = ''): string => {
+  const normalized = sanitizeUnicodeForUrl(value);
+  try {
+    return encodeURIComponent(normalized);
+  } catch (_error) {
+    return encodeURIComponent(fallback);
+  }
+};
+
 /** 获取图标URL列表（按优先级排序），保留用于测试兼容 */
 export const getIconUrlList = (tool: Tool): string[] => {
   const urls: string[] = [];
@@ -53,12 +99,13 @@ export const getIconUrlList = (tool: Tool): string[] => {
 
 /** 生成基于名称首字母的 SVG 图标 */
 export const generateNameBasedIcon = (name: string | undefined | null): string => {
-  const safeName = name || '?';
-  const initial = safeName.charAt(0).toUpperCase();
+  const normalizedName = sanitizeUnicodeForUrl(String(name || '?'));
+  const safeName = normalizedName || '?';
+  const initial = sanitizeUnicodeForUrl(safeName.charAt(0).toUpperCase()) || '?';
   const hue = safeName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
   const bgColor = `hsl(${hue}, 60%, 90%)`;
   const textColor = `hsl(${hue}, 60%, 40%)`;
-  return `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect fill="${encodeURIComponent(bgColor)}" width="64" height="64" rx="8"/%3E%3Ctext x="32" y="42" text-anchor="middle" fill="${encodeURIComponent(textColor)}" font-size="28" font-weight="bold"%3E${encodeURIComponent(initial)}%3C/text%3E%3C/svg%3E`;
+  return `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect fill="${safeEncodeURIComponent(bgColor, 'hsl(200, 10%, 90%)')}" width="64" height="64" rx="8"/%3E%3Ctext x="32" y="42" text-anchor="middle" fill="${safeEncodeURIComponent(textColor, 'hsl(200, 10%, 40%)')}" font-size="28" font-weight="bold"%3E${safeEncodeURIComponent(initial, '?')}%3C/text%3E%3C/svg%3E`;
 };
 
 /** 图标加载降级逻辑 */

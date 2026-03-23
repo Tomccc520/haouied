@@ -54,6 +54,67 @@ interface CommercialPlacement {
 
 type DisplayBanner = Banner & { badgeText?: string };
 
+interface PageBannerCardItem {
+  title: string;
+  description: string;
+  linkUrl: string;
+  badgeText: string;
+}
+
+/**
+ * 规范化四卡配置项，确保字段格式稳定。
+ */
+const normalizePageBannerCardItems = (value: unknown): PageBannerCardItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 4)
+    .map((item: any) => ({
+      title: String(item?.title || '').trim(),
+      description: String(item?.description || '').trim(),
+      linkUrl: String(item?.linkUrl || '').trim(),
+      badgeText: String(item?.badgeText || '').trim(),
+    }))
+    .filter((item) => Boolean(item.title || item.description || item.linkUrl || item.badgeText));
+};
+
+/**
+ * 从广告 htmlContent 中解析 page_banner 的四卡配置。
+ */
+const parsePageBannerCardItems = (htmlContent?: string): PageBannerCardItem[] => {
+  const raw = String(htmlContent || '').trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return normalizePageBannerCardItems(parsed);
+    }
+    if (parsed && Array.isArray((parsed as any).cardItems)) {
+      return normalizePageBannerCardItems((parsed as any).cardItems);
+    }
+    return [];
+  } catch (_error) {
+    return [];
+  }
+};
+
+/**
+ * 将“单条广告 + 四卡配置”展开为前端可渲染的四张卡片数据。
+ */
+const expandPageBannerTextCards = (banner: DisplayBanner): DisplayBanner[] => {
+  const cardItems = parsePageBannerCardItems(banner.htmlContent);
+  if (cardItems.length === 0) return [ banner ];
+  return cardItems.map((card, index) => ({
+    ...banner,
+    id: `${banner.id}-card-${index + 1}`,
+    title: card.title || banner.title || `广告推荐 ${index + 1}`,
+    description: card.description || '',
+    linkUrl: card.linkUrl || banner.linkUrl || '',
+    badgeText: card.badgeText || banner.badgeText || '',
+    contentType: 'text',
+    order: Number(banner.order || 0) + index,
+  }));
+};
+
 /**
  * 规范化广告位标识，避免大小写/空值导致请求与样式分支不一致。
  */
@@ -249,8 +310,9 @@ const AdBanner: React.FC<AdBannerProps> = ({
   const validImageBanners = imageBanners.filter(b => String(b.imageUrl || '').trim().length > 0);
   const htmlBanners = effectiveBanners.filter(b => b.contentType === 'html');
   const textBanners = effectiveBanners.filter(b => b.contentType === 'text');
+  const expandedPageGridTextBanners = textBanners.flatMap((banner) => expandPageBannerTextCards(banner));
   const pageGridImageBanners = validImageBanners.slice(0, 4);
-  const pageGridTextBanners = textBanners.slice(0, 4);
+  const pageGridTextBanners = expandedPageGridTextBanners.slice(0, 4);
 
   if (effectiveBanners.length === 0) {
     return null;

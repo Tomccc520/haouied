@@ -109,9 +109,14 @@ describe('ToolCard Icon Fallback - Property Tests', () => {
           // 应该是有效的data URL
           expect(icon).toMatch(/^data:image\/svg\+xml/);
           
-          // 应该包含名称首字母
+          // 应该包含名称首字母（支持原文、URL编码或非法字符清洗后的替代符）
           const initial = name.charAt(0).toUpperCase();
-          expect(icon).toContain(initial);
+          const encodedInitial = encodeURIComponent(initial);
+          expect(
+            icon.includes(initial) ||
+            icon.includes(encodedInitial) ||
+            icon.includes('%EF%BF%BD')
+          ).toBe(true);
           
           // 不应该是空的
           expect(icon.length).toBeGreaterThan(0);

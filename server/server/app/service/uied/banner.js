@@ -38,7 +38,7 @@ class BannerService extends Service {
   }
 
   /**
-   * 判断 old_id 是否应参与后台列表聚合（多位置组 + 四卡组）。
+   * 判断 old_id 是否应参与后台列表聚合（多位置组 + 历史四卡组）。
    * @param {unknown} oldId old_id 字段
    * @return {boolean}
    */
@@ -327,35 +327,42 @@ class BannerService extends Service {
    * @return {Array<Object>} 聚合后列表
    */
   mergeListByPositionGroup(items = []) {
+    const source = Array.isArray(items) ? items : [];
     const groupMap = new Map();
-    (Array.isArray(items) ? items : []).forEach(item => {
-      const normalizedPositionList = this.normalizePositionList(item.positionList?.length ? item.positionList : item.position);
-      const isSinglePageBannerCard = normalizedPositionList.length === 1 && normalizedPositionList[0] === 'page_banner';
-      let key = `single:${item.id}`;
-      if (this.isListMergeGroup(item.oldId)) {
-        key = `group:${item.oldId}`;
-      } else if (isSinglePageBannerCard) {
-        /**
-         * 兼容旧数据：未写入 old_id 的四卡位，也按页面+内容类型聚合为一条记录展示。
-         */
-        key = `page-banner:${String(item.pageSlug || 'all').trim()}:${String(item.contentType || 'image').trim()}`;
+    source.forEach(item => {
+      const oldId = String(item.oldId || '').trim();
+      const normalizedPositionList = this.normalizePositionList(
+        item.positionList?.length ? item.positionList : item.position
+      );
+      let groupKey = `single:${item.id}`;
+      if (this.isListMergeGroup(oldId)) {
+        groupKey = `group:${oldId}`;
       }
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
+
+      if (!groupMap.has(groupKey)) {
+        const initialItem = {
           ...item,
+          id: Number(item.id || 0),
+          groupItemIds: [ Number(item.id || 0) ].filter(Boolean),
           positionList: normalizedPositionList,
-        });
+        };
+        groupMap.set(groupKey, initialItem);
         return;
       }
-      const current = groupMap.get(key);
-      const mergedPositionList = Array.from(new Set([
+
+      const current = groupMap.get(groupKey);
+      current.groupItemIds = Array.from(new Set([
+        ...(Array.isArray(current.groupItemIds) ? current.groupItemIds : []),
+        Number(item.id || 0),
+      ].filter(Boolean)));
+      current.positionList = Array.from(new Set([
         ...this.normalizePositionList(current.positionList),
         ...this.normalizePositionList(item.positionList?.length ? item.positionList : item.position),
       ]));
-      current.positionList = mergedPositionList;
-      current.position = mergedPositionList.join(', ');
+      current.position = current.positionList.join(',');
       current.sort = Math.min(Number(current.sort || 0), Number(item.sort || 0));
       current.sortOrder = current.sort;
+      current.clickCount = Math.max(Number(current.clickCount || 0), Number(item.clickCount || 0));
       current.updateTime = Math.max(Number(current.updateTime || 0), Number(item.updateTime || 0));
     });
     return Array.from(groupMap.values());
@@ -527,6 +534,50 @@ class BannerService extends Service {
     return Array.from(new Set(aliases.filter(Boolean)));
   }
 
+  /**
+   * 判断广告是否为“全站通配”页面范围（all/空）。
+   * @param {Object} item 广告项
+   * @return {boolean}
+   */
+  isGlobalPageScopeBanner(item) {
+    const pageSlugList = this.normalizePageSlugList(item.pageSlugList?.length ? item.pageSlugList : item.pageSlug);
+    if (!Array.isArray(pageSlugList) || pageSlugList.length === 0) return true;
+    return pageSlugList.includes('all');
+  }
+
+  /**
+   * 判断广告是否命中当前页面（非 all 的专属页范围）。
+   * @param {Object} item 广告项
+   * @param {string[]} pageSlugAliases 当前页面别名集合
+   * @return {boolean}
+   */
+  isSpecificPageScopeBannerMatched(item, pageSlugAliases = []) {
+    const aliases = Array.isArray(pageSlugAliases) ? pageSlugAliases.filter(Boolean) : [];
+    if (aliases.length === 0) return false;
+    const pageSlugList = this.normalizePageSlugList(item.pageSlugList?.length ? item.pageSlugList : item.pageSlug);
+    if (!Array.isArray(pageSlugList) || pageSlugList.length === 0 || pageSlugList.includes('all')) return false;
+    const targetSet = new Set(aliases);
+    return pageSlugList.some(slug => targetSet.has(slug));
+  }
+
+  /**
+   * 页面广告优先级：页面专属 > 全站通配。
+   * 若存在页面专属配置，仅返回页面专属，避免与 all 配置混出 8 张卡片。
+   * @param {Array<Object>} items 广告列表
+   * @param {string} pageSlug 当前页面标识
+   * @return {Array<Object>}
+   */
+  filterByPageScopePriority(items = [], pageSlug = '') {
+    const normalizedPageSlug = this.normalizePageSlug(pageSlug);
+    if (!normalizedPageSlug) return Array.isArray(items) ? items : [];
+    const pageSlugAliases = this.getPageSlugAliases(normalizedPageSlug);
+    if (!Array.isArray(pageSlugAliases) || pageSlugAliases.length === 0) return Array.isArray(items) ? items : [];
+    const source = Array.isArray(items) ? items : [];
+    const specificMatched = source.filter(item => this.isSpecificPageScopeBannerMatched(item, pageSlugAliases));
+    if (specificMatched.length > 0) return specificMatched;
+    return source.filter(item => this.isGlobalPageScopeBanner(item));
+  }
+
   async list(params = {}) {
     const { app } = this;
     const page = parseInt(params.pageNo) || 1;
@@ -585,23 +636,9 @@ class BannerService extends Service {
     const positions = positionList.length > 0
       ? positionList
       : [ this.normalizePosition(data.position || 'top') || 'home' ];
-    if (this.hasPageBannerPosition(positions)) {
-      if (positions.length !== 1 || positions[0] !== 'page_banner') {
-        throw new Error('置顶banner广告仅支持单独配置 page_banner 位置');
-      }
-      if (!this.isPageBannerBatchGroup(customGroupOldId)) {
-        throw new Error('置顶banner广告请通过“四卡配置器”保存');
-      }
-    }
-    const multiGroupId = positions.length > 1 ? this.buildMultiPositionGroupId() : customGroupOldId;
-    const ids = [];
-
-    for (const position of positions) {
-      const id = await this.insertBannerRecord(payload, multiGroupId, position, now);
-      if (id > 0) ids.push(id);
-    }
-
-    return { id: ids[0] || 0, ids };
+    const position = positions.join(',');
+    const id = await this.insertBannerRecord(payload, customGroupOldId, position, now);
+    return { id: Number(id || 0), ids: id ? [ Number(id) ] : [] };
   }
 
   async edit(data) {
@@ -618,111 +655,69 @@ class BannerService extends Service {
     if (!currentRow) {
       throw new Error('广告不存在或已删除');
     }
-    if (this.normalizePosition(currentRow.position || '') === 'page_banner') {
-      throw new Error('置顶banner广告请通过“四卡配置器”维护');
-    }
-
+    const nextPositionList = this.normalizePositionList(data.positionList?.length ? data.positionList : data.position);
+    const position = nextPositionList.length > 0
+      ? nextPositionList.join(',')
+      : (this.normalizePosition(currentRow.position || 'top') || 'home');
     const currentOldId = String(currentRow.old_id || '').trim();
-    const normalizedCurrentGroupOldId = this.normalizeGroupOldId(currentOldId);
-    const customGroupOldId = this.normalizeGroupOldId(data.oldId || data.groupOldId);
-    const isCurrentMultiGroup = this.isMultiPositionGroup(currentOldId);
-    let nextPositionList = this.normalizePositionList(
-      data.positionList?.length ? data.positionList : data.position
-    );
-    /**
-     * 编辑单条广告时，避免因为历史逗号串位置或前端误传多位置导致“编辑变新增”。
-     * 仅当当前记录本身是多位置组时，才允许保留多位置编辑能力。
-     */
-    if (!isCurrentMultiGroup && nextPositionList.length > 1) {
-      nextPositionList = [ nextPositionList[0] ];
-    }
-    const positions = nextPositionList.length > 0
-      ? nextPositionList
-      : [ this.normalizePosition(currentRow.position || 'top') || 'home' ];
-    const useMultiGroup = positions.length > 1;
-    const groupId = useMultiGroup
-      ? (isCurrentMultiGroup ? currentOldId : this.buildMultiPositionGroupId())
-      : (customGroupOldId || (isCurrentMultiGroup ? null : normalizedCurrentGroupOldId));
-
-    const siblingRows = isCurrentMultiGroup
-      ? await app.model.query(
-        'SELECT id FROM uied_banner WHERE old_id = ? AND is_delete = 0 AND id <> ? ORDER BY id ASC',
-        {
-          replacements: [ currentOldId, data.id ],
-          type: app.Sequelize.QueryTypes.SELECT,
-        }
-      )
-      : [];
-    const reusableIds = [
-      Number(data.id || 0),
-      ...(Array.isArray(siblingRows) ? siblingRows.map(item => Number(item.id || 0)) : []).filter(Boolean),
-    ];
-
-    /**
-     * 编辑流程不允许自动新增记录，避免“编辑变新增”的误操作。
-     * 如需新增广告位，请通过“添加广告”或“四卡批量编辑”入口处理。
-     */
-    const editableCount = Math.min(positions.length, reusableIds.length);
-    for (let i = 0; i < editableCount; i++) {
-      const position = positions[i];
-      const recordId = reusableIds[i];
-      if (!recordId) continue;
-      await this.updateBannerRecord(recordId, payload, groupId, position, now);
-    }
-
-    if (positions.length > reusableIds.length) {
-      this.ctx.logger.warn(
-        '[uied.banner.edit] 编辑请求包含额外位置，已忽略新增行为: id=%s, positions=%j, reusableIds=%j',
-        data.id,
-        positions,
-        reusableIds
-      );
-    }
-
-    const removeIds = reusableIds.slice(editableCount).filter(Boolean);
-    if (removeIds.length > 0) {
+    if (this.isPageBannerBatchGroup(currentOldId)) {
+      await this.updateBannerRecord(Number(data.id || 0), payload, null, position, now);
       await app.model.query(
-        `UPDATE uied_banner SET is_delete = 1, delete_time = ?, update_time = ? WHERE id IN (${removeIds.map(() => '?').join(',')})`,
+        `UPDATE uied_banner
+         SET is_delete = 1, delete_time = ?, update_time = ?
+         WHERE old_id = ? AND id <> ? AND is_delete = 0`,
         {
-          replacements: [ now, now, ...removeIds ],
+          replacements: [ now, now, currentOldId, Number(data.id || 0) ],
           type: app.Sequelize.QueryTypes.UPDATE,
         }
       );
+      return;
     }
+    if (this.isMultiPositionGroup(currentOldId)) {
+      const siblingRows = await app.model.query(
+        'SELECT id FROM uied_banner WHERE old_id = ? AND is_delete = 0 ORDER BY id ASC',
+        {
+          replacements: [ currentOldId ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      const siblingIds = (Array.isArray(siblingRows) ? siblingRows : [])
+        .map(item => Number(item.id || 0))
+        .filter(Boolean);
+      await this.updateBannerRecord(Number(data.id || 0), payload, null, position, now);
+      const removeIds = siblingIds.filter(id => id !== Number(data.id || 0));
+      if (removeIds.length > 0) {
+        await app.model.query(
+          `UPDATE uied_banner
+           SET is_delete = 1, delete_time = ?, update_time = ?
+           WHERE old_id = ? AND id <> ? AND is_delete = 0`,
+          {
+            replacements: [ now, now, currentOldId, Number(data.id || 0) ],
+            type: app.Sequelize.QueryTypes.UPDATE,
+          }
+        );
+      }
+      return;
+    }
+    await this.updateBannerRecord(Number(data.id || 0), payload, null, position, now);
   }
 
   async del(id) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const [ currentRow ] = await app.model.query(
-      'SELECT old_id, position, page_slug, content_type FROM uied_banner WHERE id = ? AND is_delete = 0',
+      'SELECT id, old_id, position, page_slug, content_type FROM uied_banner WHERE id = ? AND is_delete = 0',
       {
         replacements: [ id ],
         type: app.Sequelize.QueryTypes.SELECT,
       }
     );
-    const oldId = String(currentRow?.old_id || '').trim();
-    if (this.isListMergeGroup(oldId)) {
+    const currentOldId = String(currentRow && currentRow.old_id ? currentRow.old_id : '').trim();
+    if (this.isMultiPositionGroup(currentOldId) || this.isPageBannerBatchGroup(currentOldId)) {
       await app.model.query(
         'UPDATE uied_banner SET is_delete = 1, delete_time = ?, update_time = ? WHERE old_id = ? AND is_delete = 0',
         {
-          replacements: [ now, now, oldId ],
-          type: app.Sequelize.QueryTypes.UPDATE,
-        }
-      );
-      return;
-    }
-    /**
-     * 兼容历史四卡数据：old_id 为空但位置为 page_banner 时，按“页面范围+内容类型”整组删除。
-     */
-    const normalizedPosition = this.normalizePosition(currentRow?.position || '');
-    if (!oldId && normalizedPosition === 'page_banner') {
-      const normalizedPageSlug = String(currentRow?.page_slug || 'all').trim() || 'all';
-      const normalizedContentType = String(currentRow?.content_type || 'image').trim() || 'image';
-      await app.model.query(
-        'UPDATE uied_banner SET is_delete = 1, delete_time = ?, update_time = ? WHERE position = ? AND page_slug = ? AND content_type = ? AND is_delete = 0',
-        {
-          replacements: [ now, now, 'page_banner', normalizedPageSlug, normalizedContentType ],
+          replacements: [ now, now, currentOldId ],
           type: app.Sequelize.QueryTypes.UPDATE,
         }
       );
@@ -782,12 +777,18 @@ class BannerService extends Service {
       }
     }
 
+    /**
+     * 当按页面过滤时，先拉取更大窗口，再在服务层做“页面专属优先”筛选，避免 SQL limit 提前截断导致漏配。
+     */
+    const queryLimit = pageSlug ? Math.max(limit * 10, 200) : limit;
     const lists = await app.model.query(
       `SELECT * FROM uied_banner WHERE ${whereSql} ORDER BY sort ASC, id ASC LIMIT ?`,
-      { replacements: [ ...replacements, limit ], type: app.Sequelize.QueryTypes.SELECT }
+      { replacements: [ ...replacements, queryLimit ], type: app.Sequelize.QueryTypes.SELECT }
     );
 
-    return lists.map(item => this.formatItem(item));
+    const formatted = lists.map(item => this.formatItem(item));
+    const scoped = pageSlug ? this.filterByPageScopePriority(formatted, pageSlug) : formatted;
+    return scoped.slice(0, limit);
   }
 
   /**

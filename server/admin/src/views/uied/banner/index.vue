@@ -31,8 +31,8 @@
                             <span>用于首页首屏广告展示，适合主活动与品牌曝光。</span>
                         </div>
                         <div class="banner-ops-helper__row">
-                            <span class="banner-ops-helper__label">置顶四卡</span>
-                            <span>展示在热门推荐上方，固定 4 张卡片，适合活动置顶与专题推荐。</span>
+                            <span class="banner-ops-helper__label">置顶Banner</span>
+                            <span>展示在热门推荐上方，可按页面范围独立配置每条广告。</span>
                         </div>
                         <div class="banner-ops-helper__row">
                             <span class="banner-ops-helper__label">侧栏广告</span>
@@ -73,10 +73,7 @@
                 <div class="flex items-center gap-2">
                     <el-button type="primary" @click="handleAdd">
                         <template #icon><icon name="el-icon-Plus" /></template>
-                        添加普通广告
-                    </el-button>
-                    <el-button type="primary" plain @click="openPageBannerBatchDialog">
-                        配置置顶banner四卡位
+                        添加广告
                     </el-button>
                 </div>
                 <div class="text-gray-400">共 {{ pager.count }} 条广告</div>
@@ -147,6 +144,17 @@
                             :type="resolveContentTypeTagType(row.contentType)"
                         >
                             {{ resolveContentTypeLabel(row.contentType) }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="广告形态" min-width="140">
+                    <template #default="{ row }">
+                        <el-tag
+                            size="small"
+                            :type="resolveBannerShapeTagType(row)"
+                            effect="plain"
+                        >
+                            {{ resolveBannerShapeLabel(row) }}
                         </el-tag>
                     </template>
                 </el-table-column>
@@ -238,8 +246,14 @@
             </div>
         </el-card>
 
-        <!-- 编辑弹窗 -->
-        <el-dialog v-model="showEdit" :title="editData.id ? '编辑广告' : '添加广告'" width="500px">
+        <!-- 编辑侧边弹窗 -->
+        <el-drawer
+            v-model="showEdit"
+            :title="editData.id ? '编辑广告' : '添加广告'"
+            direction="rtl"
+            size="520px"
+            :destroy-on-close="true"
+        >
             <el-form ref="editFormRef" :model="editData" :rules="editRules" label-width="80px">
                 <el-form-item label="内容类型" prop="contentType">
                     <el-radio-group v-model="editData.contentType">
@@ -256,136 +270,224 @@
                     class="mb-3"
                 />
                 <template v-else>
-                    <el-form-item label="标题" prop="title">
-                        <el-input v-model="editData.title" placeholder="请输入标题" />
-                    </el-form-item>
-                    <el-form-item label="描述">
-                        <el-input v-model="editData.description" placeholder="广告描述（可选）" />
-                    </el-form-item>
-                    <el-form-item v-if="editData.contentType === 'image'" label="图片" prop="image">
-                        <el-input
-                            v-model="editData.image"
-                            placeholder="图片URL（可接上传组件返回地址）"
-                        />
-                    </el-form-item>
-                    <el-form-item v-else-if="editData.contentType === 'html'" label="HTML代码" prop="htmlContent">
-                        <el-input
-                            v-model="editData.htmlContent"
-                            type="textarea"
-                            :rows="6"
-                            placeholder="可填写广告脚本/iframe/HTML片段（请确认来源安全）"
-                        />
-                    </el-form-item>
-                    <el-form-item v-else label="文案说明">
-                        <div class="text-xs text-gray-500">
-                            广告组件会使用“标题 + 描述”渲染，建议标题 8-16 字，描述 20-40 字。
+                    <div class="banner-form-group">
+                        <div class="banner-form-group__title">基础信息</div>
+                        <el-form-item label="标题" prop="title">
+                            <el-input v-model="editData.title" placeholder="请输入标题" />
+                        </el-form-item>
+                        <el-form-item label="描述">
+                            <el-input v-model="editData.description" placeholder="广告描述（可选）" />
+                        </el-form-item>
+                    </div>
+
+                    <div class="banner-form-group">
+                        <div class="banner-form-group__title">
+                            {{ resolveBannerContentConfigTitle(editData.contentType) }}
                         </div>
-                    </el-form-item>
-                    <el-form-item label="链接类型">
-                        <el-radio-group v-model="editData.linkType">
-                            <el-radio-button label="custom">自定义链接</el-radio-button>
-                            <el-radio-button label="page">页面链接</el-radio-button>
-                        </el-radio-group>
-                    </el-form-item>
-                    <el-form-item v-if="editData.linkType === 'page'" label="页面链接">
-                        <el-select
-                            v-model="editData.linkPagePath"
-                            filterable
-                            allow-create
-                            default-first-option
-                            style="width: 100%"
-                            placeholder="请选择页面路径（例如 /p/uiux）"
-                        >
-                            <el-option
-                                v-for="item in bannerLinkOptions"
-                                :key="item.value"
-                                :label="item.label"
-                                :value="item.value"
+                        <div class="banner-form-group__tip">
+                            {{ resolveBannerContentConfigTip(editData.contentType) }}
+                        </div>
+                        <el-form-item v-if="editData.contentType === 'image'" label="图片" prop="image">
+                            <el-input
+                                v-model="editData.image"
+                                placeholder="图片URL（可接上传组件返回地址）"
                             />
-                        </el-select>
-                        <div class="text-xs text-gray-400 mt-1">
-                            支持选择站内页面路径；保存时会自动转换为跳转 URL。
+                        </el-form-item>
+                        <el-form-item v-else-if="editData.contentType === 'html'" label="HTML代码" prop="htmlContent">
+                            <el-input
+                                v-model="editData.htmlContent"
+                                type="textarea"
+                                :rows="6"
+                                placeholder="可填写广告脚本/iframe/HTML片段（请确认来源安全）"
+                            />
+                        </el-form-item>
+                        <template v-else>
+                            <el-form-item label="组件渲染">
+                                <div class="text-xs text-gray-500">
+                                    广告组件将使用“标题 + 描述”在前端渲染，无需上传图片。
+                                </div>
+                            </el-form-item>
+                            <template v-if="isPageBannerTextMode">
+                                <div class="page-banner-card-editor__header">
+                                    <span class="page-banner-card-editor__title">四卡内容配置</span>
+                                    <span class="page-banner-card-editor__tip">
+                                        仅在「置顶banner广告（page_banner）」生效，可分别设置标题、简介、跳转链接。
+                                    </span>
+                                </div>
+                                <div class="page-banner-card-editor">
+                                    <div
+                                        v-for="(card, index) in editData.pageBannerCardItems"
+                                        :key="`page-banner-card-${index}`"
+                                        class="page-banner-card-editor__item"
+                                    >
+                                        <div class="page-banner-card-editor__item-title">卡片 {{ index + 1 }}</div>
+                                        <el-form-item label="标题" label-width="60px">
+                                            <el-input
+                                                v-model="card.title"
+                                                :placeholder="`请输入第${index + 1}张卡片标题`"
+                                            />
+                                        </el-form-item>
+                                        <el-form-item label="简介" label-width="60px">
+                                            <el-input
+                                                v-model="card.description"
+                                                type="textarea"
+                                                :rows="2"
+                                                :placeholder="`请输入第${index + 1}张卡片简介（可选）`"
+                                            />
+                                        </el-form-item>
+                                        <el-form-item label="链接" label-width="60px">
+                                            <el-radio-group v-model="card.linkType">
+                                                <el-radio-button label="custom">自定义</el-radio-button>
+                                                <el-radio-button label="page">系统页面</el-radio-button>
+                                            </el-radio-group>
+                                        </el-form-item>
+                                        <el-form-item v-if="card.linkType === 'page'" label="页面" label-width="60px">
+                                            <el-select
+                                                v-model="card.linkPagePath"
+                                                filterable
+                                                allow-create
+                                                default-first-option
+                                                style="width: 100%"
+                                                :placeholder="`请选择第${index + 1}张卡片系统页面`"
+                                            >
+                                                <el-option
+                                                    v-for="item in bannerLinkOptions"
+                                                    :key="item.value"
+                                                    :label="item.label"
+                                                    :value="item.value"
+                                                />
+                                            </el-select>
+                                        </el-form-item>
+                                        <el-form-item v-else label="链接" label-width="60px">
+                                            <el-input
+                                                v-model="card.linkUrl"
+                                                :placeholder="`请输入第${index + 1}张卡片跳转链接（可选）`"
+                                            />
+                                        </el-form-item>
+                                        <el-form-item label="角标" label-width="60px">
+                                            <el-input
+                                                v-model="card.badgeText"
+                                                :placeholder="`请输入第${index + 1}张卡片角标（可选）`"
+                                            />
+                                        </el-form-item>
+                                    </div>
+                                </div>
+                            </template>
+                        </template>
+                    </div>
+
+                    <div v-if="editData.contentType !== 'text'" class="banner-form-group">
+                        <div class="banner-form-group__title">链接配置</div>
+                        <div class="banner-form-group__tip">
+                            {{ resolveBannerLinkConfigTip(editData.contentType) }}
                         </div>
-                    </el-form-item>
-                    <el-form-item v-else label="跳转链接">
-                        <el-input
-                            v-model="editData.linkUrl"
-                            placeholder="点击跳转链接（HTML广告可留空）"
-                        />
-                    </el-form-item>
-                    <el-form-item label="打开方式">
-                        <el-select v-model="editData.linkTarget" style="width: 100%">
-                            <el-option label="新窗口(_blank)" value="_blank" />
-                            <el-option label="当前窗口(_self)" value="_self" />
-                        </el-select>
-                    </el-form-item>
-                    <el-form-item label="位置" prop="positionList">
-                        <el-select
-                            v-model="editData.positionList"
-                            :multiple="allowMultiPositionSelection"
-                            :collapse-tags="allowMultiPositionSelection"
-                            :collapse-tags-tooltip="allowMultiPositionSelection"
-                            style="width: 100%"
-                            :placeholder="allowMultiPositionSelection ? '至少选择一个广告位置' : '请选择一个广告位置'"
-                        >
-                            <el-option-group
-                                v-for="group in bannerPositionOptionGroups"
-                                :key="group.label"
-                                :label="group.label"
+                        <el-form-item label="链接类型">
+                            <el-radio-group v-model="editData.linkType">
+                                <el-radio-button label="custom">自定义链接</el-radio-button>
+                                <el-radio-button label="page">页面链接</el-radio-button>
+                            </el-radio-group>
+                        </el-form-item>
+                        <el-form-item v-if="editData.linkType === 'page'" label="页面链接">
+                            <el-select
+                                v-model="editData.linkPagePath"
+                                filterable
+                                allow-create
+                                default-first-option
+                                style="width: 100%"
+                                placeholder="请选择页面路径（例如 /p/uiux）"
                             >
                                 <el-option
-                                    v-for="item in group.options"
+                                    v-for="item in bannerLinkOptions"
                                     :key="item.value"
                                     :label="item.label"
                                     :value="item.value"
                                 />
-                            </el-option-group>
-                        </el-select>
-                        <div v-if="allowMultiPositionSelection" class="text-xs text-gray-400 mt-1">
-                            支持多选，保存后会在所有选中位置生效；与“导航页面限制”互不依赖。
-                        </div>
-                        <div v-else class="text-xs text-gray-400 mt-1">
-                            当前为单条广告编辑模式，仅允许选择一个位置；如需多位置联投，请新建广告时直接多选位置。
-                        </div>
-                    </el-form-item>
-                    <el-form-item v-if="showPageScopeConfig" label="页面范围">
-                        <el-switch
-                            v-model="editData.enablePageScope"
-                            active-text="按导航页面限制"
-                            inactive-text="全站通配"
-                            inline-prompt
-                        />
-                        <div class="text-xs text-gray-400 mt-1">
-                            关闭时默认全站生效；开启后可指定仅在部分导航页面展示。
-                        </div>
-                    </el-form-item>
-                    <el-form-item v-if="showPageScopeConfig && editData.enablePageScope" label="导航页面" prop="pageSlugList">
-                        <el-select
-                            v-model="editData.pageSlugList"
-                            multiple
-                            filterable
-                            collapse-tags
-                            collapse-tags-tooltip
-                            style="width: 100%"
-                            placeholder="请选择导航页面（可多选）"
-                        >
-                            <el-option
-                                v-for="item in bannerDisplayPageOptions"
-                                :key="item.value"
-                                :label="item.label"
-                                :value="item.value"
+                            </el-select>
+                            <div class="text-xs text-gray-400 mt-1">
+                                支持选择站内页面路径；保存时会自动转换为跳转 URL。
+                            </div>
+                        </el-form-item>
+                        <el-form-item v-else label="跳转链接">
+                            <el-input
+                                v-model="editData.linkUrl"
+                                placeholder="点击跳转链接（HTML广告可留空）"
                             />
-                        </el-select>
-                        <div class="text-xs text-gray-400 mt-1">
-                            仅对导航页面生效，例如：<code>home</code>、<code>daily-hot</code>、<code>rankings</code>。
-                        </div>
-                    </el-form-item>
-                    <el-form-item label="排序">
-                        <el-input-number v-model="editData.sortOrder" :min="0" />
-                    </el-form-item>
-                    <el-form-item label="状态">
-                        <el-switch v-model="editData.isActive" />
-                    </el-form-item>
+                        </el-form-item>
+                        <el-form-item label="打开方式">
+                            <el-select v-model="editData.linkTarget" style="width: 100%">
+                                <el-option label="新窗口(_blank)" value="_blank" />
+                                <el-option label="当前窗口(_self)" value="_self" />
+                            </el-select>
+                        </el-form-item>
+                    </div>
+
+                    <div class="banner-form-group">
+                        <div class="banner-form-group__title">投放配置</div>
+                        <el-form-item label="位置" prop="positionList">
+                            <el-select
+                                v-model="editData.positionList"
+                                multiple
+                                collapse-tags
+                                collapse-tags-tooltip
+                                style="width: 100%"
+                                placeholder="请选择一个或多个广告位置"
+                            >
+                                <el-option-group
+                                    v-for="group in bannerPositionOptionGroups"
+                                    :key="group.label"
+                                    :label="group.label"
+                                >
+                                    <el-option
+                                        v-for="item in group.options"
+                                        :key="item.value"
+                                        :label="item.label"
+                                        :value="item.value"
+                                    />
+                                </el-option-group>
+                            </el-select>
+                            <div class="text-xs text-gray-400 mt-1">
+                                一条广告可投放到多个位置；如果只想单独控制某个位置，只保留该位置即可。
+                            </div>
+                        </el-form-item>
+                        <el-form-item v-if="showPageScopeConfig" label="页面范围">
+                            <el-switch
+                                v-model="editData.enablePageScope"
+                                active-text="按导航页面限制"
+                                inactive-text="全站通配"
+                                inline-prompt
+                            />
+                            <div class="text-xs text-gray-400 mt-1">
+                                关闭时默认全站生效；开启后可指定仅在部分导航页面展示。
+                            </div>
+                        </el-form-item>
+                        <el-form-item v-if="showPageScopeConfig && editData.enablePageScope" label="导航页面" prop="pageSlugList">
+                            <el-select
+                                v-model="editData.pageSlugList"
+                                multiple
+                                filterable
+                                collapse-tags
+                                collapse-tags-tooltip
+                                style="width: 100%"
+                                placeholder="请选择导航页面（可多选）"
+                            >
+                                <el-option
+                                    v-for="item in bannerDisplayPageOptions"
+                                    :key="item.value"
+                                    :label="item.label"
+                                    :value="item.value"
+                                />
+                            </el-select>
+                            <div class="text-xs text-gray-400 mt-1">
+                                仅对导航页面生效，例如：<code>home</code>、<code>daily-hot</code>、<code>rankings</code>。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="排序">
+                            <el-input-number v-model="editData.sortOrder" :min="0" />
+                        </el-form-item>
+                        <el-form-item label="状态">
+                            <el-switch v-model="editData.isActive" />
+                        </el-form-item>
+                    </div>
                 </template>
             </el-form>
             <template #footer>
@@ -394,151 +496,8 @@
                     >确定</el-button
                 >
             </template>
-        </el-dialog>
+        </el-drawer>
 
-        <!-- 置顶四卡批量编辑 -->
-        <el-dialog
-            v-model="showPageBannerBatchEdit"
-            title="置顶banner广告 · 四卡位批量编辑"
-            width="960px"
-            top="6vh"
-        >
-            <div class="page-banner-batch-toolbar">
-                <div class="page-banner-batch-toolbar__tip">
-                    广告组件模式下可一次性配置 4 张卡片标题/简介/跳转链接；保存后前端按四宫格展示。
-                </div>
-                <div class="page-banner-batch-toolbar__controls">
-                    <el-select
-                        v-model="pageBannerBatchPosition"
-                        style="width: 220px"
-                        placeholder="请选择展示位置"
-                    >
-                        <el-option
-                            v-for="item in pageBannerBatchPositionOptions"
-                            :key="`page-banner-position-${item.value}`"
-                            :label="item.label"
-                            :value="item.value"
-                        />
-                    </el-select>
-                    <el-radio-group v-model="pageBannerBatchStyle">
-                        <el-radio-button label="image">图片卡片</el-radio-button>
-                        <el-radio-button label="text">广告组件</el-radio-button>
-                    </el-radio-group>
-                </div>
-            </div>
-            <div class="page-banner-batch-scope">
-                <div class="page-banner-batch-scope__switch">
-                    <span class="page-banner-batch-scope__label">显示页面</span>
-                    <el-switch
-                        v-model="pageBannerBatchEnablePageScope"
-                        active-text="指定页面"
-                        inactive-text="全站通配"
-                        inline-prompt
-                    />
-                </div>
-                <el-select
-                    v-if="pageBannerBatchEnablePageScope"
-                    v-model="pageBannerBatchPageSlugList"
-                    multiple
-                    filterable
-                    collapse-tags
-                    collapse-tags-tooltip
-                    style="width: 100%"
-                    placeholder="请选择系统页面/导航页面（可多选）"
-                >
-                    <el-option
-                        v-for="item in pageBannerBatchPageScopeOptions"
-                        :key="`page-banner-scope-${item.value}`"
-                        :label="item.label"
-                        :value="item.value"
-                    />
-                </el-select>
-                <div class="page-banner-batch-scope__tip">
-                    支持系统页面与导航页面；关闭后默认全站生效。
-                </div>
-            </div>
-            <div v-loading="pageBannerBatchLoading" class="page-banner-batch-grid">
-                <el-card
-                    v-for="(item, index) in pageBannerBatchItems"
-                    :key="`page-banner-slot-${index}`"
-                    shadow="never"
-                    class="page-banner-batch-grid__item"
-                >
-                    <template #header>
-                        <div class="page-banner-batch-grid__item-header">
-                            <span>卡片 {{ index + 1 }}</span>
-                            <el-switch v-model="item.isActive" />
-                        </div>
-                    </template>
-                    <el-form label-width="84px">
-                        <el-form-item label="标题">
-                            <el-input
-                                v-model="item.title"
-                                :placeholder="`请输入第 ${index + 1} 张卡片标题`"
-                            />
-                        </el-form-item>
-                        <el-form-item label="简介">
-                            <el-input
-                                v-model="item.description"
-                                type="textarea"
-                                :rows="2"
-                                :placeholder="`请输入第 ${index + 1} 张卡片简介（可选）`"
-                            />
-                        </el-form-item>
-                        <el-form-item v-if="pageBannerBatchStyle === 'image'" label="图片">
-                            <el-input
-                                v-model="item.image"
-                                :placeholder="`请输入第 ${index + 1} 张卡片图片地址`"
-                            />
-                        </el-form-item>
-                        <el-form-item label="链接类型">
-                            <el-radio-group v-model="item.linkType">
-                                <el-radio-button label="custom">自定义链接</el-radio-button>
-                                <el-radio-button label="page">页面链接</el-radio-button>
-                            </el-radio-group>
-                        </el-form-item>
-                        <el-form-item v-if="item.linkType === 'page'" label="页面链接">
-                            <el-select
-                                v-model="item.linkPagePath"
-                                filterable
-                                allow-create
-                                default-first-option
-                                style="width: 100%"
-                                placeholder="请选择页面路径"
-                            >
-                                <el-option
-                                    v-for="link in bannerLinkOptions"
-                                    :key="`page-banner-link-${index}-${link.value}`"
-                                    :label="link.label"
-                                    :value="link.value"
-                                />
-                            </el-select>
-                        </el-form-item>
-                        <el-form-item v-else label="跳转链接">
-                            <el-input
-                                v-model="item.linkUrl"
-                                :placeholder="`请输入第 ${index + 1} 张卡片跳转地址（可选）`"
-                            />
-                        </el-form-item>
-                        <el-form-item label="打开方式">
-                            <el-select v-model="item.linkTarget" style="width: 100%">
-                                <el-option label="新窗口(_blank)" value="_blank" />
-                                <el-option label="当前窗口(_self)" value="_self" />
-                            </el-select>
-                        </el-form-item>
-                        <el-form-item label="排序值">
-                            <el-input-number v-model="item.sortOrder" :min="0" />
-                        </el-form-item>
-                    </el-form>
-                </el-card>
-            </div>
-            <template #footer>
-                <el-button @click="showPageBannerBatchEdit = false">取消</el-button>
-                <el-button type="primary" :loading="pageBannerBatchSaving" @click="handleSavePageBannerBatch">
-                    保存四卡配置
-                </el-button>
-            </template>
-        </el-dialog>
     </div>
 </template>
 
@@ -561,10 +520,6 @@ const { pager, getLists } = usePaging({ fetchFun: uiedBannerList, params: queryP
 const showEdit = ref(false)
 const editLoading = ref(false)
 const editFormRef = ref<FormInstance>()
-const showPageBannerBatchEdit = ref(false)
-const pageBannerBatchLoading = ref(false)
-const pageBannerBatchSaving = ref(false)
-const pageBannerBatchStyle = ref<'image' | 'text'>('image')
 const sceneFilterOptions = [
     { label: '全部场景', value: 'all' },
     { label: '置顶banner广告', value: 'page_banner' },
@@ -613,7 +568,8 @@ const bannerPositionOptionGroups = [
         label: '页面流量位',
         options: [
             { label: '首页（home）', value: 'home' },
-            { label: '全局横条（global_strip）', value: 'global_strip' }
+            { label: '全局横条（global_strip）', value: 'global_strip' },
+            { label: '置顶banner广告（page_banner）', value: 'page_banner' }
         ]
     },
     {
@@ -671,6 +627,99 @@ interface BannerLinkOption {
     value: string
 }
 
+const PAGE_BANNER_POSITION = 'page_banner'
+
+interface PageBannerCardItem {
+    title: string
+    description: string
+    linkUrl: string
+    badgeText: string
+    linkType: 'custom' | 'page'
+    linkPagePath: string
+}
+
+/**
+ * 创建默认四卡配置（固定 4 张卡片）。
+ */
+const createDefaultPageBannerCardItems = (): PageBannerCardItem[] =>
+    Array.from({ length: 4 }, () => ({
+        title: '',
+        description: '',
+        linkUrl: '',
+        badgeText: '',
+        linkType: 'custom',
+        linkPagePath: ''
+    }))
+
+/**
+ * 规范化四卡配置，确保始终为 4 条并清洗字段。
+ */
+const normalizePageBannerCardItems = (value: unknown): PageBannerCardItem[] => {
+    const source = Array.isArray(value) ? value : []
+    const normalized = source.slice(0, 4).map((item: any) => ({
+        title: String(item?.title || '').trim(),
+        description: String(item?.description || '').trim(),
+        linkUrl: String(item?.linkUrl || '').trim(),
+        badgeText: String(item?.badgeText || '').trim(),
+        linkType: 'custom' as 'custom' | 'page',
+        linkPagePath: ''
+    }))
+    while (normalized.length < 4) {
+        normalized.push({
+            title: '',
+            description: '',
+            linkUrl: '',
+            badgeText: '',
+            linkType: 'custom',
+            linkPagePath: ''
+        })
+    }
+    return normalized.map((item) => {
+        const linkState = resolveBannerLinkState(item.linkUrl)
+        return {
+            ...item,
+            linkType: linkState.linkType,
+            linkPagePath: linkState.linkPagePath
+        }
+    })
+}
+
+/**
+ * 从 htmlContent 中解析四卡配置（JSON），解析失败时回退默认值。
+ */
+const parsePageBannerCardItemsFromHtmlContent = (value: unknown): PageBannerCardItem[] => {
+    const raw = String(value || '').trim()
+    if (!raw) return createDefaultPageBannerCardItems()
+    try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+            return normalizePageBannerCardItems(parsed)
+        }
+        if (parsed && Array.isArray(parsed.cardItems)) {
+            return normalizePageBannerCardItems(parsed.cardItems)
+        }
+        return createDefaultPageBannerCardItems()
+    } catch (_error) {
+        return createDefaultPageBannerCardItems()
+    }
+}
+
+/**
+ * 将四卡配置序列化到 htmlContent，供前端广告组件读取。
+ */
+const buildPageBannerCardItemsStorage = (items: PageBannerCardItem[]): string => {
+    const normalized = normalizePageBannerCardItems(items).map((item) => ({
+        title: item.title,
+        description: item.description,
+        linkUrl: item.linkType === 'page' ? String(item.linkPagePath || '').trim() : String(item.linkUrl || '').trim(),
+        badgeText: item.badgeText
+    }))
+    return JSON.stringify({
+        schema: 'page_banner_cards_v1',
+        cardItems: normalized
+    })
+}
+
 /**
  * 判断页面是否属于“导航页面”，用于广告显示页面范围选择。
  */
@@ -683,25 +732,6 @@ const isNavigationPageOption = (page: any): boolean => {
     if (NAVIGATION_PAGE_SLUG_SET.has(slug)) return true
     return ['home', 'daily-hot', 'daily-new', 'rankings'].includes(slug)
 }
-
-interface PageBannerBatchItem {
-    id: number
-    title: string
-    description: string
-    image: string
-    linkType: 'custom' | 'page'
-    linkUrl: string
-    linkPagePath: string
-    linkTarget: '_blank' | '_self'
-    sortOrder: number
-    isActive: boolean
-}
-
-const PAGE_BANNER_BATCH_SIZE = 4
-const PAGE_BANNER_SORT_STEP = 10
-const PAGE_BANNER_POSITION = 'page_banner'
-const MULTI_POSITION_GROUP_PREFIX = 'multi:banner:'
-const PAGE_BANNER_BATCH_GROUP_PREFIX = 'batch:page_banner:'
 
 const bannerLinkBuiltinOptions: BannerLinkOption[] = [
     { label: '首页（/）', value: '/' },
@@ -718,6 +748,8 @@ const bannerLinkBuiltinOptions: BannerLinkOption[] = [
 const bannerDynamicPageOptions = ref<BannerLinkOption[]>([])
 const bannerDisplayPageDynamicOptions = ref<BannerLinkOption[]>([])
 const currentEditingBannerId = ref(0)
+const rawBannerRowMap = ref<Map<number, any>>(new Map())
+const rawBannerRowsLoaded = ref(false)
 
 /**
  * Banner 显示页面候选项（仅导航页面，不含 all）。
@@ -755,6 +787,68 @@ const bannerLinkOptions = computed<BannerLinkOption[]>(() => {
     })
     return Array.from(dedup.values())
 })
+
+/**
+ * 判断四卡项是否完全为空（标题/简介/链接/角标都为空）。
+ */
+const isEmptyPageBannerCardItem = (item: PageBannerCardItem): boolean =>
+    !String(item.title || '').trim() &&
+    !String(item.description || '').trim() &&
+    !String(item.linkUrl || '').trim() &&
+    !String(item.badgeText || '').trim()
+
+/**
+ * 加载原始广告数据（不聚合），用于兼容旧四卡分组编辑回填。
+ */
+const ensureRawBannerRowsLoaded = async (force = false) => {
+    if (!force && rawBannerRowsLoaded.value && rawBannerRowMap.value.size > 0) return
+    const result = await uiedBannerList({
+        pageNo: 1,
+        pageSize: 3000,
+        keyword: '',
+        sceneGroup: 'all',
+        scene: 'all',
+        contentType: 'all',
+        status: 'all',
+        raw: 1
+    })
+    const rows = Array.isArray((result as any)?.lists) ? (result as any).lists : []
+    const nextMap = new Map<number, any>()
+    rows.forEach((item: any) => {
+        const id = Number(item?.id || 0)
+        if (id > 0) nextMap.set(id, item)
+    })
+    rawBannerRowMap.value = nextMap
+    rawBannerRowsLoaded.value = true
+}
+
+/**
+ * 从旧四卡分组记录回填编辑态四卡配置。
+ */
+const buildLegacyPageBannerCardItems = (row: any): PageBannerCardItem[] => {
+    const groupItemIds = Array.isArray(row?.groupItemIds)
+        ? row.groupItemIds.map((item: any) => Number(item || 0)).filter((id: number) => id > 0)
+        : []
+    if (groupItemIds.length === 0) return createDefaultPageBannerCardItems()
+    const rows = groupItemIds
+        .map((id: number) => rawBannerRowMap.value.get(id))
+        .filter((item: any) => Boolean(item))
+        .sort((a: any, b: any) => Number(a?.sortOrder || a?.sort || 0) - Number(b?.sortOrder || b?.sort || 0))
+    if (rows.length === 0) return createDefaultPageBannerCardItems()
+    const cardItems = rows.slice(0, 4).map((item: any) => {
+        const link = String(item?.linkUrl || item?.url || '').trim()
+        const linkState = resolveBannerLinkState(link)
+        return {
+            title: String(item?.title || '').trim(),
+            description: String(item?.description || '').trim(),
+            linkUrl: link,
+            badgeText: '',
+            linkType: linkState.linkType,
+            linkPagePath: linkState.linkPagePath
+        } as PageBannerCardItem
+    })
+    return normalizePageBannerCardItems(cardItems)
+}
 
 /**
  * 将页面 slug 转换为前端可访问路径。
@@ -909,13 +1003,73 @@ const resolveContentTypeTagType = (value: unknown): '' | 'success' | 'warning' |
 }
 
 /**
- * 控制“广告位置”是否允许多选：
- * - 新增广告时允许多选；
- * - 编辑单条广告时默认单选，避免误操作引发“编辑变新增”。
+ * 渲染“广告形态”标签文案，突出 page_banner 与普通广告的差异。
  */
-const allowMultiPositionSelection = computed<boolean>(() =>
-    !Number(editData.id || 0) || editingMultiPositionGroup.value
-)
+const resolveBannerShapeLabel = (row: any): string => {
+    const contentType = String(row?.contentType || 'image').trim().toLowerCase()
+    const positions = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
+    const typeLabelMap: Record<string, string> = {
+        image: '图片广告',
+        text: '广告组件',
+        html: 'HTML广告'
+    }
+    const contentTypeLabel = typeLabelMap[contentType] || typeLabelMap.image
+    if (!positions.includes(PAGE_BANNER_POSITION)) return contentTypeLabel
+    if (contentType === 'html') {
+        return '置顶Banner · HTML'
+    }
+    if (contentType === 'text') {
+        return '置顶Banner · 组件'
+    }
+    return '置顶Banner · 图片'
+}
+
+/**
+ * 渲染“广告形态”标签颜色。
+ */
+const resolveBannerShapeTagType = (row: any): '' | 'success' | 'warning' | 'info' | 'danger' => {
+    const contentType = String(row?.contentType || 'image').trim().toLowerCase()
+    const positions = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
+    if (!positions.includes(PAGE_BANNER_POSITION)) return 'info'
+    if (contentType === 'html') return 'warning'
+    if (contentType === 'text') return 'success'
+    return 'danger'
+}
+
+/**
+ * 按当前内容类型返回“内容配置”分组标题。
+ */
+const resolveBannerContentConfigTitle = (contentType: unknown): string => {
+    const type = String(contentType || '').trim().toLowerCase()
+    if (type === 'html') return 'HTML 广告配置'
+    if (type === 'text') return '广告组件配置'
+    return '图片广告配置'
+}
+
+/**
+ * 按当前内容类型返回“内容配置”分组提示文案。
+ */
+const resolveBannerContentConfigTip = (contentType: unknown): string => {
+    const type = String(contentType || '').trim().toLowerCase()
+    if (type === 'html') {
+        return '用于投放脚本/iframe/自定义代码片段，建议先在测试环境验证展示效果。'
+    }
+    if (type === 'text') {
+        return '用于前端广告组件渲染，重点维护标题与描述，不依赖图片。'
+    }
+    return '用于常规图片广告投放，建议使用稳定的图片地址并控制体积。'
+}
+
+/**
+ * 按当前内容类型返回“链接配置”分组提示文案。
+ */
+const resolveBannerLinkConfigTip = (contentType: unknown): string => {
+    const type = String(contentType || '').trim().toLowerCase()
+    if (type === 'html') {
+        return 'HTML 广告可不填跳转链接；如需跳转，请在链接类型中配置。'
+    }
+    return '支持外链与站内路径两种方式，页面路径保存时会自动转换为站内跳转地址。'
+}
 
 /**
  * 渲染列表“显示页面”列标签。
@@ -975,107 +1129,6 @@ const loadBannerDynamicPageOptions = async () => {
 }
 
 /**
- * 拉取原始广告列表（不聚合）用于保存前冲突检测。
- */
-const fetchRawBannerRowsForConflict = async () => {
-    const result = await uiedBannerList({
-        pageNo: 1,
-        pageSize: 3000,
-        keyword: '',
-        scene: 'all',
-        contentType: 'all',
-        status: 'all',
-        raw: 1
-    })
-    return Array.isArray((result as any)?.lists) ? (result as any).lists : []
-}
-
-/**
- * 归一化时间戳：0/空值视为无限制。
- */
-const normalizeBannerUnixTime = (value: unknown): number => {
-    const next = Number(value || 0)
-    return Number.isFinite(next) && next > 0 ? next : 0
-}
-
-/**
- * 判断两个投放时间窗口是否重叠（0 表示无边界）。
- */
-const isBannerTimeRangeOverlap = (
-    sourceStart: number,
-    sourceEnd: number,
-    targetStart: number,
-    targetEnd: number
-): boolean => {
-    const sourceStartValue = sourceStart > 0 ? sourceStart : Number.NEGATIVE_INFINITY
-    const sourceEndValue = sourceEnd > 0 ? sourceEnd : Number.POSITIVE_INFINITY
-    const targetStartValue = targetStart > 0 ? targetStart : Number.NEGATIVE_INFINITY
-    const targetEndValue = targetEnd > 0 ? targetEnd : Number.POSITIVE_INFINITY
-    return sourceStartValue <= targetEndValue && targetStartValue <= sourceEndValue
-}
-
-/**
- * 判断两个页面范围是否重叠（all 视为全局通配）。
- */
-const isBannerPageScopeOverlap = (sourcePages: string[], targetPages: string[]): boolean => {
-    if (sourcePages.includes('all') || targetPages.includes('all')) return true
-    const targetSet = new Set(targetPages)
-    return sourcePages.some((item) => targetSet.has(item))
-}
-
-/**
- * 保存前检测广告冲突（同位置 + 同页面 + 时间重叠）。
- */
-const detectBannerConflicts = async (
-    candidate: {
-        id?: number
-        oldId?: string
-        title?: string
-        positionList: string[]
-        pageSlugList: string[]
-        startTime?: number
-        endTime?: number
-        excludeIds?: number[]
-    }
-) => {
-    const rows = await fetchRawBannerRowsForConflict()
-    const candidateId = Number(candidate.id || 0)
-    const candidateOldId = String(candidate.oldId || '').trim()
-    const candidateExcludeIds = new Set(
-        (Array.isArray(candidate.excludeIds) ? candidate.excludeIds : [])
-            .map((item) => Number(item || 0))
-            .filter((item) => item > 0)
-    )
-    const candidatePositionSet = new Set(normalizePositionList(candidate.positionList))
-    const candidatePageList = normalizePageSlugList(candidate.pageSlugList)
-    const candidateStart = normalizeBannerUnixTime(candidate.startTime)
-    const candidateEnd = normalizeBannerUnixTime(candidate.endTime)
-    if (candidatePositionSet.size === 0) return []
-
-    return rows.filter((item: any) => {
-        const currentId = Number(item?.id || 0)
-        if (candidateId > 0 && currentId === candidateId) return false
-        if (candidateExcludeIds.has(currentId)) return false
-        const currentOldId = String(item?.oldId || '').trim()
-        if (candidateOldId && currentOldId && candidateOldId === currentOldId) return false
-
-        const currentPositionList = normalizePositionList(item?.positionList?.length ? item.positionList : item?.position)
-        if (currentPositionList.length === 0) return false
-        const positionHit = currentPositionList.some((position) => candidatePositionSet.has(position))
-        if (!positionHit) return false
-
-        const currentPageList = normalizePageSlugList(item?.pageSlugList?.length ? item.pageSlugList : item?.pageSlug)
-        if (!isBannerPageScopeOverlap(candidatePageList, currentPageList)) return false
-
-        const currentStart = normalizeBannerUnixTime(item?.startTime)
-        const currentEnd = normalizeBannerUnixTime(item?.endTime)
-        if (!isBannerTimeRangeOverlap(candidateStart, candidateEnd, currentStart, currentEnd)) return false
-
-        return true
-    })
-}
-
-/**
  * 根据已保存的链接 URL 推断当前编辑态（页面链接 / 自定义链接）。
  */
 const resolveBannerLinkState = (value: unknown): { linkType: 'custom' | 'page'; linkPagePath: string } => {
@@ -1100,356 +1153,15 @@ const resolveFinalBannerLinkUrl = (): string => {
     return String(editData.linkUrl || '').trim()
 }
 
-const pageBannerBatchItems = ref<PageBannerBatchItem[]>([])
-const editingMultiPositionGroup = ref(false)
-const pageBannerBatchGroupOldId = ref('')
-const pageBannerBatchPosition = ref(PAGE_BANNER_POSITION)
-const pageBannerBatchEnablePageScope = ref(false)
-const pageBannerBatchPageSlugList = ref<string[]>(['all'])
-const pageBannerBatchEditingIds = ref<number[]>([])
-
 /**
- * 四卡广告可选位置（批量级配置，四张卡共享同一位置）。
+ * 判断两个字符串数组是否完全一致（顺序与内容都一致）。
+ * @param source 源数组
+ * @param target 目标数组
  */
-const pageBannerBatchPositionOptions = computed(() => {
-    const options = [
-        { label: '置顶banner广告（page_banner）', value: PAGE_BANNER_POSITION },
-        ...bannerPositionOptions
-    ]
-    const dedup = new Map<string, { label: string; value: string }>()
-    options.forEach((item) => {
-        const value = String(item?.value || '').trim()
-        if (!value || dedup.has(value)) return
-        dedup.set(value, { label: String(item?.label || value), value })
-    })
-    return Array.from(dedup.values())
-})
-
-/**
- * 四卡广告可选页面范围（包含系统页面与导航页面）。
- */
-const pageBannerBatchPageScopeOptions = computed<BannerLinkOption[]>(() => {
-    const dedup = new Map<string, BannerLinkOption>()
-    bannerDisplayPageOptions.value.forEach((item) => {
-        const value = String(item?.value || '').trim().toLowerCase()
-        if (!value || value === 'all' || dedup.has(value)) return
-        dedup.set(value, {
-            label: String(item?.label || value).trim() || value,
-            value
-        })
-    })
-    return Array.from(dedup.values())
-})
-
-/**
- * 判断当前记录是否属于“多位置广告组”。
- */
-const isMultiPositionGroupRecord = (oldId: unknown): boolean =>
-    String(oldId || '').trim().startsWith(MULTI_POSITION_GROUP_PREFIX)
-
-/**
- * 创建置顶四卡编辑器的空白卡片数据。
- */
-const createEmptyPageBannerBatchItem = (index: number): PageBannerBatchItem => ({
-    id: 0,
-    title: '',
-    description: '',
-    image: '',
-    linkType: 'custom',
-    linkUrl: '',
-    linkPagePath: '',
-    linkTarget: '_blank',
-    sortOrder: (index + 1) * PAGE_BANNER_SORT_STEP,
-    isActive: true
-})
-
-/**
- * 判断四卡位当前卡片是否填写了有效内容。
- */
-const isPageBannerBatchItemFilled = (item: PageBannerBatchItem): boolean => {
-    const linkUrl = item.linkType === 'page'
-        ? String(item.linkPagePath || '').trim()
-        : String(item.linkUrl || '').trim()
-    if (pageBannerBatchStyle.value === 'image') {
-        return Boolean(String(item.title || '').trim() || String(item.image || '').trim() || linkUrl)
-    }
-    return Boolean(String(item.title || '').trim() || String(item.description || '').trim() || linkUrl)
-}
-
-/**
- * 校验置顶四卡单个卡片是否满足当前样式要求。
- */
-const validatePageBannerBatchItem = (item: PageBannerBatchItem, index: number): string => {
-    if (!isPageBannerBatchItemFilled(item)) {
-        return ''
-    }
-    if (pageBannerBatchStyle.value === 'image' && !String(item.image || '').trim()) {
-        return `第 ${index + 1} 张卡片请填写图片地址`
-    }
-    if (pageBannerBatchStyle.value === 'text' && !String(item.title || '').trim()) {
-        return `第 ${index + 1} 张卡片请填写标题`
-    }
-    return ''
-}
-
-/**
- * 获取置顶banner广告当前记录（按排序升序返回）。
- */
-const fetchPageBannerRows = async () => {
-    const result = await uiedBannerList({
-        pageNo: 1,
-        pageSize: 100,
-        keyword: '',
-        scene: 'all',
-        contentType: 'all',
-        status: 'all',
-        raw: 1
-    })
-    const lists = Array.isArray((result as any)?.lists) ? (result as any).lists : []
-    return lists
-        .filter((item: any) => {
-            const oldId = String(item?.oldId || '').trim()
-            if (oldId.startsWith(PAGE_BANNER_BATCH_GROUP_PREFIX)) return true
-            return normalizePositionList(item?.positionList?.length ? item.positionList : item?.position)
-                .includes(PAGE_BANNER_POSITION)
-        })
-        .sort((a: any, b: any) => {
-            const sortA = Number(a?.sortOrder ?? a?.sort ?? 0)
-            const sortB = Number(b?.sortOrder ?? b?.sort ?? 0)
-            if (sortA !== sortB) return sortA - sortB
-            const updateA = Number(a?.updateTime || a?.createTime || 0)
-            const updateB = Number(b?.updateTime || b?.createTime || 0)
-            if (updateA !== updateB) return updateB - updateA
-            return Number(b?.id || 0) - Number(a?.id || 0)
-        })
-}
-
-/**
- * 选择最新的一组置顶四卡配置（优先 batch 组；历史遗留数据按最新更新时间兜底）。
- */
-const resolveLatestPageBannerBatchRows = (rows: any[]): { groupOldId: string; rows: any[] } => {
-    const safeRows = Array.isArray(rows) ? rows : []
-    if (safeRows.length === 0) {
-        return { groupOldId: '', rows: [] }
-    }
-    const groupMap = new Map<string, any[]>()
-    safeRows.forEach((row) => {
-        const oldId = String(row?.oldId || '').trim()
-        const groupKey = oldId || 'legacy:page_banner'
-        const list = groupMap.get(groupKey) || []
-        list.push(row)
-        groupMap.set(groupKey, list)
-    })
-
-    const groupEntries = Array.from(groupMap.entries()).map(([groupId, items]) => {
-        const isBatchGroup = String(groupId || '').startsWith(PAGE_BANNER_BATCH_GROUP_PREFIX)
-        const latestUpdate = items.reduce((max, item) => {
-            const current = Number(item?.updateTime || item?.createTime || 0)
-            return current > max ? current : max
-        }, 0)
-        return {
-            groupId,
-            isBatchGroup,
-            latestUpdate,
-            rows: items.sort((a, b) => {
-                const sortA = Number(a?.sortOrder ?? a?.sort ?? 0)
-                const sortB = Number(b?.sortOrder ?? b?.sort ?? 0)
-                if (sortA !== sortB) return sortA - sortB
-                return Number(a?.id || 0) - Number(b?.id || 0)
-            }),
-        }
-    })
-
-    groupEntries.sort((a, b) => {
-        if (a.isBatchGroup !== b.isBatchGroup) return a.isBatchGroup ? -1 : 1
-        if (a.latestUpdate !== b.latestUpdate) return b.latestUpdate - a.latestUpdate
-        return Number(String(b.groupId || '').length) - Number(String(a.groupId || '').length)
-    })
-
-    const target = groupEntries[0]
-    if (!target) {
-        return { groupOldId: '', rows: [] }
-    }
-    return {
-        groupOldId: target.isBatchGroup ? target.groupId : '',
-        rows: target.rows.slice(0, PAGE_BANNER_BATCH_SIZE),
-    }
-}
-
-/**
- * 读取最新置顶四卡并填充编辑器。
- */
-const openPageBannerBatchDialog = async () => {
-    pageBannerBatchLoading.value = true
-    try {
-        const rows = await fetchPageBannerRows()
-        const latestBatch = resolveLatestPageBannerBatchRows(rows)
-        const topRows = latestBatch.rows
-        pageBannerBatchGroupOldId.value = latestBatch.groupOldId || `${PAGE_BANNER_BATCH_GROUP_PREFIX}${Date.now()}`
-        pageBannerBatchEditingIds.value = topRows
-            .map((item: any) => Number(item?.id || 0))
-            .filter((id: number) => id > 0)
-        const hasText = topRows.some((item: any) => String(item?.contentType || 'image').toLowerCase() === 'text')
-        pageBannerBatchStyle.value = hasText ? 'text' : 'image'
-        const firstPosition = normalizePositionList(topRows[0]?.positionList?.length ? topRows[0]?.positionList : topRows[0]?.position)[0]
-        pageBannerBatchPosition.value = firstPosition || PAGE_BANNER_POSITION
-        const firstPageScope = normalizePageSlugList(
-            topRows[0]?.pageSlugList?.length ? topRows[0]?.pageSlugList : topRows[0]?.pageSlug
-        )
-        pageBannerBatchEnablePageScope.value = !firstPageScope.includes('all')
-        pageBannerBatchPageSlugList.value = pageBannerBatchEnablePageScope.value
-            ? normalizeSpecificPageSlugList(firstPageScope)
-            : ['all']
-        pageBannerBatchItems.value = Array.from({ length: PAGE_BANNER_BATCH_SIZE }).map((_, index) => {
-            const row = topRows[index]
-            if (!row) {
-                return createEmptyPageBannerBatchItem(index)
-            }
-            const normalizedLinkUrl = String(row.linkUrl || row.url || '').trim()
-            const linkState = resolveBannerLinkState(normalizedLinkUrl)
-            return {
-                id: Number(row.id || 0),
-                title: String(row.title || ''),
-                description: String(row.description || ''),
-                image: String(row.image || row.imageUrl || ''),
-                linkType: linkState.linkType,
-                linkUrl: normalizedLinkUrl,
-                linkPagePath: linkState.linkPagePath,
-                linkTarget: row.linkTarget === '_self' ? '_self' : '_blank',
-                sortOrder: Number(row.sortOrder ?? row.sort ?? (index + 1) * PAGE_BANNER_SORT_STEP),
-                isActive: Boolean(row.isActive)
-            } as PageBannerBatchItem
-        })
-        showPageBannerBatchEdit.value = true
-    } catch (error: any) {
-        feedback.msgError(
-            error?.msg || error?.message || error?.response?.data?.message || '加载置顶banner广告失败'
-        )
-    } finally {
-        pageBannerBatchLoading.value = false
-    }
-}
-
-/**
- * 保存置顶四卡配置：每次整组重建，避免“编辑变新增”与旧数据残留。
- */
-const handleSavePageBannerBatch = async () => {
-    const items = pageBannerBatchItems.value
-    if (!Array.isArray(items) || items.length === 0) {
-        feedback.msgError('请先配置四卡位内容')
-        return
-    }
-    if (!String(pageBannerBatchGroupOldId.value || '').trim()) {
-        pageBannerBatchGroupOldId.value = `${PAGE_BANNER_BATCH_GROUP_PREFIX}${Date.now()}`
-    }
-    const batchPosition = normalizePositionAlias(String(pageBannerBatchPosition.value || '').trim())
-    if (!batchPosition) {
-        feedback.msgError('请选择四卡位展示位置')
-        return
-    }
-    const batchPageSlugList = pageBannerBatchEnablePageScope.value
-        ? normalizeSpecificPageSlugList(pageBannerBatchPageSlugList.value)
-        : ['all']
-    if (pageBannerBatchEnablePageScope.value && batchPageSlugList.length === 0) {
-        feedback.msgError('请至少选择一个显示页面')
-        return
-    }
-
-    for (let index = 0; index < items.length; index++) {
-        const errorMessage = validatePageBannerBatchItem(items[index], index)
-        if (errorMessage) {
-            feedback.msgError(errorMessage)
-            return
-        }
-    }
-
-    const filledItems = items.filter((item) => isPageBannerBatchItemFilled(item))
-    if (filledItems.length === 0) {
-        feedback.msgError('请至少配置一张卡片内容')
-        return
-    }
-
-    pageBannerBatchSaving.value = true
-    try {
-        const conflictRows = await detectBannerConflicts({
-            oldId: String(pageBannerBatchGroupOldId.value || '').trim(),
-            positionList: [batchPosition],
-            pageSlugList: batchPageSlugList,
-            excludeIds: pageBannerBatchEditingIds.value,
-            startTime: 0,
-            endTime: 0
-        })
-        if (conflictRows.length > 0) {
-            const preview = conflictRows
-                .slice(0, 3)
-                .map((item: any) => `#${item.id} ${String(item.title || '-').trim() || '-'}（${resolvePositionLabels(item).join(' / ')}）`)
-                .join('\n')
-            const message = [
-                `检测到 ${conflictRows.length} 条潜在冲突广告（同位置 + 同页面 + 时间重叠）。`,
-                preview,
-                conflictRows.length > 3 ? '...' : '',
-                '是否继续保存四卡配置？'
-            ]
-                .filter(Boolean)
-                .join('\n')
-            await feedback.confirm(message)
-        }
-        const existingRows = await fetchPageBannerRows()
-        for (const row of existingRows) {
-            const rowId = Number(row?.id || 0)
-            if (!rowId) continue
-            await uiedBannerDelete({ id: rowId })
-        }
-        const nextGroupOldId = `${PAGE_BANNER_BATCH_GROUP_PREFIX}${Date.now()}`
-        pageBannerBatchGroupOldId.value = nextGroupOldId
-
-        for (let index = 0; index < items.length; index++) {
-            const item = items[index]
-            const filled = isPageBannerBatchItemFilled(item)
-            const finalLinkUrl = item.linkType === 'page'
-                ? String(item.linkPagePath || '').trim()
-                : String(item.linkUrl || '').trim()
-
-            if (!filled) {
-                if (item.id) {
-                    await uiedBannerDelete({ id: item.id })
-                    item.id = 0
-                }
-                continue
-            }
-
-            const payload = {
-                title: String(item.title || '').trim(),
-                description: String(item.description || '').trim(),
-                image: pageBannerBatchStyle.value === 'image' ? String(item.image || '').trim() : '',
-                url: finalLinkUrl,
-                linkUrl: finalLinkUrl,
-                oldId: nextGroupOldId,
-                linkTarget: item.linkTarget || '_blank',
-                contentType: pageBannerBatchStyle.value,
-                htmlContent: '',
-                pageSlug: batchPageSlugList.includes('all') ? 'all' : batchPageSlugList.join(','),
-                pageSlugList: batchPageSlugList,
-                position: batchPosition,
-                positionList: [batchPosition],
-                sortOrder: Number(item.sortOrder || (index + 1) * PAGE_BANNER_SORT_STEP),
-                isActive: item.isActive !== false
-            }
-
-            const addResult = await uiedBannerAdd(payload)
-            item.id = Number((addResult as any)?.id || 0)
-        }
-
-        feedback.msgSuccess('置顶banner广告四卡位保存成功')
-        showPageBannerBatchEdit.value = false
-        await getLists()
-    } catch (error: any) {
-        feedback.msgError(
-            error?.msg || error?.message || error?.response?.data?.message || '保存置顶banner广告失败'
-        )
-    } finally {
-        pageBannerBatchSaving.value = false
-    }
+const isSameStringArray = (source: string[], target: string[]): boolean => {
+    if (!Array.isArray(source) || !Array.isArray(target)) return false
+    if (source.length !== target.length) return false
+    return source.every((item, index) => item === target[index])
 }
 
 const editData = reactive({
@@ -1470,6 +1182,7 @@ const editData = reactive({
     pageSlugList: ['all'] as string[],
     position: 'home',
     positionList: [ 'home' ] as string[],
+    pageBannerCardItems: createDefaultPageBannerCardItems() as PageBannerCardItem[],
     startTime: 0,
     endTime: 0,
     sortOrder: 0,
@@ -1484,11 +1197,18 @@ const isContentTypeSelected = computed<boolean>(() =>
 )
 
 /**
- * 仅“广告组件（text）”支持页面范围定向；图片与 HTML 默认全站投放。
+ * 仅在“广告组件 + 置顶banner广告位置”时启用四卡配置。
  */
-const showPageScopeConfig = computed<boolean>(() =>
-    String(editData.contentType || '').toLowerCase() === 'text'
-)
+const isPageBannerTextMode = computed<boolean>(() => {
+    const isTextType = String(editData.contentType || '').toLowerCase() === 'text'
+    const positions = normalizePositionList(editData.positionList)
+    return isTextType && positions.includes(PAGE_BANNER_POSITION)
+})
+
+/**
+ * 所有广告类型均支持页面范围，便于按页面独立运营。
+ */
+const showPageScopeConfig = computed<boolean>(() => isContentTypeSelected.value)
 const editRules: FormRules = {
     contentType: [{ required: true, message: '请先选择内容类型', trigger: 'change' }],
     title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
@@ -1566,13 +1286,14 @@ const resetEditData = () =>
         linkType: 'custom',
         linkPagePath: '',
         linkTarget: '_blank',
-        contentType: '',
+        contentType: 'image',
         htmlContent: '',
         enablePageScope: false,
         pageSlug: 'all',
         pageSlugList: ['all'],
         position: 'home',
         positionList: [ 'home' ],
+        pageBannerCardItems: createDefaultPageBannerCardItems(),
         startTime: 0,
         endTime: 0,
         sortOrder: 0,
@@ -1583,30 +1304,19 @@ const resetEditData = () =>
 const handleAdd = () => {
     resetEditData()
     currentEditingBannerId.value = 0
-    editingMultiPositionGroup.value = false
     showEdit.value = true
 }
-const handleEdit = (row: any) => {
+const handleEdit = async (row: any) => {
     const normalizedPositionList = normalizePositionList(
         row?.positionList?.length ? row.positionList : row?.position
     )
-    const oldId = String(row?.oldId || '').trim()
-    if (normalizedPositionList.includes('page_banner') || oldId.startsWith(PAGE_BANNER_BATCH_GROUP_PREFIX)) {
-        openPageBannerBatchDialog()
-        return
-    }
     currentEditingBannerId.value = Number(row?.id || 0)
-    const isMultiGroupRecord = isMultiPositionGroupRecord(row?.oldId)
-    let normalizedEditablePositionList = normalizedPositionList
-    /**
-     * 兼容历史单条记录里 position 存逗号串的情况：
-     * 编辑时默认只保留首个位置，避免“保存后自动新增多条”。
-     */
-    if (!isMultiGroupRecord && normalizedEditablePositionList.length > 1) {
-        normalizedEditablePositionList = [normalizedEditablePositionList[0]]
-    }
+    const normalizedEditablePositionList = normalizedPositionList.length > 0
+        ? normalizedPositionList
+        : ['home']
     const normalizedLinkUrl = String(row.linkUrl || row.url || '').trim()
     const linkState = resolveBannerLinkState(normalizedLinkUrl)
+    const pageBannerCardItems = parsePageBannerCardItemsFromHtmlContent(row.htmlContent || '')
     Object.assign(editData, {
         ...row,
         linkUrl: normalizedLinkUrl,
@@ -1618,15 +1328,22 @@ const handleEdit = (row: any) => {
         htmlContent: row.htmlContent || '',
         pageSlug: row.pageSlug || 'all',
         pageSlugList: normalizePageSlugList(row.pageSlugList?.length ? row.pageSlugList : row.pageSlug),
-        positionList: normalizedEditablePositionList
+        positionList: normalizedEditablePositionList,
+        pageBannerCardItems
     })
-    editingMultiPositionGroup.value = isMultiGroupRecord
-    if (String(editData.contentType || '').toLowerCase() === 'text') {
-        editData.enablePageScope = !editData.pageSlugList.includes('all')
-    } else {
-        editData.enablePageScope = false
-        editData.pageSlugList = ['all']
+    const isPageBannerTextRow =
+        String(editData.contentType || '').toLowerCase() === 'text' &&
+        normalizedEditablePositionList.includes(PAGE_BANNER_POSITION)
+    const hasValidCardItem = editData.pageBannerCardItems.some((item) => !isEmptyPageBannerCardItem(item))
+    if (isPageBannerTextRow && !hasValidCardItem) {
+        try {
+            await ensureRawBannerRowsLoaded()
+            editData.pageBannerCardItems = buildLegacyPageBannerCardItems(row)
+        } catch (error) {
+            console.warn('回填旧四卡配置失败:', error)
+        }
     }
+    editData.enablePageScope = !editData.pageSlugList.includes('all')
     if (editData.positionList.length === 0) {
         editData.positionList = [ 'home' ]
     }
@@ -1638,6 +1355,7 @@ const handleSubmit = async () => {
         feedback.msgError('请先选择内容类型')
         return
     }
+    const isPageBannerText = isPageBannerTextMode.value
     const normalizedLinkUrl = resolveFinalBannerLinkUrl()
     editData.linkUrl = normalizedLinkUrl
     editData.url = normalizedLinkUrl
@@ -1646,6 +1364,35 @@ const handleSubmit = async () => {
     } else if (editData.contentType === 'text') {
         editData.image = ''
         editData.htmlContent = ''
+        editData.linkType = 'custom'
+        editData.linkPagePath = ''
+        editData.linkUrl = ''
+        editData.url = ''
+        if (isPageBannerText) {
+            const normalizedCardItems = normalizePageBannerCardItems(editData.pageBannerCardItems)
+            const validCardItems = normalizedCardItems.filter((item) =>
+                Boolean(
+                    item.title ||
+                    item.description ||
+                    (item.linkType === 'page' ? item.linkPagePath : item.linkUrl) ||
+                    item.badgeText
+                )
+            )
+            if (validCardItems.length === 0) {
+                feedback.msgError('请至少配置一张四卡内容（标题/简介/链接任一项）')
+                return
+            }
+            editData.pageBannerCardItems = normalizedCardItems
+            editData.htmlContent = buildPageBannerCardItemsStorage(normalizedCardItems)
+            if (!String(editData.title || '').trim()) {
+                editData.title = '置顶banner广告'
+            }
+            if (!String(editData.description || '').trim()) {
+                editData.description = `四卡广告（已配置 ${validCardItems.length} 张）`
+            }
+        } else {
+            editData.htmlContent = ''
+        }
     } else {
         editData.htmlContent = ''
     }
@@ -1653,50 +1400,20 @@ const handleSubmit = async () => {
     editLoading.value = true
     try {
         const editingId = Number(currentEditingBannerId.value || editData.id || 0)
-        let positionList = normalizePositionList(editData.positionList)
-        if (!editingMultiPositionGroup.value && positionList.length > 1) {
-            positionList = [positionList[0]]
-        }
-        if (positionList.includes(PAGE_BANNER_POSITION)) {
-            feedback.msgError('置顶banner广告请使用“配置置顶banner四卡位”入口维护')
-            return
-        }
+        const positionList = normalizePositionList(editData.positionList)
         const pageSlugList = showPageScopeConfig.value && editData.enablePageScope
             ? normalizeSpecificPageSlugList(editData.pageSlugList)
             : ['all']
         const submitData = {
             ...editData,
             id: editingId,
-            linkUrl: normalizedLinkUrl,
-            url: normalizedLinkUrl,
+            linkUrl: editData.contentType === 'text' ? '' : normalizedLinkUrl,
+            url: editData.contentType === 'text' ? '' : normalizedLinkUrl,
+            htmlContent: editData.contentType === 'text' ? editData.htmlContent : '',
             pageSlugList,
             pageSlug: pageSlugList.includes('all') ? 'all' : pageSlugList.join(','),
             positionList,
-            position: positionList[0] || 'home'
-        }
-        const conflictRows = await detectBannerConflicts({
-            id: editingId,
-            oldId: String(submitData.oldId || '').trim(),
-            title: String(submitData.title || '').trim(),
-            positionList: positionList,
-            pageSlugList: pageSlugList,
-            startTime: Number(submitData.startTime || 0),
-            endTime: Number(submitData.endTime || 0)
-        })
-        if (conflictRows.length > 0) {
-            const preview = conflictRows
-                .slice(0, 3)
-                .map((item: any) => `#${item.id} ${String(item.title || '-').trim() || '-'}（${resolvePositionLabels(item).join(' / ')}）`)
-                .join('\n')
-            const message = [
-                `检测到 ${conflictRows.length} 条潜在冲突广告（同位置 + 同页面 + 时间重叠）。`,
-                preview,
-                conflictRows.length > 3 ? '...' : '',
-                '是否继续保存？'
-            ]
-                .filter(Boolean)
-                .join('\n')
-            await feedback.confirm(message)
+            position: positionList.join(',')
         }
         if (editingId > 0) {
             await uiedBannerEdit(submitData)
@@ -1794,76 +1511,24 @@ watch(
             }
             return
         }
-        editData.pageSlugList = ['all']
+        if (!isSameStringArray(editData.pageSlugList, ['all'])) {
+            editData.pageSlugList = ['all']
+        }
     }
 )
 
 /**
- * 广告类型切换联动：
- * - 仅广告组件支持页面范围；
- * - 其他类型切换后自动恢复全站通配，避免遗留脏配置。
+ * 规范化位置数组，去重并保留合法值。
  */
 watch(
-    () => editData.contentType,
+    () => editData.positionList,
     (value) => {
-        const normalizedType = String(value || '').trim().toLowerCase()
-        if (normalizedType === 'text') {
-            return
+        const normalized = normalizePositionList(value)
+        const nextValue = normalized.length > 0 ? normalized : ['home']
+        if (!isSameStringArray(editData.positionList, nextValue)) {
+            editData.positionList = [ ...nextValue ]
         }
-        editData.enablePageScope = false
-        editData.pageSlugList = ['all']
     }
-)
-
-/**
- * 当切换到“单条编辑模式”时，自动兜底为首个位置，避免残留多位置值。
- */
-watch(
-    () => allowMultiPositionSelection.value,
-    (enabled) => {
-        if (enabled) return
-        const normalized = normalizePositionList(editData.positionList)
-        editData.positionList = [normalized[0] || 'home']
-    }
-)
-
-/**
- * 四卡批量编辑页面范围开关联动：
- * - 开启“指定页面”时，移除 all，等待运营选择具体页面；
- * - 关闭时恢复 all，表示全站通配。
- */
-watch(
-    () => pageBannerBatchEnablePageScope.value,
-    (enabled) => {
-        if (enabled) {
-            if (pageBannerBatchPageSlugList.value.includes('all')) {
-                pageBannerBatchPageSlugList.value = []
-            }
-            return
-        }
-        pageBannerBatchPageSlugList.value = ['all']
-    }
-)
-
-/**
- * 四卡批量编辑页面列表规范化：
- * 仅在“指定页面”模式下保留具体页面，避免混入 all 或重复值。
- */
-watch(
-    () => pageBannerBatchPageSlugList.value,
-    (value) => {
-        if (!pageBannerBatchEnablePageScope.value) {
-            if (!Array.isArray(value) || value.length !== 1 || value[0] !== 'all') {
-                pageBannerBatchPageSlugList.value = ['all']
-            }
-            return
-        }
-        const normalized = normalizeSpecificPageSlugList(value)
-        if (normalized.length !== value.length || normalized.some((item, index) => item !== value[index])) {
-            pageBannerBatchPageSlugList.value = normalized
-        }
-    },
-    { deep: true }
 )
 
 getLists()
@@ -1992,6 +1657,66 @@ loadBannerDynamicPageOptions()
     gap: 8px;
 }
 
+.banner-form-group {
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 10px;
+    padding: 10px 12px 4px;
+    background: var(--el-fill-color-extra-light);
+    margin-bottom: 10px;
+}
+
+.banner-form-group__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    margin-bottom: 6px;
+}
+
+.banner-form-group__tip {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--el-text-color-secondary);
+    margin-bottom: 8px;
+}
+
+.page-banner-card-editor__header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 10px;
+}
+
+.page-banner-card-editor__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+}
+
+.page-banner-card-editor__tip {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--el-text-color-secondary);
+}
+
+.page-banner-card-editor {
+    display: grid;
+    gap: 10px;
+}
+
+.page-banner-card-editor__item {
+    border: 1px dashed var(--el-border-color);
+    border-radius: 10px;
+    padding: 10px 10px 2px;
+    background: var(--el-bg-color-overlay);
+}
+
+.page-banner-card-editor__item-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--el-text-color-regular);
+    margin-bottom: 6px;
+}
+
 .banner-position-tags {
     display: flex;
     flex-wrap: wrap;
@@ -2002,81 +1727,6 @@ loadBannerDynamicPageOptions()
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-}
-
-.page-banner-batch-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 14px;
-    padding: 12px;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 10px;
-    background: var(--el-fill-color-extra-light);
-}
-
-.page-banner-batch-toolbar__tip {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    line-height: 1.6;
-}
-
-.page-banner-batch-toolbar__controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
-.page-banner-batch-scope {
-    margin-bottom: 12px;
-    padding: 12px;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 10px;
-    background: var(--el-fill-color-extra-light);
-}
-
-.page-banner-batch-scope__switch {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.page-banner-batch-scope__label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-}
-
-.page-banner-batch-scope__tip {
-    margin-top: 8px;
-    font-size: 12px;
-    line-height: 1.6;
-    color: var(--el-text-color-secondary);
-}
-
-.page-banner-batch-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    max-height: 62vh;
-    overflow-y: auto;
-    padding-right: 2px;
-}
-
-.page-banner-batch-grid__item {
-    border-radius: 10px;
-}
-
-.page-banner-batch-grid__item-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-weight: 600;
 }
 
 @media (max-width: 900px) {
@@ -2093,23 +1743,8 @@ loadBannerDynamicPageOptions()
         align-items: stretch;
     }
 
-    .page-banner-batch-toolbar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .page-banner-batch-toolbar__controls {
-        width: 100%;
-        justify-content: flex-start;
-    }
-
-    .page-banner-batch-scope__switch {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .page-banner-batch-grid {
-        grid-template-columns: 1fr;
+    .banner-form-group {
+        padding: 10px;
     }
 }
 </style>

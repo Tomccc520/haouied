@@ -43,7 +43,7 @@ function parseFeatureToggle(rawValue) {
       aiGenerate: parsed.aiGenerate !== undefined ? parsed.aiGenerate : DEFAULT_TOGGLE.aiGenerate,
       aiChat: parsed.aiChat !== undefined ? parsed.aiChat : DEFAULT_TOGGLE.aiChat,
     };
-  } catch {
+  } catch (error) {
     return { ...DEFAULT_TOGGLE };
   }
 }

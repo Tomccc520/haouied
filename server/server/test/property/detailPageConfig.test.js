@@ -49,7 +49,7 @@ class InMemorySettingStore {
 
     try {
       return JSON.parse(raw);
-    } catch {
+    } catch (error) {
       return raw;
     }
   }

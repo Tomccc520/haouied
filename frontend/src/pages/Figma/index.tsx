@@ -391,6 +391,43 @@ const FigmaPage: React.FC = () => {
   const visibleCategories = useMemo(() => {
     return categories.filter((item) => Number(item.itemCount || 0) > 0);
   }, [categories]);
+  const recommendedCountInCurrentPage = useMemo(() => {
+    return list.reduce((total, item) => {
+      return total + (Number(item.isRecommended || 0) === 1 ? 1 : 0);
+    }, 0);
+  }, [list]);
+  const heroStatItems = useMemo(() => {
+    return [
+      {
+        key: 'total',
+        label: '插件总数',
+        value: formatCountLabel(pagination.total),
+        desc: '累计收录',
+        highlight: false,
+      },
+      {
+        key: 'recommended',
+        label: '推荐插件',
+        value: formatCountLabel(recommendedCountInCurrentPage),
+        desc: '当前页推荐',
+        highlight: true,
+      },
+      {
+        key: 'category',
+        label: '分类数量',
+        value: formatCountLabel(visibleCategories.length),
+        desc: '可筛选分类',
+        highlight: false,
+      },
+      {
+        key: 'tag',
+        label: '标签数量',
+        value: formatCountLabel(tags.length),
+        desc: '检索标签',
+        highlight: false,
+      },
+    ];
+  }, [pagination.total, recommendedCountInCurrentPage, visibleCategories.length, tags.length]);
   const heroCategoryTips = useMemo(() => visibleCategories.slice(0, 6), [visibleCategories]);
   const skeletonIndexes = useMemo(() => {
     return Array.from({ length: Math.max(8, Math.min(12, listPageSize)) }, (_, index) => index);
@@ -571,13 +608,6 @@ const FigmaPage: React.FC = () => {
                   <span>Design Workflow</span>
                   <span>Team Efficiency</span>
                 </div>
-                <button
-                  type="button"
-                  className="figma-list-page__hero-recommend-btn"
-                  onClick={handleOpenRecommendModal}
-                >
-                  推荐插件
-                </button>
               </div>
             </div>
             <h1>{pageTitle}</h1>
@@ -623,19 +653,20 @@ const FigmaPage: React.FC = () => {
               </div>
             ) : null}
           </div>
-          <div className="figma-list-page__hero-stats">
-            <article>
-              <strong>{formatCountLabel(pagination.total)}</strong>
-              <span>插件总数</span>
-            </article>
-            <article>
-              <strong>{formatCountLabel(visibleCategories.length)}</strong>
-              <span>分类数量</span>
-            </article>
-            <article>
-              <strong>{formatCountLabel(tags.length)}</strong>
-              <span>标签数量</span>
-            </article>
+          <div className="figma-list-page__hero-stats" aria-label="Figma 插件统计">
+            <div className="figma-list-page__hero-stats-head">
+              <strong>数据概览</strong>
+              <span>推荐插件已强化标记</span>
+            </div>
+            <div className="figma-list-page__hero-stats-grid">
+              {heroStatItems.map((item) => (
+                <article key={`hero-stat-${item.key}`} className={item.highlight ? 'is-highlight' : ''}>
+                  <span className="figma-list-page__hero-stats-label">{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <span className="figma-list-page__hero-stats-desc">{item.desc}</span>
+                </article>
+              ))}
+            </div>
           </div>
         </header>
 
@@ -713,17 +744,26 @@ const FigmaPage: React.FC = () => {
                   {activeFilterSummary ? ` · ${activeFilterSummary}` : ''}
                 </div>
               </div>
-              <label className="figma-list-page__sort-box">
-                <span>排序</span>
-                <select
-                  value={sortBy}
-                  onChange={(event) => handleSortChange(normalizeFigmaSortBy(event.target.value))}
+              <div className="figma-list-page__results-actions">
+                <button
+                  type="button"
+                  className="figma-list-page__recommend-entry-btn"
+                  onClick={handleOpenRecommendModal}
                 >
-                  {FIGMA_SORT_OPTIONS.map((item) => (
-                    <option key={`figma-sort-${item.value}`} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
+                  推荐 Figma 插件
+                </button>
+                <label className="figma-list-page__sort-box">
+                  <span>排序</span>
+                  <select
+                    value={sortBy}
+                    onChange={(event) => handleSortChange(normalizeFigmaSortBy(event.target.value))}
+                  >
+                    {FIGMA_SORT_OPTIONS.map((item) => (
+                      <option key={`figma-sort-${item.value}`} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </header>
 
             {error ? <div className="figma-list-page__state">{error}</div> : null}
@@ -762,16 +802,18 @@ const FigmaPage: React.FC = () => {
                   const publishDate = formatPublishDate(item.publishTime);
                   const displayTags = Array.isArray(item.tags) ? item.tags.slice(0, 3) : [];
                   const cardStats = buildCardStats(item);
+                  const isRecommended = Number(item.isRecommended || 0) === 1;
                   return (
                     <article
                       key={`figma-item-${item.id}`}
-                      className="figma-card is-clickable"
+                      className={`figma-card is-clickable${isRecommended ? ' is-recommended' : ''}`}
                       role="button"
                       tabIndex={0}
                       onClick={() => openPluginDetail(item)}
                       onKeyDown={(event) => handleCardKeyOpen(event, item)}
                       aria-label={`打开 Figma 插件卡片：${item.name}`}
                     >
+                      {isRecommended ? <span className="figma-card__recommend-ribbon">推荐插件</span> : null}
                       <div className="figma-card__header">
                         <div className="figma-card__icon-wrap">
                           {iconUrl && !iconErrorMap[item.id] ? (
@@ -789,7 +831,7 @@ const FigmaPage: React.FC = () => {
                           <div className="figma-card__meta-line">
                             {item.categoryName ? <span>{item.categoryName}</span> : null}
                             {publishDate ? <span>{publishDate}</span> : null}
-                            {Number(item.isRecommended || 0) === 1 ? <span className="figma-card__badge">推荐</span> : null}
+                            {isRecommended ? <span className="figma-card__badge">推荐</span> : null}
                           </div>
                         </div>
                       </div>

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, RouterView, type RouteRecordRaw } from 'vue-router'
+import { markRaw } from 'vue'
 import { MenuEnum } from '@/enums/appEnums'
 import { isExternal } from '@/utils/validate'
 import { constantRoutes, INDEX_ROUTE_NAME, LAYOUT } from './routes'
@@ -6,6 +7,7 @@ import useUserStore from '@/stores/modules/user'
 
 // 匹配views里面所有的.vue文件，动态引入
 const modules = import.meta.glob('/src/views/**/*.vue')
+const ROUTER_VIEW_RAW = markRaw(RouterView)
 
 /**
  * 统一内容中心历史菜单路由，避免“热门文章/榜单/每日热榜”在侧边栏重复出现。
@@ -154,9 +156,9 @@ export function createRouteRecord(route: any, firstRoute: boolean): RouteRecordR
     }
     switch (normalizedRoute.menuType) {
         case MenuEnum.CATALOGUE:
-            routeRecord.component = firstRoute ? LAYOUT : RouterView
+            routeRecord.component = firstRoute ? markRaw(LAYOUT as any) : ROUTER_VIEW_RAW
             if (!normalizedRoute.children) {
-                routeRecord.component = RouterView
+                routeRecord.component = ROUTER_VIEW_RAW
             }
             break
         case MenuEnum.MENU:
@@ -178,7 +180,7 @@ export function loadRouteView(component: string) {
         throw Error(`找不到组件${component}，请确保组件路径正确`)
     } catch (error) {
         console.error(error)
-        return RouterView
+        return ROUTER_VIEW_RAW
     }
 }
 

@@ -18,7 +18,6 @@
             :index="routePath"
             :popper-class="subMenuPopperClass"
             :teleported="enableHoverFlyout"
-            :popper-append-to-body="enableHoverFlyout"
             :show-timeout="subMenuShowTimeout"
             :hide-timeout="subMenuHideTimeout"
             :popper-offset="8"

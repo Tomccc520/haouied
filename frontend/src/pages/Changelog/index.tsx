@@ -75,6 +75,10 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-03-20',
     title: '正式版1.0.9：MCP中心导航归位 + 官网MCP页重构',
     changes: [
+      { type: 'fix', scope: 'backend', text: '【置顶banner广告】修复“四卡位批量编辑误删其它页面配置”问题：保存逻辑改为按“位置 + 页面范围”精准覆盖，仅替换当前目标范围，不再全量删除 page_banner 记录' },
+      { type: 'improve', scope: 'backend', text: '【置顶banner广告】四卡批量编辑支持“同范围替换、跨范围新增”策略：编辑同一页面范围时覆盖原组，切换到新页面范围时保留旧组并新增新组，实现多页面广告组件共存' },
+      { type: 'improve', scope: 'frontend', text: '【Figma/MCP官网】重构 Hero 间距体系：PC 与移动端统一最小节奏为 1rem，减少两端视觉偏差，保持页面头部阅读节奏一致' },
+      { type: 'improve', scope: 'frontend', text: '【Figma/MCP官网】新增统一间距变量 `--feature-page-top-padding` 与 `--feature-hero-top-gap`，两页顶部留白与 Hero 顶部间距可一处配置同步生效' },
       { type: 'feature', scope: 'fullstack', text: '【Figma推荐】新增前台“推荐插件”入口：/figma 页支持用户提交插件名称、官方链接、分类与说明，提交后进入后台审核队列' },
       { type: 'feature', scope: 'backend', text: '【Figma推荐】新增推荐审核能力：后端新增推荐记录入库、审核通过入库插件、审核拒绝与删除接口（/api/uied/figma/recommend/*）' },
       { type: 'feature', scope: 'backend', text: '【数据库补丁】新增 SQL `patch_2026_0322_figma_recommend_review.sql`：创建推荐审核表并安装“Figma中心 -> 推荐审核”菜单与权限' },

@@ -7,11 +7,11 @@
 
 .figma-list-page {
   min-height: calc(100vh - var(--header-height));
-  padding: 5rem var(--container-padding) var(--spacing-6);
+  padding: var(--feature-page-top-padding, 5rem) var(--container-padding) var(--spacing-7);
   background:
-    radial-gradient(780px 420px at 92% -18%, rgba(15, 23, 42, 0.08), transparent 72%),
-    radial-gradient(680px 340px at -10% -15%, rgba(71, 85, 105, 0.08), transparent 70%),
-    #f8fafc;
+    radial-gradient(760px 420px at 96% -18%, rgba(15, 23, 42, 0.12), transparent 70%),
+    radial-gradient(700px 340px at -8% -16%, rgba(56, 189, 248, 0.09), transparent 72%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   color: #0f172a;
 }
 
@@ -20,7 +20,7 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 1rem;
 }
 
 .figma-list-page--layout-wide .figma-list-page__container {
@@ -34,31 +34,45 @@
 .figma-list-page__hero {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 16px;
+  isolation: isolate;
+  margin-top: var(--feature-hero-top-gap, 1rem);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 18px;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.96)),
-    linear-gradient(45deg, rgba(242, 78, 30, 0.06), rgba(162, 89, 255, 0.04) 42%, rgba(10, 207, 131, 0.06));
-  padding: 20px;
+    linear-gradient(120deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 255, 0.92)),
+    linear-gradient(42deg, rgba(242, 78, 30, 0.1), rgba(162, 89, 255, 0.08) 46%, rgba(10, 207, 131, 0.08));
+  padding: 22px 22px 20px;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: 14px;
-  align-items: end;
+  grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.76fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.figma-list-page__hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(420px 220px at 105% 8%, rgba(242, 78, 30, 0.14), transparent 76%),
+    radial-gradient(360px 220px at 8% 104%, rgba(162, 89, 255, 0.1), transparent 78%);
 }
 
 .figma-list-page__hero-ornaments {
   position: absolute;
-  right: 18px;
-  top: 16px;
+  right: 20px;
+  top: 18px;
   display: grid;
-  grid-template-columns: repeat(2, 14px);
-  gap: 8px;
+  grid-template-columns: repeat(2, 12px);
+  gap: 6px;
   z-index: 0;
+  opacity: 0.9;
 }
 
 .figma-list-page__hero-dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
 }
 
@@ -83,29 +97,31 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .figma-list-page__hero-kicker-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .figma-list-page__kicker {
   display: inline-flex;
   align-items: center;
-  height: 24px;
-  padding: 0 10px;
+  height: 25px;
+  padding: 0 11px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(15, 23, 42, 0.2);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #334155;
-  background: #fff;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(4px);
 }
 
 .figma-list-page__hero-mini-tags {
@@ -123,24 +139,24 @@
 }
 
 .figma-list-page__hero-mini-tags span {
-  height: 22px;
-  padding: 0 9px;
+  height: 21px;
+  padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.16);
-  background: rgba(255, 255, 255, 0.9);
-  color: #475569;
-  font-size: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: rgba(255, 255, 255, 0.88);
+  color: #334155;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
 }
 
 .figma-list-page__hero-recommend-btn {
-  height: 24px;
+  height: 26px;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 999px;
   background: #0f172a;
   color: #fff;
-  padding: 0 12px;
+  padding: 0 11px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -151,37 +167,38 @@
 }
 
 .figma-list-page__hero h1 {
-  margin: 10px 0 0;
+  margin: 3px 0 0;
   font-size: clamp(1.54rem, 2.2vw, 2.1rem);
-  line-height: 1.18;
+  line-height: 1.16;
   color: #0f172a;
 }
 
 .figma-list-page__hero p {
-  margin: 12px 0 0;
+  margin: 0;
   font-size: 14px;
-  line-height: 1.75;
+  line-height: 1.68;
   color: #475569;
   max-width: 760px;
 }
 
 .figma-list-page__hero-search {
-  margin-top: 2px;
+  margin-top: 1px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 
 .figma-list-page__hero-search input {
   flex: 1;
   min-width: 0;
-  border: 1px solid rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 12px;
-  background: #fff;
-  padding: 10px 13px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 10px 12px;
   font-size: 14px;
   color: #0f172a;
   outline: none;
+  height: 41px;
 }
 
 .figma-list-page__hero-search input:focus {
@@ -189,7 +206,7 @@
 }
 
 .figma-list-page__hero-search button {
-  height: 40px;
+  height: 41px;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 12px;
   padding: 0 14px;
@@ -216,20 +233,21 @@
 .figma-list-page__hero-hint {
   font-size: 12px;
   color: #64748b;
+  min-height: 18px;
 }
 
 .figma-list-page__hero-category-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
 }
 
 .figma-list-page__hero-category-chips button {
-  border: 1px solid rgba(15, 23, 42, 0.16);
+  border: 1px solid rgba(15, 23, 42, 0.15);
   border-radius: 999px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.88);
   color: #334155;
-  padding: 5px 10px;
+  padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
 }
@@ -242,30 +260,73 @@
 .figma-list-page__hero-stats {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  align-self: stretch;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(4px);
+  padding: 12px;
+}
+
+.figma-list-page__hero-stats-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.figma-list-page__hero-stats-head strong {
+  font-size: 14px;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.figma-list-page__hero-stats-head span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.figma-list-page__hero-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .figma-list-page__hero-stats article {
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 14px;
-  background: #fff;
-  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 10px 11px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
+.figma-list-page__hero-stats article.is-highlight {
+  border-color: rgba(242, 78, 30, 0.45);
+  background: linear-gradient(130deg, rgba(255, 246, 241, 0.98), rgba(255, 255, 255, 0.98));
+}
+
+.figma-list-page__hero-stats-label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.figma-list-page__hero-stats-desc {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
 .figma-list-page__hero-stats strong {
-  font-size: 21px;
+  font-size: 18px;
   line-height: 1.1;
   color: #0f172a;
 }
 
-.figma-list-page__hero-stats span {
-  font-size: 12px;
-  color: #64748b;
+.figma-list-page__hero-stats-head > strong {
+  font-size: 14px;
 }
 
 .figma-list-page__content-layout {
@@ -385,6 +446,30 @@
   gap: 10px;
 }
 
+.figma-list-page__results-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.figma-list-page__recommend-entry-btn {
+  height: 32px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 10px;
+  background: #0f172a;
+  color: #fff;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.figma-list-page__recommend-entry-btn:hover {
+  opacity: 0.92;
+}
+
 .figma-list-page__results-meta {
   min-width: 0;
 }
@@ -431,6 +516,7 @@
 }
 
 .figma-card {
+  position: relative;
   border: 1px solid rgba(15, 23, 42, 0.11);
   border-radius: 14px;
   background: #fff;
@@ -448,6 +534,28 @@
 
 .figma-card.is-clickable:hover {
   border-color: rgba(15, 23, 42, 0.36);
+}
+
+.figma-card.is-recommended {
+  border-color: rgba(242, 78, 30, 0.35);
+}
+
+.figma-card__recommend-ribbon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(242, 78, 30, 0.42);
+  background: #fff3ee;
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 .figma-card__header {
@@ -963,7 +1071,7 @@
 @media (max-width: 1200px) {
   .figma-list-page__hero {
     grid-template-columns: 1fr;
-    align-items: start;
+    align-items: stretch;
   }
 
   .figma-list-page__content-layout {
@@ -977,15 +1085,15 @@
 
 @media (max-width: 768px) {
   .figma-list-page {
-    padding: 4.5rem var(--container-padding) var(--spacing-5);
+    padding: var(--feature-page-top-padding, 5rem) var(--container-padding) var(--spacing-5);
   }
 
   .figma-list-page__container {
-    gap: 12px;
+    gap: 1rem;
   }
 
   .figma-list-page__hero {
-    padding: 16px;
+    padding: 16px 14px;
     border-radius: 14px;
   }
 
@@ -1003,7 +1111,7 @@
 
   .figma-list-page__hero-kicker-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .figma-list-page__hero-mini-tags span {
@@ -1015,6 +1123,7 @@
   .figma-list-page__hero-search {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
   }
 
   .figma-list-page__hero-search button {
@@ -1022,12 +1131,17 @@
   }
 
   .figma-list-page__hero-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 10px;
     gap: 8px;
   }
 
+  .figma-list-page__hero-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
   .figma-list-page__hero-stats article {
-    padding: 10px;
+    padding: 9px;
   }
 
   .figma-list-page__hero-stats strong {
@@ -1052,6 +1166,19 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  .figma-list-page__results-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+  }
+
+  .figma-list-page__recommend-entry-btn {
+    width: 100%;
+    height: 36px;
+    border-radius: 10px;
   }
 
   .figma-list-page__sort-box {
