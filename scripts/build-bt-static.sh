@@ -43,7 +43,7 @@ REACT_APP_API_URL=${API_URL}
 PORT=3003
 EOF
   npm install
-  npm run build
+  SEO_SITE_ORIGIN="https://${SITE_DOMAIN}" SEO_API_ORIGIN="https://${SITE_DOMAIN}" npm run build
   rm -rf "$OUTPUT_ROOT/frontend/"*
   cp -R build/. "$OUTPUT_ROOT/frontend/"
 }

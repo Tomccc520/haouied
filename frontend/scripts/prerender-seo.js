@@ -18,8 +18,45 @@ const path = require('path')
 const PROJECT_ROOT = path.resolve(__dirname, '..')
 const BUILD_DIR = path.join(PROJECT_ROOT, 'build')
 const INDEX_HTML_PATH = path.join(BUILD_DIR, 'index.html')
-const DEFAULT_SITE_ORIGIN = String(process.env.SEO_SITE_ORIGIN || 'https://hao.uied.cn').trim().replace(/\/+$/, '') || 'https://hao.uied.cn'
-const DEFAULT_API_ORIGIN = String(process.env.SEO_API_ORIGIN || DEFAULT_SITE_ORIGIN).trim().replace(/\/+$/, '') || DEFAULT_SITE_ORIGIN
+
+/**
+ * 将输入地址规范化为 origin（协议+域名+端口）。
+ * @param {unknown} rawAddress 原始地址
+ * @param {string} fallback 默认值
+ * @returns {string} 规范化后的 origin
+ */
+function normalizeOrigin(rawAddress, fallback = '') {
+  const text = String(rawAddress || '').trim()
+  if (!text) {
+    return String(fallback || '').trim().replace(/\/+$/, '')
+  }
+  try {
+    const url = new URL(text)
+    return `${url.protocol}//${url.host}`
+  } catch (_error) {
+    return text
+      .replace(/\/api\/?$/i, '')
+      .replace(/\/+$/, '')
+  }
+}
+
+/**
+ * 从前端 API 地址推导站点 origin，兼容 REACT_APP_API_URL=.../api 的场景。
+ * @returns {string} 推导出的 origin
+ */
+function deriveOriginFromFrontendApiEnv() {
+  return normalizeOrigin(process.env.REACT_APP_API_URL, '')
+}
+
+const DEFAULT_SITE_ORIGIN = normalizeOrigin(
+  process.env.SEO_SITE_ORIGIN,
+  deriveOriginFromFrontendApiEnv() || 'https://hao.uied.cn'
+) || 'https://hao.uied.cn'
+
+const DEFAULT_API_ORIGIN = normalizeOrigin(
+  process.env.SEO_API_ORIGIN,
+  deriveOriginFromFrontendApiEnv() || DEFAULT_SITE_ORIGIN
+) || DEFAULT_SITE_ORIGIN
 
 /**
  * 解析布尔环境变量。
@@ -53,10 +90,10 @@ function parsePositiveInt(value, fallback, min = 1, max = 50000) {
 const INCLUDE_WEBSITE_DETAILS = parseBoolean(process.env.SEO_INCLUDE_WEBSITE_DETAILS, true)
 const WEBSITE_LIMIT = parsePositiveInt(process.env.SEO_WEBSITE_LIMIT, 5000, 1, 50000)
 const FALLBACK_SITE_SEO = {
-  siteName: 'UIED设计导航',
-  siteTitle: 'UIED设计导航',
-  siteDescription: '发现优质设计与 AI 工具资源',
-  siteKeywords: 'UIED,AI工具导航,设计导航',
+  siteName: 'UIED AI工具导航',
+  siteTitle: 'UIED AI工具导航 - 精选AI工具与资源平台',
+  siteDescription: 'UIED AI导航汇集全球优质AI工具与资源，帮助设计师、开发者与创作者高效发现并使用 AI 工具。',
+  siteKeywords: 'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具',
 }
 
 /**
@@ -423,6 +460,8 @@ function buildSitemapXml(siteOrigin, routes) {
  */
 async function run() {
   const indexHtml = await fs.readFile(INDEX_HTML_PATH, 'utf8')
+  console.log(`[seo-prerender] siteOrigin=${DEFAULT_SITE_ORIGIN}`)
+  console.log(`[seo-prerender] apiOrigin=${DEFAULT_API_ORIGIN}`)
   const { siteSeo, routes } = await loadSeoManifest(DEFAULT_API_ORIGIN, DEFAULT_SITE_ORIGIN)
 
   const normalizedRoutes = []

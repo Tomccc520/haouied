@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSiteInfo } from '../../hooks/useSiteInfo';
+import { DEFAULT_SITE_INFO } from '../../contexts/SiteContext';
 import api from '../../services/api';
 
 interface SEOProps {
@@ -88,28 +89,33 @@ const SEO: React.FC<SEOProps> = ({
       active = false;
     };
   }, []);
-  const siteName = String(siteInfo?.siteName || 'UIED设计导航').trim() || 'UIED设计导航';
-  const defaultTitle = String(siteInfo?.siteTitle || siteName).trim() || siteName;
+  const siteName = String(siteInfo?.siteName || DEFAULT_SITE_INFO.siteName).trim() || DEFAULT_SITE_INFO.siteName;
+  const siteTitle = String(siteInfo?.siteTitle || DEFAULT_SITE_INFO.siteTitle).trim() || DEFAULT_SITE_INFO.siteTitle;
+  const titleSuffix = siteTitle || siteName;
+  const defaultTitle = titleSuffix;
   const defaultDescription = String(
     siteInfo?.description ||
       (siteInfo as { siteDescription?: string } | undefined)?.siteDescription ||
-      '发现优质设计与 AI 工具资源'
-  ).trim();
+      DEFAULT_SITE_INFO.description
+  ).trim() || DEFAULT_SITE_INFO.description;
   const defaultKeywords = String(
     siteInfo?.keywords ||
       (siteInfo as { siteKeywords?: string } | undefined)?.siteKeywords ||
-      'UIED,AI工具导航,设计导航'
-  ).trim();
+      DEFAULT_SITE_INFO.keywords
+  ).trim() || DEFAULT_SITE_INFO.keywords;
 
   /**
    * 计算页面最终标题，优先使用页面标题并自动补站点名后缀。
    */
   const fullTitle = (() => {
     const resolvedTitle = String(title || defaultTitle).trim() || defaultTitle;
-    if (!resolvedTitle || resolvedTitle === siteName || resolvedTitle.includes(siteName)) {
-      return resolvedTitle || siteName;
+    if (!resolvedTitle || resolvedTitle === titleSuffix || resolvedTitle.includes(titleSuffix)) {
+      return resolvedTitle || titleSuffix;
     }
-    return `${resolvedTitle} - ${siteName}`;
+    if (siteName && resolvedTitle.includes(siteName)) {
+      return resolvedTitle;
+    }
+    return `${resolvedTitle} - ${titleSuffix}`;
   })();
   const resolvedDescription = String(description || defaultDescription).trim() || defaultDescription;
   const resolvedKeywords = String(keywords || defaultKeywords).trim() || defaultKeywords;
