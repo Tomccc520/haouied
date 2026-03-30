@@ -504,7 +504,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
   isSearchMode = false,
   searchResultsCount = 0,
   onExitSearchMode,
-  isSticky = true,
+  isSticky = false,
   className = '',
   // 新增参数
   showNavSwitch = false,
@@ -514,6 +514,11 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
   badgeText,
   svgIconMap = {}
 }) => {
+  /**
+   * 侧栏是否启用吸顶，默认关闭。
+   */
+  const shouldUseSticky = isSticky === true;
+
   // 合并默认配置
   const finalConfig = { ...getDefaultConfig(config.type), ...config };
   const SearchIcon = finalConfig.searchIcon || IconSearch;
@@ -543,7 +548,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
   useEffect(() => {
     // 如果不启用固定定位，直接返回
-    if (!isSticky) {
+    if (!shouldUseSticky) {
       setSidebarPosition('static');
       return;
     }
@@ -578,12 +583,12 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [isSticky]);
+  }, [shouldUseSticky]);
 
   // 根据状态确定CSS类名
   const getSidebarClass = () => {
     const baseClass = 'category-sidebar';
-    if (!isSticky) return `${baseClass} static`;
+    if (!shouldUseSticky) return `${baseClass} static`;
     
     return sidebarPosition === 'sticky' 
       ? `${baseClass} sticky` 
@@ -601,6 +606,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
     <aside 
       ref={sidebarRef} 
       className={`${getSidebarClass()} ${className}`}
+      style={shouldUseSticky ? undefined : { position: 'static', top: 'auto' }}
     >
       <div className="sidebar-header">
         {/* 只显示标题，不提供导航切换功能 */}

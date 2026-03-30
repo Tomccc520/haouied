@@ -3,7 +3,7 @@
  * @description 动态页面组件 - 从API获取数据并渲染页面
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePageData } from '../../hooks/usePageData';
 import { Website, SubCategory } from '../../services/pageService';
 import { recordWebsiteClick } from '../../services/api';
@@ -48,6 +48,17 @@ interface DirectVisitTarget {
  * 首页“最新网站更新”默认展示最近 7 天数据。
  */
 const HOMEPAGE_LATEST_UPDATE_DAYS = 7;
+const CATEGORY_SECTION_ID_PREFIX = 'category-';
+const CATEGORY_SECTION_TOP_GAP = 16;
+
+/**
+ * 判断滚动容器是否为 window，便于 TypeScript 做类型收窄。
+ * @param {Window | HTMLElement} container 滚动容器
+ * @returns {container is Window} 是否为 window
+ */
+const isWindowScrollContainer = (container: Window | HTMLElement): container is Window => {
+  return typeof window !== 'undefined' && container === window;
+};
 
 /**
  * 将页面标识统一映射为 HeroBanner 支持的 pageType。
@@ -87,6 +98,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
 
   // 状态
   const [activeCategory, setActiveCategory] = useState<string>('');
+  const activeCategoryRef = useRef<string>('');
   const [searchResults, setSearchResults] = useState<Website[]>([]);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [heroScrollWebsites, setHeroScrollWebsites] = useState<HeroScrollWebsite[]>([]);
@@ -203,36 +215,20 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
 
     try {
       setLatestWebsiteUpdatesLoading(true);
-      const scopedResult = await getDailyNewWebsites({
+      const globalResult = await getDailyNewWebsites({
         page: 1,
         pageSize: 8,
         days: HOMEPAGE_LATEST_UPDATE_DAYS,
-        pageSlug: slug,
         sortBy: 'latest',
       });
-      let normalized = normalizeLatestItems(scopedResult?.list);
-
-      /**
-       * 若当前页面关联分类近 7 天无数据，自动回退到全站近 7 天，避免模块空白。
-       */
-      if (normalized.length === 0 && slug) {
-        const globalResult = await getDailyNewWebsites({
-          page: 1,
-          pageSize: 8,
-          days: HOMEPAGE_LATEST_UPDATE_DAYS,
-          sortBy: 'latest',
-        });
-        normalized = normalizeLatestItems(globalResult?.list);
-      }
-
-      setLatestWebsiteUpdates(normalized);
+      setLatestWebsiteUpdates(normalizeLatestItems(globalResult?.list));
     } catch (error) {
       console.warn('获取最新网站更新失败，降级为空列表:', error);
       setLatestWebsiteUpdates([]);
     } finally {
       setLatestWebsiteUpdatesLoading(false);
     }
-  }, [slug]);
+  }, []);
 
   /**
    * 拉取“每日上新”公开展示配置（用于“查看更多”链接）。
@@ -283,13 +279,6 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     }
   }, [pageConfig?.heroDisplayMode, pageConfig?.heroScrollWebsites]);
 
-  // 设置默认激活分类 - 只在首次加载且没有激活分类时设置
-  useEffect(() => {
-    if (categories.length > 0 && !activeCategory) {
-      setActiveCategory(categories[0].id);
-    }
-  }, [categories, activeCategory]);
-
   // 读取“最新网站更新”数据（用于 Hero 下方滚动模块）
   useEffect(() => {
     fetchLatestWebsiteUpdates();
@@ -336,14 +325,210 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     }));
   }, [categories, getWebsitesByCategory, getWebsitesBySubCategory]);
 
+  /**
+   * 计算锚点滚动偏移值（顶部导航高度 + 额外留白）。
+   * @returns {number} 锚点滚动偏移像素
+   */
+  const getAnchorOffset = useCallback((): number => {
+    const rootStyle = window.getComputedStyle(document.documentElement);
+    const headerHeightText = rootStyle.getPropertyValue('--header-height').trim();
+    const headerHeight = Number.parseFloat(headerHeightText);
+    const safeHeaderHeight = Number.isFinite(headerHeight) && headerHeight > 0 ? headerHeight : 64;
+    return safeHeaderHeight + 16;
+  }, []);
+
+  /**
+   * 从目标节点向上查找最近可滚动父容器；未命中时回退到 window。
+   * @param {HTMLElement | null} element 目标节点
+   * @returns {Window | HTMLElement} 滚动容器
+   */
+  const getClosestScrollContainer = useCallback((element: HTMLElement | null): Window | HTMLElement => {
+    if (!element) return window;
+    let current = element.parentElement;
+    while (current && current !== document.body && current !== document.documentElement) {
+      const computedStyle = window.getComputedStyle(current);
+      const overflowY = computedStyle.overflowY;
+      const canScroll = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
+        && current.scrollHeight > current.clientHeight + 2;
+      if (canScroll) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return window;
+  }, []);
+
+  /**
+   * 滚动到指定分类区块，并保留顶部偏移，避免被顶部导航遮挡。
+   * @param {string} categoryId 分类 ID
+   * @param {ScrollBehavior} behavior 滚动动画行为
+   * @returns {boolean} 是否命中并执行滚动
+   */
+  const scrollToCategorySection = useCallback((categoryId: string, behavior: ScrollBehavior = 'smooth'): boolean => {
+    const targetSection = document.getElementById(`${CATEGORY_SECTION_ID_PREFIX}${categoryId}`);
+    if (!targetSection) return false;
+    const scrollContainer = getClosestScrollContainer(targetSection);
+    if (isWindowScrollContainer(scrollContainer)) {
+      const targetTop = targetSection.getBoundingClientRect().top + window.scrollY - getAnchorOffset();
+      window.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior,
+      });
+      return true;
+    }
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const targetTop = targetSection.getBoundingClientRect().top - containerRect.top
+      + scrollContainer.scrollTop
+      - CATEGORY_SECTION_TOP_GAP;
+    scrollContainer.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior,
+    });
+    return true;
+  }, [getAnchorOffset, getClosestScrollContainer]);
+
+  /**
+   * 同步当前分类锚点到地址栏（replaceState，不触发页面跳转）。
+   * @param {string} categoryId 分类 ID
+   */
+  const syncCategoryHash = useCallback((categoryId: string) => {
+    if (!categoryId) return;
+    const nextHash = `#${CATEGORY_SECTION_ID_PREFIX}${categoryId}`;
+    if (window.location.hash === nextHash) return;
+    const nextUrl = `${location.pathname}${location.search}${nextHash}`;
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }, [location.pathname, location.search]);
+
   // 处理导航点击
   const handleNavItemClick = useCallback((itemId: string) => {
     setActiveCategory(itemId);
-    const element = document.getElementById(`category-${itemId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    activeCategoryRef.current = itemId;
+    scrollToCategorySection(itemId, 'smooth');
+    syncCategoryHash(itemId);
+  }, [scrollToCategorySection, syncCategoryHash]);
+
+  // 设置默认激活分类 - 只在首次加载且没有激活分类时设置
+  useEffect(() => {
+    if (categories.length > 0 && !activeCategory) {
+      setActiveCategory(categories[0].id);
     }
-  }, []);
+  }, [categories, activeCategory]);
+
+  /**
+   * 保持 ref 与 state 同步，避免滚动回调里读取到旧值。
+   */
+  useEffect(() => {
+    activeCategoryRef.current = activeCategory;
+  }, [activeCategory]);
+
+  /**
+   * 首次进入页面时，若 URL 中带有分类锚点，则自动定位到对应分类。
+   */
+  useEffect(() => {
+    if (categories.length === 0 || isSearchMode) return;
+    const hash = String(window.location.hash || '').replace(/^#/, '');
+    if (!hash.startsWith(CATEGORY_SECTION_ID_PREFIX)) return;
+    const targetCategoryId = hash.replace(CATEGORY_SECTION_ID_PREFIX, '');
+    const hasTargetCategory = categories.some((item) => item.id === targetCategoryId);
+    if (!hasTargetCategory) return;
+    setActiveCategory(targetCategoryId);
+    activeCategoryRef.current = targetCategoryId;
+    window.requestAnimationFrame(() => {
+      scrollToCategorySection(targetCategoryId, 'auto');
+    });
+  }, [categories, isSearchMode, scrollToCategorySection]);
+
+  /**
+   * 监听页面滚动位置，实时同步侧栏高亮到当前可见分类区块。
+   */
+  useEffect(() => {
+    if (categories.length === 0 || isSearchMode) return;
+    const sectionTargets = categories
+      .map((category) => ({
+        id: category.id,
+        element: document.getElementById(`${CATEGORY_SECTION_ID_PREFIX}${category.id}`),
+      }))
+      .filter((item): item is { id: string; element: HTMLElement } => item.element instanceof HTMLElement);
+    if (sectionTargets.length === 0) return;
+
+    const primaryScrollContainer = getClosestScrollContainer(sectionTargets[0].element);
+    const useWindowScroll = isWindowScrollContainer(primaryScrollContainer);
+    const scrollContainers = Array.from(
+      new Set(
+        sectionTargets
+          .map((target) => getClosestScrollContainer(target.element))
+          .filter((container): container is HTMLElement => !isWindowScrollContainer(container))
+      )
+    );
+    let ticking = false;
+    let frameId = 0;
+
+    /**
+     * 根据当前滚动位置，计算应该激活的分类 ID。
+     * @returns {string} 当前激活分类 ID
+     */
+    const resolveActiveCategoryByScroll = (): string => {
+      const detectLine = useWindowScroll
+        ? getAnchorOffset() + 24
+        : primaryScrollContainer.getBoundingClientRect().top + CATEGORY_SECTION_TOP_GAP + 24;
+      let currentCategoryId = sectionTargets[0].id;
+      sectionTargets.forEach((target) => {
+        if (target.element.getBoundingClientRect().top <= detectLine) {
+          currentCategoryId = target.id;
+        }
+      });
+      let reachedPageBottom = false;
+      if (useWindowScroll) {
+        reachedPageBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      } else {
+        reachedPageBottom = primaryScrollContainer.scrollTop + primaryScrollContainer.clientHeight >= primaryScrollContainer.scrollHeight - 4;
+      }
+      if (reachedPageBottom) {
+        currentCategoryId = sectionTargets[sectionTargets.length - 1].id;
+      }
+      return currentCategoryId;
+    };
+
+    /**
+     * 将滚动计算结果同步到侧栏高亮与 URL 锚点。
+     */
+    const syncActiveCategoryByScroll = () => {
+      const nextCategoryId = resolveActiveCategoryByScroll();
+      if (!nextCategoryId || nextCategoryId === activeCategoryRef.current) return;
+      activeCategoryRef.current = nextCategoryId;
+      setActiveCategory(nextCategoryId);
+      syncCategoryHash(nextCategoryId);
+    };
+
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      frameId = window.requestAnimationFrame(() => {
+        syncActiveCategoryByScroll();
+        ticking = false;
+      });
+    };
+
+    // 初始化先同步一次，避免首屏高亮与实际位置不一致。
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    scrollContainers.forEach((container) => {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+    });
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('scroll', handleScroll, true);
+      scrollContainers.forEach((container) => {
+        container.removeEventListener('scroll', handleScroll);
+      });
+      window.removeEventListener('resize', handleScroll);
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [categories, isSearchMode, getAnchorOffset, getClosestScrollContainer, syncCategoryHash]);
 
   // 退出搜索模式
   const handleExitSearchMode = useCallback(() => {
@@ -549,7 +734,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
             isSearchMode={isSearchMode}
             searchResultsCount={searchResults.length}
             onExitSearchMode={handleExitSearchMode}
-            isSticky={true}
+            isSticky={false}
             badgeText={pageConfig?.slug?.toUpperCase() || slug.toUpperCase()}
           />
         )}

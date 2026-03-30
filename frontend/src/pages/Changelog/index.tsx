@@ -68,8 +68,22 @@ const platformLinks = [
   { name: 'AI知识库', url: 'https://ai.feishu.cn/wiki/ZjddwTFpWivK6ukwBoDc5DoHnVt?from=from_copylink' },
 ];
 
+const PRODUCT_BUY_URL = 'https://fsuied.com/products/10';
+
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
+  {
+    version: '1.1.0',
+    date: '2026-03-30',
+    title: '正式版1.1.0：前台侧栏小屏适配与滚动行为修正',
+    changes: [
+      { type: 'fix', scope: 'frontend', text: '【前台导航侧栏】修复小屏与平板下左侧菜单被遮挡问题：主布局在 1024px 以下改为“侧栏上置 + 内容下置”，分类菜单始终可见可点' },
+      { type: 'fix', scope: 'frontend', text: '【前台导航侧栏】取消动态频道页 / 热门文章页 / 榜单页 / 每日上新页侧栏吸顶固定，统一改为跟随主内容滚动，修复长页面滚到底部时侧栏超出视区/压到页脚的问题' },
+      { type: 'fix', scope: 'frontend', text: '【前台导航侧栏】修复分类锚点联动：点击侧栏按顶部偏移精准滚动到对应分类，页面滚动时侧栏高亮随当前锚点自动切换，并同步地址栏 hash' },
+      { type: 'fix', scope: 'frontend', text: '【首页最新网站更新】统一首页与频道页的数据口径，改为同一全站“近7日最新上新”数据源，修复正式环境出现的“首页与其它页面不同步”问题' },
+      { type: 'improve', scope: 'frontend', text: '【前台导航侧栏】移动端（<=750px）保留分类导航容器，不再默认整块隐藏，确保客户站点在手机端仍可快速切换分类' },
+    ],
+  },
   {
     version: '1.0.9',
     date: '2026-03-20',
@@ -702,7 +716,7 @@ const ChangelogPage: React.FC = () => {
   return (
     <div className="changelog-page">
       <SEO 
-        title="更新记录 - UIED设计导航"
+        title="更新记录"
         description="UIED设计导航更新记录，了解最新功能和改进"
         keywords="更新记录,版本历史,功能更新"
       />
@@ -733,6 +747,16 @@ const ChangelogPage: React.FC = () => {
             <p className="header-desc">
               由 <a href="https://tomda.top/" target="_blank" rel="noopener noreferrer" className="author-link">Tomda</a> 开发（AI协助）并记录 UIED-NAV 的开发历程和功能更新。公众号：Tomda
             </p>
+            <div className="changelog-actions">
+              <a
+                href={PRODUCT_BUY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="changelog-buy-link"
+              >
+                购买源码授权
+              </a>
+            </div>
             
             {/* 仓库链接 */}
             <div className="repo-links">

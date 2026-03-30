@@ -251,6 +251,12 @@ html {
   min-width: 0;
 }
 
+/* 动态页侧栏强制非吸顶，确保菜单随页面流动不固定。 */
+.dynamic-page .category-sidebar {
+  position: static !important;
+  top: auto !important;
+}
+
 .tools-header {
   display: flex;
   align-items: center;
