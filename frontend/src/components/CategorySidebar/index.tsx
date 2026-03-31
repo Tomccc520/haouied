@@ -7,7 +7,7 @@
  * @version 1.1.0 - 增加Motion动效支持
  */
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { IconSearch } from '../UI/Icons/index';
 import { NavMenuType } from '../../types';
 import { IconComponent } from '../../types/icon';
@@ -523,8 +523,6 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
   const finalConfig = { ...getDefaultConfig(config.type), ...config };
   const SearchIcon = finalConfig.searchIcon || IconSearch;
   
-  // 侧边栏状态管理
-  const [sidebarPosition, setSidebarPosition] = useState<'sticky' | 'static'>('static');
   const sidebarRef = useRef<HTMLElement>(null);
   
   // 记录最后一次选中的项目，用于调试比较
@@ -546,53 +544,15 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
     }
   }, [activeItem]);
 
-  useEffect(() => {
-    // 如果不启用固定定位，直接返回
-    if (!shouldUseSticky) {
-      setSidebarPosition('static');
-      return;
-    }
-    
-    let ticking = false;
-    
-    const handleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          
-          // 简化触发点计算，减少DOM查询
-          const triggerPoint = 300;
-          
-          // 根据滚动位置决定是否固定
-          const newPosition = scrollTop > triggerPoint ? 'sticky' : 'static';
-          setSidebarPosition(prev => prev !== newPosition ? newPosition : prev);
-          
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    
-    // 使用 passive 监听器优化滚动性能
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    // 初始化检查
-    handleScroll();
-    
-    // 清理
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [shouldUseSticky]);
-
-  // 根据状态确定CSS类名
+  /**
+   * 根据是否启用吸顶返回侧栏类名：
+   * - sticky：桌面端随页面滚动并限制可视高度
+   * - static：小屏降级为普通文档流
+   */
   const getSidebarClass = () => {
     const baseClass = 'category-sidebar';
     if (!shouldUseSticky) return `${baseClass} static`;
-    
-    return sidebarPosition === 'sticky' 
-      ? `${baseClass} sticky` 
-      : `${baseClass} static`;
+    return `${baseClass} sticky`;
   };
 
   // 处理导航项点击 - 直接使用传入的函数，不做任何修改

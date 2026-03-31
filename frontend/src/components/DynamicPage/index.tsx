@@ -49,12 +49,9 @@ interface DirectVisitTarget {
  */
 const HOMEPAGE_LATEST_UPDATE_DAYS = 7;
 const CATEGORY_SECTION_ID_PREFIX = 'category-';
-const CATEGORY_SECTION_TOP_GAP = 16;
 
 /**
  * 判断滚动容器是否为 window，便于 TypeScript 做类型收窄。
- * @param {Window | HTMLElement} container 滚动容器
- * @returns {container is Window} 是否为 window
  */
 const isWindowScrollContainer = (container: Window | HTMLElement): container is Window => {
   return typeof window !== 'undefined' && container === window;
@@ -105,6 +102,9 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const [latestWebsiteUpdates, setLatestWebsiteUpdates] = useState<DailyNewWebsiteItem[]>([]);
   const [latestWebsiteUpdatesLoading, setLatestWebsiteUpdatesLoading] = useState(false);
   const [dailyNewDisplayConfig, setDailyNewDisplayConfig] = useState<DailyNewDisplayConfig | null>(null);
+  const [sidebarStickyEnabled, setSidebarStickyEnabled] = useState<boolean>(true);
+  const [sidebarFixedActive, setSidebarFixedActive] = useState<boolean>(false);
+  const mainLayoutRef = useRef<HTMLDivElement | null>(null);
   
   // 获取前端配置（跳转弹窗自定义文案）
   const { config: frontendConfig } = useFrontendConfig();
@@ -290,6 +290,63 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   }, [fetchDailyNewDisplayConfig]);
 
   /**
+   * 侧栏吸顶仅在桌面端启用，平板与移动端降级为普通流式布局，避免遮挡主内容。
+   */
+  useEffect(() => {
+    const resolveSidebarStickyState = () => {
+      if (typeof window === 'undefined') {
+        setSidebarStickyEnabled(true);
+        return;
+      }
+      setSidebarStickyEnabled(window.innerWidth > 768);
+    };
+    resolveSidebarStickyState();
+    window.addEventListener('resize', resolveSidebarStickyState, { passive: true });
+    return () => {
+      window.removeEventListener('resize', resolveSidebarStickyState);
+    };
+  }, []);
+
+  /**
+   * 仅当主内容区滚动到头部导航下方时，才启用“左侧固定”样式：
+   * - Hero 区域内：侧栏保持正常文档流，不覆盖 Hero
+   * - 进入内容区后：侧栏固定在头部菜单下方
+   */
+  useEffect(() => {
+    if (!sidebarStickyEnabled) {
+      setSidebarFixedActive(false);
+      return;
+    }
+
+    const resolveHeaderOffset = (): number => {
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      const headerHeightText = rootStyle.getPropertyValue('--header-height').trim();
+      const headerHeight = Number.parseFloat(headerHeightText);
+      const safeHeaderHeight = Number.isFinite(headerHeight) && headerHeight > 0 ? headerHeight : 64;
+      return safeHeaderHeight + 8;
+    };
+
+    const updateFixedState = () => {
+      const mainLayout = mainLayoutRef.current;
+      if (!mainLayout) {
+        setSidebarFixedActive(false);
+        return;
+      }
+      const triggerTop = resolveHeaderOffset();
+      const mainLayoutTop = mainLayout.getBoundingClientRect().top;
+      setSidebarFixedActive(mainLayoutTop <= triggerTop);
+    };
+
+    updateFixedState();
+    window.addEventListener('scroll', updateFixedState, { passive: true });
+    window.addEventListener('resize', updateFixedState);
+    return () => {
+      window.removeEventListener('scroll', updateFixedState);
+      window.removeEventListener('resize', updateFixedState);
+    };
+  }, [sidebarStickyEnabled]);
+
+  /**
    * 构建 svg:key 图标索引，供分类侧边栏渲染自定义 SVG。
    */
   const svgIconMap = useMemo(
@@ -338,24 +395,21 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   }, []);
 
   /**
-   * 从目标节点向上查找最近可滚动父容器；未命中时回退到 window。
-   * @param {HTMLElement | null} element 目标节点
-   * @returns {Window | HTMLElement} 滚动容器
+   * 获取主内容滚动容器：
+   * - 若 `.layout-main` 具备独立滚动能力，则优先使用它；
+   * - 否则回退到 window。
+   * 这样可同时兼容“整页滚动”和“内容区独立滚动”两种布局。
    */
-  const getClosestScrollContainer = useCallback((element: HTMLElement | null): Window | HTMLElement => {
-    if (!element) return window;
-    let current = element.parentElement;
-    while (current && current !== document.body && current !== document.documentElement) {
-      const computedStyle = window.getComputedStyle(current);
-      const overflowY = computedStyle.overflowY;
-      const canScroll = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
-        && current.scrollHeight > current.clientHeight + 2;
-      if (canScroll) {
-        return current;
-      }
-      current = current.parentElement;
+  const getPrimaryScrollContainer = useCallback((): Window | HTMLElement => {
+    const layoutMain = document.querySelector('.layout-main');
+    if (!(layoutMain instanceof HTMLElement)) {
+      return window;
     }
-    return window;
+    const style = window.getComputedStyle(layoutMain);
+    const overflowY = style.overflowY;
+    const canScroll = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
+      && layoutMain.scrollHeight > layoutMain.clientHeight + 2;
+    return canScroll ? layoutMain : window;
   }, []);
 
   /**
@@ -367,7 +421,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const scrollToCategorySection = useCallback((categoryId: string, behavior: ScrollBehavior = 'smooth'): boolean => {
     const targetSection = document.getElementById(`${CATEGORY_SECTION_ID_PREFIX}${categoryId}`);
     if (!targetSection) return false;
-    const scrollContainer = getClosestScrollContainer(targetSection);
+    const scrollContainer = getPrimaryScrollContainer();
     if (isWindowScrollContainer(scrollContainer)) {
       const targetTop = targetSection.getBoundingClientRect().top + window.scrollY - getAnchorOffset();
       window.scrollTo({
@@ -379,13 +433,13 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     const containerRect = scrollContainer.getBoundingClientRect();
     const targetTop = targetSection.getBoundingClientRect().top - containerRect.top
       + scrollContainer.scrollTop
-      - CATEGORY_SECTION_TOP_GAP;
+      - getAnchorOffset();
     scrollContainer.scrollTo({
       top: Math.max(0, targetTop),
       behavior,
     });
     return true;
-  }, [getAnchorOffset, getClosestScrollContainer]);
+  }, [getAnchorOffset, getPrimaryScrollContainer]);
 
   /**
    * 同步当前分类锚点到地址栏（replaceState，不触发页面跳转）。
@@ -451,38 +505,25 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
       .filter((item): item is { id: string; element: HTMLElement } => item.element instanceof HTMLElement);
     if (sectionTargets.length === 0) return;
 
-    const primaryScrollContainer = getClosestScrollContainer(sectionTargets[0].element);
-    const useWindowScroll = isWindowScrollContainer(primaryScrollContainer);
-    const scrollContainers = Array.from(
-      new Set(
-        sectionTargets
-          .map((target) => getClosestScrollContainer(target.element))
-          .filter((container): container is HTMLElement => !isWindowScrollContainer(container))
-      )
-    );
     let ticking = false;
     let frameId = 0;
+    const primaryScrollContainer = getPrimaryScrollContainer();
 
     /**
      * 根据当前滚动位置，计算应该激活的分类 ID。
      * @returns {string} 当前激活分类 ID
      */
     const resolveActiveCategoryByScroll = (): string => {
-      const detectLine = useWindowScroll
-        ? getAnchorOffset() + 24
-        : primaryScrollContainer.getBoundingClientRect().top + CATEGORY_SECTION_TOP_GAP + 24;
+      const detectLine = Math.max(getAnchorOffset() + 24, window.innerHeight * 0.28);
       let currentCategoryId = sectionTargets[0].id;
       sectionTargets.forEach((target) => {
         if (target.element.getBoundingClientRect().top <= detectLine) {
           currentCategoryId = target.id;
         }
       });
-      let reachedPageBottom = false;
-      if (useWindowScroll) {
-        reachedPageBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
-      } else {
-        reachedPageBottom = primaryScrollContainer.scrollTop + primaryScrollContainer.clientHeight >= primaryScrollContainer.scrollHeight - 4;
-      }
+      const reachedPageBottom = isWindowScrollContainer(primaryScrollContainer)
+        ? (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4)
+        : (primaryScrollContainer.scrollTop + primaryScrollContainer.clientHeight >= primaryScrollContainer.scrollHeight - 4);
       if (reachedPageBottom) {
         currentCategoryId = sectionTargets[sectionTargets.length - 1].id;
       }
@@ -513,22 +554,22 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
-    scrollContainers.forEach((container) => {
-      container.addEventListener('scroll', handleScroll, { passive: true });
-    });
+    if (!isWindowScrollContainer(primaryScrollContainer)) {
+      primaryScrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    }
     window.addEventListener('resize', handleScroll);
     return () => {
       window.removeEventListener('scroll', handleScroll);
       document.removeEventListener('scroll', handleScroll, true);
-      scrollContainers.forEach((container) => {
-        container.removeEventListener('scroll', handleScroll);
-      });
+      if (!isWindowScrollContainer(primaryScrollContainer)) {
+        primaryScrollContainer.removeEventListener('scroll', handleScroll);
+      }
       window.removeEventListener('resize', handleScroll);
       if (frameId) {
         window.cancelAnimationFrame(frameId);
       }
     };
-  }, [categories, isSearchMode, getAnchorOffset, getClosestScrollContainer, syncCategoryHash]);
+  }, [categories, isSearchMode, getAnchorOffset, getPrimaryScrollContainer, syncCategoryHash]);
 
   // 退出搜索模式
   const handleExitSearchMode = useCallback(() => {
@@ -722,7 +763,10 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         aiSearchBtnText={frontendConfig?.searchConfig?.aiSearchBtnText || 'AI 搜索'}
       />
 
-      <div className={`main-layout ${pageConfig?.showSidebar === false ? 'no-sidebar' : ''}`}>
+      <div
+        ref={mainLayoutRef}
+        className={`main-layout ${pageConfig?.showSidebar === false ? 'no-sidebar' : ''} ${pageConfig?.showSidebar !== false && sidebarStickyEnabled ? 'has-sticky-sidebar' : ''} ${sidebarFixedActive ? 'sidebar-fixed-active' : ''}`}
+      >
         {/* 侧边栏 - 根据配置显示或隐藏 */}
         {pageConfig?.showSidebar !== false && (
           <CategorySidebar
@@ -734,7 +778,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
             isSearchMode={isSearchMode}
             searchResultsCount={searchResults.length}
             onExitSearchMode={handleExitSearchMode}
-            isSticky={false}
+            isSticky={sidebarStickyEnabled}
             badgeText={pageConfig?.slug?.toUpperCase() || slug.toUpperCase()}
           />
         )}

@@ -28,24 +28,26 @@
 /* 静态模式 - 跟随页面滚动 */
 .category-sidebar.static {
   position: static;
-  margin-left: 1rem; /* 与固定模式的left值保持一致 */
+  margin-left: 0;
 }
 
 /* 固定模式 - 滚动时固定在屏幕左侧 */
 .category-sidebar.sticky {
-  position: fixed;
-  top: 5rem; /* 调整为5rem，降低固定位置，让用户滑动到热门推荐区域时再固定 */
-  left: 1rem; /* 左侧1rem边距 */
-  width: 16rem; /* 明确设置宽度，不使用right */
-  z-index: 1000;
-  max-height: calc(100vh - 6rem - 150px); /* 视窗高度 - 顶部偏移 - Footer预留空间 */
+  position: sticky;
+  top: calc(var(--header-height, 64px) + 12px);
+  left: auto;
+  width: 16rem;
+  margin-left: 0;
+  align-self: flex-start;
+  z-index: 20;
+  max-height: calc(100vh - var(--header-height, 64px) - 28px);
   overflow: hidden;
 }
 
-/* 当侧边栏固定时，为右侧内容留出空间并添加右边距 */
+/* sticky 模式保持文档流布局，不再额外推挤内容区 */
 .category-sidebar.sticky + * {
-  margin-left: 18rem; /* 16rem宽度 + 1rem左边距 + 1rem间距 */
-  margin-right: 1rem; /* 添加右侧1rem边距 */
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* =================================
@@ -327,13 +329,15 @@
    ================================= */
 .category-nav {
   padding: 0.5rem 0;
-  max-height: calc(100vh - 8rem);
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
   overflow-x: hidden;
 }
 
 /* 固定模式下的滚动条 */
 .category-sidebar.sticky .category-nav {
+  max-height: calc(100vh - var(--header-height, 64px) - 96px);
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
@@ -510,14 +514,14 @@
    响应式设计
    ================================= */
 
-/* 平板及以下：取消固定定位和左边距 */
-@media (max-width: 1024px) {
+/* 手机端：取消固定定位和左边距 */
+@media (max-width: 768px) {
   .category-sidebar.sticky {
     position: static !important;
     top: auto;
     left: auto;
     max-height: none;
-    margin-left: 1rem;
+    margin-left: 0;
   }
   
   .category-sidebar.sticky + * {

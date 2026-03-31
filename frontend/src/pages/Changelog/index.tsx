@@ -73,6 +73,21 @@ const PRODUCT_BUY_URL = 'https://fsuied.com/products/10';
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.1.1',
+    date: '2026-03-31',
+    title: '正式版1.1.1：左侧菜单跟随与锚点联动稳定性修复',
+    changes: [
+      { type: 'fix', scope: 'frontend', text: '【左侧菜单跟随】动态频道页侧栏恢复桌面端吸顶跟随（CSS sticky），滚动时保持可见且不再脱离主内容区' },
+      { type: 'fix', scope: 'frontend', text: '【锚点联动】分类高亮跟随逻辑统一基于 window 滚动容器计算，修复部分页面滚动时左侧菜单不跟随右侧分类锚点的问题' },
+      { type: 'fix', scope: 'frontend', text: '【左侧菜单边界】侧栏可视高度改为按顶部导航自动计算，菜单列表改为“仅 sticky 态内部滚动”，修复长分类下底部超出与滚动冲突问题' },
+      { type: 'fix', scope: 'frontend', text: '【点击分类不丢菜单】侧栏吸顶禁用断点从 1024px 调整到 768px，电脑/平板点击左侧分类后侧栏持续可见，不再随页面滚动后“整块消失”' },
+      { type: 'fix', scope: 'frontend', text: '【顶部对齐】桌面端左侧菜单改为固定在头部导航下方（header 下沿 + 8px），右侧内容滚动时菜单始终可见，避免“点击分类后菜单脱离视口”' },
+      { type: 'fix', scope: 'frontend', text: '【不覆盖Hero】左侧菜单固定模式改为“进入主内容区后再激活”，Hero 区域内保持正常文档流展示，避免侧栏超出并压住 Hero 视觉区' },
+      { type: 'improve', scope: 'frontend', text: '【响应式布局】1024px 以下主布局改为“侧栏在上、内容在下”，避免中小屏出现菜单挤压内容或遮挡卡片' },
+      { type: 'improve', scope: 'frontend', text: '【后台运营】继续沿用 1.1.0 的短链重定向能力，便于在 SEO 中心按 /codeflying 这类入口持续运营推广链接' },
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-03-30',
     title: '正式版1.1.0：前台侧栏小屏适配与滚动行为修正',

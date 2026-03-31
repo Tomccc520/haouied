@@ -251,10 +251,40 @@ html {
   min-width: 0;
 }
 
-/* 动态页侧栏强制非吸顶，确保菜单随页面流动不固定。 */
-.dynamic-page .category-sidebar {
-  position: static !important;
-  top: auto !important;
+/**
+ * 桌面端：左侧分类菜单固定在顶部导航下方，滚动右侧内容时始终可见。
+ */
+@media (min-width: 769px) {
+  .main-layout.has-sticky-sidebar {
+    position: relative;
+  }
+
+  .main-layout.has-sticky-sidebar.sidebar-fixed-active .category-sidebar.sticky {
+    position: fixed;
+    top: calc(var(--header-height, 64px) + 8px);
+    left: 12px;
+    width: 16rem;
+    max-height: calc(100vh - var(--header-height, 64px) - 20px);
+    z-index: 50;
+  }
+
+  .main-layout.has-sticky-sidebar.sidebar-fixed-active .tools-main {
+    margin-left: calc(16rem + 20px);
+  }
+}
+
+/**
+ * 中小屏下主布局改为上下结构，避免左侧菜单挤压内容区。
+ */
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .main-layout .category-sidebar {
+    width: 100%;
+  }
 }
 
 .tools-header {
