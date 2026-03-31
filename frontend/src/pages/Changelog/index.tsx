@@ -77,6 +77,8 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-03-30',
     title: '正式版1.1.0：前台侧栏小屏适配与滚动行为修正',
     changes: [
+      { type: 'feature', scope: 'fullstack', text: '【运营短链】新增公开解析接口 `GET /api/seo/redirect/resolve`，前台 404 页支持命中后台“短链重定向（运营）”规则后自动跳转，适配静态部署场景下的推广短链投放' },
+      { type: 'improve', scope: 'frontend', text: '【SEO中心】后台“重定向规则”标签升级为“短链重定向（运营）”，并补充 `/codeflying -> 外部推广链接` 的可视化示例，降低运营配置门槛' },
       { type: 'fix', scope: 'frontend', text: '【前台导航侧栏】修复小屏与平板下左侧菜单被遮挡问题：主布局在 1024px 以下改为“侧栏上置 + 内容下置”，分类菜单始终可见可点' },
       { type: 'fix', scope: 'frontend', text: '【前台导航侧栏】取消动态频道页 / 热门文章页 / 榜单页 / 每日上新页侧栏吸顶固定，统一改为跟随主内容滚动，修复长页面滚到底部时侧栏超出视区/压到页脚的问题' },
       { type: 'fix', scope: 'frontend', text: '【前台导航侧栏】修复分类锚点联动：点击侧栏按顶部偏移精准滚动到对应分类，页面滚动时侧栏高亮随当前锚点自动切换，并同步地址栏 hash' },

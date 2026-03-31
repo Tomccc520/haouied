@@ -249,6 +249,8 @@ module.exports = app => {
   get('/api/site-info', controller.uied.frontend.siteInfo);
   // GET /api/seo/public-config - 获取公开 SEO 配置（TDK 模板/站长验证/链接改写策略）
   get('/api/seo/public-config', controller.uied.frontend.seoPublicConfig);
+  // GET /api/seo/redirect/resolve - 公开短链重定向解析（前台 404 兜底）
+  get('/api/seo/redirect/resolve', controller.uied.frontend.seoRedirectResolve);
   // POST /api/seo/report-404 - 前端上报 404 访问记录
   post('/api/seo/report-404', controller.uied.frontend.seoReport404);
   // GET /api/seo/prerender-manifest - 获取 SEO 预渲染路由清单

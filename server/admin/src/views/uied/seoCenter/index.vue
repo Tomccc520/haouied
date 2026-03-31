@@ -401,19 +401,25 @@
                     </el-card>
                 </el-tab-pane>
 
-                <el-tab-pane label="重定向规则" name="redirects" lazy>
+                <el-tab-pane label="短链重定向（运营）" name="redirects" lazy>
                     <div class="uied-seo-center__redirect-tools">
                         <el-button type="primary" @click="addRedirectRule">新增规则</el-button>
                     </div>
+                    <el-alert
+                        type="info"
+                        :closable="false"
+                        class="uied-seo-center__alert"
+                        title="运营短链示例：来源路径填 /codeflying，目标地址填 https://www.codeflying.net/?utm=...，即可把 hao.uied.cn/codeflying 跳转到推广链接。"
+                    />
                     <el-table :data="configForm.redirects" border>
                         <el-table-column label="来源路径" min-width="180">
                             <template #default="{ row }">
-                                <el-input v-model="row.from" placeholder="/old-path" />
+                                <el-input v-model="row.from" placeholder="/codeflying（精确匹配）" />
                             </template>
                         </el-table-column>
                         <el-table-column label="目标地址" min-width="220">
                             <template #default="{ row }">
-                                <el-input v-model="row.to" placeholder="/new-path 或 https://example.com/new" />
+                                <el-input v-model="row.to" placeholder="https://www.codeflying.net/?utm=..." />
                             </template>
                         </el-table-column>
                         <el-table-column label="类型" width="90">
@@ -1018,8 +1024,8 @@ const addRedirectRule = () => {
         : 10
     list.push({
         id: createRuleId(),
-        from: '/',
-        to: '/',
+        from: '/short-link',
+        to: 'https://example.com/landing',
         type: '301',
         enabled: true,
         preserveQuery: true,

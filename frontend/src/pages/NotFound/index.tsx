@@ -10,8 +10,9 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SEO from '../../components/SEO';
+import { resolveSeoRedirect } from '../../services/seoRedirectService';
 import './index.css';
 
 const AUTO_REDIRECT_SECONDS = 10;
@@ -33,9 +34,62 @@ const QUICK_LINKS = [
  */
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [countdown, setCountdown] = useState<number>(AUTO_REDIRECT_SECONDS);
+  const [resolvingRedirect, setResolvingRedirect] = useState<boolean>(true);
 
   useEffect(() => {
+    setCountdown(AUTO_REDIRECT_SECONDS);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    let active = true;
+
+    /**
+     * 尝试解析后台运营短链规则，命中后直接跳转目标地址。
+     */
+    const resolveRedirect = async () => {
+      const pathname = String(location.pathname || '').trim();
+      if (!pathname || pathname === '/' || pathname.startsWith('/api/')) {
+        if (active) setResolvingRedirect(false);
+        return;
+      }
+
+      const result = await resolveSeoRedirect(pathname, location.search || '');
+      if (!active) return;
+
+      if (result.matched && result.targetUrl) {
+        const currentPath = `${window.location.pathname}${window.location.search || ''}`;
+        const currentOrigin = window.location.origin;
+        const normalizedCurrentUrl = `${currentOrigin}${currentPath}`;
+        const normalizedTargetUrl = (() => {
+          try {
+            return new URL(result.targetUrl, currentOrigin).toString();
+          } catch (_error) {
+            return String(result.targetUrl || '').trim();
+          }
+        })();
+        if (normalizedTargetUrl !== normalizedCurrentUrl && result.targetUrl !== currentPath) {
+          window.location.replace(result.targetUrl);
+          return;
+        }
+      }
+
+      setResolvingRedirect(false);
+    };
+
+    setResolvingRedirect(true);
+    resolveRedirect();
+
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (resolvingRedirect) {
+      return;
+    }
     if (countdown <= 0) {
       navigate('/', { replace: true });
       return;
@@ -44,12 +98,14 @@ const NotFoundPage: React.FC = () => {
       setCountdown((prev) => prev - 1);
     }, 1000);
     return () => window.clearTimeout(timer);
-  }, [countdown, navigate]);
+  }, [countdown, navigate, resolvingRedirect]);
 
   /**
    * 拼接倒计时文案，便于统一管理。
    */
-  const redirectText = useMemo(() => `${countdown}s 后自动回到首页`, [countdown]);
+  const redirectText = useMemo(() => (
+    resolvingRedirect ? '正在检查运营短链...' : `${countdown}s 后自动回到首页`
+  ), [countdown, resolvingRedirect]);
 
   return (
     <>

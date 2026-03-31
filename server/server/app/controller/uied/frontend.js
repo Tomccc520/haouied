@@ -1485,6 +1485,53 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 公开短链重定向解析（前台 404 兜底调用）
+   * GET /api/seo/redirect/resolve?path=/codeflying&query=utm_source%3Dxx
+   */
+  async seoRedirectResolve() {
+    const { ctx } = this;
+
+    try {
+      this.setNoCacheHeaders();
+      const rawPath = String(ctx.query?.path || '').trim();
+      const rawQuery = String(ctx.query?.query || '').trim().replace(/^\?+/, '');
+      const normalizedPath = ctx.service.uied.seoCenter.normalizePath(rawPath || '/');
+      const shouldSkip = ctx.service.uied.seoCenter.shouldSkipRewrite(normalizedPath);
+
+      if (!rawPath || shouldSkip) {
+        ctx.body = {
+          matched: false,
+          targetUrl: '',
+          statusCode: 301,
+        };
+        return;
+      }
+
+      const config = await ctx.service.uied.seoCenter.getConfigCached();
+      const result = ctx.service.uied.seoCenter.matchRedirectRule(
+        normalizedPath,
+        rawQuery,
+        config
+      );
+
+      ctx.body = {
+        matched: result?.matched === true,
+        targetUrl: String(result?.targetUrl || ''),
+        statusCode: Number(result?.statusCode || 301),
+      };
+    } catch (error) {
+      ctx.logger.error('解析 SEO 短链重定向失败:', error);
+      ctx.status = 500;
+      ctx.body = {
+        matched: false,
+        targetUrl: '',
+        statusCode: 301,
+        error: error.message || '解析重定向失败',
+      };
+    }
+  }
+
+  /**
    * 前端上报 404 访问日志
    * POST /api/seo/report-404
    */
