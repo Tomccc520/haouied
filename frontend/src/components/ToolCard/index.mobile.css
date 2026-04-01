@@ -837,10 +837,14 @@
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 3;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   padding: 1rem;
   border-radius: 0.5rem;
+  border: none;
+  box-shadow: none;
+  margin-top: 0;
   opacity: 0;
   transform: translateY(0.5rem);
   transition: all 0.3s ease-out;
@@ -968,8 +972,8 @@
     -webkit-line-clamp: 1;
   }
   
-  /* 移动端不显示悬停描述 */
-  .tool-item-hover-description {
+  /* 移动端不显示悬停浮窗 */
+  .tool-item-hover-popover {
     display: none;
   }
 }
@@ -984,8 +988,70 @@
   box-shadow: 0 0.25rem 1rem rgba(51, 115, 220, 0.2);
 }
 
-[data-theme="dark"] .tool-item-hover-description {
-  background: rgba(42, 42, 42, 0.95);
+/* 桌面端悬停简介：浮窗形式显示，仅展示简介文案 */
+@media (min-width: 751px) {
+  .tool-item-card {
+    position: relative;
+    overflow: visible;
+  }
+
+  .tool-item-hover-popover {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 10px);
+    z-index: 60;
+    width: max-content;
+    max-width: min(20rem, calc(100vw - 2rem));
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.625rem;
+    background: var(--bg-card);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+    opacity: 0;
+    transform: translate(-50%, 6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+  }
+
+  .tool-item-hover-popover::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    transform: translateX(-50%);
+    border-style: solid;
+    border-width: 7px 6px 0 6px;
+    border-color: var(--bg-card) transparent transparent transparent;
+  }
+
+  .tool-item-card:hover .tool-item-hover-popover,
+  .tool-item-card:focus-within .tool-item-hover-popover {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  .tool-item-hover-popover__text {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+[data-theme="dark"] .tool-item-hover-popover {
+  background: var(--neutral-800);
+  border-color: var(--neutral-600);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .tool-item-hover-popover::after {
+  border-color: var(--neutral-800) transparent transparent transparent;
 }
 
 /* 减少动画模式支持 */
@@ -997,7 +1063,8 @@
   .tool-item-icon-fallback,
   .tool-item-name,
   .tool-tag,
-  .tool-item-hover-description {
+  .tool-item-hover-description,
+  .tool-item-hover-popover {
     transition: none;
   }
   

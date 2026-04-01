@@ -84,6 +84,7 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'fix', scope: 'frontend', text: '【顶部对齐】桌面端左侧菜单改为固定在头部导航下方（header 下沿 + 8px），右侧内容滚动时菜单始终可见，避免“点击分类后菜单脱离视口”' },
       { type: 'fix', scope: 'frontend', text: '【不覆盖Hero】左侧菜单固定模式改为“进入主内容区后再激活”，Hero 区域内保持正常文档流展示，避免侧栏超出并压住 Hero 视觉区' },
       { type: 'improve', scope: 'frontend', text: '【响应式布局】1024px 以下主布局改为“侧栏在上、内容在下”，避免中小屏出现菜单挤压内容或遮挡卡片' },
+      { type: 'improve', scope: 'frontend', text: '【网址卡片交互】新增“鼠标移入简介浮窗”：悬停时以浮窗形式展示网址介绍文案，移动端自动隐藏悬停层，不影响现有卡片内容布局' },
       { type: 'improve', scope: 'frontend', text: '【后台运营】继续沿用 1.1.0 的短链重定向能力，便于在 SEO 中心按 /codeflying 这类入口持续运营推广链接' },
     ],
   },

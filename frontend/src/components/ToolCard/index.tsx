@@ -200,6 +200,8 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
   const visibleTags = (Array.isArray(tool?.tags) ? tool.tags : [])
     .filter((tag) => !normalizeWeightTagKey(String(tag || '')))
     .slice(0, 3);
+  const hoverDescription = String(tool?.description || tool?.statusMessage || '').trim()
+    || '该站点暂未填写简介信息。';
   
   return (
     <div className="tool-card-wrapper">
@@ -254,6 +256,11 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
               ))}
             </div>
           )}
+        </div>
+
+        {/* 鼠标移入卡片时显示的简介浮窗（移动端自动隐藏） */}
+        <div className="tool-item-hover-popover" aria-hidden="true">
+          <p className="tool-item-hover-popover__text">{hoverDescription}</p>
         </div>
 
         {/* 直达箭头 - 鼠标移入卡片时显示 */}
