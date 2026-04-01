@@ -25,7 +25,7 @@ import {
   type DailyNewWebsiteItem,
   type DailyNewDisplayConfig,
 } from '../../services/dailyNewService';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   CategorySidebarSkeleton, 
   ToolGridSkeleton,
@@ -110,7 +110,6 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const { config: frontendConfig } = useFrontendConfig();
   const { config: permalinkConfig } = usePermalinkConfig();
   const detailNavigate = useNavigate();
-  const location = useLocation();
   const showDirectArrow = frontendConfig?.pageGlobalConfig?.showDirectArrow ?? false;
   const websiteClickMode = frontendConfig?.pageGlobalConfig?.websiteClickMode ?? 'detail';
   const directArrowNewWindow = frontendConfig?.pageGlobalConfig?.directArrowNewWindow ?? true;
@@ -441,25 +440,12 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     return true;
   }, [getAnchorOffset, getPrimaryScrollContainer]);
 
-  /**
-   * 同步当前分类锚点到地址栏（replaceState，不触发页面跳转）。
-   * @param {string} categoryId 分类 ID
-   */
-  const syncCategoryHash = useCallback((categoryId: string) => {
-    if (!categoryId) return;
-    const nextHash = `#${CATEGORY_SECTION_ID_PREFIX}${categoryId}`;
-    if (window.location.hash === nextHash) return;
-    const nextUrl = `${location.pathname}${location.search}${nextHash}`;
-    window.history.replaceState(window.history.state, '', nextUrl);
-  }, [location.pathname, location.search]);
-
   // 处理导航点击
   const handleNavItemClick = useCallback((itemId: string) => {
     setActiveCategory(itemId);
     activeCategoryRef.current = itemId;
     scrollToCategorySection(itemId, 'smooth');
-    syncCategoryHash(itemId);
-  }, [scrollToCategorySection, syncCategoryHash]);
+  }, [scrollToCategorySection]);
 
   // 设置默认激活分类 - 只在首次加载且没有激活分类时设置
   useEffect(() => {
@@ -531,14 +517,13 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     };
 
     /**
-     * 将滚动计算结果同步到侧栏高亮与 URL 锚点。
+     * 将滚动计算结果同步到侧栏高亮。
      */
     const syncActiveCategoryByScroll = () => {
       const nextCategoryId = resolveActiveCategoryByScroll();
       if (!nextCategoryId || nextCategoryId === activeCategoryRef.current) return;
       activeCategoryRef.current = nextCategoryId;
       setActiveCategory(nextCategoryId);
-      syncCategoryHash(nextCategoryId);
     };
 
     const handleScroll = () => {
@@ -569,7 +554,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         window.cancelAnimationFrame(frameId);
       }
     };
-  }, [categories, isSearchMode, getAnchorOffset, getPrimaryScrollContainer, syncCategoryHash]);
+  }, [categories, isSearchMode, getAnchorOffset, getPrimaryScrollContainer]);
 
   // 退出搜索模式
   const handleExitSearchMode = useCallback(() => {
@@ -656,6 +641,16 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     return resolveHeroPageType(pageType || slug);
   }, [pageType, slug]);
 
+  /**
+   * 生成当前页面 SEO URL（仅保留路径，避免包含历史 hash 锚点）。
+   */
+  const seoPathUrl = useMemo(() => {
+    if (typeof window !== 'undefined' && window.location?.pathname) {
+      return window.location.pathname;
+    }
+    return `/p/${slug}`;
+  }, [slug]);
+
   // 生成主题色相关的CSS变量 - 必须在早期返回之前调用
   const themeStyle = useMemo(() => {
     if (!pageConfig?.themeColor) return undefined;
@@ -739,7 +734,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         title={pageConfig?.name || '导航'}
         description={pageConfig?.description || ''}
         keywords={pageConfig?.name || ''}
-        url={location.pathname || `/p/${slug}`}
+        url={seoPathUrl}
       />
       
       {/* 头部Hero区域 */}

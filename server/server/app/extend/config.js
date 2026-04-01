@@ -143,7 +143,7 @@ const rsa = {
     'websites:*', // POST /api/websites/:id/click
     'settings:public', // GET /api/settings/public
     'uied:setting:public', // GET /api/uied/setting/public（兼容旧前端）
-    'uied:license:info', // GET /api/uied/license/info
+    'uied:license:public-status', // GET /api/uied/license/public-status（脱敏公开授权态）
     'uied:feature:list', // GET /api/uied/feature/list
     'uied:feature:check', // GET /api/uied/feature/check
     'settings:detailPageConfig', // GET /api/settings/detailPageConfig

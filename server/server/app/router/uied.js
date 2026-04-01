@@ -208,8 +208,10 @@ module.exports = app => {
   router.all('/api/uied/delivery/init/execute', controller.uied.deliveryInit.execute);
   router.all('/api/uied/delivery/package/export', controller.uied.deliveryInit.exportPackage);
 
-  // ==================== 许可证中心 ====================
+  // ==================== 授权中心 ====================
+  router.all('/api/uied/license/public-status', controller.uied.licenseCenter.publicStatus);
   router.all('/api/uied/license/info', controller.uied.licenseCenter.info);
+  router.all('/api/uied/license/activate', controller.uied.licenseCenter.activate);
   router.all('/api/uied/license/save', controller.uied.licenseCenter.save);
   router.all('/api/uied/license/sign', controller.uied.licenseCenter.sign);
   router.all('/api/uied/license/verify', controller.uied.licenseCenter.verify);

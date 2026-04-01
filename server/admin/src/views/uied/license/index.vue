@@ -2,7 +2,7 @@
  * @copyright Tomda (https://www.tomda.top)
  * @copyright UIED技术团队 (https://fsuied.com)
  * @author UIED技术团队
- * @createDate 2026.3.18
+ * @createDate 2026.3.24
 -->
 <template>
     <div class="uied-license-page">
@@ -10,8 +10,8 @@
             <template #header>
                 <div class="flex items-center justify-between">
                     <span class="font-medium">授权运行状态</span>
-                    <el-tag :type="resolveLicenseStatusTag(runtimeState.status)">
-                        {{ resolveLicenseStatusText(runtimeState.status) }}
+                    <el-tag :type="runtimeStatusTag">
+                        {{ runtimeStatusText }}
                     </el-tag>
                 </div>
             </template>
@@ -31,7 +31,7 @@
                     <el-tag :type="expiryMeta.tagType">{{ expiryMeta.label }}</el-tag>
                 </el-descriptions-item>
                 <el-descriptions-item label="域名额度">
-                    <span>{{ runtimeState.domainUsedCount }}/{{ runtimeState.domainLimit }}</span>
+                    <span>{{ runtimeDomainQuotaDisplay }}</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="当前访问域名">
                     <span>{{ runtimeState.runtimeDomain || '（本地/未识别）' }}</span>
@@ -45,11 +45,25 @@
                 </el-descriptions-item>
             </el-descriptions>
             <el-alert
-                v-if="runtimeState.domainEnforceEnabled && !runtimeState.isDomainAuthorized"
+                v-if="!runtimeState.isPaidEdition"
+                class="mt-4"
+                type="warning"
+                :closable="false"
+                title="当前未激活商业授权，后台功能将受限，请先在下方输入授权码激活。"
+            />
+            <el-alert
+                v-else-if="runtimeState.status === 'inactive'"
                 class="mt-4"
                 type="error"
                 :closable="false"
-                title="当前域名未授权：已超过域名绑定上限，请调整授权白名单或提高域名上限。"
+                :title="runtimeInactiveAlertText"
+            />
+            <el-alert
+                v-else-if="runtimeState.domainEnforceEnabled && !runtimeState.isDomainAuthorized"
+                class="mt-4"
+                type="error"
+                :closable="false"
+                :title="runtimeDomainUnauthorizedAlertText"
             />
             <el-alert
                 v-else-if="expiryMeta.alertType !== 'none'"
@@ -63,132 +77,189 @@
         <el-card class="!border-none" shadow="never">
             <template #header>
                 <div class="flex items-center justify-between">
-                    <span class="font-medium">许可证中心</span>
-                    <el-button type="primary" :loading="licenseSaving" @click="handleSaveLicense">
-                        保存许可证
-                    </el-button>
+                    <span class="font-medium">授权激活</span>
+                    <div class="flex items-center gap-2">
+                        <el-button
+                            plain
+                            type="primary"
+                            tag="a"
+                            href="https://fsuied.com/products/10"
+                            target="_blank"
+                        >
+                            购买授权
+                        </el-button>
+                        <el-button
+                            type="primary"
+                            :loading="licenseSaving"
+                            @click="handleActivateByKey"
+                        >
+                            激活授权
+                        </el-button>
+                    </div>
                 </div>
             </template>
             <el-alert
-                title="这里维护许可证、商业模式与授权运行状态。"
+                title="请在 fsuied.com 购买后获取授权码，输入授权码即可自动拉取签名授权并激活。"
+                type="warning"
+                :closable="false"
+                class="mb-4"
+            />
+
+            <el-form label-width="120px" class="max-w-[860px]">
+                <el-form-item label="授权码 Key">
+                    <el-input
+                        v-model="activateForm.licenseKey"
+                        placeholder="请输入 fsuied.com 下发的授权码（例如 UIED-PRO-XXXX-XXXX）"
+                    />
+                </el-form-item>
+                <el-form-item label="绑定域名(可选)">
+                    <el-input
+                        v-model="activateForm.bindDomain"
+                        placeholder="可留空，留空默认使用当前访问域名"
+                    />
+                    <div class="text-xs text-tx-secondary mt-2">
+                        当前访问域名：{{ runtimeState.runtimeDomain || '（本地/未识别）' }}
+                    </div>
+                </el-form-item>
+            </el-form>
+
+            <el-descriptions v-if="hasLicensePayload" :column="2" border>
+                <el-descriptions-item label="版本等级">
+                    {{ resolveEditionText(licenseForm.edition) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="许可证状态">
+                    {{ resolveLicenseStatusText(licenseForm.status) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="许可证密钥">
+                    {{ licenseForm.licenseKey || '未填写' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="联系邮箱">
+                    {{ licenseForm.contactEmail || '未填写' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="客户名称">
+                    {{ licenseForm.customerName || '未填写' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="公司名称">
+                    {{ licenseForm.companyName || '未填写' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="域名额度">
+                    {{ resolveDomainLimitText(licenseForm.domainLimit) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="到期时间">
+                    {{ formatUnixTime(licenseForm.expiresAt) }}
+                </el-descriptions-item>
+                <el-descriptions-item label="授权域名白名单" :span="2">
+                    {{ domainWhitelistDisplay || '暂无' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="签名状态" :span="2">
+                    <el-tag :type="licenseForm.signature ? 'success' : 'danger'">
+                        {{ licenseForm.signature ? '签名已生效' : '缺少签名' }}
+                    </el-tag>
+                </el-descriptions-item>
+            </el-descriptions>
+        </el-card>
+
+        <el-card class="!border-none" shadow="never">
+            <template #header>
+                <div class="flex items-center justify-between">
+                    <span class="font-medium">请仔细阅读说明</span>
+                    <el-tag :type="supportModeTagType">{{ supportModeText }}</el-tag>
+                </div>
+            </template>
+            <el-alert
+                title="感谢您使用 UIED 导航系统。授权、改绑、售后均以 fsuied.com 官方渠道为准。"
                 type="info"
                 :closable="false"
                 class="mb-4"
             />
-            <el-form :model="licenseForm" label-width="120px" class="max-w-[760px]">
-                <el-form-item label="版本等级">
-                    <el-select v-model="licenseForm.edition" class="w-[220px]">
-                        <el-option label="Free" value="free" />
-                        <el-option label="Pro" value="pro" />
-                        <el-option label="Enterprise" value="enterprise" />
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="许可证状态">
-                    <el-select v-model="licenseForm.status" class="w-[220px]">
-                        <el-option label="激活" value="active" />
-                        <el-option label="禁用" value="disabled" />
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="许可证密钥">
-                    <el-input v-model="licenseForm.licenseKey" placeholder="请输入许可证密钥" />
-                </el-form-item>
-                <el-form-item label="客户名称">
-                    <el-input v-model="licenseForm.customerName" placeholder="请输入客户名称" />
-                </el-form-item>
-                <el-form-item label="公司名称">
-                    <el-input v-model="licenseForm.companyName" placeholder="请输入公司名称" />
-                </el-form-item>
-                <el-form-item label="联系邮箱">
-                    <el-input v-model="licenseForm.contactEmail" placeholder="请输入联系邮箱" />
-                </el-form-item>
-                <el-form-item label="域名绑定上限">
-                    <el-input-number v-model="licenseForm.domainLimit" :min="1" :max="9999" />
-                </el-form-item>
-                <el-form-item label="授权域名白名单">
-                    <el-input
-                        v-model="domainWhitelistText"
-                        type="textarea"
-                        :rows="3"
-                        placeholder="支持逗号或换行分隔，例如：demo.uied.cn, nav.fsuied.com"
-                    />
-                    <div class="text-xs text-tx-secondary mt-2">
-                        白名单域名始终占用授权额度；其余域名在首次访问时会自动登记（开启“域名绑定数量限制”后生效）。
-                    </div>
-                </el-form-item>
-                <el-form-item label="签发时间(秒)">
-                    <el-input-number v-model="licenseForm.issuedAt" :min="0" :step="86400" />
-                </el-form-item>
-                <el-form-item label="到期时间(秒)">
-                    <el-input-number v-model="licenseForm.expiresAt" :min="0" :step="86400" />
-                </el-form-item>
-                <el-form-item label="备注">
-                    <el-input
-                        v-model="licenseForm.note"
-                        type="textarea"
-                        :rows="3"
-                        placeholder="可填写授权备注"
-                    />
-                </el-form-item>
-            </el-form>
-        </el-card>
 
-        <el-card class="!border-none mt-4" shadow="never">
-            <template #header>
-                <div class="flex items-center justify-between">
-                    <span class="font-medium">商业版模式开关</span>
-                    <el-button
-                        v-perms="['uied:commercial:mode:save']"
-                        type="primary"
-                        :loading="modeSaving"
-                        @click="handleSaveMode"
+            <el-descriptions :column="2" border>
+                <el-descriptions-item label="官网地址">
+                    <a :href="supportInfo.siteUrl" target="_blank" rel="noopener noreferrer">
+                        {{ supportInfo.siteUrl }}
+                    </a>
+                </el-descriptions-item>
+                <el-descriptions-item label="购买与授权入口">
+                    <a :href="supportInfo.productUrl" target="_blank" rel="noopener noreferrer">
+                        {{ supportInfo.productUrl }}
+                    </a>
+                </el-descriptions-item>
+                <el-descriptions-item label="客服QQ">
+                    {{ supportInfo.qqContact }}
+                </el-descriptions-item>
+                <el-descriptions-item label="官方QQ群">
+                    {{ supportInfo.qqGroup }}
+                </el-descriptions-item>
+                <el-descriptions-item label="会员号" :span="2">
+                    {{ supportMemberDisplay }}
+                </el-descriptions-item>
+                <el-descriptions-item label="售后截止日期" :span="2">
+                    {{ supportDeadlineDisplay }}
+                </el-descriptions-item>
+            </el-descriptions>
+
+            <div v-if="!isActivatedRuntime" class="license-guide mt-4">
+                <h4>未激活专属版</h4>
+                <p>
+                    当前后台仅开放授权中心页面。请先完成购买、域名绑定与授权激活，激活后后台其余功能自动放行。
+                </p>
+                <ol>
+                    <li>
+                        前往
+                        <a
+                            :href="supportInfo.productUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {{ supportInfo.productUrl }}
+                        </a>
+                        购买 Pro / Enterprise 授权。
+                    </li>
+                    <li>在 fsuied.com 授权中心填写部署域名并提交绑定。</li>
+                    <li>回到当前页面输入授权码 Key，点击“激活授权”。</li>
+                    <li>激活成功后刷新后台，即可访问完整后台功能。</li>
+                </ol>
+                <p>
+                    如无法激活或提示禁用，请联系 QQ：{{ supportInfo.qqContact }}（官方群：{{ supportInfo.qqGroup }}）。
+                </p>
+            </div>
+
+            <div v-else class="license-guide mt-4">
+                <h4>已激活专属版</h4>
+                <p>
+                    主题安装成功。当前系统仅在已授权域名及其子域名可正常使用。如你在官网新增/改绑域名，请先在
+                    fsuied.com 完成操作，再回到本页用同一授权码重新激活。
+                </p>
+                <p class="domain-list-title">当前授权域名：</p>
+                <ul>
+                    <li v-for="domain in authorizedDomainItems" :key="domain">{{ domain }}</li>
+                </ul>
+            </div>
+
+            <div class="license-guide mt-4">
+                <h4>请仔细阅读说明</h4>
+                <p>
+                    授权文件包含会员号、域名等关键信息。请勿泄露源码与授权信息，避免对商业权益造成不可逆影响。
+                </p>
+                <p>
+                    请勿将本系统用于违法违规或违反公序良俗的业务场景。若授权被禁用，请联系
+                    fsuied.com 官方客服处理。
+                </p>
+                <p>
+                    购买与改绑地址：
+                    <a
+                        :href="supportInfo.productUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
                     >
-                        保存商业模式
-                    </el-button>
-                </div>
-            </template>
-            <el-form :model="modeForm" label-width="180px" class="max-w-[760px]">
-                <el-form-item label="严格商业版模式">
-                    <el-switch v-model="modeForm.strictLegacyRoutes" />
-                    <span class="ml-3 text-xs text-tx-secondary">
-                        开启后关闭旧兼容路由，仅允许 /api 正式路由访问
-                    </span>
-                </el-form-item>
-                <el-form-item label="强制许可证签名校验">
-                    <el-switch v-model="modeForm.enforceLicenseSignature" />
-                    <span class="ml-3 text-xs text-tx-secondary">
-                        开启后若 license 签名异常将自动降级为 Free 能力
-                    </span>
-                </el-form-item>
-                <el-form-item label="域名绑定数量限制">
-                    <el-switch v-model="modeForm.enforceDomainBinding" />
-                    <span class="ml-3 text-xs text-tx-secondary">
-                        开启后按“域名绑定上限”控制可授权域名数，超过上限将自动降级为 Free 能力
-                    </span>
-                </el-form-item>
-            </el-form>
-        </el-card>
-
-        <el-card class="!border-none mt-4" shadow="never">
-            <template #header>
-                <div class="flex items-center justify-between">
-                    <span class="font-medium">商业版健康总览</span>
-                    <el-tag :type="resolveOverviewLevelTag(overviewState.level)">
-                        评分 {{ overviewState.score }}
-                    </el-tag>
-                </div>
-            </template>
-            <el-empty v-if="overviewState.checks.length === 0" description="暂无总览数据" />
-            <div v-else class="overview-check-list">
-                <div
-                    v-for="item in overviewState.checks"
-                    :key="item.key"
-                    class="overview-check-item"
-                >
-                    <el-tag :type="resolveCheckTagType(item.status)" size="small">
-                        {{ item.status.toUpperCase() }}
-                    </el-tag>
-                    <span class="overview-check-text">{{ item.message }}</span>
-                </div>
+                        {{ supportInfo.productUrl }}
+                    </a>
+                </p>
+                <ul>
+                    <li>售后支持包含：程序使用咨询、BUG 处理、意见反馈。</li>
+                    <li>售后不包含：二次开发、服务器运维、网站优化、环境部署等服务。</li>
+                    <li>如需人工支持，请联系 QQ：{{ supportInfo.qqContact }}，QQ群：{{ supportInfo.qqGroup }}。</li>
+                </ul>
             </div>
         </el-card>
     </div>
@@ -199,24 +270,31 @@
  * @copyright Tomda (https://www.tomda.top)
  * @copyright UIED技术团队 (https://fsuied.com)
  * @author UIED技术团队
- * @createDate 2026.3.18
+ * @createDate 2026.3.24
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import feedback from '@/utils/feedback'
-import {
-    uiedCommercialOverview,
-    uiedCommercialModeGet,
-    uiedCommercialModeSave,
-    uiedLicenseInfo,
-    uiedSaveLicenseInfo
-} from '@/api/uied'
+import { uiedActivateLicenseByKey, uiedLicenseInfo } from '@/api/uied'
 
 type ElTagType = '' | 'success' | 'warning' | 'info' | 'danger'
 type ElAlertType = 'none' | 'success' | 'warning' | 'info' | 'error'
 
 const licenseSaving = ref(false)
-const modeSaving = ref(false)
-const domainWhitelistText = ref('')
+
+const activateForm = reactive({
+    licenseKey: '',
+    bindDomain: ''
+})
+
+/**
+ * 官方支持信息（激活页固定展示）
+ */
+const supportInfo = {
+    siteUrl: 'https://fsuied.com',
+    productUrl: 'https://fsuied.com/products/10',
+    qqGroup: '1082794860',
+    qqContact: '403479454'
+}
 
 const licenseForm = reactive({
     edition: 'free',
@@ -226,20 +304,20 @@ const licenseForm = reactive({
     companyName: '',
     contactEmail: '',
     domainLimit: 1,
+    domainWhitelist: [] as string[],
     issuedAt: 0,
     expiresAt: 0,
+    signature: '',
     note: ''
 })
-const modeForm = reactive({
-    strictLegacyRoutes: false,
-    enforceLicenseSignature: false,
-    enforceDomainBinding: false
-})
+
 const runtimeState = reactive({
     edition: 'free',
     effectiveEdition: 'free',
     status: 'active',
+    note: '',
     isActive: false,
+    isPaidEdition: false,
     isExpired: false,
     now: 0,
     expiresAt: 0,
@@ -249,22 +327,171 @@ const runtimeState = reactive({
     domainRemainingCount: 0,
     domainEnforceEnabled: false,
     isDomainAuthorized: true,
+    domainReason: '',
     registeredDomains: [] as string[]
 })
-const overviewState = reactive({
-    score: 0,
-    level: 'ready',
-    checks: [] as Array<{ key: string; status: string; message: string }>
+
+const hasLicensePayload = computed(() => {
+    return Boolean(
+        String(licenseForm.licenseKey || '').trim() || String(licenseForm.signature || '').trim()
+    )
 })
 
 /**
- * 解析授权域名白名单输入（支持逗号和换行）
+ * 运行态是否已完成激活（已付费 + 状态正常 + 域名校验通过）
  */
-const parseDomainWhitelist = () => {
-    return domainWhitelistText.value
-        .split(/[\n,]/g)
-        .map((item) => item.trim())
-        .filter(Boolean)
+const isActivatedRuntime = computed(() => {
+    const status = String(runtimeState.status || '').trim().toLowerCase()
+    const isStatusActive = status === 'active'
+    const isDomainPass = !runtimeState.domainEnforceEnabled || runtimeState.isDomainAuthorized
+    return runtimeState.isPaidEdition && runtimeState.isActive && isStatusActive && isDomainPass
+})
+
+/**
+ * 说明区模式文案
+ */
+const supportModeText = computed(() => {
+    return isActivatedRuntime.value ? '已激活专属版' : '未激活专属版'
+})
+
+/**
+ * 说明区模式标签颜色
+ */
+const supportModeTagType = computed<ElTagType>(() => {
+    return isActivatedRuntime.value ? 'success' : 'warning'
+})
+
+/**
+ * 授权域名白名单展示文本
+ */
+const domainWhitelistDisplay = computed(() => licenseForm.domainWhitelist.join('、'))
+
+/**
+ * 会员号展示文案（优先客户名，其次邮箱）
+ */
+const supportMemberDisplay = computed(() => {
+    if (!isActivatedRuntime.value) {
+        return '未激活（激活后显示会员信息）'
+    }
+    const customerName = String(licenseForm.customerName || '').trim()
+    if (customerName) {
+        return customerName
+    }
+    const contactEmail = String(licenseForm.contactEmail || '').trim()
+    if (contactEmail) {
+        return contactEmail
+    }
+    return '请在 fsuied.com 用户中心查看'
+})
+
+/**
+ * 售后截止日期展示文案
+ */
+const supportDeadlineDisplay = computed(() => {
+    if (!isActivatedRuntime.value) {
+        return '未激活（激活后显示售后截止日期）'
+    }
+    if (!licenseForm.expiresAt || licenseForm.expiresAt <= 0) {
+        return '长期有效（售后期限以 fsuied.com 订单显示为准）'
+    }
+    return `${formatUnixTime(licenseForm.expiresAt)}（以 fsuied.com 订单显示为准）`
+})
+
+/**
+ * 授权域名列表展示（无数据时给出引导文案）
+ */
+const authorizedDomainItems = computed(() => {
+    const domains = runtimeState.registeredDomains.filter((item) => String(item || '').trim())
+    if (domains.length > 0) {
+        return domains
+    }
+    return ['暂未登记授权域名，请先在 fsuied.com 绑定域名后重新激活']
+})
+
+/**
+ * 将授权载荷写入表单
+ */
+const applyLicensePayloadToForm = (payload: Record<string, any>) => {
+    licenseForm.edition = String(payload.edition || 'free')
+        .trim()
+        .toLowerCase()
+    licenseForm.status = String(payload.status || 'active')
+        .trim()
+        .toLowerCase()
+    licenseForm.licenseKey = String(payload.licenseKey || '').trim()
+    licenseForm.customerName = String(payload.customerName || '').trim()
+    licenseForm.companyName = String(payload.companyName || '').trim()
+    licenseForm.contactEmail = String(payload.contactEmail || '').trim()
+    licenseForm.domainLimit = Number(payload.domainLimit || 1)
+    licenseForm.issuedAt = Number(payload.issuedAt || 0)
+    licenseForm.expiresAt = Number(payload.expiresAt || 0)
+    licenseForm.signature = String(payload.signature || '').trim()
+    licenseForm.note = String(payload.note || '').trim()
+
+    const whitelist = Array.isArray(payload.domainWhitelist)
+        ? payload.domainWhitelist.map((item: any) => String(item || '').trim()).filter(Boolean)
+        : []
+    licenseForm.domainWhitelist = whitelist
+}
+
+/**
+ * 读取许可证信息
+ */
+const loadLicenseInfo = async () => {
+    const data = await uiedLicenseInfo()
+    applyLicensePayloadToForm(data || {})
+
+    runtimeState.edition = data?.edition || 'free'
+    runtimeState.effectiveEdition = data?.effectiveEdition || 'free'
+    runtimeState.status = data?.status || 'active'
+    runtimeState.note = String(data?.note || '').trim()
+    runtimeState.isActive = data?.isActive === true
+    runtimeState.isPaidEdition = data?.isPaidEdition === true
+    runtimeState.isExpired = data?.isExpired === true
+    runtimeState.now = Number(data?.now || Math.floor(Date.now() / 1000))
+    runtimeState.expiresAt = Number(data?.expiresAt || 0)
+    runtimeState.runtimeDomain = data?.runtimeDomain || ''
+    runtimeState.domainLimit = Number(data?.domainLimit || 1)
+    runtimeState.domainUsedCount = Number(data?.domainUsedCount || 0)
+    runtimeState.domainRemainingCount = Number(data?.domainRemainingCount || 0)
+    runtimeState.domainEnforceEnabled = data?.domainEnforceEnabled === true
+    runtimeState.isDomainAuthorized = data?.isDomainAuthorized !== false
+    runtimeState.domainReason = String(data?.domainReason || '').trim()
+    runtimeState.registeredDomains = Array.isArray(data?.registeredDomains)
+        ? data.registeredDomains
+        : []
+    if (!String(activateForm.licenseKey || '').trim() && String(data?.licenseKey || '').trim()) {
+        activateForm.licenseKey = String(data.licenseKey || '').trim()
+    }
+    if (
+        !String(activateForm.bindDomain || '').trim() &&
+        String(runtimeState.runtimeDomain || '').trim()
+    ) {
+        activateForm.bindDomain = String(runtimeState.runtimeDomain || '').trim()
+    }
+}
+
+/**
+ * 按授权码激活授权
+ */
+const handleActivateByKey = async () => {
+    const licenseKey = String(activateForm.licenseKey || '').trim()
+    if (!licenseKey) {
+        feedback.msgError('请先输入授权码 Key')
+        return
+    }
+
+    licenseSaving.value = true
+    try {
+        await uiedActivateLicenseByKey({
+            licenseKey,
+            bindDomain: String(activateForm.bindDomain || '').trim()
+        })
+        feedback.msgSuccess('授权激活成功')
+        await loadLicenseInfo()
+    } finally {
+        licenseSaving.value = false
+    }
 }
 
 /**
@@ -280,6 +507,100 @@ const formatUnixTime = (unixSeconds: number) => {
     const minute = String(date.getMinutes()).padStart(2, '0')
     return `${year}-${month}-${day} ${hour}:${minute}`
 }
+
+/**
+ * 解析版本文案
+ */
+const resolveEditionText = (edition: string) => {
+    const text = String(edition || '').toLowerCase()
+    if (text === 'enterprise') return 'Enterprise'
+    if (text === 'pro') return 'Pro'
+    return '未激活'
+}
+
+/**
+ * 解析域名额度文案
+ */
+const resolveDomainLimitText = (domainLimit: number) => {
+    if (Number(domainLimit || 0) >= 9999) {
+        return '不限制（Enterprise）'
+    }
+    return `${Number(domainLimit || 0)} 个`
+}
+
+/**
+ * 运行态域名额度展示（已用/总额）
+ * 例如：1/3（已用/总额）
+ */
+const runtimeDomainQuotaDisplay = computed(() => {
+    const used = Math.max(0, Number(runtimeState.domainUsedCount || 0))
+    const limit = Math.max(0, Number(runtimeState.domainLimit || 0))
+    if (limit >= 9999) {
+        return `${used}/∞（已用/总额）`
+    }
+    return `${used}/${limit || 0}（已用/总额）`
+})
+
+/**
+ * 授权禁用态提示文案（支持 fsuied 回传 note）
+ */
+const runtimeInactiveAlertText = computed(() => {
+    const reason = String(runtimeState.note || '').trim()
+    if (!reason) {
+        return '当前授权已被禁用，请在 fsuied.com 处理后重新激活授权码。'
+    }
+    return `当前授权已被禁用：${reason}，请在 fsuied.com 处理后重新激活授权码。`
+})
+
+/**
+ * 域名未授权提示文案（区分“超限”和“未在白名单”）
+ */
+const runtimeDomainUnauthorizedAlertText = computed(() => {
+    const reason = String(runtimeState.domainReason || '').trim().toLowerCase()
+    if (reason === 'domain_not_in_whitelist') {
+        return '当前域名未在授权白名单，请先在 fsuied.com 绑定该域名后，回到本页重新激活授权码。'
+    }
+    return '当前域名未授权：已超过域名绑定上限，请在 fsuied.com 申请改绑后重新激活授权码。'
+})
+
+/**
+ * 授权状态对应标签颜色
+ */
+const resolveLicenseStatusTag = (status: string): ElTagType => {
+    if (status === 'active') return 'success'
+    if (['invalid_signature', 'domain_limit_exceeded', 'domain_not_authorized'].includes(status)) return 'danger'
+    if (['inactive', 'disabled'].includes(status)) return 'warning'
+    return 'info'
+}
+
+/**
+ * 授权状态对应文案
+ */
+const resolveLicenseStatusText = (status: string) => {
+    if (status === 'active') return '已激活'
+    if (status === 'invalid_signature') return '签名无效'
+    if (status === 'domain_limit_exceeded') return '域名超限'
+    if (status === 'domain_not_authorized') return '域名未授权'
+    if (status === 'inactive') return '已禁用'
+    if (status === 'disabled') return '已禁用'
+    return status || '未知'
+}
+
+/**
+ * 运行状态标签颜色：未激活时优先显示“待激活”
+ */
+const runtimeStatusTag = computed<ElTagType>(() => {
+    if (!runtimeState.isPaidEdition) return 'warning'
+    return resolveLicenseStatusTag(runtimeState.status)
+})
+
+/**
+ * 运行状态文案：未激活时优先显示“待激活”
+ */
+const runtimeStatusText = computed(() => {
+    if (!runtimeState.isPaidEdition) return '待激活'
+    return resolveLicenseStatusText(runtimeState.status)
+})
 
 /**
  * 计算授权到期状态文案
@@ -298,15 +619,17 @@ const expiryMeta = computed<{
             alertText: ''
         }
     }
+
     const nowSeconds = Number(runtimeState.now || Math.floor(Date.now() / 1000))
     const remainSeconds = runtimeState.expiresAt - nowSeconds
     const remainDays = Math.ceil(remainSeconds / 86400)
+
     if (remainDays < 0) {
         return {
             label: `已过期 ${Math.abs(remainDays)} 天`,
             tagType: 'danger',
             alertType: 'error',
-            alertText: '许可证已过期，请更新授权信息。'
+            alertText: '许可证已过期，请在 fsuied.com 续期后重新激活授权码。'
         }
     }
     if (remainDays <= 7) {
@@ -325,6 +648,7 @@ const expiryMeta = computed<{
             alertText: `许可证剩余 ${remainDays} 天，建议安排续期。`
         }
     }
+
     return {
         label: `剩余 ${remainDays} 天`,
         tagType: 'success',
@@ -334,159 +658,10 @@ const expiryMeta = computed<{
 })
 
 /**
- * 版本文案转换
- */
-const resolveEditionText = (edition: string) => {
-    const text = String(edition || '').toLowerCase()
-    if (text === 'enterprise') return 'Enterprise'
-    if (text === 'pro') return 'Pro'
-    return 'Free'
-}
-
-/**
- * 授权状态对应标签颜色
- */
-const resolveLicenseStatusTag = (status: string): ElTagType => {
-    if (status === 'active') return 'success'
-    if (['invalid_signature', 'domain_limit_exceeded'].includes(status)) return 'danger'
-    if (status === 'disabled') return 'warning'
-    return 'info'
-}
-
-/**
- * 授权状态对应文案
- */
-const resolveLicenseStatusText = (status: string) => {
-    if (status === 'active') return '已激活'
-    if (status === 'invalid_signature') return '签名无效'
-    if (status === 'domain_limit_exceeded') return '域名超限'
-    if (status === 'disabled') return '已禁用'
-    return status || '未知'
-}
-
-/**
- * 总览级别标签颜色
- */
-const resolveOverviewLevelTag = (level: string): ElTagType => {
-    if (level === 'ready') return 'success'
-    if (level === 'attention') return 'warning'
-    if (level === 'risk') return 'danger'
-    return 'info'
-}
-
-/**
- * 检查项状态标签颜色
- */
-const resolveCheckTagType = (status: string): ElTagType => {
-    if (status === 'pass') return 'success'
-    if (status === 'fail') return 'danger'
-    if (status === 'warn') return 'warning'
-    return 'info'
-}
-
-/**
- * 读取许可证信息
- */
-const loadLicenseInfo = async () => {
-    const data = await uiedLicenseInfo()
-    licenseForm.edition = data?.edition || 'free'
-    licenseForm.status = data?.status || 'active'
-    licenseForm.licenseKey = data?.licenseKey || ''
-    licenseForm.customerName = data?.customerName || ''
-    licenseForm.companyName = data?.companyName || ''
-    licenseForm.contactEmail = data?.contactEmail || ''
-    licenseForm.domainLimit = Number(data?.domainLimit || 1)
-    licenseForm.issuedAt = Number(data?.issuedAt || 0)
-    licenseForm.expiresAt = Number(data?.expiresAt || 0)
-    licenseForm.note = data?.note || ''
-    domainWhitelistText.value = Array.isArray(data?.domainWhitelist)
-        ? data.domainWhitelist.join('\n')
-        : ''
-
-    runtimeState.edition = data?.edition || 'free'
-    runtimeState.effectiveEdition = data?.effectiveEdition || 'free'
-    runtimeState.status = data?.status || 'active'
-    runtimeState.isActive = data?.isActive === true
-    runtimeState.isExpired = data?.isExpired === true
-    runtimeState.now = Number(data?.now || Math.floor(Date.now() / 1000))
-    runtimeState.expiresAt = Number(data?.expiresAt || 0)
-    runtimeState.runtimeDomain = data?.runtimeDomain || ''
-    runtimeState.domainLimit = Number(data?.domainLimit || 1)
-    runtimeState.domainUsedCount = Number(data?.domainUsedCount || 0)
-    runtimeState.domainRemainingCount = Number(data?.domainRemainingCount || 0)
-    runtimeState.domainEnforceEnabled = data?.domainEnforceEnabled === true
-    runtimeState.isDomainAuthorized = data?.isDomainAuthorized !== false
-    runtimeState.registeredDomains = Array.isArray(data?.registeredDomains)
-        ? data.registeredDomains
-        : []
-}
-
-/**
- * 读取商业版模式配置
- */
-const loadCommercialMode = async () => {
-    const data = await uiedCommercialModeGet()
-    modeForm.strictLegacyRoutes = data?.strictLegacyRoutes === true
-    modeForm.enforceLicenseSignature = data?.enforceLicenseSignature === true
-    modeForm.enforceDomainBinding = data?.enforceDomainBinding === true
-}
-
-/**
- * 读取商业版健康总览
- */
-const loadCommercialOverview = async () => {
-    try {
-        const data = await uiedCommercialOverview()
-        overviewState.score = Number(data?.score || 0)
-        overviewState.level = data?.level || 'ready'
-        overviewState.checks = Array.isArray(data?.checks) ? data.checks : []
-    } catch (error) {
-        overviewState.score = 0
-        overviewState.level = 'ready'
-        overviewState.checks = []
-    }
-}
-
-/**
- * 保存许可证信息
- */
-const handleSaveLicense = async () => {
-    licenseSaving.value = true
-    try {
-        await uiedSaveLicenseInfo({
-            ...licenseForm,
-            domainWhitelist: parseDomainWhitelist()
-        })
-        feedback.msgSuccess('许可证保存成功')
-        await Promise.all([loadLicenseInfo(), loadCommercialOverview()])
-    } finally {
-        licenseSaving.value = false
-    }
-}
-
-/**
- * 保存商业版模式配置
- */
-const handleSaveMode = async () => {
-    modeSaving.value = true
-    try {
-        await uiedCommercialModeSave({
-            strictLegacyRoutes: modeForm.strictLegacyRoutes,
-            enforceLicenseSignature: modeForm.enforceLicenseSignature,
-            enforceDomainBinding: modeForm.enforceDomainBinding
-        })
-        feedback.msgSuccess('商业模式保存成功')
-        await Promise.all([loadCommercialMode(), loadLicenseInfo(), loadCommercialOverview()])
-    } finally {
-        modeSaving.value = false
-    }
-}
-
-/**
  * 页面初始化加载
  */
 const initializePage = async () => {
-    await Promise.all([loadLicenseInfo(), loadCommercialMode(), loadCommercialOverview()])
+    await loadLicenseInfo()
 }
 
 onMounted(() => {
@@ -495,20 +670,54 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.overview-check-list {
+.uied-license-page {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 16px;
 }
 
-.overview-check-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
+.license-guide {
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--el-fill-color-lighter);
+}
+
+.license-guide h4 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.license-guide p {
+    margin: 0 0 8px 0;
+    line-height: 1.7;
+    color: var(--el-text-color-primary);
+}
+
+.license-guide .domain-list-title {
+    margin-top: 10px;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.license-guide ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.license-guide ol {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.license-guide li {
+    margin-bottom: 6px;
     line-height: 1.6;
+    color: var(--el-text-color-secondary);
 }
 
-.overview-check-text {
-    color: var(--el-text-color-regular);
+.license-guide li:last-child {
+    margin-bottom: 0;
 }
 </style>

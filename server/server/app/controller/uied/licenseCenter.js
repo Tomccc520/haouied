@@ -14,6 +14,20 @@ const baseController = require('../baseController');
 
 class LicenseCenterController extends baseController {
   /**
+   * 获取前台公开授权状态（脱敏）
+   */
+  async publicStatus() {
+    const { ctx } = this;
+    try {
+      const data = await ctx.service.uied.licenseCenter.getPublicLicenseStatus();
+      this.result({ data });
+    } catch (error) {
+      ctx.logger.error('获取公开授权状态失败:', error);
+      this.result({ code: 500, message: '获取公开授权状态失败' });
+    }
+  }
+
+  /**
    * 获取许可证信息（前端可读）
    */
   async info() {
@@ -43,11 +57,35 @@ class LicenseCenterController extends baseController {
   }
 
   /**
+   * 按授权码激活（从 fsuied.com 拉取签名授权并保存）
+   */
+  async activate() {
+    const { ctx } = this;
+    try {
+      const payload = {
+        ...(ctx.request.body || {}),
+        ...(ctx.query || {}),
+      };
+      const data = await ctx.service.uied.licenseCenter.activateLicenseByKey(payload);
+      this.result({ data, message: '授权激活成功' });
+    } catch (error) {
+      ctx.logger.error('按授权码激活失败:', error);
+      this.result({ code: 500, message: error.message || '按授权码激活失败' });
+    }
+  }
+
+  /**
    * 生成许可证签名数据（不落库）
    */
   async sign() {
     const { ctx } = this;
     try {
+      if (!ctx.service.uied.licenseCenter.isLocalLicenseSignEnabled()) {
+        return this.result({
+          code: 403,
+          message: '当前环境禁止本地签发许可证，请到 fsuied.com 授权中心签发',
+        });
+      }
       const payload = {
         ...(ctx.request.body || {}),
         ...(ctx.query || {}),

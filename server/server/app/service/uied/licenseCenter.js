@@ -19,6 +19,7 @@ const FEATURE_OVERRIDE_KEY = 'license_feature_overrides';
 const COMMERCIAL_MODE_KEY = 'commercial_mode_config';
 const LICENSE_DOMAIN_BINDINGS_KEY = 'license_runtime_domains';
 const LICENSE_SIGN_VERSION = 'v1';
+const DEFAULT_LICENSE_ACTIVATE_ENDPOINT = 'https://fsuied.com/api/license/detail';
 const USER_TABLE = `${dbTablePrefix}user`;
 const MENU_TABLE = `${dbTablePrefix}system_auth_menu`;
 
@@ -114,6 +115,62 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 判断当前版本是否属于付费版本（Pro / Enterprise）
+   */
+  isPaidEdition(edition) {
+    const normalized = this.normalizeEdition(edition);
+    return normalized === 'pro' || normalized === 'enterprise';
+  }
+
+  /**
+   * 判断是否为 Pro 版本
+   */
+  isProEdition(edition) {
+    return this.normalizeEdition(edition) === 'pro';
+  }
+
+  /**
+   * 校验商业授权版本（仅允许 Pro / Enterprise）
+   */
+  assertCommercialEdition(edition) {
+    const normalized = this.normalizeEdition(edition);
+    if (normalized !== 'pro' && normalized !== 'enterprise') {
+      throw new Error('当前商业售卖仅支持 Pro/Enterprise 授权');
+    }
+    return normalized;
+  }
+
+  /**
+   * 按版本策略规范许可证字段
+   * 规则：
+   * 1. Pro：永久授权 + 固定 3 域名
+   * 2. Enterprise：永久授权 + 域名不限制（保存为大额度占位）
+   * 3. Free：保持原有字段
+   */
+  applyEditionPolicy(payload = {}) {
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const edition = this.normalizeEdition(source.edition);
+    const normalized = {
+      ...source,
+      edition,
+    };
+
+    if (edition === 'pro') {
+      normalized.expiresAt = 0;
+      normalized.domainLimit = 3;
+      return normalized;
+    }
+
+    if (edition === 'enterprise') {
+      normalized.expiresAt = 0;
+      normalized.domainLimit = 9999;
+      return normalized;
+    }
+
+    return normalized;
+  }
+
+  /**
    * 解析布尔值
    */
   parseBoolean(value, fallback = false) {
@@ -157,6 +214,64 @@ class LicenseCenterService extends Service {
       }
     }
     return value.replace(/\.$/, '').trim();
+  }
+
+  /**
+   * 判断是否为 IPv4 地址
+   */
+  isIpv4Host(host = '') {
+    const text = String(host || '').trim();
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(text)) return false;
+    const parts = text.split('.').map(item => Number.parseInt(item, 10));
+    return parts.length === 4 && parts.every(item => Number.isInteger(item) && item >= 0 && item <= 255);
+  }
+
+  /**
+   * 归一化授权域名（兼容 *.example.com 形式）
+   */
+  normalizeAuthorizedDomain(input = '') {
+    const normalized = this.normalizeDomain(input).replace(/^\*\./, '').trim();
+    return normalized;
+  }
+
+  /**
+   * 判断授权域名是否有效（用于过滤脏数据）
+   */
+  isValidAuthorizedDomain(input = '') {
+    const domain = this.normalizeAuthorizedDomain(input);
+    if (!domain) return false;
+    if (this.isBypassDomain(domain)) return true;
+    if (this.isIpv4Host(domain)) return true;
+    if (!domain.includes('.')) return false;
+    if (domain.length > 253) return false;
+    if (!/^[a-z0-9.-]+$/i.test(domain)) return false;
+    if (domain.startsWith('.') || domain.endsWith('.')) return false;
+    if (domain.includes('..')) return false;
+    return true;
+  }
+
+  /**
+   * 规范化授权域名白名单（去重 + 过滤无效域名）
+   */
+  normalizeAuthorizedDomainList(value) {
+    return Array.from(new Set(
+      this.toStringList(value)
+        .map(item => this.normalizeAuthorizedDomain(item))
+        .filter(item => this.isValidAuthorizedDomain(item))
+    ));
+  }
+
+  /**
+   * 判断运行域名是否命中授权白名单（支持“主域 + 子域名”）
+   */
+  isRuntimeDomainMatched(runtimeDomain = '', authorizedDomain = '') {
+    const runtime = this.normalizeDomain(runtimeDomain);
+    const target = this.normalizeAuthorizedDomain(authorizedDomain);
+    if (!runtime || !target) return false;
+    if (runtime === target) return true;
+    if (this.isIpv4Host(runtime) || this.isIpv4Host(target)) return false;
+    if (runtime.includes(':') || target.includes(':')) return false;
+    return runtime.endsWith(`.${target}`);
   }
 
   /**
@@ -229,15 +344,7 @@ class LicenseCenterService extends Service {
     const enforceEnabled = commercialMode?.enforceDomainBinding === true;
     const baseIsActive = options?.baseIsActive === true;
     const domainLimit = Math.max(1, Number.parseInt(String(licenseInfo?.domainLimit || 1), 10) || 1);
-    const manualWhitelist = Array.from(new Set(
-      this.toStringList(licenseInfo?.domainWhitelist)
-        .map(item => this.normalizeDomain(item))
-        .filter(Boolean)
-    ));
-    const whitelistSet = new Set(manualWhitelist);
-    const bindingState = await this.getRuntimeDomainBindings();
-    const runtimeBindings = bindingState.domains.filter(item => !whitelistSet.has(item));
-    let registeredDomains = Array.from(new Set([ ...manualWhitelist, ...runtimeBindings ]));
+    const registeredDomains = this.normalizeAuthorizedDomainList(licenseInfo?.domainWhitelist);
 
     /**
      * 默认值：不开启时始终放行，只展示已配置域名信息。
@@ -267,27 +374,15 @@ class LicenseCenterService extends Service {
       return result;
     }
 
-    if (registeredDomains.includes(runtimeDomain)) {
+    if (registeredDomains.some(item => this.isRuntimeDomainMatched(runtimeDomain, item))) {
       result.domainReason = 'already_bound';
       return result;
     }
 
-    if (registeredDomains.length >= domainLimit) {
-      result.isDomainAuthorized = false;
-      result.domainReason = 'domain_limit_exceeded';
-      return result;
-    }
-
-    /**
-     * 新域名在额度内首次访问时自动登记，保证“域名数限制”可落地。
-     */
-    const nextRuntimeBindings = Array.from(new Set([ ...runtimeBindings, runtimeDomain ]));
-    await this.saveRuntimeDomainBindings(nextRuntimeBindings);
-    registeredDomains = Array.from(new Set([ ...manualWhitelist, ...nextRuntimeBindings ]));
-    result.domainUsedCount = registeredDomains.length;
-    result.domainRemainingCount = Math.max(0, domainLimit - registeredDomains.length);
-    result.domainReason = 'auto_bound';
-    result.registeredDomains = registeredDomains;
+    result.isDomainAuthorized = false;
+    result.domainReason = registeredDomains.length >= domainLimit
+      ? 'domain_limit_exceeded'
+      : 'domain_not_in_whitelist';
     return result;
   }
 
@@ -338,10 +433,189 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 获取“按授权码激活”远端配置（fsuied.com 授权中心）
+   */
+  getLicenseActivateRemoteConfig() {
+    const appConfig = this.app.config || {};
+    const endpoint = String(
+      process.env.UIED_LICENSE_ACTIVATE_ENDPOINT
+      || appConfig.uiedLicenseActivateEndpoint
+      || DEFAULT_LICENSE_ACTIVATE_ENDPOINT
+      || ''
+    ).trim();
+    const method = String(
+      process.env.UIED_LICENSE_ACTIVATE_METHOD
+      || appConfig.uiedLicenseActivateMethod
+      || 'GET'
+    ).trim().toUpperCase();
+    const token = String(
+      process.env.UIED_LICENSE_ACTIVATE_TOKEN
+      || appConfig.uiedLicenseActivateToken
+      || ''
+    ).trim();
+    const timeout = Math.max(
+      1000,
+      Number.parseInt(
+        String(
+          process.env.UIED_LICENSE_ACTIVATE_TIMEOUT
+          || appConfig.uiedLicenseActivateTimeout
+          || 10000
+        ),
+        10
+      ) || 10000
+    );
+    const allowInsecureTls = this.parseBoolean(
+      process.env.UIED_LICENSE_ACTIVATE_ALLOW_INSECURE_TLS,
+      this.parseBoolean(appConfig.uiedLicenseActivateAllowInsecureTls, false)
+    );
+    return {
+      endpoint,
+      method: [ 'GET', 'POST' ].includes(method) ? method : 'GET',
+      token,
+      timeout,
+      allowInsecureTls,
+    };
+  }
+
+  /**
+   * 判断对象是否像“授权载荷”
+   */
+  isLicensePayloadLike(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const edition = String(payload.edition || '').trim();
+    const licenseKey = String(payload.licenseKey || '').trim();
+    const signature = String(payload.signature || '').trim();
+    return Boolean(edition || licenseKey || signature);
+  }
+
+  /**
+   * 从 fsuied.com 返回体中提取授权载荷
+   */
+  extractLicensePayloadFromRemoteBody(body) {
+    const source = body && typeof body === 'object' ? body : {};
+    const data = source.data && typeof source.data === 'object' ? source.data : {};
+    const candidates = [
+      data.licensePayload,
+      data.payload,
+      data.license,
+      data,
+      source.payload,
+      source.license,
+      source,
+    ];
+    const target = candidates.find(item => this.isLicensePayloadLike(item)) || null;
+    if (!target) {
+      throw new Error('授权中心返回缺少有效授权载荷');
+    }
+    return target;
+  }
+
+  /**
+   * 从 fsuied.com 拉取授权载荷（按授权码）
+   */
+  async fetchLicensePayloadByKey(licenseKey, bindDomain = '') {
+    const { ctx } = this;
+    const config = this.getLicenseActivateRemoteConfig();
+    if (!config.endpoint) {
+      throw new Error('未配置授权中心激活地址（UIED_LICENSE_ACTIVATE_ENDPOINT）');
+    }
+
+    const payload = {
+      licenseKey: String(licenseKey || '').trim(),
+      bindDomain: String(bindDomain || '').trim(),
+      runtimeDomain: String(bindDomain || '').trim(),
+    };
+    const headers = config.token
+      ? { Authorization: `Bearer ${config.token}` }
+      : {};
+    const curlOptions = {
+      dataType: 'json',
+      timeout: config.timeout,
+      rejectUnauthorized: !config.allowInsecureTls,
+      headers,
+    };
+
+    let response = null;
+    if (config.method === 'POST') {
+      response = await ctx.curl(config.endpoint, {
+        ...curlOptions,
+        method: 'POST',
+        contentType: 'json',
+        data: payload,
+      });
+    } else {
+      response = await ctx.curl(config.endpoint, {
+        ...curlOptions,
+        method: 'GET',
+        data: payload,
+      });
+    }
+
+    const body = response?.data && typeof response.data === 'object'
+      ? response.data
+      : {};
+    const code = Number(body.code);
+    if (Number.isFinite(code) && code !== 0 && code !== 200) {
+      const message = String(body.message || body.msg || '').trim() || '授权中心返回失败';
+      throw new Error(message);
+    }
+    return this.extractLicensePayloadFromRemoteBody(body);
+  }
+
+  /**
+   * 按授权码激活：向 fsuied.com 拉取签名授权并落库
+   */
+  async activateLicenseByKey(payload = {}) {
+    const licenseKey = String(
+      payload.licenseKey
+      || payload.key
+      || ''
+    ).trim();
+    if (!licenseKey) {
+      throw new Error('授权码不能为空');
+    }
+
+    const bindDomain = this.normalizeDomain(
+      payload.bindDomain
+      || payload.runtimeDomain
+      || payload.domain
+      || this.getRuntimeDomain()
+      || ''
+    );
+    const remotePayload = await this.fetchLicensePayloadByKey(licenseKey, bindDomain);
+    const remoteLicenseKey = String(remotePayload.licenseKey || '').trim();
+    if (!remoteLicenseKey) {
+      throw new Error('授权中心返回的授权数据缺少 licenseKey');
+    }
+    if (remoteLicenseKey !== licenseKey) {
+      throw new Error('授权中心返回的授权码与当前输入不一致，请检查授权码');
+    }
+    this.assertCommercialEdition(remotePayload.edition);
+    const saved = await this.saveLicenseInfo(remotePayload);
+    return {
+      ...saved,
+      activatedBy: 'license_key',
+    };
+  }
+
+  /**
+   * 是否允许当前实例本地签发许可证
+   * 默认关闭，仅 fsuied.com 授权中心实例应开启。
+   */
+  isLocalLicenseSignEnabled() {
+    const appConfig = this.app.config || {};
+    const envFlag = process.env.UIED_ENABLE_LOCAL_LICENSE_SIGN;
+    if (envFlag !== undefined) {
+      return this.parseBoolean(envFlag, false);
+    }
+    return this.parseBoolean(appConfig.uiedEnableLocalLicenseSign, false);
+  }
+
+  /**
    * 构建许可证签名载荷（固定字段顺序，避免签名漂移）
    */
   buildLicenseSignPayload(payload = {}) {
-    const source = payload && typeof payload === 'object' ? payload : {};
+    const source = this.applyEditionPolicy(payload);
     return {
       edition: this.normalizeEdition(source.edition || 'free'),
       status: String(source.status || 'active').trim().toLowerCase() || 'active',
@@ -440,7 +714,7 @@ class LicenseCenterService extends Service {
       signature: '',
       updatedAt: now,
     };
-    const source = raw && typeof raw === 'object' ? raw : {};
+    const source = this.applyEditionPolicy(raw && typeof raw === 'object' ? raw : {});
     const normalized = {
       ...defaults,
       ...source,
@@ -457,23 +731,49 @@ class LicenseCenterService extends Service {
       updatedAt: Number(source.updatedAt || 0) || now,
     };
     const rawStatus = normalized.status;
-    const signatureRequired = mode.enforceLicenseSignature === true;
+    const isPaidEdition = this.isPaidEdition(normalized.edition);
+    const isProEdition = this.isProEdition(normalized.edition);
+    /**
+     * 规则：
+     * 1. Pro / Enterprise 固定强制验签
+     * 2. Free 版本仅在后台显式开启时才验签
+     */
+    const signatureRequired = isPaidEdition || mode.enforceLicenseSignature === true;
     const isSignatureValid = this.verifyLicenseSignature(normalized);
     const signatureBlocked = signatureRequired && !isSignatureValid;
     const isExpired = normalized.expiresAt > 0 && normalized.expiresAt < now;
     const baseIsActive = rawStatus === 'active' && !isExpired && !signatureBlocked;
-    const domainAuth = await this.resolveDomainAuthorization(normalized, mode, { baseIsActive });
+    /**
+     * 规则：
+     * 1. Pro 固定强制域名授权（3 域名）
+     * 2. Enterprise 不限制域名
+     * 3. Free 版本按后台开关决定
+     */
+    const domainMode = {
+      ...mode,
+      enforceDomainBinding: isProEdition ? true : (!isPaidEdition && mode.enforceDomainBinding === true),
+    };
+    const domainAuth = await this.resolveDomainAuthorization(normalized, domainMode, { baseIsActive });
     const isActive = baseIsActive && (!domainAuth.domainEnforceEnabled || domainAuth.isDomainAuthorized);
     const effectiveEdition = isActive ? normalized.edition : 'free';
+    const domainBlocked = !domainAuth.isDomainAuthorized && domainAuth.domainEnforceEnabled;
     const status = signatureBlocked
       ? 'invalid_signature'
-      : (!domainAuth.isDomainAuthorized && domainAuth.domainEnforceEnabled ? 'domain_limit_exceeded' : rawStatus);
+      : (domainBlocked
+        ? (domainAuth.domainReason === 'domain_not_in_whitelist' ? 'domain_not_authorized' : 'domain_limit_exceeded')
+        : rawStatus);
     return {
       ...normalized,
+      /**
+       * 域名白名单以“规范化后白名单”为准，避免出现无效域名污染展示。
+       */
+      domainWhitelist: domainAuth.registeredDomains,
       rawStatus,
       status,
       isExpired,
       isActive,
+      isPaidEdition,
+      isProEdition,
       effectiveEdition,
       isSignatureValid,
       signatureRequired,
@@ -489,11 +789,33 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 获取前台公开授权状态（脱敏）
+   */
+  async getPublicLicenseStatus() {
+    const licenseInfo = await this.getLicenseInfo();
+    return {
+      edition: String(licenseInfo.edition || 'free'),
+      effectiveEdition: String(licenseInfo.effectiveEdition || 'free'),
+      status: String(licenseInfo.status || 'active'),
+      isActive: licenseInfo.isActive === true,
+      isExpired: licenseInfo.isExpired === true,
+      isPaidEdition: licenseInfo.isPaidEdition === true,
+      expiresAt: Number(licenseInfo.expiresAt || 0) || 0,
+      now: Number(licenseInfo.now || Math.floor(Date.now() / 1000)),
+    };
+  }
+
+  /**
    * 保存许可证信息
    */
   async saveLicenseInfo(payload = {}) {
     const now = Math.floor(Date.now() / 1000);
-    const source = payload && typeof payload === 'object' ? payload : {};
+    const source = this.applyEditionPolicy(payload && typeof payload === 'object' ? payload : {});
+    const incomingSignature = String(source.signature || '').trim().toLowerCase();
+    const isPaidEdition = this.isPaidEdition(source.edition);
+    if (!isPaidEdition) {
+      throw new Error('当前商业售卖仅支持 Pro/Enterprise 授权');
+    }
     const next = {
       edition: this.normalizeEdition(source.edition),
       status: String(source.status || 'active').trim().toLowerCase() || 'active',
@@ -509,8 +831,23 @@ class LicenseCenterService extends Service {
       signVersion: LICENSE_SIGN_VERSION,
       updatedAt: now,
     };
-    next.signature = this.signLicensePayload(next);
+
+    /**
+     * Pro / Enterprise 必须使用 fsuied.com 签发后的签名导入。
+     */
+    if (!incomingSignature) {
+      throw new Error('Pro/Enterprise 许可证必须包含签名，请使用授权码激活或导入 fsuied.com 签名授权');
+    }
+    next.signature = incomingSignature;
+    if (!this.verifyLicenseSignature(next)) {
+      throw new Error('许可证签名校验失败，请确认授权文件来自 fsuied.com');
+    }
+
     await this.ctx.service.uied.setting.save({ [LICENSE_INFO_KEY]: next });
+    /**
+     * 导入/更新许可证后清空运行时自动绑定域名，避免改绑后旧域名仍占额度。
+     */
+    await this.saveRuntimeDomainBindings([]);
     return this.getLicenseInfo();
   }
 
@@ -656,30 +993,43 @@ class LicenseCenterService extends Service {
         ? '严格商业版模式已开启（旧兼容路由关闭）'
         : '严格商业版模式未开启（旧兼容路由仍可访问）',
     });
+    const paidAuthorizationRequired = this.isPaidEdition(licenseInfo.edition);
+    const proDomainEnforced = this.isProEdition(licenseInfo.edition);
+    const signatureEnforced = paidAuthorizationRequired || commercialMode.enforceLicenseSignature;
+    const domainEnforced = proDomainEnforced || (!paidAuthorizationRequired && commercialMode.enforceDomainBinding);
+
     checks.push({
       key: 'license_signature_enforce',
-      status: commercialMode.enforceLicenseSignature ? 'pass' : 'warn',
-      message: commercialMode.enforceLicenseSignature
-        ? '许可证签名强校验已开启'
+      status: signatureEnforced ? 'pass' : 'warn',
+      message: signatureEnforced
+        ? (paidAuthorizationRequired
+          ? '许可证签名强校验已开启（付费版强制）'
+          : '许可证签名强校验已开启')
         : '许可证签名强校验未开启',
     });
     checks.push({
       key: 'license_domain_enforce',
-      status: commercialMode.enforceDomainBinding ? 'pass' : 'warn',
-      message: commercialMode.enforceDomainBinding
-        ? '域名绑定数量限制已开启'
-        : '域名绑定数量限制未开启',
+      status: domainEnforced ? 'pass' : 'warn',
+      message: domainEnforced
+        ? (proDomainEnforced
+          ? '域名绑定数量限制已开启（Pro 固定 3 域名）'
+          : '域名绑定数量限制已开启')
+        : (paidAuthorizationRequired
+          ? 'Enterprise 为源码交付，不限制域名数量'
+          : '域名绑定数量限制未开启'),
     });
     checks.push({
       key: 'license_domain_authorized',
-      status: commercialMode.enforceDomainBinding
+      status: domainEnforced
         ? (licenseInfo.isDomainAuthorized ? 'pass' : 'fail')
         : 'warn',
-      message: commercialMode.enforceDomainBinding
+      message: domainEnforced
         ? (licenseInfo.isDomainAuthorized
           ? `当前域名已授权（${licenseInfo.runtimeDomain || 'unknown'}）`
           : `当前域名未授权（${licenseInfo.runtimeDomain || 'unknown'}）`)
-        : '未开启域名授权校验',
+        : (paidAuthorizationRequired
+          ? 'Enterprise 为源码交付，不校验域名'
+          : '未开启域名授权校验'),
     });
     checks.push({
       key: 'article_module_enabled',
@@ -761,10 +1111,16 @@ class LicenseCenterService extends Service {
     const matrix = this.getFeatureMatrix();
     const licenseInfo = await this.getLicenseInfo();
     const overrides = await this.getFeatureOverrides();
+    const paidEditionActive = this.isPaidEdition(licenseInfo.effectiveEdition);
+    /**
+     * 商业售卖策略：
+     * 1. Pro / Enterprise 均开放全部功能
+     * 2. Free 仅保留免费能力
+     */
     const baseSet = new Set([
       ...matrix.free,
-      ...(licenseInfo.effectiveEdition !== 'free' ? matrix.pro : []),
-      ...(licenseInfo.effectiveEdition === 'enterprise' ? matrix.enterprise : []),
+      ...(paidEditionActive ? matrix.pro : []),
+      ...(paidEditionActive ? matrix.enterprise : []),
     ]);
 
     // 当前策略：许可证优先，后台开关用于“关闭”功能，不提升许可证等级能力

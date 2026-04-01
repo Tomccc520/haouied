@@ -129,7 +129,7 @@ export const useLicense = (): UseLicenseReturn => {
         }
         
         const [licenseResult, featureResult] = await Promise.allSettled([
-          api.get('/uied/license/info'),
+          api.get('/uied/license/public-status'),
           api.get('/uied/feature/list'),
         ]);
 
