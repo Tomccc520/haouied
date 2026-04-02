@@ -29,6 +29,16 @@ class InstallService extends Service {
   }
 
   /**
+   * 授权码脱敏显示（用于安装状态记录）
+   */
+  maskLicenseKey(licenseKey = '') {
+    const text = String(licenseKey || '').trim();
+    if (!text) return '';
+    if (text.length <= 8) return `${text.slice(0, 2)}****`;
+    return `${text.slice(0, 4)}****${text.slice(-4)}`;
+  }
+
+  /**
    * 解析版本号（提取 major/minor/patch）
    */
   parseVersion(versionText = '') {
@@ -403,6 +413,8 @@ class InstallService extends Service {
     const adminPassword = String(source.adminPassword || '').trim();
     const adminNickname = String(source.adminNickname || '').trim() || '系统管理员';
     const adminEmail = String(source.adminEmail || '').trim();
+    const licenseKey = String(source.licenseKey || '').trim();
+    const bindDomain = String(source.bindDomain || '').trim();
     const roleId = Number.parseInt(String(source.roleId || 1), 10) || 1;
 
     if (!/^[a-zA-Z0-9_]{4,20}$/.test(adminUsername)) {
@@ -410,6 +422,9 @@ class InstallService extends Service {
     }
     if (adminPassword.length < 6 || adminPassword.length > 32) {
       throw new Error('管理员密码长度需在6-32位之间');
+    }
+    if (!licenseKey) {
+      throw new Error('安装时必须填写授权码 Key');
     }
     if (adminEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
       throw new Error('管理员邮箱格式不正确');
@@ -423,7 +438,74 @@ class InstallService extends Service {
       adminPassword,
       adminNickname,
       adminEmail,
+      licenseKey,
+      bindDomain,
       roleId,
+    };
+  }
+
+  /**
+   * 规范化安装期授权校验参数
+   */
+  normalizeLicenseCheckPayload(payload = {}) {
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const licenseKey = String(source.licenseKey || source.key || '').trim();
+    if (!licenseKey) {
+      throw new Error('请先填写授权码 Key');
+    }
+    const licenseCenterService = this.ctx.service.uied.licenseCenter;
+    const runtimeDomain = licenseCenterService.getRuntimeDomain();
+    const bindDomain = licenseCenterService.normalizeDomain(
+      source.bindDomain || source.runtimeDomain || runtimeDomain || ''
+    );
+    const appConfig = this.app.config || {};
+    const projectCode = String(
+      source.projectCode
+      || process.env.UIED_LICENSE_PROJECT_CODE
+      || appConfig.uiedLicenseProjectCode
+      || 'fsuied'
+    ).trim().toLowerCase();
+    return {
+      licenseKey,
+      bindDomain,
+      projectCode,
+    };
+  }
+
+  /**
+   * 安装期预校验授权码（仅验证，不写入本地许可证）
+   */
+  async checkLicenseActivation(payload = {}) {
+    const { ctx } = this;
+    const normalized = this.normalizeLicenseCheckPayload(payload);
+    const licenseCenterService = ctx.service.uied.licenseCenter;
+    const remotePayload = await licenseCenterService.fetchLicensePayloadByKey(
+      normalized.licenseKey,
+      normalized.bindDomain,
+      normalized.projectCode
+    );
+    const edition = licenseCenterService.assertCommercialEdition(remotePayload.edition);
+    const verifiedPayload = licenseCenterService.verifyLicensePayload(remotePayload);
+    if (!verifiedPayload.isSignatureValid) {
+      throw new Error('授权签名校验失败，请联系 fsuied.com 检查签发配置');
+    }
+    if (verifiedPayload.isExpired) {
+      throw new Error('授权已过期，请在 fsuied.com 续期后重试');
+    }
+    const remoteStatus = String(verifiedPayload.status || 'active').trim().toLowerCase();
+    if (remoteStatus !== 'active') {
+      throw new Error(`授权当前状态不可用（status=${remoteStatus}），请在 fsuied.com 检查后重试`);
+    }
+    return {
+      valid: true,
+      edition,
+      status: remoteStatus,
+      licenseKeyMasked: this.maskLicenseKey(normalized.licenseKey),
+      bindDomain: normalized.bindDomain,
+      projectCode: normalized.projectCode,
+      domainLimit: Math.max(1, Number.parseInt(String(verifiedPayload.domainLimit || 1), 10) || 1),
+      domainWhitelist: licenseCenterService.normalizeAuthorizedDomainList(verifiedPayload.domainWhitelist),
+      checkedAt: Math.floor(Date.now() / 1000),
     };
   }
 
@@ -713,13 +795,13 @@ class InstallService extends Service {
     );
 
     /**
-     * 确保许可证中心菜单存在并挂到一级“商业授权”
+     * 确保授权中心菜单存在并挂到一级“商业授权”
      */
     await app.model.query(
       `INSERT INTO \`${menuTable}\`
        (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
        VALUES
-       (864, 1101, 'C', '许可证中心', 'el-icon-Key', 90, 'uied:license:info', 'license-center', 'uied/license/index', '/uied/license-center', '', 0, 1, 0, ?, ?)
+       (864, 1101, 'C', '授权中心', 'el-icon-Key', 90, 'uied:license:info', 'license-center', 'uied/license/index', '/uied/license-center', '', 0, 1, 0, ?, ?)
        ON DUPLICATE KEY UPDATE
          pid = VALUES(pid),
          menu_name = VALUES(menu_name),
@@ -830,6 +912,17 @@ class InstallService extends Service {
     }
 
     const normalized = this.normalizeInstallPayload(payload);
+
+    /**
+     * 一键安装阶段先激活授权码：
+     * 1. 激活失败直接终止，避免产生“已创建管理员但未授权”的半安装状态
+     * 2. 激活成功后再继续站点与管理员初始化
+     */
+    const licenseInfo = await ctx.service.uied.licenseCenter.activateLicenseByKey({
+      licenseKey: normalized.licenseKey,
+      bindDomain: normalized.bindDomain,
+    });
+
     const roleId = await this.resolveRoleId(normalized.roleId);
     const adminResult = await this.upsertAdminAccount({
       ...normalized,
@@ -860,6 +953,9 @@ class InstallService extends Service {
         adminUsername: normalized.adminUsername,
         adminEmail: normalized.adminEmail || '',
         siteName: normalized.siteName,
+        licenseEdition: String(licenseInfo?.effectiveEdition || licenseInfo?.edition || ''),
+        licenseStatus: String(licenseInfo?.status || ''),
+        licenseKeyMasked: this.maskLicenseKey(normalized.licenseKey),
       },
     });
 
@@ -881,6 +977,12 @@ class InstallService extends Service {
       site: {
         siteName: normalized.siteName,
         siteTitle: normalized.siteTitle,
+      },
+      license: {
+        activated: true,
+        edition: String(licenseInfo?.effectiveEdition || licenseInfo?.edition || ''),
+        status: String(licenseInfo?.status || ''),
+        licenseKey: String(licenseInfo?.licenseKey || normalized.licenseKey || ''),
       },
       menu: {
         commercialLicenseMenuId: 1101,

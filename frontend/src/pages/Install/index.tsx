@@ -11,9 +11,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   InstallDbTestResult,
+  InstallLicenseCheckResult,
   getInstallEnvCheck,
   getInstallStatus,
   runInstallDbTest,
+  runInstallLicenseCheck,
   runInstallInitialize,
   InstallEnvResult,
   InstallStatus,
@@ -46,6 +48,17 @@ const resolveCheckStatusText = (status: string): string => {
 };
 
 /**
+ * 获取安装页默认绑定域名（自动带入当前访问域名）
+ */
+const resolveDefaultBindDomain = (): string => {
+  if (typeof window === 'undefined') return '';
+  const host = String(window.location.hostname || '').trim().toLowerCase();
+  if (!host) return '';
+  if ([ 'localhost', '127.0.0.1', '::1' ].includes(host)) return '';
+  return host;
+};
+
+/**
  * 安装向导主页面
  */
 const InstallPage: React.FC = () => {
@@ -53,10 +66,12 @@ const InstallPage: React.FC = () => {
   const [envLoading, setEnvLoading] = useState<boolean>(true);
   const [submitLoading, setSubmitLoading] = useState<boolean>(false);
   const [dbTestLoading, setDbTestLoading] = useState<boolean>(false);
+  const [licenseCheckLoading, setLicenseCheckLoading] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [statusData, setStatusData] = useState<InstallStatus | null>(null);
   const [envData, setEnvData] = useState<InstallEnvResult | null>(null);
   const [dbTestResult, setDbTestResult] = useState<InstallDbTestResult | null>(null);
+  const [licenseCheckResult, setLicenseCheckResult] = useState<InstallLicenseCheckResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [submitMessage, setSubmitMessage] = useState<string>('');
 
@@ -65,6 +80,8 @@ const InstallPage: React.FC = () => {
     siteTitle: 'UIED导航系统 - 高质量资源导航',
     siteDescription: '基于 UIED-NAV 构建的可运营网址导航系统。',
     siteKeywords: 'UIED,导航系统,网址导航,AI导航',
+    licenseKey: '',
+    bindDomain: '',
     adminUsername: 'admin',
     adminPassword: '',
     confirmPassword: '',
@@ -86,6 +103,7 @@ const InstallPage: React.FC = () => {
   const canInitialize = useMemo(() => {
     if (!envData?.canInstall) return false;
     if (statusData?.installed) return false;
+    if (!formData.licenseKey.trim()) return false;
     if (!formData.adminUsername.trim() || !formData.adminPassword.trim()) return false;
     if (formData.adminPassword !== formData.confirmPassword) return false;
     return true;
@@ -144,9 +162,31 @@ const InstallPage: React.FC = () => {
   }, []);
 
   /**
+   * 首次进入安装页时自动填入当前域名，减少人工输入
+   */
+  useEffect(() => {
+    setFormData(prev => {
+      if (String(prev.bindDomain || '').trim()) {
+        return prev;
+      }
+      const fallbackDomain = resolveDefaultBindDomain();
+      if (!fallbackDomain) {
+        return prev;
+      }
+      return {
+        ...prev,
+        bindDomain: fallbackDomain,
+      };
+    });
+  }, []);
+
+  /**
    * 更新表单字段
    */
   const updateFormField = (key: string, value: string) => {
+    if (key === 'licenseKey' || key === 'bindDomain') {
+      setLicenseCheckResult(null);
+    }
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
@@ -204,6 +244,10 @@ const InstallPage: React.FC = () => {
    */
   const handleInitialize = async () => {
     if (!canInitialize || submitLoading) return;
+    if (!formData.licenseKey.trim()) {
+      setErrorMessage('请先填写授权码 Key');
+      return;
+    }
     if (!/^[a-zA-Z0-9_]{4,20}$/.test(formData.adminUsername.trim())) {
       setErrorMessage('管理员账号需为4-20位字母/数字/下划线');
       return;
@@ -226,19 +270,51 @@ const InstallPage: React.FC = () => {
         siteTitle: formData.siteTitle,
         siteDescription: formData.siteDescription,
         siteKeywords: formData.siteKeywords,
+        licenseKey: formData.licenseKey,
+        bindDomain: formData.bindDomain,
         adminUsername: formData.adminUsername,
         adminPassword: formData.adminPassword,
         adminNickname: formData.adminNickname,
         adminEmail: formData.adminEmail,
       });
       setSubmitMessage(
-        `安装完成：站点「${result.site.siteName}」，管理员「${result.admin.username}」。请前往 /admin 登录。`
+        `安装完成：站点「${result.site.siteName}」，管理员「${result.admin.username}」，授权版本「${String(
+          result.license?.edition || '-'
+        ).toUpperCase()}」。请前往 /admin 登录。`
       );
       await refreshData();
     } catch (error: any) {
       setErrorMessage(error?.message || '安装初始化失败');
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  /**
+   * 预校验授权码（仅校验，不写入本地）
+   */
+  const handleLicenseCheck = async () => {
+    if (licenseCheckLoading || submitLoading) return;
+    const licenseKey = String(formData.licenseKey || '').trim();
+    const bindDomain = String(formData.bindDomain || '').trim();
+    if (!licenseKey) {
+      setErrorMessage('请先填写授权码 Key');
+      return;
+    }
+    setErrorMessage('');
+    setSubmitMessage('');
+    setLicenseCheckLoading(true);
+    try {
+      const result = await runInstallLicenseCheck({
+        licenseKey,
+        bindDomain,
+      });
+      setLicenseCheckResult(result);
+    } catch (error: any) {
+      setLicenseCheckResult(null);
+      setErrorMessage(error?.message || '授权码校验失败');
+    } finally {
+      setLicenseCheckLoading(false);
     }
   };
 
@@ -395,6 +471,15 @@ const InstallPage: React.FC = () => {
 
         <div className="install-card">
           <h2>一键初始化</h2>
+          <p className="install-card__desc">
+            请先在
+            {' '}
+            <a href="https://fsuied.com/products/10" target="_blank" rel="noreferrer">
+              fsuied.com
+            </a>
+            {' '}
+            完成购买并绑定域名，再填写授权码执行安装。
+          </p>
           <div className="install-form-grid">
             <label>
               站点名称
@@ -430,6 +515,24 @@ const InstallPage: React.FC = () => {
                 value={formData.siteKeywords}
                 onChange={(event) => updateFormField('siteKeywords', event.target.value)}
                 placeholder="多个关键词可用英文逗号分隔"
+              />
+            </label>
+            <label className="is-full">
+              授权码 Key
+              <input
+                type="text"
+                value={formData.licenseKey}
+                onChange={(event) => updateFormField('licenseKey', event.target.value)}
+                placeholder="请输入 fsuied.com 下发的授权码（例如 UIED-PRO-XXXX-XXXX）"
+              />
+            </label>
+            <label className="is-full">
+              绑定域名（可选）
+              <input
+                type="text"
+                value={formData.bindDomain}
+                onChange={(event) => updateFormField('bindDomain', event.target.value)}
+                placeholder="留空默认使用当前访问域名，例如 hao.uied.cn"
               />
             </label>
             <label>
@@ -481,17 +584,31 @@ const InstallPage: React.FC = () => {
           <div className="install-form-footer">
             <button
               type="button"
+              className="install-page__submit-btn install-page__submit-btn--ghost"
+              disabled={licenseCheckLoading || submitLoading || !String(formData.licenseKey || '').trim()}
+              onClick={handleLicenseCheck}
+            >
+              {licenseCheckLoading ? '校验中...' : '校验授权码'}
+            </button>
+            <button
+              type="button"
               className="install-page__submit-btn"
               disabled={!canInitialize || submitLoading}
               onClick={handleInitialize}
             >
               {submitLoading ? '初始化中...' : '执行初始化'}
             </button>
-            <span className="tip">
-              {statusData?.installed
-                ? '当前系统已安装，如需重装请先清理管理员数据。'
-                : '初始化成功后可直接访问 /admin 登录后台。'}
-            </span>
+            {licenseCheckResult ? (
+              <span className="tip is-success">
+                {`校验通过：${String(licenseCheckResult.edition || '-').toUpperCase()} / 域名额度 ${licenseCheckResult.domainWhitelist.length}/${licenseCheckResult.domainLimit}`}
+              </span>
+            ) : (
+              <span className="tip">
+                {statusData?.installed
+                  ? '当前系统已安装，如需重装请先清理管理员数据。'
+                  : '建议先点“校验授权码”，通过后再执行初始化。'}
+              </span>
+            )}
           </div>
         </div>
       </div>

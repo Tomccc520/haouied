@@ -71,6 +71,25 @@ class InstallController extends baseController {
       this.result({ code: 500, message: error.message || '数据库连接测试失败' });
     }
   }
+
+  /**
+   * 预校验授权码（仅校验，不写入本地）
+   */
+  async licenseCheck() {
+    const { ctx } = this;
+    try {
+      const payload = ctx.request.body || {};
+      const data = await ctx.service.install.checkLicenseActivation(payload);
+      this.result({
+        code: 0,
+        data,
+        message: data.valid ? '授权码校验通过' : '授权码校验失败',
+      });
+    } catch (error) {
+      ctx.logger.error('[install.licenseCheck] 授权码校验失败:', error);
+      this.result({ code: 500, message: error.message || '授权码校验失败' });
+    }
+  }
 }
 
 module.exports = InstallController;

@@ -134,6 +134,7 @@ const rsa = {
     'install:status', // 安装向导状态
     'install:env-check', // 安装向导环境检测
     'install:db-test', // 安装向导数据库连接测试
+    'install:license-check', // 安装向导授权码预校验
     'install:initialize', // 安装向导初始化执行
     'common:index:config', // 配置接口
     // 前端兼容接口 - 免登录（支持通配符 * 匹配）

@@ -53,6 +53,8 @@ export interface InstallInitializePayload {
   siteTitle: string;
   siteDescription?: string;
   siteKeywords?: string;
+  licenseKey: string;
+  bindDomain?: string;
   adminUsername: string;
   adminPassword: string;
   adminNickname?: string;
@@ -75,6 +77,12 @@ export interface InstallInitializeResult {
   site: {
     siteName: string;
     siteTitle: string;
+  };
+  license: {
+    activated: boolean;
+    edition: string;
+    status: string;
+    licenseKey: string;
   };
   menu: {
     commercialLicenseMenuId: number;
@@ -108,6 +116,29 @@ export interface InstallDbTestResult {
     username: string;
     database: string;
   };
+  checkedAt: number;
+}
+
+/**
+ * 授权码预校验参数
+ */
+export interface InstallLicenseCheckPayload {
+  licenseKey: string;
+  bindDomain?: string;
+}
+
+/**
+ * 授权码预校验结果
+ */
+export interface InstallLicenseCheckResult {
+  valid: boolean;
+  edition: string;
+  status: string;
+  licenseKeyMasked: string;
+  bindDomain: string;
+  projectCode: string;
+  domainLimit: number;
+  domainWhitelist: string[];
   checkedAt: number;
 }
 
@@ -161,6 +192,12 @@ export const runInstallInitialize = async (
       siteName: '',
       siteTitle: '',
     },
+    license: {
+      activated: false,
+      edition: '',
+      status: '',
+      licenseKey: '',
+    },
     menu: {
       commercialLicenseMenuId: 0,
       deliveryCenterMenuId: 0,
@@ -186,6 +223,26 @@ export const runInstallDbTest = async (
       username: '',
       database: '',
     },
+    checkedAt: 0,
+  });
+};
+
+/**
+ * 预校验授权码（仅校验，不落库）
+ */
+export const runInstallLicenseCheck = async (
+  payload: InstallLicenseCheckPayload
+): Promise<InstallLicenseCheckResult> => {
+  const response = await api.post('/install/license-check', payload);
+  return unwrapApiResponse<InstallLicenseCheckResult>(response.data, {
+    valid: false,
+    edition: '',
+    status: '',
+    licenseKeyMasked: '',
+    bindDomain: '',
+    projectCode: '',
+    domainLimit: 0,
+    domainWhitelist: [],
     checkedAt: 0,
   });
 };
