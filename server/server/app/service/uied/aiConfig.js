@@ -146,10 +146,16 @@ class AiConfigService extends Service {
     const key = String(provider || '').trim().toLowerCase();
     const defaultMap = {
       openai: 'https://api.openai.com/v1/chat/completions',
+      azure: 'https://api.openai.com/v1/chat/completions',
+      claude: 'https://api.openai.com/v1/chat/completions',
       deepseek: 'https://api.deepseek.com/v1/chat/completions',
       siliconflow: 'https://api.siliconflow.cn/v1/chat/completions',
       moonshot: 'https://api.moonshot.cn/v1/chat/completions',
       kimi: 'https://api.moonshot.cn/v1/chat/completions',
+      doubao: 'https://operator.las.cn-beijing.volces.com/api/v1/chat/completions',
+      wenxin: 'https://api.openai.com/v1/chat/completions',
+      relay: 'https://api.openai.com/v1/chat/completions',
+      other: 'https://api.openai.com/v1/chat/completions',
       qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       glm: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
       ollama: 'http://127.0.0.1:11434/v1/chat/completions',
@@ -166,10 +172,16 @@ class AiConfigService extends Service {
     const key = String(provider || '').trim().toLowerCase();
     const modelMap = {
       openai: 'gpt-4o-mini',
+      azure: 'gpt-4o-mini',
+      claude: 'claude-3-5-sonnet-latest',
       deepseek: 'deepseek-chat',
       siliconflow: 'deepseek-ai/DeepSeek-V3.2',
       moonshot: 'moonshot-v1-8k',
       kimi: 'moonshot-v1-8k',
+      doubao: 'doubao-seed-1-6-251015',
+      wenxin: 'ernie-4.0-8k',
+      relay: 'gpt-4o-mini',
+      other: 'gpt-4o-mini',
       qwen: 'qwen-plus',
       glm: 'glm-4-flash',
       ollama: 'qwen2.5:7b',
@@ -264,6 +276,14 @@ class AiConfigService extends Service {
         { label: 'GPT-4o', value: 'gpt-4o' },
         { label: 'GPT-4o-mini', value: 'gpt-4o-mini' },
       ],
+      azure: [
+        { label: 'GPT-4o-mini（中转示例）', value: 'gpt-4o-mini' },
+        { label: 'GPT-4.1-mini（中转示例）', value: 'gpt-4.1-mini' },
+      ],
+      claude: [
+        { label: 'Claude 3.5 Sonnet（中转示例）', value: 'claude-3-5-sonnet-latest' },
+        { label: 'Claude 3.7 Sonnet（中转示例）', value: 'claude-3-7-sonnet-latest' },
+      ],
       deepseek: [
         { label: 'DeepSeek Chat', value: 'deepseek-chat' },
         { label: 'DeepSeek Reasoner', value: 'deepseek-reasoner' },
@@ -284,6 +304,20 @@ class AiConfigService extends Service {
       kimi: [
         { label: 'Moonshot 8K', value: 'moonshot-v1-8k' },
         { label: 'Moonshot 32K', value: 'moonshot-v1-32k' },
+      ],
+      doubao: [
+        { label: 'Doubao Seed 1.6（官方示例）', value: 'doubao-seed-1-6-251015' },
+      ],
+      wenxin: [
+        { label: 'ERNIE 4.0（中转示例）', value: 'ernie-4.0-8k' },
+        { label: 'ERNIE 3.5（中转示例）', value: 'ernie-3.5-8k' },
+      ],
+      relay: [
+        { label: 'GPT-4o-mini（OpenAI兼容示例）', value: 'gpt-4o-mini' },
+        { label: 'DeepSeek Chat（OpenAI兼容示例）', value: 'deepseek-chat' },
+      ],
+      other: [
+        { label: 'GPT-4o-mini（OpenAI兼容示例）', value: 'gpt-4o-mini' },
       ],
       ollama: [
         { label: 'qwen2.5:7b', value: 'qwen2.5:7b' },

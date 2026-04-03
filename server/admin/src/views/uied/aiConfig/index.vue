@@ -976,18 +976,30 @@
                         <el-option label="智谱 GLM" value="glm" />
                         <el-option label="Moonshot" value="moonshot" />
                         <el-option label="Kimi" value="kimi" />
-                        <el-option label="Ollama" value="ollama" />
+                        <el-option label="豆包（火山方舟）" value="doubao" />
                         <el-option label="通义千问" value="qwen" />
                         <el-option label="文心一言" value="wenxin" />
                         <el-option label="SiliconFlow" value="siliconflow" />
                         <el-option label="DeepSeek" value="deepseek" />
+                        <el-option label="自定义中转 API（OpenAI兼容）" value="relay" />
                         <el-option label="其他" value="other" />
                     </el-select>
+                    <div class="text-xs text-gray-500 mt-2 ai-provider-tip">
+                        {{ currentProviderGuideText }}
+                        <el-button
+                            v-if="currentProviderDocUrl"
+                            link
+                            type="primary"
+                            @click="openCurrentProviderDocs"
+                        >
+                            查看官方文档
+                        </el-button>
+                    </div>
                 </el-form-item>
                 <el-form-item label="API 地址" prop="apiUrl">
                     <el-input
                         v-model="editForm.apiUrl"
-                        placeholder="请输入 API 地址，如：https://api.siliconflow.cn/v1/chat/completions"
+                        :placeholder="currentProviderApiUrlPlaceholder"
                     />
                 </el-form-item>
                 <el-form-item label="API 密钥" prop="apiKey">
@@ -1319,11 +1331,13 @@ const providerMap: Record<string, string> = {
     glm: '智谱 GLM',
     moonshot: 'Moonshot',
     kimi: 'Kimi',
+    doubao: '豆包（火山方舟）',
     ollama: 'Ollama',
     qwen: '通义千问',
     wenxin: '文心一言',
     siliconflow: 'SiliconFlow',
     deepseek: 'DeepSeek',
+    relay: '自定义中转 API',
     other: '其他'
 }
 
@@ -1383,6 +1397,30 @@ const providerModelPresetMap: Record<
         { label: 'OpenAI / GPT-4o', value: 'openai.gpt-4o', model: 'gpt-4o' },
         { label: 'OpenAI / GPT-4.1-mini', value: 'openai.gpt-4.1-mini', model: 'gpt-4.1-mini' }
     ],
+    azure: [
+        {
+            label: 'Azure / GPT-4o-mini（建议经中转）',
+            value: 'azure.gpt-4o-mini',
+            model: 'gpt-4o-mini'
+        },
+        {
+            label: 'Azure / GPT-4.1-mini（建议经中转）',
+            value: 'azure.gpt-4.1-mini',
+            model: 'gpt-4.1-mini'
+        }
+    ],
+    claude: [
+        {
+            label: 'Claude 3.5 Sonnet（建议经中转）',
+            value: 'claude.3.5.sonnet',
+            model: 'claude-3-5-sonnet-latest'
+        },
+        {
+            label: 'Claude 3.7 Sonnet（建议经中转）',
+            value: 'claude.3.7.sonnet',
+            model: 'claude-3-7-sonnet-latest'
+        }
+    ],
     qwen: [
         { label: 'Qwen Plus', value: 'qwen.plus', model: 'qwen-plus' },
         { label: 'Qwen Max', value: 'qwen.max', model: 'qwen-max' },
@@ -1399,6 +1437,44 @@ const providerModelPresetMap: Record<
     kimi: [
         { label: 'Kimi 8K', value: 'kimi.8k', model: 'moonshot-v1-8k' },
         { label: 'Kimi 32K', value: 'kimi.32k', model: 'moonshot-v1-32k' }
+    ],
+    doubao: [
+        {
+            label: 'Doubao Seed 1.6（官方示例）',
+            value: 'doubao.seed.1.6',
+            model: 'doubao-seed-1-6-251015'
+        }
+    ],
+    wenxin: [
+        {
+            label: '文心 ERNIE 4.0（建议经中转）',
+            value: 'wenxin.ernie.4.0',
+            model: 'ernie-4.0-8k'
+        },
+        {
+            label: '文心 ERNIE 3.5（建议经中转）',
+            value: 'wenxin.ernie.3.5',
+            model: 'ernie-3.5-8k'
+        }
+    ],
+    relay: [
+        {
+            label: 'GPT-4o-mini（OpenAI兼容示例）',
+            value: 'relay.gpt-4o-mini',
+            model: 'gpt-4o-mini'
+        },
+        {
+            label: 'DeepSeek Chat（OpenAI兼容示例）',
+            value: 'relay.deepseek-chat',
+            model: 'deepseek-chat'
+        }
+    ],
+    other: [
+        {
+            label: 'GPT-4o-mini（兼容示例）',
+            value: 'other.gpt-4o-mini',
+            model: 'gpt-4o-mini'
+        }
     ],
     ollama: [
         { label: 'qwen2.5:7b', value: 'ollama.qwen2.5.7b', model: 'qwen2.5:7b' },
@@ -1802,6 +1878,127 @@ const handleFetchProviderModels = async (options: { silent?: boolean } = {}) => 
     }
 }
 
+type ProviderGuideInfo = {
+    apiUrlPlaceholder: string
+    guideText: string
+    docUrl: string
+}
+
+const providerGuideInfoMap: Record<string, ProviderGuideInfo> = {
+    openai: {
+        apiUrlPlaceholder: 'https://api.openai.com/v1/chat/completions',
+        guideText: 'OpenAI 官方可直接填写 /v1/chat/completions，模型建议先用 gpt-4o-mini 测试。',
+        docUrl: 'https://platform.openai.com/docs/api-reference/chat/create'
+    },
+    deepseek: {
+        apiUrlPlaceholder: 'https://api.deepseek.com/v1/chat/completions',
+        guideText: 'DeepSeek 官方可直接填写 /v1/chat/completions，模型可用 deepseek-chat。',
+        docUrl: 'https://api-docs.deepseek.com/'
+    },
+    qwen: {
+        apiUrlPlaceholder: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        guideText: '通义千问建议使用 DashScope OpenAI 兼容地址（compatible-mode）接入。',
+        docUrl: 'https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope'
+    },
+    glm: {
+        apiUrlPlaceholder: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+        guideText: '智谱 GLM 官方兼容接口可直接填写，模型建议先用 glm-4-flash。',
+        docUrl: 'https://open.bigmodel.cn/dev/api#chatglm'
+    },
+    siliconflow: {
+        apiUrlPlaceholder: 'https://api.siliconflow.cn/v1/chat/completions',
+        guideText: 'SiliconFlow 官方兼容接口可直连，建议优先拉取模型后再保存。',
+        docUrl: 'https://docs.siliconflow.cn/'
+    },
+    kimi: {
+        apiUrlPlaceholder: 'https://api.moonshot.cn/v1/chat/completions',
+        guideText: 'Kimi 官方 OpenAI 兼容地址建议填写 /v1/chat/completions（模型可先选 moonshot-v1-8k）。',
+        docUrl: 'https://platform.moonshot.cn/docs/api/chat'
+    },
+    moonshot: {
+        apiUrlPlaceholder: 'https://api.moonshot.cn/v1/chat/completions',
+        guideText: 'Moonshot 官方地址可直接使用 /v1/chat/completions，后台支持自动补全。',
+        docUrl: 'https://platform.moonshot.cn/docs/api/chat'
+    },
+    doubao: {
+        apiUrlPlaceholder: 'https://operator.las.cn-beijing.volces.com/api/v1/chat/completions',
+        guideText:
+            '豆包（火山方舟）可按官方 OpenAI 兼容方式接入，先填 /api/v1/chat/completions，再填模型名称。',
+        docUrl: 'https://www.volcengine.com/docs/6492/2192012'
+    },
+    ollama: {
+        apiUrlPlaceholder: 'http://127.0.0.1:11434/v1/chat/completions',
+        guideText: 'Ollama 请先本机启动服务，再填写本地地址与已安装模型名（如 qwen2.5:7b）。',
+        docUrl: 'https://github.com/ollama/ollama/blob/main/docs/openai.md'
+    },
+    azure: {
+        apiUrlPlaceholder: 'https://你的中转域名/v1/chat/completions',
+        guideText:
+            'Azure OpenAI 官方协议与本系统默认鉴权有差异，当前建议经 OpenAI 兼容中转后接入。',
+        docUrl: 'https://learn.microsoft.com/zh-cn/azure/ai-services/openai/'
+    },
+    claude: {
+        apiUrlPlaceholder: 'https://你的中转域名/v1/chat/completions',
+        guideText: 'Claude 官方协议与 OpenAI 协议不同，当前建议通过兼容中转 API 接入。',
+        docUrl: 'https://docs.anthropic.com/'
+    },
+    wenxin: {
+        apiUrlPlaceholder: 'https://你的中转域名/v1/chat/completions',
+        guideText: '文心官方协议与 OpenAI 协议存在差异，当前建议通过兼容中转 API 接入。',
+        docUrl: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/'
+    },
+    relay: {
+        apiUrlPlaceholder: 'https://你的中转域名/v1/chat/completions',
+        guideText:
+            '自定义中转 API 需兼容 OpenAI 协议，建议填写 /v1/chat/completions，模型名称与中转服务保持一致。',
+        docUrl: ''
+    },
+    other: {
+        apiUrlPlaceholder: 'https://兼容服务域名/v1/chat/completions',
+        guideText: '其他提供商请使用 OpenAI 兼容接口地址，填写 API 地址、Key 与模型后可直接测试。',
+        docUrl: ''
+    }
+}
+
+/**
+ * 获取提供商接入指引（用于占位符与文案提示）。
+ */
+const getProviderGuideInfo = (provider: string): ProviderGuideInfo => {
+    const key = normalizeProviderKey(provider)
+    const fallback: ProviderGuideInfo = {
+        apiUrlPlaceholder: '请输入 API 地址，如：https://api.siliconflow.cn/v1/chat/completions',
+        guideText: '请填写该提供商的 OpenAI 兼容接口地址、API Key 与模型名称。',
+        docUrl: ''
+    }
+    return providerGuideInfoMap[key] || fallback
+}
+
+/**
+ * 当前提供商接入提示文案。
+ */
+const currentProviderGuideText = computed(() => getProviderGuideInfo(editForm.provider).guideText)
+
+/**
+ * 当前提供商官方文档地址（存在时显示按钮）。
+ */
+const currentProviderDocUrl = computed(() => getProviderGuideInfo(editForm.provider).docUrl)
+
+/**
+ * 当前提供商 API 地址输入占位符。
+ */
+const currentProviderApiUrlPlaceholder = computed(
+    () => getProviderGuideInfo(editForm.provider).apiUrlPlaceholder
+)
+
+/**
+ * 打开当前提供商官方文档。
+ */
+const openCurrentProviderDocs = () => {
+    const docUrl = String(currentProviderDocUrl.value || '').trim()
+    if (!docUrl) return
+    window.open(docUrl, '_blank')
+}
+
 /**
  * 获取提供商默认地址与模型
  */
@@ -1817,6 +2014,16 @@ const getProviderDefaults = (provider: string) => {
             apiUrl: 'https://api.openai.com/v1/chat/completions',
             model: 'gpt-4o-mini',
             modelPreset: 'openai.gpt-4o-mini'
+        },
+        azure: {
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+            model: 'gpt-4o-mini',
+            modelPreset: 'azure.gpt-4o-mini'
+        },
+        claude: {
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+            model: 'claude-3-5-sonnet-latest',
+            modelPreset: 'claude.3.5.sonnet'
         },
         deepseek: {
             apiUrl: 'https://api.deepseek.com/v1/chat/completions',
@@ -1842,6 +2049,26 @@ const getProviderDefaults = (provider: string) => {
             apiUrl: 'https://api.moonshot.cn/v1/chat/completions',
             model: 'moonshot-v1-8k',
             modelPreset: 'kimi.8k'
+        },
+        doubao: {
+            apiUrl: 'https://operator.las.cn-beijing.volces.com/api/v1/chat/completions',
+            model: 'doubao-seed-1-6-251015',
+            modelPreset: 'doubao.seed.1.6'
+        },
+        wenxin: {
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+            model: 'ernie-4.0-8k',
+            modelPreset: 'wenxin.ernie.4.0'
+        },
+        relay: {
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+            model: 'gpt-4o-mini',
+            modelPreset: 'relay.gpt-4o-mini'
+        },
+        other: {
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+            model: 'gpt-4o-mini',
+            modelPreset: 'other.gpt-4o-mini'
         },
         ollama: {
             apiUrl: 'http://127.0.0.1:11434/v1/chat/completions',
@@ -3304,6 +3531,13 @@ onMounted(() => {
 
 .max-w-600 {
     max-width: 600px;
+}
+
+.ai-provider-tip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.6;
 }
 
 .import-config-panel {

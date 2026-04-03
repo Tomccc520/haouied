@@ -304,7 +304,7 @@ const rsa = {
   // 资源访问前缀
   publicPrefix: '/api/uploads',
   // 版本
-  version: 'v1.0.0',
+  version: 'v1.1.1',
 
   rootPath: runPath,
 };
