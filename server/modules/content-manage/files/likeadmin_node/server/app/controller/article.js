@@ -521,7 +521,8 @@ class ArticleController extends baseController {
     const { ctx } = this;
     try {
       const body = ctx.request.body || {};
-      const data = await ctx.service.article.collectToggle(body.id);
+      const articleId = body.articleId ?? body.id;
+      const data = await ctx.service.article.collectToggle(articleId);
       this.result({ data, message: data.isCollect ? '收藏成功' : '已取消收藏' });
     } catch (err) {
       this.result({ data: '', message: err.message, code: 300 });
@@ -535,7 +536,8 @@ class ArticleController extends baseController {
     const { ctx } = this;
     try {
       const body = ctx.request.body || {};
-      const data = await ctx.service.article.likeToggle(body.id);
+      const articleId = body.articleId ?? body.id;
+      const data = await ctx.service.article.likeToggle(articleId);
       this.result({ data, message: data.isLike ? '点赞成功' : '已取消点赞' });
     } catch (err) {
       this.result({ data: '', message: err.message, code: 300 });

@@ -212,10 +212,10 @@ export const toggleArticleCollect = async (articleId: number): Promise<boolean> 
 
 /**
  * 点赞文章
- * POST /api/article/like/toggle
+ * POST /api/articles/:id/like/toggle
  */
 export const toggleArticleLike = async (articleId: number): Promise<boolean> => {
-  const response = await api.post('/article/like/toggle', { articleId });
+  const response = await api.post(`/articles/${articleId}/like/toggle`, { articleId });
   const payload = unwrapResponseOrThrow<any>(response.data, {});
   const rawLiked = payload?.isLike ?? payload?.liked ?? false;
   return Number(rawLiked) === 1 || rawLiked === true;
@@ -223,7 +223,7 @@ export const toggleArticleLike = async (articleId: number): Promise<boolean> => 
 
 /**
  * 点赞文章（含点赞总数返回）
- * POST /api/article/like/toggle
+ * POST /api/articles/:id/like/toggle
  */
 export interface ArticleLikeToggleResult {
   liked: boolean;
@@ -231,7 +231,7 @@ export interface ArticleLikeToggleResult {
 }
 
 export const toggleArticleLikeWithDetail = async (articleId: number): Promise<ArticleLikeToggleResult> => {
-  const response = await api.post('/article/like/toggle', { articleId });
+  const response = await api.post(`/articles/${articleId}/like/toggle`, { articleId });
   const payload = unwrapResponseOrThrow<any>(response.data, {});
   const rawLiked = payload?.isLike ?? payload?.liked ?? 0;
   const liked = Number(rawLiked) === 1 || rawLiked === true;
@@ -244,7 +244,7 @@ export const toggleArticleLikeWithDetail = async (articleId: number): Promise<Ar
 
 /**
  * 查询单篇文章互动状态（点赞总数 + 当前用户是否已点赞）
- * GET /api/article/stats?ids=:id
+ * GET /api/articles/:id/interaction
  */
 export interface ArticleInteractionStat {
   likeCount: number;
@@ -255,19 +255,10 @@ export const getArticleInteractionStat = async (articleId: number): Promise<Arti
   if (!Number.isFinite(Number(articleId)) || Number(articleId) <= 0) {
     return { likeCount: 0, isLike: false };
   }
-  const response = await api.get('/article/stats', {
-    params: { ids: String(articleId) },
-  });
-  const payload = unwrapResponseOrThrow<any>(response.data, []);
-  const rows = Array.isArray(payload)
-    ? payload
-    : (Array.isArray(payload?.lists) ? payload.lists : []);
-  const target = rows.find((item: any) => String(item?.id || '') === String(articleId));
-  if (!target) {
-    return { likeCount: 0, isLike: false };
-  }
-  const likeCount = Number(target?.likeCount ?? target?.like_count ?? 0);
-  const rawLike = target?.isLike ?? target?.is_like ?? 0;
+  const response = await api.get(`/articles/${articleId}/interaction`);
+  const payload = unwrapResponseOrThrow<any>(response.data, {});
+  const likeCount = Number(payload?.likeCount ?? payload?.like_count ?? 0);
+  const rawLike = payload?.isLike ?? payload?.is_like ?? 0;
   return {
     likeCount: Number.isFinite(likeCount) ? Math.max(0, likeCount) : 0,
     isLike: Number(rawLike) === 1 || rawLike === true,

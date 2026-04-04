@@ -385,6 +385,14 @@ module.exports = app => {
   post('/api/articles/:id/view', controller.uied.frontend.articleView);
   // POST /articles/:id/view - 记录文章浏览（兼容旧前端无 /api 前缀）
   postLegacy('/articles/:id/view', controller.uied.frontend.articleView);
+  // GET /api/articles/:id/interaction - 获取文章互动摘要
+  get('/api/articles/:id/interaction', controller.uied.frontend.articleInteraction);
+  // GET /articles/:id/interaction - 获取文章互动摘要（兼容旧前端无 /api 前缀）
+  getLegacy('/articles/:id/interaction', controller.uied.frontend.articleInteraction);
+  // POST /api/articles/:id/like/toggle - 切换文章点赞
+  post('/api/articles/:id/like/toggle', controller.uied.frontend.articleLikeToggle);
+  // POST /articles/:id/like/toggle - 切换文章点赞（兼容旧前端无 /api 前缀）
+  postLegacy('/articles/:id/like/toggle', controller.uied.frontend.articleLikeToggle);
   // GET /api/articles/:id/comments - 获取文章评论
   get('/api/articles/:id/comments', controller.uied.frontend.articleComments);
   // GET /articles/:id/comments - 获取文章评论（兼容旧前端无 /api 前缀）

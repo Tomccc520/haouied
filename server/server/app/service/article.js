@@ -3216,9 +3216,10 @@ class ArticleService extends Service {
     await this.ensureArticleReviewColumns();
     await this.ensureTagAndTopicSlugColumns();
 
-    const count = Math.max(1, Math.min(50, Number(params.count || 12)));
+    const count = Math.max(1, Math.min(50, Number(params.count || 8)));
     const now = Math.floor(Date.now() / 1000);
     const seedPrefix = Number(params.prefixTs || now);
+    const includeDraft = Number(params.includeDraft || 0) === 1;
 
     const categoryTemplates = [ 'AI设计', '产品运营', '效率工具' ];
     const tagTemplates = [ 'AI', '教程', '实战', '导航', '效率', '产品' ];
@@ -3226,6 +3227,44 @@ class ArticleService extends Service {
       { name: '售卖版上线指南', intro: '围绕可配置主题系统的上线实践与经验沉淀。' },
       { name: '内容增长实践', intro: '聚焦内容分发、SEO 与转化优化。' },
       { name: '前后端规范收敛', intro: '沉淀模块化规范与可维护工程实践。' },
+    ];
+    const visualTemplates = [
+      {
+        cover: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1600&q=80',
+        inline: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=80',
+        title: '从导航选品到内容转化，一套适合售卖版的文章结构',
+        insight: '把封面、摘要、锚点目录和关联网址串起来，文章页本身就能承担转化入口。',
+      },
+      {
+        cover: 'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=1600&q=80',
+        inline: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80',
+        title: '设计导航站的内容页，为什么必须有大图和正文节奏',
+        insight: '图文混排能直接验证详情页排版、评论区、相关推荐与 SEO 的整体表现。',
+      },
+      {
+        cover: 'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1600&q=80',
+        inline: 'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=1600&q=80',
+        title: 'AI 工具专题怎么写，才不只是工具清单',
+        insight: '文章不是把链接堆起来，而是要把场景、方法和工具组合关系讲透。',
+      },
+      {
+        cover: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80',
+        inline: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1600&q=80',
+        title: '一篇能拿来测前台效果的示例文章，应该包含哪些模块',
+        insight: '封面图、段落标题、引用、列表、内嵌图片和相关推荐，缺一块就测不完整。',
+      },
+      {
+        cover: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=80',
+        inline: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1600&q=80',
+        title: '把产品介绍写成可阅读、可分享、可转化的内容页',
+        insight: '真正能卖源码的内容页，重点不是字多，而是信息组织和视觉节奏稳定。',
+      },
+      {
+        cover: 'https://images.unsplash.com/photo-1516382799247-87df95d790b7?auto=format&fit=crop&w=1600&q=80',
+        inline: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1600&q=80',
+        title: '给文章模块加测试数据时，为什么要优先补图片',
+        insight: '没有图片的测试数据无法验证列表封面、详情首图、正文图片与分享卡片这些关键场景。',
+      },
     ];
 
     /**
@@ -3327,36 +3366,47 @@ class ArticleService extends Service {
       const topic = topics[i % topics.length];
       const tagA = tags[i % tags.length];
       const tagB = tags[(i + 2) % tags.length];
+      const visual = visualTemplates[i % visualTemplates.length];
       const chosenTagIds = Array.from(new Set([
         Number(tagA?.id || 0),
         Number(tagB?.id || 0),
       ].filter(Boolean)));
-      const isShow = i % 4 === 0 ? 0 : 1;
+      const isShow = includeDraft ? (i % 4 === 0 ? 0 : 1) : 1;
       const reviewStatus = isShow === 1 ? 2 : 0;
       const articleIndex = i + 1;
-      const title = `测试文章 ${seedPrefix}-${articleIndex}`;
-      const intro = `这是用于联调的测试简介（第 ${articleIndex} 篇），可用于列表筛选与详情展示验证。`;
-      const summary = `测试摘要 ${articleIndex}：覆盖分类、标签、专题、发布状态与审核状态。`;
+      const title = `${visual.title} #${articleIndex}`;
+      const intro = `测试文章 ${seedPrefix}-${articleIndex}：${visual.insight}`;
+      const summary = `测试摘要 ${articleIndex}：覆盖封面图、正文插图、分类、标签、专题以及前台详情展示验证。`;
+      const coverImage = String(visual.cover || '').trim();
+      const inlineImage = String(visual.inline || '').trim();
       const content = [
         `<h2>${title}</h2>`,
-        '<p>该内容由系统自动生成，用于文章管理页面联调。</p>',
+        `<p>${visual.insight}</p>`,
+        `<p>这是一篇用于联调和展示的测试文章，重点覆盖文章列表封面、文章详情首图、正文图片、目录锚点、标签信息与相关推荐区域。</p>`,
+        inlineImage ? `<p><img src="${inlineImage}" alt="${title}" /></p>` : '',
+        '<h3>这篇测试文章可以验证什么</h3>',
+        '<ul><li>文章列表是否正常显示封面图与摘要</li><li>文章详情页图片、间距和目录高亮是否正常</li><li>关联标签、专题与评论区是否跟随展示</li></ul>',
         `<p>所属栏目：${String(category?.name || '-')}</p>`,
         `<p>关联标签：${chosenTagIds.map(id => {
           const row = tags.find(item => Number(item.id || 0) === id);
           return String(row?.name || '');
         }).filter(Boolean).join('、') || '-'}</p>`,
         `<p>所属专题：${String(topic?.name || '-')}</p>`,
-        '<blockquote>你可以直接编辑此文，验证编辑器、AI 助手、发布流程与前台展示。</blockquote>',
-      ].join('');
+        '<blockquote>你可以直接编辑此文，验证编辑器、AI 助手、发布流程、详情页图片排版与前台展示是否正常。</blockquote>',
+        '<h3>建议测试动作</h3>',
+        '<p>进入前台文章详情页，重点检查封面图、正文图片、引用样式、相关推荐、评论区与移动端表现。</p>',
+      ].filter(Boolean).join('');
 
       const row = await ctx.model.Article.create({
         cid: Number(category?.id || 0),
         title,
         intro,
         summary,
-        image: '',
+        seo_title: title,
+        seo_description: summary,
+        image: this.normalizeStoreImageValue(coverImage),
         content,
-        author: `测试作者${(i % 3) + 1}`,
+        author: [ 'Tomda', 'UIED编辑部', '内容运营组' ][i % 3],
         visit: 20 + i * 3,
         sort: 999 - i,
         is_show: isShow,

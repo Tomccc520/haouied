@@ -19,13 +19,14 @@ import {
   recordArticleView,
   toggleArticleLikeWithDetail,
 } from '../../services/articleService';
-import { ArticleDetail as ArticleDetailType } from '../../types/article';
+import { ArticleDetail as ArticleDetailType, ArticleListItem } from '../../types/article';
 import api from '../../services/api';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { getFullImageUrl } from '../../utils/urlUtils';
 import SEO from '../../components/SEO';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { usePublicSettings } from '../../hooks/usePublicSettings';
+import ArticleCard from './ArticleCard';
 import ArticleComments from './ArticleComments';
 import './ArticleDetail.css';
 
@@ -242,9 +243,7 @@ interface ArticleSidebarLatestArticleItem {
   publishedAt: number | null;
 }
 
-interface ArticleRecommendItem extends ArticleSidebarLatestArticleItem {
-  category: string;
-}
+type ArticleRecommendItem = ArticleListItem;
 
 interface ArticleTocItem {
   id: string;
@@ -266,8 +265,8 @@ const DEFAULT_ARTICLE_SIDEBAR_MODULES: ArticleSidebarModuleConfig[] = [
 ];
 
 const ARTICLE_DETAIL_TABS: ArticleDetailTabItem[] = [
-  { key: 'intro', label: '产品介绍' },
-  { key: 'info', label: '产品信息' },
+  { key: 'intro', label: '正文' },
+  { key: 'info', label: '文章信息' },
   { key: 'related', label: '关联网址' },
   { key: 'faq', label: '常见问题' },
 ];
@@ -647,8 +646,7 @@ const ArticleDetail: React.FC = () => {
   const hotWebsitesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'hot_websites');
   const articleTagsModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'article_tags');
   const shouldRenderSidebar = detailSidebarEnabled && (
-    articleToc.length > 0
-    || latestArticlesModuleEnabled
+    latestArticlesModuleEnabled
     || hotWebsitesModuleEnabled
     || articleTagsModuleEnabled
   );
@@ -815,8 +813,15 @@ const ArticleDetail: React.FC = () => {
             id,
             slug: String(item?.slug || id),
             title: String(item?.title || ''),
+            excerpt: String(item?.excerpt || ''),
+            coverImage: String(item?.coverImage || ''),
+            author: String(item?.author || 'UIED'),
             publishedAt: Number.isFinite(Number(item?.publishedAt)) ? Number(item?.publishedAt) : null,
+            createdAt: Number.isFinite(Number(item?.createdAt)) ? Number(item?.createdAt) : null,
+            updatedAt: Number.isFinite(Number(item?.updatedAt)) ? Number(item?.updatedAt) : null,
+            viewCount: Number(item?.viewCount || 0),
             category: String(item?.category || ''),
+            tags: Array.isArray(item?.tags) ? item.tags : [],
           });
         });
         const normalized = Array.from(uniqueMap.values())
@@ -842,8 +847,15 @@ const ArticleDetail: React.FC = () => {
             id: Number(item?.id || 0),
             slug: String(item?.slug || item?.id || ''),
             title: String(item?.title || ''),
+            excerpt: String(item?.excerpt || ''),
+            coverImage: String(item?.coverImage || ''),
+            author: String(item?.author || 'UIED'),
             publishedAt: Number.isFinite(Number(item?.publishedAt)) ? Number(item?.publishedAt) : null,
+            createdAt: Number.isFinite(Number(item?.createdAt)) ? Number(item?.createdAt) : null,
+            updatedAt: Number.isFinite(Number(item?.updatedAt)) ? Number(item?.updatedAt) : null,
+            viewCount: Number(item?.viewCount || 0),
             category: String(item?.category || ''),
+            tags: Array.isArray(item?.tags) ? item.tags : [],
           }))
           .filter((item) => item.id > 0);
         const currentIndex = categorySequence.findIndex((item) => String(item.id) === String(article.id));
@@ -1116,63 +1128,87 @@ const ArticleDetail: React.FC = () => {
 
         <div className={`article-detail-layout ${shouldRenderSidebar ? 'article-detail-layout--with-sidebar' : ''}`}>
           <div className="article-detail-main">
-            <section className="detail-product-layout">
-              <aside className="detail-action-rail">
-                <button
-                  type="button"
-                  className="detail-action-pill"
-                  onClick={handleFocusComments}
-                  data-tip="查看评论"
-                  aria-label="查看评论"
-                >
-                  <span className="detail-action-pill__glyph" aria-hidden="true">
-                    <DetailRailCommentIcon className="detail-action-pill__icon" />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`detail-action-pill detail-action-pill--like ${isLiked ? 'is-active' : ''}`}
-                  onClick={handleToggleLike}
-                  data-tip={`${isLiked ? '已点赞' : '点赞'} ${Math.max(0, likeCount)}`}
-                  aria-label={`${isLiked ? '取消点赞' : '点赞'}，当前 ${Math.max(0, likeCount)} 人点赞`}
-                  disabled={isLikeSubmitting}
-                >
-                  <span className="detail-action-pill__glyph" aria-hidden="true">
-                    <DetailRailLikeIcon className="detail-action-pill__icon" />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="detail-action-pill detail-action-pill--hot"
-                  data-tip={`阅读 ${article.viewCount}`}
-                  aria-label={`阅读 ${article.viewCount}`}
-                >
-                  <span className="detail-action-pill__glyph" aria-hidden="true">
-                    <DetailRailTrendingIcon className="detail-action-pill__icon" />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="detail-action-pill"
-                  onClick={() => setActiveTab('related')}
-                  data-tip={`关联网址 ${relatedWebsites.length}`}
-                  aria-label={`关联网址 ${relatedWebsites.length}`}
-                >
-                  <span className="detail-action-pill__glyph" aria-hidden="true">
-                    <DetailRailLinkIcon className="detail-action-pill__icon" />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="detail-action-pill"
-                  onClick={handleCopyArticleLink}
-                  data-tip="复制链接"
-                  aria-label="复制链接"
-                >
-                  <span className="detail-action-pill__glyph" aria-hidden="true">
-                    <DetailRailShareIcon className="detail-action-pill__icon" />
-                  </span>
-                </button>
+            <section className={`detail-product-layout ${articleToc.length > 0 && activeTab === 'intro' ? 'detail-product-layout--with-left-toc' : ''}`}>
+              <aside className="detail-left-rail">
+                <div className="detail-action-rail">
+                  <button
+                    type="button"
+                    className="detail-action-pill"
+                    onClick={handleFocusComments}
+                    data-tip="查看评论"
+                    aria-label="查看评论"
+                  >
+                    <span className="detail-action-pill__glyph" aria-hidden="true">
+                      <DetailRailCommentIcon className="detail-action-pill__icon" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`detail-action-pill detail-action-pill--like ${isLiked ? 'is-active' : ''}`}
+                    onClick={handleToggleLike}
+                    data-tip={`${isLiked ? '已点赞' : '点赞'} ${Math.max(0, likeCount)}`}
+                    aria-label={`${isLiked ? '取消点赞' : '点赞'}，当前 ${Math.max(0, likeCount)} 人点赞`}
+                    disabled={isLikeSubmitting}
+                  >
+                    <span className="detail-action-pill__glyph" aria-hidden="true">
+                      <DetailRailLikeIcon className="detail-action-pill__icon" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="detail-action-pill detail-action-pill--hot"
+                    data-tip={`阅读 ${article.viewCount}`}
+                    aria-label={`阅读 ${article.viewCount}`}
+                  >
+                    <span className="detail-action-pill__glyph" aria-hidden="true">
+                      <DetailRailTrendingIcon className="detail-action-pill__icon" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="detail-action-pill"
+                    onClick={() => setActiveTab('related')}
+                    data-tip={`关联网址 ${relatedWebsites.length}`}
+                    aria-label={`关联网址 ${relatedWebsites.length}`}
+                  >
+                    <span className="detail-action-pill__glyph" aria-hidden="true">
+                      <DetailRailLinkIcon className="detail-action-pill__icon" />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="detail-action-pill"
+                    onClick={handleCopyArticleLink}
+                    data-tip="复制链接"
+                    aria-label="复制链接"
+                  >
+                    <span className="detail-action-pill__glyph" aria-hidden="true">
+                      <DetailRailShareIcon className="detail-action-pill__icon" />
+                    </span>
+                  </button>
+                </div>
+                {articleToc.length > 0 && activeTab === 'intro' && (
+                  <nav className="detail-left-toc" aria-label="文章目录">
+                    <div className="detail-left-toc__header">
+                      <span className="detail-left-toc__eyebrow">目录</span>
+                      <span className="detail-left-toc__count">{articleToc.length} 节</span>
+                    </div>
+                    <div className="detail-left-toc__list">
+                      {articleToc.map((item) => (
+                        <button
+                          key={`left-toc-${item.id}`}
+                          type="button"
+                          className={`detail-left-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
+                          onClick={() => handleTocNavigate(item.id)}
+                          title={item.text}
+                        >
+                          <span className="detail-left-toc__bar" aria-hidden="true" />
+                          <span className="detail-left-toc__text">{item.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </nav>
+                )}
               </aside>
 
               <div className="detail-product-main">
@@ -1211,7 +1247,31 @@ const ArticleDetail: React.FC = () => {
 
                 <div className="detail-panel">
                   {activeTab === 'intro' && (
-                    <div>
+                    <article className="detail-reading-shell">
+                      {articleToc.length > 0 && (
+                        <nav
+                          className="detail-inline-toc detail-inline-toc--mobile-only"
+                          aria-label="文章目录"
+                        >
+                          <div className="detail-inline-toc__header">
+                            <span className="detail-inline-toc__eyebrow">目录</span>
+                            <span className="detail-inline-toc__count">{articleToc.length} 节</span>
+                          </div>
+                          <div className="detail-inline-toc__list">
+                            {articleToc.map((item) => (
+                              <button
+                                key={`inline-toc-${item.id}`}
+                                type="button"
+                                className={`detail-inline-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
+                                onClick={() => handleTocNavigate(item.id)}
+                                title={item.text}
+                              >
+                                {item.text}
+                              </button>
+                            ))}
+                          </div>
+                        </nav>
+                      )}
                       {article.coverImage && (
                         <figure className="detail-cover">
                           <img src={getFullImageUrl(article.coverImage)} alt={article.title} loading="lazy" />
@@ -1225,64 +1285,97 @@ const ArticleDetail: React.FC = () => {
                           dangerouslySetInnerHTML={{ __html: normalizedContentHtml || article.content }}
                         />
                       </div>
-                    </div>
+                    </article>
                   )}
 
                   {activeTab === 'info' && (
-                    <div className="detail-meta-grid">
-                      <div className="detail-meta-card">
-                        <h4>基础信息</h4>
-                        <p><strong>所属分类：</strong>{article.category}</p>
-                        <p><strong>作者：</strong>{article.author}</p>
-                        <p><strong>发布时间：</strong>{formatDate(article.publishedAt) || '-'}</p>
-                        <p><strong>阅读热度：</strong>{article.viewCount}</p>
-                      </div>
-                      <div className="detail-meta-card">
-                        <h4>内容摘要</h4>
-                        <p>{article.excerpt || '暂无摘要'}</p>
-                      </div>
+                    <div className="detail-editorial-panel">
+                      <section className="detail-editorial-section">
+                        <span className="detail-editorial-section__label">文章概览</span>
+                        <p className="detail-editorial-summary">{article.excerpt || '暂无摘要'}</p>
+                      </section>
+
+                      <section className="detail-editorial-section">
+                        <span className="detail-editorial-section__label">基础信息</span>
+                        <dl className="detail-editorial-facts">
+                          <div className="detail-editorial-fact">
+                            <dt>所属分类</dt>
+                            <dd>{article.category || '-'}</dd>
+                          </div>
+                          <div className="detail-editorial-fact">
+                            <dt>作者</dt>
+                            <dd>{article.author || '-'}</dd>
+                          </div>
+                          <div className="detail-editorial-fact">
+                            <dt>发布时间</dt>
+                            <dd>{formatDate(article.publishedAt) || '-'}</dd>
+                          </div>
+                          <div className="detail-editorial-fact">
+                            <dt>阅读热度</dt>
+                            <dd>{article.viewCount}</dd>
+                          </div>
+                        </dl>
+                      </section>
+
                       {article.tags.length > 0 && (
-                        <div className="detail-meta-card">
-                          <h4>文章标签</h4>
-                          <div className="detail-tags">
+                        <section className="detail-editorial-section">
+                          <span className="detail-editorial-section__label">文章标签</span>
+                          <div className="detail-tags detail-tags--editorial">
                             {article.tags.map(tag => (
                               <Link key={tag.id} to={`/articles?tag=${tag.slug}`} className="tag-chip">
                                 # {tag.name}
                               </Link>
                             ))}
                           </div>
-                        </div>
+                        </section>
                       )}
                     </div>
                   )}
 
                   {activeTab === 'related' && (
-                    <div className="detail-related-list">
-                      {relatedWebsites.length > 0 ? relatedWebsites.map(site => (
-                        <a
-                          key={`related-${site.id}`}
-                          href={site.url || `/website/${site.slug || site.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="detail-related-item"
-                        >
-                          <div className="detail-related-item__name">{site.name}</div>
-                          <div className="detail-related-item__desc">{site.description || site.url}</div>
-                        </a>
-                      )) : (
-                        <div className="article-sidebar-empty">暂无关联网址</div>
-                      )}
+                    <div className="detail-editorial-panel">
+                      <section className="detail-editorial-section">
+                        <span className="detail-editorial-section__label">关联网址</span>
+                        <p className="detail-editorial-lead">文中提到的工具与站点，建议按需继续延伸查看。</p>
+                        {relatedWebsites.length > 0 ? (
+                          <div className="detail-editorial-link-list">
+                            {relatedWebsites.map(site => (
+                              <a
+                                key={`related-${site.id}`}
+                                href={site.url || `/website/${site.slug || site.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="detail-editorial-link"
+                              >
+                                <div className="detail-editorial-link__title">{site.name}</div>
+                                <div className="detail-editorial-link__desc">{site.description || site.url}</div>
+                                <div className="detail-editorial-link__meta">{site.url || `查看 ${site.name}`}</div>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="article-sidebar-empty">暂无关联网址</div>
+                        )}
+                      </section>
                     </div>
                   )}
 
                   {activeTab === 'faq' && (
-                    <div className="detail-faq-list">
-                      {faqList.map((item, index) => (
-                        <div key={`faq-${index}`} className="detail-faq-item">
-                          <h4>{item.question}</h4>
-                          <p>{item.answer}</p>
+                    <div className="detail-editorial-panel">
+                      <section className="detail-editorial-section">
+                        <span className="detail-editorial-section__label">常见问题</span>
+                        <div className="detail-editorial-faq-list">
+                          {faqList.map((item, index) => (
+                            <article key={`faq-${index}`} className="detail-editorial-faq-item">
+                              <span className="detail-editorial-faq-item__index">{String(index + 1).padStart(2, '0')}</span>
+                              <div className="detail-editorial-faq-item__body">
+                                <h4>{item.question}</h4>
+                                <p>{item.answer}</p>
+                              </div>
+                            </article>
+                          ))}
                         </div>
-                      ))}
+                      </section>
                     </div>
                   )}
                 </div>
@@ -1330,11 +1423,9 @@ const ArticleDetail: React.FC = () => {
               ) : recommendArticles.length > 0 ? (
                 <div className="detail-recommend-articles__grid">
                   {recommendArticles.map((item) => (
-                    <Link key={`recommend-${item.id}`} to={`/article/${item.slug || item.id}`} className="detail-recommend-articles__card">
-                      <span className="detail-recommend-articles__category">{item.category || '文章'}</span>
-                      <h4>{item.title}</h4>
-                      <span className="detail-recommend-articles__meta">{formatDate(item.publishedAt)}</span>
-                    </Link>
+                    <div key={`recommend-${item.id}`} className="detail-recommend-articles__item">
+                      <ArticleCard article={item} />
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -1347,24 +1438,6 @@ const ArticleDetail: React.FC = () => {
               className={`article-detail-sidebar ${detailSidebarSticky ? 'is-sticky' : ''}`}
               style={detailSidebarSticky ? { top: `calc(var(--header-height) + ${detailSidebarTopOffset}px)` } : undefined}
             >
-              {articleToc.length > 0 && (
-                <section className="article-sidebar-section article-sidebar-section--toc">
-                  <h3 className="article-sidebar-title">文章目录</h3>
-                  <div className="article-sidebar-toc">
-                    {articleToc.map((item) => (
-                      <button
-                        key={`toc-${item.id}`}
-                        type="button"
-                        className={`article-sidebar-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
-                        onClick={() => handleTocNavigate(item.id)}
-                        title={item.text}
-                      >
-                        {item.text}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
               {renderSidebarModules()}
             </aside>
           )}

@@ -2778,6 +2778,73 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 获取文章互动摘要（前端）
+   * GET /api/articles/:id/interaction
+   */
+  async articleInteraction() {
+    const { ctx } = this;
+    const { id } = ctx.params;
+
+    try {
+      this.setNoCacheHeaders();
+      const articleId = this.parsePositiveInt(id, 0);
+      if (!articleId) {
+        ctx.status = 400;
+        ctx.body = { message: '文章ID无效', error: '文章ID无效' };
+        return;
+      }
+      const result = await ctx.service.uied.articleInteraction.getLikeSummary(articleId);
+      ctx.body = result;
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (message.includes('文章不存在')) {
+        ctx.status = 404;
+      } else {
+        ctx.status = 500;
+        ctx.logger.error('获取文章互动摘要失败:', error);
+      }
+      ctx.body = { message, error: message };
+    }
+  }
+
+  /**
+   * 切换文章点赞状态（前端）
+   * POST /api/articles/:id/like/toggle
+   */
+  async articleLikeToggle() {
+    const { ctx } = this;
+    const { id } = ctx.params;
+
+    try {
+      this.setNoCacheHeaders();
+      const articleId = this.parsePositiveInt(id, 0);
+      if (!articleId) {
+        ctx.status = 400;
+        ctx.body = { message: '文章ID无效', error: '文章ID无效' };
+        return;
+      }
+      const result = await ctx.service.uied.articleInteraction.toggleLike(articleId);
+      ctx.body = {
+        ...result,
+        message: result.liked ? '点赞成功' : '已取消点赞',
+      };
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (message.includes('未登录') || message.includes('登录已失效')) {
+        ctx.status = 401;
+      } else if (message.includes('文章不存在')) {
+        ctx.status = 404;
+      } else if (message.includes('不能为空')) {
+        ctx.status = 400;
+      } else {
+        ctx.status = 500;
+        ctx.logger.error('切换文章点赞失败:', error);
+      }
+      ctx.body = { message, error: message };
+    }
+  }
+
+  /**
    * 提交文章评论（前端）
    * POST /api/articles/:id/comments
    */
