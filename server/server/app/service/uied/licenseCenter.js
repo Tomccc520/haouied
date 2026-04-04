@@ -12,6 +12,7 @@
 
 const Service = require('egg').Service;
 const crypto = require('crypto');
+const util = require('../../util');
 const { dbTablePrefix = 'la_' } = require('../../extend/config');
 
 const LICENSE_INFO_KEY = 'license_center_info';
@@ -20,10 +21,43 @@ const COMMERCIAL_MODE_KEY = 'commercial_mode_config';
 const LICENSE_DOMAIN_BINDINGS_KEY = 'license_runtime_domains';
 const LICENSE_SIGN_VERSION = 'v1';
 const DEFAULT_LICENSE_ACTIVATE_ENDPOINT = 'https://fsuied.com/api/license/detail';
+const LICENSE_ACTIVATE_REMOTE_ERROR_MESSAGE_MAP = {
+  1001: '授权中心鉴权失败，请检查 UIED_LICENSE_ACTIVATE_TOKEN 或 API 签名密钥配置',
+  41000: '授权请求参数不完整或格式不合法',
+  41001: '授权码无效或不存在',
+  41002: '授权码与当前域名不匹配（域名未在授权白名单），请先在 fsuied.com 绑定后重试',
+  41003: '授权码与当前项目不匹配（请确认项目编码为 fsuied）',
+  41004: '该授权码已被禁用，请联系管理员处理',
+  41005: '授权域名额度已满，请先在 fsuied.com 更换或释放已绑定域名后重试',
+  429: '授权校验请求过于频繁，请稍后重试',
+};
 const USER_TABLE = `${dbTablePrefix}user`;
 const MENU_TABLE = `${dbTablePrefix}system_auth_menu`;
 
 class LicenseCenterService extends Service {
+  /**
+   * 解析授权中心远端错误文案
+   * @param {number} code 远端错误码
+   * @param {string} remoteMessage 远端原始文案
+   * @returns {string}
+   */
+  resolveActivateRemoteErrorMessage(code, remoteMessage = '') {
+    const normalizedCode = Number(code || 0);
+    const cleanRemoteMessage = String(remoteMessage || '').trim();
+    const mappedMessage = String(LICENSE_ACTIVATE_REMOTE_ERROR_MESSAGE_MAP[normalizedCode] || '').trim();
+    if (!cleanRemoteMessage) {
+      return mappedMessage || '授权中心返回失败';
+    }
+    if (!mappedMessage) {
+      return cleanRemoteMessage;
+    }
+    const isGenericRemoteMessage = /授权校验失败|授权中心返回失败|请稍后重试/.test(cleanRemoteMessage);
+    if (normalizedCode === 1001 || isGenericRemoteMessage) {
+      return mappedMessage;
+    }
+    return cleanRemoteMessage;
+  }
+
   /**
    * 获取功能矩阵定义（Free / Pro / Enterprise）
    */
@@ -433,6 +467,95 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 获取授权 API 请求签名密钥（用于激活接口签名）
+   */
+  getLicenseApiSignSecret() {
+    const appConfig = this.app.config || {};
+    const envApiSecret = String(process.env.UIED_LICENSE_API_SIGN_SECRET || '').trim();
+    if (envApiSecret) return envApiSecret;
+    const cfgApiSecret = String(appConfig.uiedLicenseApiSignSecret || '').trim();
+    if (cfgApiSecret) return cfgApiSecret;
+    return this.getLicenseSignSecret();
+  }
+
+  /**
+   * 解析授权激活接口路径（用于签名路径）
+   * @param {string} endpoint 远端完整地址
+   * @returns {string}
+   */
+  resolveLicenseActivateEndpointPath(endpoint = '') {
+    const fallback = '/api/license/detail';
+    const target = String(endpoint || '').trim();
+    if (!target) return fallback;
+    try {
+      const pathname = String(new URL(target).pathname || '').trim();
+      if (!pathname || pathname === '/') return fallback;
+      return pathname.replace(/\/+$/, '');
+    } catch (error) {
+      const pathPart = String(target.split('?')[0] || '').trim();
+      if (!pathPart) return fallback;
+      if (/^https?:\/\//i.test(pathPart)) return fallback;
+      const normalized = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+      return normalized.replace(/\/+$/, '');
+    }
+  }
+
+  /**
+   * 构建授权激活签名明文
+   * @param {object} params 参数
+   * @param {string} params.method 请求方法
+   * @param {string} params.path 请求路径
+   * @param {{licenseKey:string,bindDomain:string,projectCode:string}} params.payload 业务参数
+   * @param {number|string} params.timestamp 秒级时间戳
+   * @param {string} params.nonce 随机串
+   * @returns {string}
+   */
+  buildLicenseActivateSignMessage({ method, path, payload, timestamp, nonce }) {
+    const targetPayload = payload && typeof payload === 'object' ? payload : {};
+    const signPath = String(path || '/').replace(/\/+/g, '/').replace(/\/+$/, '') || '/';
+    return [
+      String(method || 'GET').trim().toUpperCase(),
+      signPath,
+      String(targetPayload.licenseKey || '').trim(),
+      String(targetPayload.bindDomain || '').trim().toLowerCase(),
+      String(targetPayload.projectCode || '').trim().toLowerCase(),
+      String(timestamp || '').trim(),
+      String(nonce || '').trim(),
+    ].join('\n');
+  }
+
+  /**
+   * 生成远端激活请求签名头（与 fsuied 机器鉴权网关保持一致）
+   * @param {object} params 参数
+   * @param {{licenseKey:string,bindDomain:string,projectCode:string}} params.payload 请求参数
+   * @param {'GET'|'POST'} params.method 请求方法
+   * @param {string} params.endpointPath 接口路径
+   * @param {string} params.signSecret 签名密钥
+   * @returns {Record<string, string>}
+   */
+  buildLicenseActivateSignHeaders({ payload, method, endpointPath, signSecret }) {
+    const secret = String(signSecret || '').trim();
+    if (!secret) return {};
+    const timestamp = Math.floor(Date.now() / 1000);
+    const nonce = util.randomString(24);
+    const signMessage = this.buildLicenseActivateSignMessage({
+      method,
+      path: endpointPath,
+      payload,
+      timestamp,
+      nonce,
+    });
+    const signature = crypto.createHmac('sha256', secret)
+      .update(signMessage)
+      .digest('hex');
+    return {
+      'x-license-timestamp': String(timestamp),
+      'x-license-nonce': nonce,
+      'x-license-signature': signature,
+    };
+  }
+
+  /**
    * 获取“按授权码激活”远端配置（fsuied.com 授权中心）
    */
   getLicenseActivateRemoteConfig() {
@@ -453,6 +576,7 @@ class LicenseCenterService extends Service {
       || appConfig.uiedLicenseActivateToken
       || ''
     ).trim();
+    const signSecret = this.getLicenseApiSignSecret();
     const timeout = Math.max(
       1000,
       Number.parseInt(
@@ -470,8 +594,10 @@ class LicenseCenterService extends Service {
     );
     return {
       endpoint,
+      endpointPath: this.resolveLicenseActivateEndpointPath(endpoint),
       method: [ 'GET', 'POST' ].includes(method) ? method : 'GET',
       token,
+      signSecret,
       timeout,
       allowInsecureTls,
     };
@@ -513,7 +639,7 @@ class LicenseCenterService extends Service {
   /**
    * 从 fsuied.com 拉取授权载荷（按授权码）
    */
-  async fetchLicensePayloadByKey(licenseKey, bindDomain = '') {
+  async fetchLicensePayloadByKey(licenseKey, bindDomain = '', projectCode = '') {
     const { ctx } = this;
     const config = this.getLicenseActivateRemoteConfig();
     if (!config.endpoint) {
@@ -524,10 +650,19 @@ class LicenseCenterService extends Service {
       licenseKey: String(licenseKey || '').trim(),
       bindDomain: String(bindDomain || '').trim(),
       runtimeDomain: String(bindDomain || '').trim(),
+      projectCode: String(projectCode || '').trim(),
     };
-    const headers = config.token
-      ? { Authorization: `Bearer ${config.token}` }
-      : {};
+    const headers = {};
+    if (config.token) {
+      headers.Authorization = `Bearer ${config.token}`;
+      headers['x-license-token'] = config.token;
+    }
+    Object.assign(headers, this.buildLicenseActivateSignHeaders({
+      payload,
+      method: config.method,
+      endpointPath: config.endpointPath,
+      signSecret: config.signSecret,
+    }));
     const curlOptions = {
       dataType: 'json',
       timeout: config.timeout,
@@ -556,8 +691,10 @@ class LicenseCenterService extends Service {
       : {};
     const code = Number(body.code);
     if (Number.isFinite(code) && code !== 0 && code !== 200) {
-      const message = String(body.message || body.msg || '').trim() || '授权中心返回失败';
-      throw new Error(message);
+      const message = this.resolveActivateRemoteErrorMessage(code, body.message || body.msg || '');
+      const error = new Error(message);
+      error.bizCode = code;
+      throw error;
     }
     return this.extractLicensePayloadFromRemoteBody(body);
   }
@@ -566,6 +703,7 @@ class LicenseCenterService extends Service {
    * 按授权码激活：向 fsuied.com 拉取签名授权并落库
    */
   async activateLicenseByKey(payload = {}) {
+    const appConfig = this.app.config || {};
     const licenseKey = String(
       payload.licenseKey
       || payload.key
@@ -582,7 +720,13 @@ class LicenseCenterService extends Service {
       || this.getRuntimeDomain()
       || ''
     );
-    const remotePayload = await this.fetchLicensePayloadByKey(licenseKey, bindDomain);
+    const projectCode = String(
+      payload.projectCode
+      || process.env.UIED_LICENSE_PROJECT_CODE
+      || appConfig.uiedLicenseProjectCode
+      || 'fsuied'
+    ).trim().toLowerCase();
+    const remotePayload = await this.fetchLicensePayloadByKey(licenseKey, bindDomain, projectCode);
     const remoteLicenseKey = String(remotePayload.licenseKey || '').trim();
     if (!remoteLicenseKey) {
       throw new Error('授权中心返回的授权数据缺少 licenseKey');

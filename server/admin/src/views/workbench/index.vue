@@ -172,6 +172,16 @@ const defaultChannelLinks = {
 }
 
 /**
+ * 官方支持信息（工作台固定展示）
+ */
+const supportInfo = {
+    siteUrl: 'https://fsuied.com',
+    productUrl: 'https://fsuied.com/products/10',
+    qqGroup: '1082794860',
+    qqContact: '403479454'
+}
+
+/**
  * 计算前端官网地址（优先读取环境变量，默认本地前端开发地址）
  */
 const frontendOfficialUrl = (import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3003').replace(
@@ -192,19 +202,22 @@ const workbenchData: any = reactive({
     },
     support: [
         {
-            title: '品牌信息',
-            desc: `UIED 技术团队
-品牌官网：https://www.tomda.top
-前端官网：${frontendOfficialUrl}`,
-            link: frontendOfficialUrl,
-            actionText: '进入前端官网'
+            title: '商业授权',
+            desc: `购买地址：${supportInfo.productUrl}
+版本策略：Pro / Enterprise（永久授权）
+Pro：限制 3 个域名绑定
+Enterprise：源码交付，不限制域名`,
+            link: supportInfo.productUrl,
+            actionText: '前往购买'
         },
         {
             title: '服务支持',
-            desc: `文档中心：https://fsuied.com
-支持范围：功能答疑 / 运营配置 / 上线协助`,
-            link: defaultChannelLinks.docs,
-            actionText: '打开服务文档'
+            desc: `授权入口：工作中心 -> 授权中心
+激活前将限制后台功能访问
+客服 QQ：${supportInfo.qqContact}
+官方 QQ 群：${supportInfo.qqGroup}`,
+            link: supportInfo.siteUrl,
+            actionText: '联系官方支持'
         }
     ],
     today: {

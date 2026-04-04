@@ -1305,7 +1305,7 @@ const SubmitPage: React.FC = () => {
   return (
     <div className={`submit-page submit-page--layout-${layoutWidthMode}`}>
       <SEO
-        title={`${submissionConfig.pageTitle || '提交网站'} - UIED设计导航`}
+        title={submissionConfig.pageTitle || '提交网站'}
         description={submissionConfig.pageDescription || '向UIED设计导航提交优质设计工具和资源网站。'}
         keywords="提交网站,产品投稿,置顶推荐,Banner推广"
       />

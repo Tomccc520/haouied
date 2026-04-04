@@ -141,6 +141,34 @@ export const constantRoutes: Array<RouteRecordRaw> = [
             }
         ]
     },
+    /**
+     * 授权中心静态兜底路由：
+     * 1. 确保未激活时被 402 拦截后可直接跳转并展示授权页面
+     * 2. 避免因历史菜单数据未更新导致“无法进入授权中心”
+     */
+    {
+        path: '/uied/license-center',
+        component: LAYOUT,
+        children: [
+            {
+                path: '',
+                name: Symbol(),
+                component: () => import('@/views/uied/license/index.vue'),
+                meta: {
+                    title: '授权中心',
+                    hidden: true,
+                    activeMenu: '/uied/license-center'
+                }
+            }
+        ]
+    },
+    /**
+     * 历史地址兼容：旧版本中授权中心路径为 /uied/commercial-license/license-center
+     */
+    {
+        path: '/uied/commercial-license/license-center',
+        redirect: '/uied/license-center'
+    },
     {
         path: '/article-manage/article',
         component: LAYOUT,

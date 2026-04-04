@@ -70,7 +70,9 @@ class LicenseCenterController extends baseController {
       this.result({ data, message: '授权激活成功' });
     } catch (error) {
       ctx.logger.error('按授权码激活失败:', error);
-      this.result({ code: 500, message: error.message || '按授权码激活失败' });
+      const bizCode = Number(error?.bizCode || 0);
+      const resultCode = Number.isFinite(bizCode) && bizCode > 0 ? bizCode : 500;
+      this.result({ code: resultCode, message: error.message || '按授权码激活失败' });
     }
   }
 

@@ -80,6 +80,12 @@
                     <span class="font-medium">授权激活</span>
                     <div class="flex items-center gap-2">
                         <el-button
+                            :loading="licenseLoading"
+                            @click="handleRefreshLicenseStatus"
+                        >
+                            刷新状态
+                        </el-button>
+                        <el-button
                             plain
                             type="primary"
                             tag="a"
@@ -280,6 +286,7 @@ type ElTagType = '' | 'success' | 'warning' | 'info' | 'danger'
 type ElAlertType = 'none' | 'success' | 'warning' | 'info' | 'error'
 
 const licenseSaving = ref(false)
+const licenseLoading = ref(false)
 
 const activateForm = reactive({
     licenseKey: '',
@@ -472,6 +479,75 @@ const loadLicenseInfo = async () => {
 }
 
 /**
+ * 手动刷新授权状态
+ */
+const handleRefreshLicenseStatus = async () => {
+    licenseLoading.value = true
+    try {
+        await loadLicenseInfo()
+        feedback.msgSuccess('授权状态已刷新')
+    } finally {
+        licenseLoading.value = false
+    }
+}
+
+/**
+ * 提取请求失败文案（兜底空异常，避免 Uncaught (in promise) <empty string>）
+ */
+const resolveRequestErrorMessage = (error: any, fallback = '操作失败，请稍后重试') => {
+    const directText = typeof error === 'string' ? error.trim() : ''
+    if (directText) return directText
+    const messageList = [
+        error?.message,
+        error?.msg,
+        error?.data?.message,
+        error?.data?.msg,
+        error?.response?.data?.message,
+        error?.response?.data?.msg
+    ]
+        .map((item: unknown) => String(item || '').trim())
+        .filter(Boolean)
+    if (messageList.length > 0) return messageList[0]
+    return String(fallback || '操作失败，请稍后重试').trim()
+}
+
+/**
+ * 规范化授权激活错误文案
+ */
+const resolveActivateErrorMessage = (error: any) => {
+    const code = Number(error?.code || error?.response?.data?.code || 0)
+    const rawMessage = resolveRequestErrorMessage(error, '授权激活失败，请稍后重试')
+    const normalizedMessage = String(rawMessage || '').trim()
+    const bindDomain = String(activateForm.bindDomain || runtimeState.runtimeDomain || '').trim()
+    const domainMismatchByCode = code === 41002
+    const domainMismatchByText = /域名不匹配|未在授权白名单|domain[_\s-]?not[_\s-]?bound|domain_not_authorized/i.test(
+        normalizedMessage
+    )
+    if (domainMismatchByCode || domainMismatchByText) {
+        if (bindDomain) {
+            return `授权码与域名不匹配：${bindDomain} 未在该 Key 的白名单，请到 fsuied.com 完成域名绑定后重试`
+        }
+        return '授权码与域名不匹配：当前域名未在该 Key 的白名单，请到 fsuied.com 完成域名绑定后重试'
+    }
+    const projectMismatchByCode = code === 41003
+    const projectMismatchByText = /项目不匹配|project[_\s-]?mismatch/i.test(normalizedMessage)
+    if (projectMismatchByCode || projectMismatchByText) {
+        return '授权码与当前项目不匹配，请确认项目编码为 fsuied 后重试'
+    }
+    const isQuotaExceeded =
+        code === 41005 || /额度已满|域名额度|已超限|domain_limit_exceeded/i.test(normalizedMessage)
+    if (isQuotaExceeded) {
+        const used = Math.max(0, Number(runtimeState.domainUsedCount || 0))
+        const limit = Math.max(0, Number(runtimeState.domainLimit || 0))
+        if (limit > 0) {
+            return `授权域名额度已满（${used}/${limit}），请先在 fsuied.com 更换或释放已绑定域名后重试`
+        }
+        return '授权域名额度已满，请先在 fsuied.com 更换或释放已绑定域名后重试'
+    }
+    return normalizedMessage
+}
+
+/**
  * 按授权码激活授权
  */
 const handleActivateByKey = async () => {
@@ -489,6 +565,9 @@ const handleActivateByKey = async () => {
         })
         feedback.msgSuccess('授权激活成功')
         await loadLicenseInfo()
+    } catch (error) {
+        if ((error as any)?.__uiedHandled === true) return
+        feedback.msgError(resolveActivateErrorMessage(error))
     } finally {
         licenseSaving.value = false
     }
@@ -661,7 +740,12 @@ const expiryMeta = computed<{
  * 页面初始化加载
  */
 const initializePage = async () => {
-    await loadLicenseInfo()
+    licenseLoading.value = true
+    try {
+        await loadLicenseInfo()
+    } finally {
+        licenseLoading.value = false
+    }
 }
 
 onMounted(() => {

@@ -123,6 +123,32 @@
   line-height: 1.6;
 }
 
+.changelog-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.changelog-buy-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--primary-color, #0066ff);
+  background: rgba(0, 102, 255, 0.08);
+  color: var(--primary-color, #0066ff);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.changelog-buy-link:hover {
+  background: var(--primary-color, #0066ff);
+  color: #fff;
+}
+
 .author-link {
   color: var(--primary-color, #0066ff);
   text-decoration: none;

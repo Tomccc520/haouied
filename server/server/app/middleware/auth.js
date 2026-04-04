@@ -284,11 +284,12 @@ module.exports = options => {
       // 内容管理：外链图片转存复用文章编辑权限
       'common:upload:image:transfer': [ 'article:edit', 'article:add', 'common:upload:image' ],
       'common:upload:image:transfer-content': [ 'article:edit', 'article:add', 'common:upload:image' ],
-      // 商业版：许可证中心接口复用站点设置权限
+      // 商业版：授权中心接口复用站点设置权限
       'uied:license:info': [ 'uied:setting:get' ],
       'uied:license:verify': [ 'uied:setting:get' ],
       'uied:feature:list': [ 'uied:setting:get' ],
       'uied:feature:check': [ 'uied:setting:get' ],
+      'uied:license:activate': [ 'uied:setting:save' ],
       'uied:license:save': [ 'uied:setting:save' ],
       'uied:license:sign': [ 'uied:setting:save' ],
       'uied:feature:save': [ 'uied:setting:save' ],

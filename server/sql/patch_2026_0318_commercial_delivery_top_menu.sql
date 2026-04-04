@@ -2,7 +2,7 @@
 -- UIED 菜单补丁：商业授权 / 交付中心 一级菜单化（可重复执行）
 -- 目标：
 -- 1) 在 UIED 一级下新增“商业授权”“交付中心”
--- 2) 许可证中心归档到“商业授权”
+-- 2) 授权中心归档到“商业授权”
 -- 3) 交付初始化归档到“交付中心”
 -- 4) 功能开关默认隐藏（能力保留，菜单不干扰主流程）
 -- ============================================
@@ -42,11 +42,11 @@ is_show = VALUES(is_show),
 is_disable = VALUES(is_disable),
 update_time = UNIX_TIMESTAMP();
 
--- 3) 许可证中心（ID:864）归档到一级“商业授权”
+-- 3) 授权中心（ID:864）归档到一级“商业授权”
 INSERT INTO la_system_auth_menu
 (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
 VALUES
-(864, 1101, 'C', '许可证中心', 'el-icon-Key', 90, 'uied:license:info', 'license-center', 'uied/license/index', '/uied/license-center', '', 0, 1, 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+(864, 1101, 'C', '授权中心', 'el-icon-Key', 90, 'uied:license:info', 'license-center', 'uied/license/index', '/uied/license-center', '', 0, 1, 0, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE
 pid = VALUES(pid),
 menu_name = VALUES(menu_name),
@@ -109,4 +109,3 @@ LEFT JOIN la_system_auth_perm p
 WHERE p.id IS NULL;
 
 COMMIT;
-

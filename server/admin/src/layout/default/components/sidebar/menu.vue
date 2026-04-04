@@ -168,7 +168,18 @@ const MENU_CATEGORY_DEFINITIONS: MenuCategoryDefinition[] = [
  * 菜单分组命中规则：按顺序匹配，命中后立即归类。
  */
 const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
-    { key: 'workspace', keywords: ['工作台', 'workbench', '/workbench'] },
+    {
+        key: 'workspace',
+        keywords: [
+            '工作台',
+            'workbench',
+            '/workbench',
+            '授权中心',
+            'license-center',
+            '/uied/license-center',
+            'uied:license:'
+        ]
+    },
     {
         key: 'seo',
         keywords: [
@@ -511,6 +522,7 @@ const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
     系统设置: 'el-icon-Setting',
     内容中心配置: 'el-icon-DataAnalysis',
     备份恢复: 'el-icon-RefreshRight',
+    授权中心: 'el-icon-Key',
     许可证中心: 'el-icon-Key',
     交付初始化: 'el-icon-Suitcase',
     权限管理: 'el-icon-Lock',
@@ -533,6 +545,7 @@ const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
  */
 const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'workspace:工作台': 10,
+    'workspace:授权中心': 20,
 
     'website:网站管理': 10,
     'category:分类管理': 10,
@@ -616,7 +629,8 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'figma:发布插件': 50,
 
     'license:商业授权': 10,
-    'license:许可证中心': 20,
+    'license:授权中心': 20,
+    'license:许可证中心': 21,
     'license:功能开关': 30,
     'license:商业模式': 40,
 

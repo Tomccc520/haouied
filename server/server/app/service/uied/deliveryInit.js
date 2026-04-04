@@ -115,7 +115,7 @@ class DeliveryInitService extends Service {
         builtin: true,
         name: '工具导航模板',
         description: '偏效率与开发工具场景，适合通用工具站售卖。',
-        recommendedEdition: 'free',
+        recommendedEdition: 'pro',
         sort: 40,
         enabled: true,
       },
@@ -141,13 +141,17 @@ class DeliveryInitService extends Service {
     const fallbackBaseProfile = baseItem ? baseItem.key : 'commercial_default';
     const normalizedBaseProfile = this.normalizeProfileKey(item?.baseProfile, fallbackBaseProfile);
     const baseProfile = baseKeySet.has(normalizedBaseProfile) ? normalizedBaseProfile : fallbackBaseProfile;
+    const normalizedRecommendedEdition = this.ctx.service.uied.licenseCenter.normalizeEdition(
+      item?.recommendedEdition || baseItem?.recommendedEdition || 'pro'
+    );
     return {
       key,
       name: this.toText(item?.name, baseItem?.name || key),
       description: this.toText(item?.description, baseItem?.description || ''),
-      recommendedEdition: this.ctx.service.uied.licenseCenter.normalizeEdition(
-        item?.recommendedEdition || baseItem?.recommendedEdition || 'pro'
-      ),
+      /**
+       * 售卖口径只保留 Pro/Enterprise，模板推荐版本同步收口。
+       */
+      recommendedEdition: normalizedRecommendedEdition === 'enterprise' ? 'enterprise' : 'pro',
       sort: this.toInt(item?.sort, fallbackSort, 0, 9999),
       enabled: this.parseBoolean(item?.enabled, fallbackEnabled),
       baseProfile,
@@ -216,7 +220,13 @@ class DeliveryInitService extends Service {
    */
   normalizeOptions(input = {}) {
     const source = input && typeof input === 'object' ? input : {};
-    const edition = this.ctx.service.uied.licenseCenter.normalizeEdition(source.edition || 'pro');
+    const normalizedEdition = this.ctx.service.uied.licenseCenter.normalizeEdition(source.edition || 'pro');
+    /**
+     * 售卖口径仅允许 Pro/Enterprise：
+     * - 明确 enterprise 保留
+     * - 其他输入统一回落为 pro
+     */
+    const edition = normalizedEdition === 'enterprise' ? 'enterprise' : 'pro';
     return {
       profile: this.normalizeProfileKey(source.profile, 'commercial_default') || 'commercial_default',
       edition,
@@ -225,8 +235,6 @@ class DeliveryInitService extends Service {
       customerName: this.toText(source.customerName, ''),
       companyName: this.toText(source.companyName, ''),
       contactEmail: this.toText(source.contactEmail, ''),
-      domainLimit: this.toInt(source.domainLimit, 1, 1, 9999),
-      domainWhitelist: this.toStringList(source.domainWhitelist),
       includeSiteSettings: this.parseBoolean(source.includeSiteSettings, true),
       includeWebsiteCategories: this.parseBoolean(source.includeWebsiteCategories, true),
       includeWebsiteTags: this.parseBoolean(source.includeWebsiteTags, true),
@@ -235,6 +243,8 @@ class DeliveryInitService extends Service {
       includeArticleTags: this.parseBoolean(source.includeArticleTags, true),
       includeSampleArticles: this.parseBoolean(source.includeSampleArticles, true),
       applyLicense: this.parseBoolean(source.applyLicense, true),
+      licenseKey: this.toText(source.licenseKey, ''),
+      bindDomain: this.toText(source.bindDomain, ''),
       resetFeatureOverrides: this.parseBoolean(source.resetFeatureOverrides, true),
       seedUsers: this.parseBoolean(source.seedUsers, true),
       featureOverrides: source.featureOverrides && typeof source.featureOverrides === 'object'
@@ -1306,7 +1316,8 @@ class DeliveryInitService extends Service {
         articleCategories: options.includeArticleCategories,
         articleTags: options.includeArticleTags,
         sampleArticles: options.includeSampleArticles,
-        license: options.applyLicense,
+        licenseActivation: options.applyLicense,
+        licenseKeyProvided: Boolean(options.licenseKey),
         seedUsers: options.seedUsers,
       },
       counts: {
@@ -1405,19 +1416,13 @@ class DeliveryInitService extends Service {
     }
 
     if (options.applyLicense) {
-      const nowTs = Math.floor(Date.now() / 1000);
-      const licenseInfo = await this.ctx.service.uied.licenseCenter.saveLicenseInfo({
-        edition: options.edition,
-        status: 'active',
-        licenseKey: `UIED-${options.edition.toUpperCase()}-${String(nowTs).slice(-8)}`,
-        customerName: options.customerName,
-        companyName: options.companyName,
-        contactEmail: options.contactEmail,
-        domainLimit: options.domainLimit,
-        domainWhitelist: options.domainWhitelist,
-        issuedAt: nowTs,
-        expiresAt: 0,
-        note: '交付初始化向导自动生成',
+      const licenseKey = String(options.licenseKey || '').trim();
+      if (!licenseKey) {
+        throw new Error('已勾选授权激活，请先填写授权码 Key');
+      }
+      const licenseInfo = await this.ctx.service.uied.licenseCenter.activateLicenseByKey({
+        licenseKey,
+        bindDomain: String(options.bindDomain || '').trim(),
       });
       if (options.resetFeatureOverrides) {
         await this.ctx.service.uied.licenseCenter.saveFeatureOverrides({});
@@ -1428,6 +1433,8 @@ class DeliveryInitService extends Service {
         applied: true,
         edition: licenseInfo.effectiveEdition,
         status: licenseInfo.status,
+        licenseKey: String(licenseInfo.licenseKey || licenseKey),
+        activatedBy: 'license_key',
       };
     }
 

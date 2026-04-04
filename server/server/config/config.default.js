@@ -26,7 +26,7 @@ module.exports = appInfo => {
     config.keys = appInfo.name + '_1634002379446_8360';
 
     // add your middleware config here
-    config.middleware = ['authority', 'seoRewrite', 'auth', 'systemResponseNormalizer'];
+    config.middleware = ['authority', 'seoRewrite', 'auth', 'commercialActivationGuard', 'systemResponseNormalizer'];
 
     // add your user config here
     const userConfig = {
@@ -65,6 +65,24 @@ module.exports = appInfo => {
 
     // 商业版许可证签名密钥（建议在部署环境通过环境变量配置）
     config.uiedLicenseSignSecret = process.env.UIED_LICENSE_SIGN_SECRET || '';
+    // 对外授权激活接口签名密钥（默认可与 License 签名密钥一致）
+    config.uiedLicenseApiSignSecret = String(process.env.UIED_LICENSE_API_SIGN_SECRET || '').trim();
+    // 是否允许本地签发许可证（仅 fsuied.com 授权中心应开启）
+    config.uiedEnableLocalLicenseSign = String(process.env.UIED_ENABLE_LOCAL_LICENSE_SIGN || '').trim().toLowerCase() === 'true';
+    // 按授权码激活：fsuied.com 授权中心接口地址
+    config.uiedLicenseActivateEndpoint = String(process.env.UIED_LICENSE_ACTIVATE_ENDPOINT || 'https://fsuied.com/api/license/detail').trim();
+    // 按授权码激活：请求方式（GET/POST）
+    config.uiedLicenseActivateMethod = String(process.env.UIED_LICENSE_ACTIVATE_METHOD || 'GET').trim().toUpperCase();
+    // 按授权码激活：可选鉴权 Token（Bearer）
+    config.uiedLicenseActivateToken = String(process.env.UIED_LICENSE_ACTIVATE_TOKEN || '').trim();
+    // 按授权码激活：项目编码（默认 fsuied）
+    config.uiedLicenseProjectCode = String(process.env.UIED_LICENSE_PROJECT_CODE || 'fsuied').trim().toLowerCase();
+    // 按授权码激活：超时时间（毫秒）
+    config.uiedLicenseActivateTimeout = Number(process.env.UIED_LICENSE_ACTIVATE_TIMEOUT || 10000) || 10000;
+    // 按授权码激活：本地联调时是否允许不安全 TLS（仅开发环境建议开启）
+    config.uiedLicenseActivateAllowInsecureTls = String(process.env.UIED_LICENSE_ACTIVATE_ALLOW_INSECURE_TLS || '').trim().toLowerCase() === 'true';
+    // 是否要求安装后先导入付费许可证再使用后台业务能力（默认开启）
+    config.uiedRequirePaidLicenseActivation = String(process.env.UIED_REQUIRE_PAID_LICENSE_ACTIVATION || 'true').trim().toLowerCase() !== 'false';
 
     // 设置静态目录
     config.static = {

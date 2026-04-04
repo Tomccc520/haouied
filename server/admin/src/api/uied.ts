@@ -669,6 +669,11 @@ export function uiedLicenseInfo() {
     return request.get({ url: '/uied/license/info' })
 }
 
+// 按授权码激活许可证
+export function uiedActivateLicenseByKey(params: any) {
+    return request.post({ url: '/uied/license/activate', params })
+}
+
 // 保存许可证信息
 export function uiedSaveLicenseInfo(params: any) {
     return request.post({ url: '/uied/license/save', params })

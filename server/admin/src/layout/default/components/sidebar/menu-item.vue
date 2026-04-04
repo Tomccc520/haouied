@@ -1,5 +1,5 @@
 <template>
-    <template v-if="!route.meta?.hidden">
+    <template v-if="shouldRenderRoute">
         <app-link v-if="!hasShowChild" :to="`${routePath}?${queryStr}`">
             <el-menu-item :index="routePath">
                 <icon
@@ -32,7 +32,7 @@
                 <span>{{ displayTitle }}</span>
             </template>
             <menu-item
-                v-for="item in route?.children"
+                v-for="item in visibleChildren"
                 :key="resolvePath(item.path)"
                 :route="item"
                 :route-path="resolvePath(item.path)"
@@ -47,6 +47,7 @@
 import { getNormalPath, objectToQuery } from '@/utils/util'
 import { isExternal } from '@/utils/validate'
 import type { RouteRecordRaw } from 'vue-router'
+import { MenuEnum } from '@/enums/appEnums'
 interface Props {
     route: RouteRecordRaw
     routePath: string
@@ -78,6 +79,8 @@ const SECOND_LEVEL_TITLE_ALIAS: Record<string, string> = {
     菜单管理: '菜单管理',
     素材中心: '素材中心',
     商业授权: '商业授权',
+    授权中心: '授权中心',
+    许可证中心: '授权中心',
     交付中心: '交付中心',
     AI助手管理: 'AI助手',
     AI配置管理: 'AI配置',
@@ -110,10 +113,17 @@ const normalizeSecondLevelTitle = (title: string): string => {
     return chars.slice(0, 4).join('')
 }
 
-const hasShowChild = computed(() => {
+/**
+ * 可见子菜单列表：统一过滤隐藏路由，避免空目录渲染成可点击菜单项。
+ */
+const visibleChildren = computed<RouteRecordRaw[]>(() => {
     const children: RouteRecordRaw[] = props.route.children ?? []
+    return children.filter((item) => !item.meta?.hidden)
+})
+
+const hasShowChild = computed(() => {
     if (menuDepth.value >= 3) return false
-    return !!children.filter((item) => !item.meta?.hidden).length
+    return visibleChildren.value.length > 0
 })
 
 const menuDepth = computed(() => Math.max(1, Number(props.depth || 1)))
@@ -150,6 +160,16 @@ const subMenuHideTimeout = computed(() => (enableHoverFlyout.value ? 120 : 300))
 
 const routeMeta = computed(() => {
     return props.route.meta
+})
+
+/**
+ * 仅目录类型菜单需要至少一个可见子节点；否则视为空目录并隐藏。
+ */
+const shouldRenderRoute = computed(() => {
+    if (props.route.meta?.hidden) return false
+    const isCatalogue = routeMeta.value?.type === MenuEnum.CATALOGUE
+    if (isCatalogue && !hasShowChild.value) return false
+    return true
 })
 
 /**

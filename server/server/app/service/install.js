@@ -738,7 +738,7 @@ class InstallService extends Service {
   }
 
   /**
-   * 创建“商业授权 / 交付中心”一级菜单并迁移相关页面
+   * 初始化授权菜单并清理已废弃的商业/交付菜单分组。
    */
   async ensureCommercialTopMenus() {
     const { app } = this;
@@ -747,61 +747,13 @@ class InstallService extends Service {
     const now = Math.floor(Date.now() / 1000);
 
     /**
-     * 一级菜单：商业授权（ID:1101）
+     * 授权中心固定挂到“网站设置”(814)，避免出现多余一级分组。
      */
     await app.model.query(
       `INSERT INTO \`${menuTable}\`
        (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
        VALUES
-       (1101, 702, 'M', '商业授权', 'el-icon-Key', 35, '', 'commercial-license', '', '', '', 0, 1, 0, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         pid = VALUES(pid),
-         menu_type = VALUES(menu_type),
-         menu_name = VALUES(menu_name),
-         menu_icon = VALUES(menu_icon),
-         menu_sort = VALUES(menu_sort),
-         paths = VALUES(paths),
-         is_show = VALUES(is_show),
-         is_disable = VALUES(is_disable),
-         update_time = VALUES(update_time)`,
-      {
-        replacements: [ now, now ],
-        type: app.Sequelize.QueryTypes.INSERT,
-      }
-    );
-
-    /**
-     * 一级菜单：交付中心（ID:1102）
-     */
-    await app.model.query(
-      `INSERT INTO \`${menuTable}\`
-       (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
-       VALUES
-       (1102, 702, 'M', '交付中心', 'el-icon-MagicStick', 34, '', 'delivery-center', '', '', '', 0, 1, 0, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         pid = VALUES(pid),
-         menu_type = VALUES(menu_type),
-         menu_name = VALUES(menu_name),
-         menu_icon = VALUES(menu_icon),
-         menu_sort = VALUES(menu_sort),
-         paths = VALUES(paths),
-         is_show = VALUES(is_show),
-         is_disable = VALUES(is_disable),
-         update_time = VALUES(update_time)`,
-      {
-        replacements: [ now, now ],
-        type: app.Sequelize.QueryTypes.INSERT,
-      }
-    );
-
-    /**
-     * 确保授权中心菜单存在并挂到一级“商业授权”
-     */
-    await app.model.query(
-      `INSERT INTO \`${menuTable}\`
-       (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
-       VALUES
-       (864, 1101, 'C', '授权中心', 'el-icon-Key', 90, 'uied:license:info', 'license-center', 'uied/license/index', '/uied/license-center', '', 0, 1, 0, ?, ?)
+       (864, 814, 'C', '授权中心', 'el-icon-Key', 85, 'uied:license:info', 'license-center', 'uied/license/index', '/uied/license-center', '', 0, 1, 0, ?, ?)
        ON DUPLICATE KEY UPDATE
          pid = VALUES(pid),
          menu_name = VALUES(menu_name),
@@ -821,37 +773,11 @@ class InstallService extends Service {
     );
 
     /**
-     * 确保交付初始化菜单存在并挂到一级“交付中心”
-     */
-    await app.model.query(
-      `INSERT INTO \`${menuTable}\`
-       (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
-       VALUES
-       (894, 1102, 'C', '交付初始化', 'el-icon-MagicStick', 90, 'uied:delivery:init:index', 'delivery-init', 'uied/deliveryInit/index', '/uied/delivery-init', '', 0, 1, 0, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         pid = VALUES(pid),
-         menu_name = VALUES(menu_name),
-         menu_icon = VALUES(menu_icon),
-         menu_sort = VALUES(menu_sort),
-         perms = VALUES(perms),
-         paths = VALUES(paths),
-         component = VALUES(component),
-         selected = VALUES(selected),
-         is_show = VALUES(is_show),
-         is_disable = VALUES(is_disable),
-         update_time = VALUES(update_time)`,
-      {
-        replacements: [ now, now ],
-        type: app.Sequelize.QueryTypes.INSERT,
-      }
-    );
-
-    /**
-     * 功能开关保留能力但默认隐藏，避免干扰“商业授权”主流程。
+     * 功能开关保留能力但默认隐藏，归档到“网站设置”(814)。
      */
     await app.model.query(
       `UPDATE \`${menuTable}\`
-       SET pid = 1101,
+       SET pid = 814,
            is_show = 0,
            menu_sort = 10,
            update_time = ?
@@ -863,10 +789,25 @@ class InstallService extends Service {
     );
 
     /**
+     * 已废弃的商业/交付分组统一隐藏，避免后台出现无效菜单。
+     */
+    await app.model.query(
+      `UPDATE \`${menuTable}\`
+       SET is_show = 0,
+           is_disable = 1,
+           update_time = ?
+       WHERE id IN (981, 982, 894, 1101, 1102)`,
+      {
+        replacements: [ now ],
+        type: app.Sequelize.QueryTypes.UPDATE,
+      }
+    );
+
+    /**
      * 给系统角色补授权（role 0/1）
      */
     const roleIds = [ 0, 1 ];
-    const menuIds = [ 1101, 1102, 864, 894 ];
+    const menuIds = [ 864 ];
     for (const roleId of roleIds) {
       for (const menuId of menuIds) {
         const [ exists ] = await app.model.query(
@@ -985,8 +926,8 @@ class InstallService extends Service {
         licenseKey: String(licenseInfo?.licenseKey || normalized.licenseKey || ''),
       },
       menu: {
-        commercialLicenseMenuId: 1101,
-        deliveryCenterMenuId: 1102,
+        commercialLicenseMenuId: 0,
+        deliveryCenterMenuId: 0,
       },
     };
   }

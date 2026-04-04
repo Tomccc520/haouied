@@ -85,6 +85,7 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'fix', scope: 'frontend', text: '【不覆盖Hero】左侧菜单固定模式改为“进入主内容区后再激活”，Hero 区域内保持正常文档流展示，避免侧栏超出并压住 Hero 视觉区' },
       { type: 'improve', scope: 'frontend', text: '【响应式布局】1024px 以下主布局改为“侧栏在上、内容在下”，避免中小屏出现菜单挤压内容或遮挡卡片' },
       { type: 'improve', scope: 'frontend', text: '【网址卡片交互】新增“鼠标移入简介浮窗”：悬停时以浮窗形式展示网址介绍文案，移动端自动隐藏悬停层，不影响现有卡片内容布局' },
+      { type: 'improve', scope: 'backend', text: '【授权中心文案】激活页新增官方说明区块：统一替换为 fsuied.com 品牌信息，补充客服QQ（403479454）、官方QQ群（1082794860）、购买与授权入口说明' },
       { type: 'improve', scope: 'frontend', text: '【后台运营】继续沿用 1.1.0 的短链重定向能力，便于在 SEO 中心按 /codeflying 这类入口持续运营推广链接' },
     ],
   },

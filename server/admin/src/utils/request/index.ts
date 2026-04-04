@@ -15,6 +15,7 @@ const TOKEN_EXPIRED_CODE_SET = new Set<number>([
     RequestCodeEnum.TOKEN_INVALID
 ])
 let authExpiredDialogVisible = false
+let activationRedirecting = false
 
 /**
  * 解析商业版功能拦截 403 错误（用于显示更友好的提示）
@@ -35,11 +36,61 @@ function parseCommercialFeatureGuardError(error: any) {
 }
 
 /**
+ * 解析商业版“未激活授权”拦截（HTTP 402）
+ */
+function parseCommercialActivationGuardError(error: any) {
+    const status = Number(error?.response?.status || 0)
+    const body = error?.response?.data || {}
+    const code = Number(body?.code || 0)
+    const activationRequired = body?.data?.activationRequired === true
+    if (status !== 402 || code !== 402 || !activationRequired) return null
+    const licenseNote = String(body?.data?.licenseNote || '').trim()
+    const baseMessage = String(body?.message || '').trim() || '请先在授权中心激活授权码'
+    const mergedMessage =
+        licenseNote && !baseMessage.includes(licenseNote)
+            ? `${baseMessage}（${licenseNote}）`
+            : baseMessage
+    return {
+        message: mergedMessage
+    }
+}
+
+/**
+ * 统一处理“未激活授权”拦截：提示后跳转授权中心
+ */
+function handleCommercialActivationError(error: any): boolean {
+    const activationState = parseCommercialActivationGuardError(error)
+    if (!activationState) return false
+    const message = String(activationState.message || '请先在授权中心激活授权码').trim()
+    error.message = message
+    ;(error as any).__uiedHandled = true
+    feedback.msgError(message)
+
+    const targetPath = '/uied/license-center'
+    const currentPath = String(router.currentRoute.value.path || '')
+    if (!activationRedirecting && currentPath !== targetPath) {
+        activationRedirecting = true
+        router.push({ path: targetPath }).finally(() => {
+            activationRedirecting = false
+        })
+    }
+    return true
+}
+
+/**
  * 提取接口异常消息（优先后端 message / msg）
  */
 function extractResponseErrorMessage(error: any): string {
     const body = error?.response?.data || {}
     return String(body?.msg || body?.message || error?.msg || error?.message || '').trim()
+}
+
+/**
+ * 判断是否为授权激活接口请求
+ */
+function isLicenseActivateRequest(config: any): boolean {
+    const rawUrl = String(config?.url || '').trim().toLowerCase()
+    return rawUrl.includes('/uied/license/activate')
 }
 
 /**
@@ -55,9 +106,8 @@ function parseAuthExpiredError(error: any) {
     if (status === 403 && code === RequestCodeEnum.NO_PERMISSTION && featureKey) return null
 
     const rawMessage = extractResponseErrorMessage(error).toLowerCase()
-    const maybeExpiredByMessage = /token参数为空|token参数无效|token|登录状态|会话|session|expired/.test(
-        rawMessage
-    )
+    const maybeExpiredByMessage =
+        /token参数为空|token参数无效|token|登录状态|会话|session|expired/.test(rawMessage)
     if (!TOKEN_EXPIRED_CODE_SET.has(code) && !maybeExpiredByMessage) return null
 
     return {
@@ -140,6 +190,7 @@ const axiosHooks: AxiosHooks = {
         }
         const { code, data, show, msg, message } = response.data || {}
         const messageText = String(msg || message || '').trim()
+        const suppressBizToast = isLicenseActivateRequest(response.config)
         switch (code) {
             case RequestCodeEnum.SUCCESS:
                 if (show) {
@@ -157,15 +208,20 @@ const axiosHooks: AxiosHooks = {
             case RequestCodeEnum.NO_PERMISSTION:
             case RequestCodeEnum.FAILED:
             case RequestCodeEnum.SYSTEM_ERROR:
-                messageText && feedback.msgError(messageText)
-                return Promise.reject(data)
+                if (!suppressBizToast && messageText) {
+                    feedback.msgError(messageText)
+                }
+                return Promise.reject({
+                    code,
+                    data,
+                    message: messageText || `请求失败（${String(code || 'UNKNOWN')}）`,
+                    __uiedHandled: suppressBizToast ? false : true
+                })
 
             case RequestCodeEnum.TOKEN_INVALID:
             case RequestCodeEnum.TOKEN_EMPTY:
                 clearAuthInfo()
-                void showAuthExpiredDialog(
-                    messageText || '登录状态已过期，请重新登录后继续操作'
-                )
+                void showAuthExpiredDialog(messageText || '登录状态已过期，请重新登录后继续操作')
                 return Promise.reject({
                     code,
                     data,
@@ -179,11 +235,14 @@ const axiosHooks: AxiosHooks = {
                  * 非 200 一律视为失败并提示 message，避免登录页“无提示失败”。
                  */
                 if (Number(code) !== RequestCodeEnum.SUCCESS) {
-                    feedback.msgError(messageText || `请求失败（${String(code || 'UNKNOWN')}）`)
+                    if (!suppressBizToast) {
+                        feedback.msgError(messageText || `请求失败（${String(code || 'UNKNOWN')}）`)
+                    }
                     return Promise.reject({
                         code,
                         data,
-                        message: messageText || '请求失败'
+                        message: messageText || '请求失败',
+                        __uiedHandled: suppressBizToast ? false : true
                     })
                 }
                 return data
@@ -193,6 +252,7 @@ const axiosHooks: AxiosHooks = {
         NProgress.done()
         if (error.code === AxiosError.ERR_CANCELED) return Promise.reject(error)
         if (handleAuthExpiredError(error)) return Promise.reject(error)
+        if (handleCommercialActivationError(error)) return Promise.reject(error)
 
         const featureDenied = parseCommercialFeatureGuardError(error)
         if (featureDenied) {

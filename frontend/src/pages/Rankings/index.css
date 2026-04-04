@@ -184,8 +184,8 @@
   border-radius: 16px;
   background: #fff;
   padding: 12px;
-  position: sticky;
-  top: 12px;
+  position: static;
+  top: auto;
 }
 
 .rankings-page__sidebar-section {

@@ -74,7 +74,6 @@ const MCPListPage: React.FC = () => {
   const navigate = useNavigate();
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const { data: publicSettings } = usePublicSettings();
-  const siteInfo = publicSettings?.siteInfo;
   const mcpPageConfig = publicSettings?.mcpPage;
   const pageSize = Math.max(6, Math.min(48, Number(mcpPageConfig?.listPageSize || 12)));
   const tagFilterLimit = Math.max(5, Math.min(60, Number(mcpPageConfig?.tagFilterLimit || 20)));
@@ -293,7 +292,7 @@ const MCPListPage: React.FC = () => {
   return (
     <div className={pageClassName} style={pageStyleVars}>
       <SEO
-        title={`${pageTitle}${siteInfo?.siteName ? ` - ${siteInfo.siteName}` : ''}`}
+        title={pageTitle}
         description={pageDescription}
         keywords={`MCP,Model Context Protocol,${keyword || ''},${category || ''},${tag || ''}`.replace(/,+/g, ',')}
         url={`https://hao.uied.cn/mcp${window.location.search || ''}`}

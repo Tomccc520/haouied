@@ -343,7 +343,7 @@ const DailyNewPage: React.FC<DailyNewPageProps> = ({ embedded = false }) => {
     <div className={`daily-new-page daily-new-page--layout-${detailLayoutWidthMode} ${embedded ? 'daily-new-page--embedded' : ''}`.trim()}>
       {!embedded && (
         <SEO
-          title={`${pageTitle} - UIED设计导航`}
+          title={pageTitle}
           description={pageDescription}
           keywords="每日上新,新网址,设计资源,AI工具"
         />

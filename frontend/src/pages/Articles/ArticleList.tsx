@@ -158,7 +158,7 @@ const ArticleList: React.FC<ArticleListProps> = () => {
   return (
     <div className="article-list-page" style={{ '--theme-color': themeColor } as React.CSSProperties}>
       <SEO 
-        title={`${pageTitle} - UIED 设计导航`}
+        title={pageTitle}
         description={pageDescription}
       />
 

@@ -94,8 +94,11 @@
                                 >
                             </template>
                         </el-table-column>
-                        <el-table-column label="操作" width="200" fixed="right">
+                        <el-table-column label="操作" width="260" fixed="right">
                             <template #default="{ row }">
+                                <el-button type="info" link @click="handleViewDetail(row)"
+                                    >详情</el-button
+                                >
                                 <el-button type="primary" link @click="handleEdit(row)"
                                     >编辑</el-button
                                 >
@@ -1009,6 +1012,17 @@
                         show-password
                         placeholder="请输入 API 密钥"
                     />
+                    <div class="text-xs text-gray-500 mt-2 ai-provider-tip">
+                        {{ currentProviderKeyGuideText }}
+                        <el-button
+                            v-if="currentProviderKeyUrl"
+                            link
+                            type="primary"
+                            @click="openCurrentProviderKeyGuide"
+                        >
+                            去获取 Key
+                        </el-button>
+                    </div>
                 </el-form-item>
                 <el-form-item label="模型" prop="model">
                     <div class="ai-model-field">
@@ -1201,6 +1215,65 @@
                 <el-button type="primary" :loading="saveLoading" @click="handleSave">
                     确定
                 </el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog
+            v-model="showDetailDialog"
+            title="AI 配置详情"
+            width="640px"
+            :close-on-click-modal="false"
+        >
+            <el-skeleton :rows="8" animated :loading="detailLoading">
+                <el-descriptions :column="1" border class="ai-config-detail">
+                    <el-descriptions-item label="配置名称">
+                        {{ detailData.name || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="提供商">
+                        {{ getProviderLabel(detailData.provider) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="API 地址">
+                        <code>{{ detailData.apiUrl || '-' }}</code>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="API 密钥">
+                        <code>{{ maskApiKeyForDetail(detailData.apiKey) }}</code>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="模型">
+                        {{ detailData.model || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="推理模型">
+                        <span v-if="detailData.reasoningEnabled">
+                            {{ detailData.reasoningModel || '已启用（未指定推理模型）' }}
+                        </span>
+                        <span v-else>未启用</span>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="思考预算">
+                        {{
+                            Number(detailData.thinkingBudget || 0) > 0
+                                ? detailData.thinkingBudget
+                                : '未设置'
+                        }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="状态">
+                        <el-tag size="small" :type="detailData.enabled ? 'success' : 'info'">
+                            {{ detailData.enabled ? '启用' : '禁用' }}
+                        </el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="默认配置">
+                        <el-tag size="small" :type="detailData.isDefault ? 'success' : 'info'">
+                            {{ detailData.isDefault ? '是' : '否' }}
+                        </el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="创建时间">
+                        {{ formatConfigTimestamp(detailData.createdAt) }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="更新时间">
+                        {{ formatConfigTimestamp(detailData.updatedAt) }}
+                    </el-descriptions-item>
+                </el-descriptions>
+            </el-skeleton>
+            <template #footer>
+                <el-button @click="showDetailDialog = false">关闭</el-button>
             </template>
         </el-dialog>
 
@@ -1606,6 +1679,73 @@ const getProviderMergedReasoningOptions = (
 
 const configList = ref<any[]>([])
 const configLoading = ref(false)
+const showDetailDialog = ref(false)
+const detailLoading = ref(false)
+const detailData = reactive({
+    id: 0,
+    name: '',
+    provider: '',
+    apiUrl: '',
+    apiKey: '',
+    model: '',
+    reasoningEnabled: false,
+    reasoningModel: '',
+    thinkingBudget: 0,
+    enabled: false,
+    isDefault: false,
+    createdAt: 0,
+    updatedAt: 0
+})
+
+/**
+ * 重置详情弹窗数据，避免展示上一次缓存。
+ */
+const resetDetailData = () => {
+    detailData.id = 0
+    detailData.name = ''
+    detailData.provider = ''
+    detailData.apiUrl = ''
+    detailData.apiKey = ''
+    detailData.model = ''
+    detailData.reasoningEnabled = false
+    detailData.reasoningModel = ''
+    detailData.thinkingBudget = 0
+    detailData.enabled = false
+    detailData.isDefault = false
+    detailData.createdAt = 0
+    detailData.updatedAt = 0
+}
+
+/**
+ * 将秒/毫秒时间戳格式化为统一时间文案。
+ * @param timestamp 原始时间戳
+ */
+const formatConfigTimestamp = (timestamp: number | string) => {
+    const raw = Number(timestamp || 0)
+    if (!raw) return '—'
+    const normalized = raw > 1000000000000 ? raw : raw * 1000
+    const date = new Date(normalized)
+    if (Number.isNaN(date.getTime())) return '—'
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    const h = String(date.getHours()).padStart(2, '0')
+    const min = String(date.getMinutes()).padStart(2, '0')
+    const s = String(date.getSeconds()).padStart(2, '0')
+    return `${y}-${m}-${d} ${h}:${min}:${s}`
+}
+
+/**
+ * 详情页密钥脱敏展示，避免完整密钥直接暴露。
+ * @param apiKey 原始密钥
+ */
+const maskApiKeyForDetail = (apiKey: string) => {
+    const value = String(apiKey || '').trim()
+    if (!value) return '未配置'
+    if (value.includes('...')) return value
+    if (value.length <= 8) return `${value.slice(0, 2)}****${value.slice(-2)}`
+    return `${value.slice(0, 8)}...${value.slice(-4)}`
+}
 
 /**
  * 将值规范为布尔值
@@ -1639,7 +1779,8 @@ const normalizeConfigItem = (row: any) => {
             Number.parseInt(String(source.thinkingBudget ?? source.thinking_budget ?? 0), 10) || 0,
         enabled: normalizeBoolean(source.enabled ?? source.is_enabled, true),
         isDefault: normalizeBoolean(source.isDefault ?? source.is_default, false),
-        createdAt: source.createdAt ?? source.create_time ?? 0
+        createdAt: source.createdAt ?? source.create_time ?? 0,
+        updatedAt: source.updatedAt ?? source.update_time ?? 0
     }
 }
 
@@ -1695,6 +1836,42 @@ const handleSetDefault = async (row: any) => {
     } catch (error) {
         console.error('设置默认配置失败:', error)
         ElMessage.error('操作失败')
+    }
+}
+
+/**
+ * 查看配置详情（只读）。
+ * @param row 当前行数据
+ */
+const handleViewDetail = async (row: any) => {
+    showDetailDialog.value = true
+    detailLoading.value = true
+    resetDetailData()
+    let sourceRow = row
+    try {
+        if (Number(row?.id || 0) > 0) {
+            const detailRes = await uiedAiConfigDetail({ id: row.id })
+            sourceRow = detailRes?.data || detailRes || row
+        }
+    } catch (error) {
+        console.warn('[uied.aiConfig] 获取配置详情失败，回退使用列表数据', error)
+        ElMessage.warning('详情接口读取失败，已展示当前列表快照')
+    } finally {
+        const normalizedRow = normalizeConfigItem(sourceRow)
+        detailData.id = normalizedRow.id
+        detailData.name = normalizedRow.name
+        detailData.provider = normalizedRow.provider || 'siliconflow'
+        detailData.apiUrl = normalizedRow.apiUrl
+        detailData.apiKey = normalizedRow.apiKey
+        detailData.model = normalizedRow.model
+        detailData.reasoningEnabled = !!normalizedRow.reasoningEnabled
+        detailData.reasoningModel = normalizedRow.reasoningModel || ''
+        detailData.thinkingBudget = Number(normalizedRow.thinkingBudget || 0)
+        detailData.enabled = !!normalizedRow.enabled
+        detailData.isDefault = !!normalizedRow.isDefault
+        detailData.createdAt = Number(normalizedRow.createdAt || 0)
+        detailData.updatedAt = Number(normalizedRow.updatedAt || 0)
+        detailLoading.value = false
     }
 }
 
@@ -1884,6 +2061,11 @@ type ProviderGuideInfo = {
     docUrl: string
 }
 
+type ProviderKeyGuideInfo = {
+    guideText: string
+    keyUrl: string
+}
+
 const providerGuideInfoMap: Record<string, ProviderGuideInfo> = {
     openai: {
         apiUrlPlaceholder: 'https://api.openai.com/v1/chat/completions',
@@ -1960,6 +2142,65 @@ const providerGuideInfoMap: Record<string, ProviderGuideInfo> = {
     }
 }
 
+const providerKeyGuideInfoMap: Record<string, ProviderKeyGuideInfo> = {
+    openai: {
+        guideText: '在 OpenAI 控制台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://platform.openai.com/api-keys'
+    },
+    deepseek: {
+        guideText: '在 DeepSeek 控制台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://platform.deepseek.com/api_keys'
+    },
+    qwen: {
+        guideText: '在阿里云百炼（DashScope）创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://dashscope.console.aliyun.com/apiKey'
+    },
+    glm: {
+        guideText: '在智谱开放平台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://open.bigmodel.cn/'
+    },
+    siliconflow: {
+        guideText: '在 SiliconFlow 控制台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://cloud.siliconflow.cn/'
+    },
+    kimi: {
+        guideText: '在 Kimi / Moonshot 平台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://platform.moonshot.cn/'
+    },
+    moonshot: {
+        guideText: '在 Moonshot 平台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://platform.moonshot.cn/'
+    },
+    doubao: {
+        guideText: '在火山方舟控制台创建 API Key 后粘贴到此处。',
+        keyUrl: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey'
+    },
+    azure: {
+        guideText: 'Azure 建议先接入你的 OpenAI 兼容中转，再填写中转平台签发的 Key。',
+        keyUrl: ''
+    },
+    claude: {
+        guideText: 'Claude 建议先接入你的 OpenAI 兼容中转，再填写中转平台签发的 Key。',
+        keyUrl: ''
+    },
+    wenxin: {
+        guideText: '文心建议先接入你的 OpenAI 兼容中转，再填写中转平台签发的 Key。',
+        keyUrl: ''
+    },
+    relay: {
+        guideText: '请在你的中转网关/授权系统中创建 API Key 后粘贴到此处。',
+        keyUrl: ''
+    },
+    other: {
+        guideText: '请在对应服务商控制台创建 API Key 后粘贴到此处。',
+        keyUrl: ''
+    },
+    ollama: {
+        guideText: '本地 Ollama 一般无需平台 API Key（已不对外展示该选项）。',
+        keyUrl: ''
+    }
+}
+
 /**
  * 获取提供商接入指引（用于占位符与文案提示）。
  */
@@ -1991,12 +2232,43 @@ const currentProviderApiUrlPlaceholder = computed(
 )
 
 /**
+ * 获取提供商 API Key 获取指引（用于密钥输入框提示）。
+ */
+const getProviderKeyGuideInfo = (provider: string): ProviderKeyGuideInfo => {
+    const key = normalizeProviderKey(provider)
+    const fallback: ProviderKeyGuideInfo = {
+        guideText: '请先到对应服务商控制台创建 API Key，再回到此处填写。',
+        keyUrl: ''
+    }
+    return providerKeyGuideInfoMap[key] || fallback
+}
+
+/**
+ * 当前提供商 Key 获取提示文案。
+ */
+const currentProviderKeyGuideText = computed(() => getProviderKeyGuideInfo(editForm.provider).guideText)
+
+/**
+ * 当前提供商 Key 获取跳转地址（存在时显示按钮）。
+ */
+const currentProviderKeyUrl = computed(() => getProviderKeyGuideInfo(editForm.provider).keyUrl)
+
+/**
  * 打开当前提供商官方文档。
  */
 const openCurrentProviderDocs = () => {
     const docUrl = String(currentProviderDocUrl.value || '').trim()
     if (!docUrl) return
     window.open(docUrl, '_blank')
+}
+
+/**
+ * 打开当前提供商 Key 获取地址。
+ */
+const openCurrentProviderKeyGuide = () => {
+    const keyUrl = String(currentProviderKeyUrl.value || '').trim()
+    if (!keyUrl) return
+    window.open(keyUrl, '_blank')
 }
 
 /**
@@ -2093,6 +2365,21 @@ const applyProviderDefaults = (provider: string, force = false) => {
     if (force || !String(editForm.modelPreset || '').trim()) {
         editForm.modelPreset = defaults.modelPreset
     }
+}
+
+/**
+ * 判断指定值是否等于某个提供商的默认值。
+ * @param provider 提供商标识
+ * @param value 当前值
+ * @param field 默认值字段（apiUrl/model/modelPreset）
+ */
+const isProviderDefaultFieldValue = (
+    provider: string,
+    value: string,
+    field: 'apiUrl' | 'model' | 'modelPreset'
+) => {
+    const defaults = getProviderDefaults(provider)
+    return String(value || '').trim() === String(defaults[field] || '').trim()
 }
 
 /**
@@ -3474,9 +3761,38 @@ watch(activeTab, (newTab) => {
  */
 watch(
     () => editForm.provider,
-    (provider) => {
+    (provider, previousProvider) => {
         const providerKey = normalizeProviderKey(String(provider || ''))
-        applyProviderDefaults(providerKey, false)
+        const previousProviderKey = normalizeProviderKey(String(previousProvider || ''))
+        /**
+         * 仅在“当前值为空”或“当前值仍是旧提供商默认值”时自动替换，
+         * 避免误覆盖用户手工输入的自定义地址/模型。
+         */
+        const shouldAutoFillApiUrl =
+            !String(editForm.apiUrl || '').trim() ||
+            isProviderDefaultFieldValue(previousProviderKey, String(editForm.apiUrl || ''), 'apiUrl')
+        const shouldAutoFillModel =
+            !String(editForm.model || '').trim() ||
+            isProviderDefaultFieldValue(previousProviderKey, String(editForm.model || ''), 'model')
+        const shouldAutoFillModelPreset =
+            !String(editForm.modelPreset || '').trim() ||
+            isProviderDefaultFieldValue(
+                previousProviderKey,
+                String(editForm.modelPreset || ''),
+                'modelPreset'
+            )
+
+        const nextDefaults = getProviderDefaults(providerKey)
+        if (shouldAutoFillApiUrl) {
+            editForm.apiUrl = nextDefaults.apiUrl
+        }
+        if (shouldAutoFillModel) {
+            editForm.model = nextDefaults.model
+        }
+        if (shouldAutoFillModelPreset) {
+            editForm.modelPreset = nextDefaults.modelPreset
+        }
+
         const presetOptions = getProviderModelPresets(providerKey)
         if (
             editForm.modelPreset &&
@@ -3745,5 +4061,11 @@ onMounted(() => {
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
+}
+.ai-config-detail :deep(code) {
+    display: inline-block;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-all;
 }
 </style>

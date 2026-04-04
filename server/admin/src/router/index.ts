@@ -116,6 +116,38 @@ function normalizeContentHubLegacyRoute(route: any) {
     return next
 }
 
+/**
+ * 规范化菜单路径，便于做黑名单过滤。
+ * @param path 菜单路径
+ */
+function normalizeMenuPath(path: unknown) {
+    return String(path || '').trim().replace(/^\/+/, '').toLowerCase()
+}
+
+/**
+ * 产品裁剪规则：
+ * 1) 屏蔽“用户等级”管理页（/user-center/level）
+ * 2) 屏蔽“交付工具/交付初始化”相关菜单
+ * 说明：仅影响后台导航与动态路由注入，不会破坏现有后端接口能力。
+ * @param route 菜单路由节点
+ */
+function isMenuRouteBlocked(route: any) {
+    const path = normalizeMenuPath(route?.paths)
+    const perms = String(route?.perms || '').trim().toLowerCase()
+    const blockedPaths = new Set([
+        'user-center/level',
+        'delivery-center',
+        'delivery-tools',
+        'uied/delivery-init',
+        'delivery-init'
+    ])
+    const blockedPerms = new Set([
+        'user:level:list',
+        'uied:delivery:init:index'
+    ])
+    return blockedPaths.has(path) || blockedPerms.has(perms)
+}
+
 //
 export function getModulesKey() {
     return Object.keys(modules).map((item) => item.replace('/src/views/', '').replace('.vue', ''))
@@ -123,18 +155,24 @@ export function getModulesKey() {
 
 // 过滤路由所需要的数据
 export function filterAsyncRoutes(routes: any[], firstRoute = true) {
-    return routes.map((route) => {
-        const routeRecord = createRouteRecord(route, firstRoute)
-        if (route.children != null && route.children && route.children.length) {
-            routeRecord.children = filterAsyncRoutes(route.children, false)
+    const result: RouteRecordRaw[] = []
+    routes.forEach((route) => {
+        const normalizedRoute = normalizeContentHubLegacyRoute(route)
+        if (isMenuRouteBlocked(normalizedRoute)) {
+            return
         }
-        return routeRecord
+        const routeRecord = createRouteRecord(normalizedRoute, firstRoute)
+        if (normalizedRoute.children != null && normalizedRoute.children && normalizedRoute.children.length) {
+            routeRecord.children = filterAsyncRoutes(normalizedRoute.children, false)
+        }
+        result.push(routeRecord)
     })
+    return result
 }
 
 // 创建一条路由记录
 export function createRouteRecord(route: any, firstRoute: boolean): RouteRecordRaw {
-    const normalizedRoute = normalizeContentHubLegacyRoute(route)
+    const normalizedRoute = route
     //@ts-ignore
     const routeRecord: RouteRecordRaw = {
         path: isExternal(normalizedRoute.paths)

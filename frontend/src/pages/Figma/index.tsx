@@ -227,7 +227,6 @@ const FigmaPage: React.FC = () => {
   const navigate = useNavigate();
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const { data: publicSettings } = usePublicSettings();
-  const siteInfo = publicSettings?.siteInfo;
   const figmaPageConfig = publicSettings?.figmaPage;
   const listPageSize = Math.max(6, Math.min(72, Number(figmaPageConfig?.listPageSize || 24)));
   const cardClickAction = String(figmaPageConfig?.cardClickAction || 'official_first').trim().toLowerCase() === 'detail'
@@ -585,7 +584,7 @@ const FigmaPage: React.FC = () => {
   return (
     <div className={pageClassName}>
       <SEO
-        title={`${pageTitle}${siteInfo?.siteName ? ` - ${siteInfo.siteName}` : ''}`}
+        title={pageTitle}
         description={pageDescription}
         keywords="Figma插件,Figma社区,Figma组件,设计效率工具,插件收录,UI设计"
         url={`${window.location.origin}/figma${window.location.search || ''}`}

@@ -11,7 +11,10 @@
                 <div class="flex items-center justify-between">
                     <span class="font-medium">交付初始化向导</span>
                     <div class="flex gap-2">
-                        <el-button v-perms="['uied:delivery:profile:save']" @click="handleOpenProfileManage">
+                        <el-button
+                            v-perms="['uied:delivery:profile:save']"
+                            @click="handleOpenProfileManage"
+                        >
                             模板管理
                         </el-button>
                         <el-button
@@ -31,7 +34,7 @@
                 </div>
             </template>
             <el-alert
-                title="说明：用于售卖版交付时一键导入站点配置、分类标签、示例数据与许可证。建议先预览再执行。"
+                title="说明：用于售卖版交付时一键导入站点配置、分类标签、示例数据，并可按授权码激活许可证。建议先预览再执行。"
                 type="info"
                 :closable="false"
                 class="mb-4"
@@ -71,14 +74,15 @@
                             <div class="card-title">{{ item.name }}</div>
                             <div class="card-description">{{ item.description || '暂无说明' }}</div>
                             <div class="card-meta">
-                                推荐版本：{{ String(item.recommendedEdition || 'pro').toUpperCase() }}
+                                推荐版本：{{
+                                    String(item.recommendedEdition || 'pro').toUpperCase()
+                                }}
                             </div>
                         </button>
                     </div>
                 </el-form-item>
                 <el-form-item label="版本等级">
                     <el-select v-model="formData.edition" class="w-[220px]">
-                        <el-option label="Free" value="free" />
                         <el-option label="Pro" value="pro" />
                         <el-option label="Enterprise" value="enterprise" />
                     </el-select>
@@ -98,15 +102,16 @@
                 <el-form-item label="联系邮箱">
                     <el-input v-model="formData.contactEmail" placeholder="可选" />
                 </el-form-item>
-                <el-form-item label="授权域名上限">
-                    <el-input-number v-model="formData.domainLimit" :min="1" :max="9999" />
-                </el-form-item>
-                <el-form-item label="授权域名白名单">
+                <el-form-item label="授权码 Key">
                     <el-input
-                        v-model="domainWhitelistText"
-                        type="textarea"
-                        :rows="2"
-                        placeholder="支持逗号或换行分隔，例如：demo.tomda.top, nav.fsuied.com"
+                        v-model="formData.licenseKey"
+                        placeholder="请输入 fsuied.com 下发的授权码（例如 UIED-PRO-XXXX-XXXX）"
+                    />
+                </el-form-item>
+                <el-form-item label="绑定域名(可选)">
+                    <el-input
+                        v-model="formData.bindDomain"
+                        placeholder="留空默认使用当前访问域名"
                     />
                 </el-form-item>
             </el-form>
@@ -138,7 +143,7 @@
                 <el-form-item label="示例文章">
                     <el-switch v-model="formData.includeSampleArticles" />
                 </el-form-item>
-                <el-form-item label="写入许可证">
+                <el-form-item label="激活授权码">
                     <el-switch v-model="formData.applyLicense" />
                 </el-form-item>
                 <el-form-item label="初始化测试用户">
@@ -212,8 +217,8 @@
                     <el-descriptions-item label="站点配置">
                         {{ executeResult?.summary?.siteSettings?.saved ? '已写入' : '未写入' }}
                     </el-descriptions-item>
-                    <el-descriptions-item label="许可证">
-                        {{ executeResult?.summary?.license?.applied ? '已写入' : '未写入' }}
+                    <el-descriptions-item label="授权激活">
+                        {{ executeResult?.summary?.license?.applied ? '已激活' : '未激活' }}
                     </el-descriptions-item>
                     <el-descriptions-item label="网站分类">
                         新增 {{ executeResult?.summary?.websiteCategories?.created ?? 0 }} / 更新
@@ -243,12 +248,7 @@
             <el-empty v-else description="尚未执行初始化" />
         </el-card>
 
-        <el-dialog
-            v-model="profileManageVisible"
-            title="模板库管理"
-            width="920px"
-            destroy-on-close
-        >
+        <el-dialog v-model="profileManageVisible" title="模板库管理" width="920px" destroy-on-close>
             <el-alert
                 title="说明：仅管理模板展示信息与启用状态，不影响模板内置的数据结构。"
                 type="info"
@@ -280,7 +280,6 @@
                 <el-table-column label="推荐版本" width="130">
                     <template #default="{ row }">
                         <el-select v-model="row.recommendedEdition">
-                            <el-option label="Free" value="free" />
                             <el-option label="Pro" value="pro" />
                             <el-option label="Enterprise" value="enterprise" />
                         </el-select>
@@ -359,7 +358,6 @@ const profileManageSaving = ref(false)
 const previewLoading = ref(false)
 const executeLoading = ref(false)
 const exportLoading = ref(false)
-const domainWhitelistText = ref('')
 const featureOverridesText = ref('{}')
 const previewData = ref<any>(null)
 const executeResult = ref<any>(null)
@@ -375,7 +373,8 @@ const formData = reactive({
     customerName: '',
     companyName: '',
     contactEmail: '',
-    domainLimit: 1,
+    licenseKey: '',
+    bindDomain: '',
     includeSiteSettings: true,
     includeWebsiteCategories: true,
     includeWebsiteTags: true,
@@ -429,7 +428,7 @@ const getDefaultProfileOptions = () => {
             builtin: true,
             name: '工具导航模板',
             description: '偏效率与开发工具场景，适合通用工具站售卖。',
-            recommendedEdition: 'free',
+            recommendedEdition: 'pro',
             sort: 40,
             enabled: true
         }
@@ -448,6 +447,12 @@ const normalizeProfileOptions = (list: any[]) => {
             .toLowerCase()
             .replace(/[^a-z0-9_-]/g, '')
             .slice(0, 40)
+    const normalizeEdition = (value: any) => {
+        const text = String(value || '')
+            .trim()
+            .toLowerCase()
+        return text === 'enterprise' ? 'enterprise' : 'pro'
+    }
     return (Array.isArray(list) ? list : [])
         .map((item, index) => ({
             key: sanitizeKey(item?.key),
@@ -455,7 +460,7 @@ const normalizeProfileOptions = (list: any[]) => {
                 .trim()
                 .slice(0, 40),
             description: String(item?.description || '').trim(),
-            recommendedEdition: String(item?.recommendedEdition || 'pro').trim() || 'pro',
+            recommendedEdition: normalizeEdition(item?.recommendedEdition),
             sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
             enabled: item?.enabled !== false,
             baseProfile: baseProfileKeySet.has(sanitizeKey(item?.baseProfile))
@@ -512,7 +517,9 @@ const loadProfileOptions = async () => {
         )
         profileOptions.value = normalized
         refreshBaseProfileOptions()
-        const exists = normalized.some((item: any) => String(item?.key || '') === String(formData.profile))
+        const exists = normalized.some(
+            (item: any) => String(item?.key || '') === String(formData.profile)
+        )
         if (!exists && normalized[0]?.key) {
             formData.profile = String(normalized[0].key)
         }
@@ -634,16 +641,6 @@ const handleSelectProfile = (item: any) => {
 }
 
 /**
- * 解析域名白名单文本输入
- */
-const parseDomainWhitelist = () => {
-    return domainWhitelistText.value
-        .split(/[\n,]/g)
-        .map((item) => item.trim())
-        .filter(Boolean)
-}
-
-/**
  * 解析功能开关覆盖配置
  */
 const parseFeatureOverrides = () => {
@@ -667,8 +664,8 @@ const buildPayload = () => {
         customerName: formData.customerName,
         companyName: formData.companyName,
         contactEmail: formData.contactEmail,
-        domainLimit: formData.domainLimit,
-        domainWhitelist: parseDomainWhitelist(),
+        licenseKey: formData.licenseKey,
+        bindDomain: formData.bindDomain,
         includeSiteSettings: formData.includeSiteSettings,
         includeWebsiteCategories: formData.includeWebsiteCategories,
         includeWebsiteTags: formData.includeWebsiteTags,
@@ -698,7 +695,8 @@ const renderEnabledModules = (modules: Record<string, boolean>) => {
         articleCategories: '文章分类',
         articleTags: '文章标签',
         sampleArticles: '示例文章',
-        license: '许可证',
+        licenseActivation: '授权激活',
+        licenseKeyProvided: '授权码已填写',
         seedUsers: '测试用户'
     }
     return Object.keys(labels)

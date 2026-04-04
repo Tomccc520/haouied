@@ -16,6 +16,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Banner from '../../components/Banner';
 import AdBanner from '../../components/AdBanner';
+import SEO from '../../components/SEO';
 import DesignArticleGrid from '../../components/DesignArticleGrid';
 import { RankingListSkeleton } from '../../components/Skeleton';
 import { getRankings, getRankingsAggregate } from '../../services/rankingService';
@@ -604,6 +605,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="home-container">
+      <SEO />
       {quickEntries.length > 0 && (
         <div className="home-quick-entry">
           {quickEntries.map((entry) => (

@@ -107,8 +107,8 @@
   background: #fff;
   border-radius: 14px;
   padding: 10px;
-  position: sticky;
-  top: calc(var(--header-height) + 14px);
+  position: static;
+  top: auto;
 }
 
 .hot-articles-page__sidebar-title {
