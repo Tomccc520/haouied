@@ -12,7 +12,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getArticleDetail, getArticles, recordArticleView } from '../../services/articleService';
+import {
+  getArticleDetail,
+  getArticles,
+  getArticleInteractionStat,
+  recordArticleView,
+  toggleArticleLikeWithDetail,
+} from '../../services/articleService';
 import { ArticleDetail as ArticleDetailType } from '../../types/article';
 import api from '../../services/api';
 import { unwrapApiResponse } from '../../utils/apiResponse';
@@ -65,6 +71,43 @@ const normalizeImageCompareUrl = (value: string): string => {
   } catch (error) {
     return fullUrl.split('?')[0].split('#')[0];
   }
+};
+
+/**
+ * 从 HTML 中提取纯文本，供阅读时长估算使用。
+ */
+const extractPlainTextFromHtml = (html: string): string => {
+  const source = String(html || '').trim();
+  if (!source) return '';
+  if (typeof window === 'undefined') {
+    return source.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(source, 'text/html');
+    return String(doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+  } catch (error) {
+    return source.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+};
+
+/**
+ * 估算阅读时长：
+ * - 中文按约 520 字/分钟
+ * - 非中文按约 220 词/分钟
+ */
+const estimateArticleReadingMinutes = (html: string): number => {
+  const text = extractPlainTextFromHtml(html);
+  if (!text) return 1;
+  const cjkMatches = text.match(/[\u4e00-\u9fa5]/g) || [];
+  const cjkCount = cjkMatches.length;
+  const latinWords = text
+    .replace(/[\u4e00-\u9fa5]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const cjkMinutes = cjkCount / 520;
+  const latinMinutes = latinWords / 220;
+  return Math.max(1, Math.ceil(cjkMinutes + latinMinutes));
 };
 
 interface DetailActionRailIconProps {
@@ -199,6 +242,10 @@ interface ArticleSidebarLatestArticleItem {
   publishedAt: number | null;
 }
 
+interface ArticleRecommendItem extends ArticleSidebarLatestArticleItem {
+  category: string;
+}
+
 interface ArticleTocItem {
   id: string;
   text: string;
@@ -260,6 +307,11 @@ const isArticleSidebarModuleEnabled = (modules: ArticleSidebarModuleConfig[], mo
   return modules.some(module => module.key === moduleKey && module.enabled);
 };
 
+interface ArticleActionFeedbackState {
+  text: string;
+  type: 'success' | 'error';
+}
+
 const ArticleDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -274,11 +326,21 @@ const ArticleDetail: React.FC = () => {
   const [sidebarLatestArticlesLoading, setSidebarLatestArticlesLoading] = useState(false);
   const [sidebarHotWebsites, setSidebarHotWebsites] = useState<ArticleSidebarHotWebsiteItem[]>([]);
   const [sidebarHotWebsitesLoading, setSidebarHotWebsitesLoading] = useState(false);
+  const [recommendArticles, setRecommendArticles] = useState<ArticleRecommendItem[]>([]);
+  const [recommendLoading, setRecommendLoading] = useState(false);
+  const [previousArticle, setPreviousArticle] = useState<ArticleRecommendItem | null>(null);
+  const [nextArticle, setNextArticle] = useState<ArticleRecommendItem | null>(null);
+  const [activeTocId, setActiveTocId] = useState('');
   const [activeTab, setActiveTab] = useState<ArticleDetailTabKey>('intro');
   const [likeCount, setLikeCount] = useState(0);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isLikeSubmitting, setIsLikeSubmitting] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<ArticleActionFeedbackState | null>(null);
   const [imageLightboxOpen, setImageLightboxOpen] = useState(false);
   const [imageLightboxIndex, setImageLightboxIndex] = useState(0);
   const commentsRef = useRef<HTMLElement | null>(null);
+  const feedbackTimerRef = useRef<number | null>(null);
+  const articleLikeCountRaw = Number((article as any)?.likeCount || 0);
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -302,17 +364,56 @@ const ArticleDetail: React.FC = () => {
   }, [slug]);
 
   /**
-   * 文章切换时重置标签页，并初始化本地点赞计数。
+   * 文章切换时重置标签页，并按详情接口初始化点赞状态。
    */
   useEffect(() => {
     setActiveTab('intro');
     if (!article?.id) {
       setLikeCount(0);
+      setIsLiked(false);
       return;
     }
-    const stored = Number(localStorage.getItem(`article_like_${article.id}`) || 0);
-    setLikeCount(Number.isFinite(stored) && stored > 0 ? stored : 0);
+    if (Number.isFinite(articleLikeCountRaw) && articleLikeCountRaw >= 0) {
+      setLikeCount(articleLikeCountRaw);
+    } else {
+      setLikeCount(0);
+    }
+    setIsLiked(false);
+  }, [article?.id, articleLikeCountRaw]);
+
+  /**
+   * 读取真实互动状态（点赞总数 + 当前用户点赞态），避免仅凭详情默认值展示。
+   */
+  useEffect(() => {
+    if (!article?.id) return;
+    let cancelled = false;
+    const fetchInteraction = async () => {
+      try {
+        const stat = await getArticleInteractionStat(article.id);
+        if (cancelled) return;
+        setLikeCount(Math.max(0, Number(stat.likeCount || 0)));
+        setIsLiked(stat.isLike === true);
+      } catch (error) {
+        if (cancelled) return;
+      }
+    };
+    fetchInteraction();
+    return () => {
+      cancelled = true;
+    };
   }, [article?.id]);
+
+  /**
+   * 清理轻提示计时器，避免组件卸载后状态更新。
+   */
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        window.clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // 记录阅读量
   useEffect(() => {
@@ -348,12 +449,26 @@ const ArticleDetail: React.FC = () => {
   /**
    * 复制文章当前链接，方便转发分享
    */
+  const showActionFeedback = (text: string, type: 'success' | 'error' = 'success') => {
+    setActionFeedback({ text, type });
+    if (feedbackTimerRef.current) {
+      window.clearTimeout(feedbackTimerRef.current);
+    }
+    feedbackTimerRef.current = window.setTimeout(() => {
+      setActionFeedback(null);
+      feedbackTimerRef.current = null;
+    }, 1800);
+  };
+
+  /**
+   * 复制文章当前链接，成功后展示轻提示而非阻断弹窗。
+   */
   const handleCopyArticleLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      window.alert('文章链接已复制');
+      showActionFeedback('链接已复制');
     } catch (copyError) {
-      window.alert('复制失败，请手动复制地址栏链接');
+      showActionFeedback('复制失败，请手动复制', 'error');
     }
   };
 
@@ -365,13 +480,42 @@ const ArticleDetail: React.FC = () => {
   };
 
   /**
-   * 本地点赞反馈（演示态，不写后端）。
+   * 点赞切换：调用后端接口并回写最新点赞数。
    */
-  const handleToggleLike = () => {
-    if (!article?.id) return;
-    const nextValue = likeCount > 0 ? 0 : 1;
-    setLikeCount(nextValue);
-    localStorage.setItem(`article_like_${article.id}`, String(nextValue));
+  const handleToggleLike = async () => {
+    if (!article?.id || isLikeSubmitting) return;
+    try {
+      setIsLikeSubmitting(true);
+      const result = await toggleArticleLikeWithDetail(article.id);
+      setLikeCount(Math.max(0, Number(result.likeCount || 0)));
+      setIsLiked(result.liked === true);
+      showActionFeedback(result.liked ? '已点赞' : '已取消点赞');
+    } catch (toggleError) {
+      const axiosError = toggleError as AxiosError<{ message?: string }>;
+      const message = String(
+        axiosError.response?.data?.message
+        || (toggleError as any)?.message
+        || ''
+      ).trim();
+      const rawCode = Number(
+        (axiosError.response?.data as any)?.code
+        ?? (toggleError as any)?.code
+        ?? 0
+      );
+      const needLogin = rawCode === 1001 || /未登录|登录|请先登录/i.test(message);
+      if (needLogin) {
+        showActionFeedback('请先登录后再点赞', 'error');
+        window.dispatchEvent(
+          new CustomEvent('uied:open-auth-modal', {
+            detail: { mode: 'login' },
+          })
+        );
+      } else {
+        showActionFeedback(message || '点赞失败，请稍后重试', 'error');
+      }
+    } finally {
+      setIsLikeSubmitting(false);
+    }
   };
 
   const relatedWebsites = useMemo(
@@ -475,6 +619,10 @@ const ArticleDetail: React.FC = () => {
       articleToc: tocRows.slice(0, 80),
     };
   }, [article?.content]);
+  const readingMinutes = useMemo(
+    () => estimateArticleReadingMinutes(String(article?.content || '')),
+    [article?.content]
+  );
   /**
    * 文章图集：封面图 + 正文图片（去重后用于幻灯片展示）。
    */
@@ -504,6 +652,41 @@ const ArticleDetail: React.FC = () => {
     || hotWebsitesModuleEnabled
     || articleTagsModuleEnabled
   );
+
+  /**
+   * 文章目录滚动高亮：根据当前视口位置自动切换目录激活项。
+   */
+  useEffect(() => {
+    if (!articleToc.length) {
+      setActiveTocId('');
+      return;
+    }
+    const resolveActiveToc = () => {
+      let currentId = articleToc[0]?.id || '';
+      const triggerOffset = 132;
+      for (const item of articleToc) {
+        const heading = document.getElementById(item.id);
+        if (!heading) continue;
+        if (heading.getBoundingClientRect().top - triggerOffset <= 0) {
+          currentId = item.id;
+          continue;
+        }
+        break;
+      }
+      const reachedBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 6;
+      if (reachedBottom) {
+        currentId = articleToc[articleToc.length - 1]?.id || currentId;
+      }
+      setActiveTocId((prev) => (prev === currentId ? prev : currentId));
+    };
+    resolveActiveToc();
+    window.addEventListener('scroll', resolveActiveToc, { passive: true });
+    window.addEventListener('resize', resolveActiveToc);
+    return () => {
+      window.removeEventListener('scroll', resolveActiveToc);
+      window.removeEventListener('resize', resolveActiveToc);
+    };
+  }, [articleToc]);
 
   /**
    * 拉取文章详情页侧栏“最新文章”数据。
@@ -580,6 +763,112 @@ const ArticleDetail: React.FC = () => {
   }, [detailSidebarEnabled, hotWebsitesModuleEnabled, detailSidebarHotWebsitesCount]);
 
   /**
+   * 拉取“上一篇/下一篇 + 相关推荐”数据。
+   */
+  useEffect(() => {
+    const fetchRecommendArticles = async () => {
+      if (!article?.id) {
+        setRecommendArticles([]);
+        setPreviousArticle(null);
+        setNextArticle(null);
+        return;
+      }
+      try {
+        setRecommendLoading(true);
+        const [categoryResult, latestResult] = await Promise.all([
+          getArticles({
+            page: 1,
+            pageSize: 36,
+            category: article.category,
+          }),
+          getArticles({
+            page: 1,
+            pageSize: 20,
+          }),
+        ]);
+        const categoryRows = Array.isArray(categoryResult?.data) ? categoryResult.data : [];
+        const mergedRows = [
+          ...categoryRows,
+          ...(Array.isArray(latestResult?.data) ? latestResult.data : []),
+        ];
+        const currentTagSet = new Set(
+          (Array.isArray(article.tags) ? article.tags : [])
+            .map((tag) => String(tag?.slug || tag?.name || '').trim().toLowerCase())
+            .filter(Boolean)
+        );
+        const calcTagMatchedCount = (item: any): number => {
+          const tags = Array.isArray(item?.tags) ? item.tags : [];
+          if (!tags.length || !currentTagSet.size) return 0;
+          return tags.reduce((count: number, tag: any) => {
+            const key = String(tag?.slug || tag?.name || '').trim().toLowerCase();
+            if (!key) return count;
+            return currentTagSet.has(key) ? count + 1 : count;
+          }, 0);
+        };
+        const uniqueMap = new Map<string, ArticleRecommendItem>();
+        mergedRows.forEach((item) => {
+          const id = Number(item?.id || 0);
+          if (!id) return;
+          const mapKey = String(id);
+          if (uniqueMap.has(mapKey)) return;
+          uniqueMap.set(mapKey, {
+            id,
+            slug: String(item?.slug || id),
+            title: String(item?.title || ''),
+            publishedAt: Number.isFinite(Number(item?.publishedAt)) ? Number(item?.publishedAt) : null,
+            category: String(item?.category || ''),
+          });
+        });
+        const normalized = Array.from(uniqueMap.values())
+          .map((item) => {
+            const source = mergedRows.find((row: any) => Number(row?.id || 0) === item.id);
+            const publishedAt = Number(item.publishedAt || 0);
+            const score = (
+              (item.category === article.category ? 1000 : 0)
+              + calcTagMatchedCount(source) * 120
+              + Math.min(90, Math.floor(publishedAt / 86400))
+            );
+            return {
+              ...item,
+              _score: score,
+            };
+          })
+          .sort((a, b) => {
+            if (b._score !== a._score) return b._score - a._score;
+            return Number(b.publishedAt || 0) - Number(a.publishedAt || 0);
+          });
+        const categorySequence = categoryRows
+          .map((item) => ({
+            id: Number(item?.id || 0),
+            slug: String(item?.slug || item?.id || ''),
+            title: String(item?.title || ''),
+            publishedAt: Number.isFinite(Number(item?.publishedAt)) ? Number(item?.publishedAt) : null,
+            category: String(item?.category || ''),
+          }))
+          .filter((item) => item.id > 0);
+        const currentIndex = categorySequence.findIndex((item) => String(item.id) === String(article.id));
+        const prev = currentIndex > 0 ? categorySequence[currentIndex - 1] : null;
+        const next = currentIndex >= 0 && currentIndex < categorySequence.length - 1 ? categorySequence[currentIndex + 1] : null;
+        setPreviousArticle(prev && prev.id !== article.id ? prev : null);
+        setNextArticle(next && next.id !== article.id ? next : null);
+        setRecommendArticles(
+          normalized
+            .filter((item) => String(item.id) !== String(article.id))
+            .map(({ _score, ...rest }) => rest)
+            .slice(0, 4)
+        );
+      } catch (fetchError) {
+        setRecommendArticles([]);
+        setPreviousArticle(null);
+        setNextArticle(null);
+      } finally {
+        setRecommendLoading(false);
+      }
+    };
+    fetchRecommendArticles();
+  }, [article?.id, article?.category, article?.tags]);
+
+  /**
    * 切换文章时关闭灯箱并重置索引，避免旧状态串场。
    */
   useEffect(() => {
@@ -647,6 +936,7 @@ const ArticleDetail: React.FC = () => {
   const handleTocNavigate = (headingId: string) => {
     const target = document.getElementById(String(headingId || '').trim());
     if (!target) return;
+    setActiveTocId(String(headingId || '').trim());
     const topOffset = 96;
     const targetTop = target.getBoundingClientRect().top + window.scrollY - topOffset;
     window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
@@ -779,6 +1069,11 @@ const ArticleDetail: React.FC = () => {
           style={{ width: `${readingProgress}%` }}
         />
       </div>
+      {actionFeedback && (
+        <div className={`detail-action-feedback is-${actionFeedback.type}`} role="status" aria-live="polite">
+          {actionFeedback.text}
+        </div>
+      )}
       <SEO
         title={article.seoTitle || article.title}
         description={article.seoDescription || article.excerpt}
@@ -803,53 +1098,80 @@ const ArticleDetail: React.FC = () => {
           <div className="detail-meta-tags">
             <span className="category-badge">{article.category}</span>
             <time className="publish-date">{formatDate(article.publishedAt)}</time>
+            <span className="detail-meta-divider" aria-hidden="true">·</span>
+            <span className="detail-meta-pill">{readingMinutes} 分钟阅读</span>
+            {article.updatedAt ? (
+              <>
+                <span className="detail-meta-divider" aria-hidden="true">·</span>
+                <span className="detail-meta-pill">更新于 {formatDate(article.updatedAt)}</span>
+              </>
+            ) : null}
           </div>
 
           <h1 className="detail-title">{article.title}</h1>
+          {article.excerpt && (
+            <p className="detail-subtitle">{article.excerpt}</p>
+          )}
         </header>
 
         <div className={`article-detail-layout ${shouldRenderSidebar ? 'article-detail-layout--with-sidebar' : ''}`}>
           <div className="article-detail-main">
             <section className="detail-product-layout">
               <aside className="detail-action-rail">
-                <button type="button" className="detail-action-pill" onClick={handleFocusComments}>
-                  <span className="detail-action-pill__count">0</span>
+                <button
+                  type="button"
+                  className="detail-action-pill"
+                  onClick={handleFocusComments}
+                  data-tip="查看评论"
+                  aria-label="查看评论"
+                >
                   <span className="detail-action-pill__glyph" aria-hidden="true">
                     <DetailRailCommentIcon className="detail-action-pill__icon" />
                   </span>
-                  <span className="detail-action-pill__label">点评</span>
                 </button>
                 <button
                   type="button"
-                  className={`detail-action-pill detail-action-pill--like ${likeCount > 0 ? 'is-active' : ''}`}
+                  className={`detail-action-pill detail-action-pill--like ${isLiked ? 'is-active' : ''}`}
                   onClick={handleToggleLike}
+                  data-tip={`${isLiked ? '已点赞' : '点赞'} ${Math.max(0, likeCount)}`}
+                  aria-label={`${isLiked ? '取消点赞' : '点赞'}，当前 ${Math.max(0, likeCount)} 人点赞`}
+                  disabled={isLikeSubmitting}
                 >
-                  <span className="detail-action-pill__count">{likeCount > 0 ? likeCount : '赞'}</span>
                   <span className="detail-action-pill__glyph" aria-hidden="true">
                     <DetailRailLikeIcon className="detail-action-pill__icon" />
                   </span>
-                  <span className="detail-action-pill__label">{likeCount > 0 ? '已点赞' : '点赞'}</span>
                 </button>
-                <button type="button" className="detail-action-pill detail-action-pill--hot">
-                  <span className="detail-action-pill__count">{article.viewCount}</span>
+                <button
+                  type="button"
+                  className="detail-action-pill detail-action-pill--hot"
+                  data-tip={`阅读 ${article.viewCount}`}
+                  aria-label={`阅读 ${article.viewCount}`}
+                >
                   <span className="detail-action-pill__glyph" aria-hidden="true">
                     <DetailRailTrendingIcon className="detail-action-pill__icon" />
                   </span>
-                  <span className="detail-action-pill__label">热度</span>
                 </button>
-                <button type="button" className="detail-action-pill" onClick={() => setActiveTab('related')}>
-                  <span className="detail-action-pill__count">{relatedWebsites.length}</span>
+                <button
+                  type="button"
+                  className="detail-action-pill"
+                  onClick={() => setActiveTab('related')}
+                  data-tip={`关联网址 ${relatedWebsites.length}`}
+                  aria-label={`关联网址 ${relatedWebsites.length}`}
+                >
                   <span className="detail-action-pill__glyph" aria-hidden="true">
                     <DetailRailLinkIcon className="detail-action-pill__icon" />
                   </span>
-                  <span className="detail-action-pill__label">关联网址</span>
                 </button>
-                <button type="button" className="detail-action-pill" onClick={handleCopyArticleLink}>
-                  <span className="detail-action-pill__count">1</span>
+                <button
+                  type="button"
+                  className="detail-action-pill"
+                  onClick={handleCopyArticleLink}
+                  data-tip="复制链接"
+                  aria-label="复制链接"
+                >
                   <span className="detail-action-pill__glyph" aria-hidden="true">
                     <DetailRailShareIcon className="detail-action-pill__icon" />
                   </span>
-                  <span className="detail-action-pill__label">分享</span>
                 </button>
               </aside>
 
@@ -890,6 +1212,11 @@ const ArticleDetail: React.FC = () => {
                 <div className="detail-panel">
                   {activeTab === 'intro' && (
                     <div>
+                      {article.coverImage && (
+                        <figure className="detail-cover">
+                          <img src={getFullImageUrl(article.coverImage)} alt={article.title} loading="lazy" />
+                        </figure>
+                      )}
                       {/* 正文区域 */}
                       <div className="detail-content-wrapper">
                         <div
@@ -969,6 +1296,51 @@ const ArticleDetail: React.FC = () => {
                 <ArticleComments articleId={String(article.id)} />
               </section>
             )}
+
+            <section className="detail-next-prev">
+              <h3 className="detail-next-prev__title">继续阅读</h3>
+              <div className="detail-next-prev__grid">
+                <div className={`detail-next-prev__item ${!previousArticle ? 'is-disabled' : ''}`}>
+                  <span className="detail-next-prev__label">上一篇</span>
+                  {previousArticle ? (
+                    <Link to={`/article/${previousArticle.slug || previousArticle.id}`} className="detail-next-prev__link">
+                      {previousArticle.title}
+                    </Link>
+                  ) : (
+                    <span className="detail-next-prev__empty">暂无</span>
+                  )}
+                </div>
+                <div className={`detail-next-prev__item ${!nextArticle ? 'is-disabled' : ''}`}>
+                  <span className="detail-next-prev__label">下一篇</span>
+                  {nextArticle ? (
+                    <Link to={`/article/${nextArticle.slug || nextArticle.id}`} className="detail-next-prev__link">
+                      {nextArticle.title}
+                    </Link>
+                  ) : (
+                    <span className="detail-next-prev__empty">暂无</span>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="detail-recommend-articles">
+              <h3 className="detail-recommend-articles__title">相关推荐</h3>
+              {recommendLoading ? (
+                <div className="detail-recommend-articles__empty">加载中...</div>
+              ) : recommendArticles.length > 0 ? (
+                <div className="detail-recommend-articles__grid">
+                  {recommendArticles.map((item) => (
+                    <Link key={`recommend-${item.id}`} to={`/article/${item.slug || item.id}`} className="detail-recommend-articles__card">
+                      <span className="detail-recommend-articles__category">{item.category || '文章'}</span>
+                      <h4>{item.title}</h4>
+                      <span className="detail-recommend-articles__meta">{formatDate(item.publishedAt)}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="detail-recommend-articles__empty">暂无推荐文章</div>
+              )}
+            </section>
           </div>
           {shouldRenderSidebar && (
             <aside
@@ -983,7 +1355,7 @@ const ArticleDetail: React.FC = () => {
                       <button
                         key={`toc-${item.id}`}
                         type="button"
-                        className={`article-sidebar-toc__item level-${item.level}`}
+                        className={`article-sidebar-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
                         onClick={() => handleTocNavigate(item.id)}
                         title={item.text}
                       >

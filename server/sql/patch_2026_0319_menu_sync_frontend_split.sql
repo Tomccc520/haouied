@@ -257,7 +257,7 @@ UPDATE la_system_auth_menu SET pid = 984, menu_name = '评论管理', menu_icon 
 UPDATE la_system_auth_menu SET pid = 985, menu_name = '商业位体系', menu_icon = 'el-icon-PriceTag', menu_sort = 10, is_show = 1, update_time = UNIX_TIMESTAMP() WHERE id = 960;
 UPDATE la_system_auth_menu
 SET pid = 985,
-    menu_name = 'Banner配置',
+    menu_name = '广告设置',
     menu_icon = 'el-icon-Picture',
     menu_sort = 20,
     is_show = 1,

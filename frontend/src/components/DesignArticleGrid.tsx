@@ -22,6 +22,8 @@ import { useWordPressCategories } from '../hooks/useWordPressCategories';
 // 导入 WordPress 标签 Hook
 import { useWordPressTags } from '../hooks/useWordPressTags';
 import { debugLog } from '../utils/debugHelper';
+import { getArticles } from '../services/articleService';
+import type { ArticleListItem } from '../types/article';
 
 // 导入RankItem类型
 interface RankItem {
@@ -235,6 +237,27 @@ const generateMockData = (count: number): RankItem[] => {
   return mockArticles.slice(0, count);
 };
 
+/**
+ * 统一将本地文章列表项转换为网格卡片数据。
+ */
+const mapLocalArticleToRankItem = (article: ArticleListItem): RankItem => {
+  const articleId = Number(article?.id || 0);
+  const slug = String(article?.slug || '').trim();
+  const safeId = articleId > 0 ? articleId : Date.now();
+  return {
+    id: `local-${safeId}`,
+    name: String(article?.title || '未命名文章').trim() || '未命名文章',
+    description: String(article?.excerpt || '').trim(),
+    link: `/article/${slug || safeId}`,
+    thumbnail: String(article?.coverImage || '').trim(),
+    date: String(article?.publishedAt || article?.createdAt || ''),
+    authorName: String(article?.author || '').trim(),
+    viewCount: Number(article?.viewCount || 0),
+    category: String(article?.category || '').trim(),
+    tags: Array.isArray(article?.tags) ? article.tags.map((item) => String(item?.name || '').trim()).filter(Boolean) : [],
+  };
+};
+
 interface DesignArticleGridProps {
   title?: string;
   limit?: number;
@@ -286,6 +309,17 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   }, [widgetConfig, enableSubCategories]);
 
   /**
+   * 解析文章来源：api=外部 WordPress 源，local=本站后台文章源。
+   */
+  const widgetArticleSource = useMemo<'api' | 'local'>(() => {
+    if (!widgetConfig) return 'api';
+    const directSource = String(widgetConfig.articleSource || '').trim().toLowerCase();
+    if (directSource === 'local') return 'local';
+    const metaSource = String(widgetConfig?.meta?.articleSource || '').trim().toLowerCase();
+    return metaSource === 'local' ? 'local' : 'api';
+  }, [widgetConfig]);
+
+  /**
    * 固定模式下的来源类型（分类/标签）。
    */
   const widgetFixedFilterType = useMemo<'category' | 'tag'>(() => {
@@ -305,7 +339,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
     const metaId = Number.parseInt(String(widgetConfig?.meta?.fixedFilterId || 0), 10);
     return Number.isFinite(metaId) && metaId > 0 ? metaId : 0;
   }, [widgetConfig]);
-  const effectiveEnableSubCategories = widgetDisplayMode === 'tabs';
+  const effectiveEnableSubCategories = widgetArticleSource === 'api' && widgetDisplayMode === 'tabs';
   
   // 使用组件配置覆盖默认值
   const effectiveTitle = widgetConfig?.title || title;
@@ -318,11 +352,12 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
     if (process.env.NODE_ENV === 'development' && widgetConfig) {
       debugLog.dev('[DesignArticleGrid] 使用配置:', {
         pageSlug,
+        articleSource: widgetArticleSource,
         categoryIds: widgetConfig?.categoryIds,
         tagIds: widgetConfig?.tagIds,
       });
     }
-  }, [pageSlug, widgetConfig]);
+  }, [pageSlug, widgetConfig, widgetArticleSource]);
   
   // 获取后台配置的所有分类（用于支持新增的分类）
   const { categories: backendCategories } = useWordPressCategories({});
@@ -413,6 +448,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   
   // 当TAG_OPTIONS加载完成后，设置默认选中的分类
   useEffect(() => {
+    if (widgetArticleSource === 'local') return;
     if (TAG_OPTIONS.length === 0) return;
     if (!effectiveEnableSubCategories) {
       const fixedKey = fixedTagOption?.key || TAG_OPTIONS[0]?.key || '';
@@ -434,7 +470,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
     const defaultKey = matchingOption?.key || TAG_OPTIONS[0].key;
     debugLog.dev('[DesignArticleGrid] 设置默认分类:', defaultKey, 'TAG_OPTIONS:', TAG_OPTIONS.map(t => t.key));
     setActiveTag(defaultKey);
-  }, [TAG_OPTIONS, activeTag, defaultSubCategory, effectiveEnableSubCategories, fixedTagOption]);
+  }, [TAG_OPTIONS, activeTag, defaultSubCategory, effectiveEnableSubCategories, fixedTagOption, widgetArticleSource]);
   
   // 状态管理
   const [articles, setArticles] = useState<RankItem[]>([]);
@@ -476,14 +512,80 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       debugLog.dev('DesignArticleGrid: 已在加载中，跳过重复请求');
       return;
     }
-    
-    const currentOption = getCurrentOption();
     const fetchLimit = effectiveLimit;
-    debugLog.dev('DesignArticleGrid: 开始获取文章，类型:', currentOption.type, 'ID:', currentOption.id, '当前标签:', activeTag, '强制刷新:', forceRefresh, '数量限制:', fetchLimit);
-    
+
+    if (isMountedRef.current) {
+      setIsLoading(true);
+      setError(null);
+    }
+    isLoadingRef.current = true;
+
+    /**
+     * 本地文章模式：读取站内文章列表，不再依赖 WordPress 分类/标签。
+     */
+    if (widgetArticleSource === 'local') {
+      const cacheKey = `design-articles-local-${fetchLimit}`;
+      try {
+        if (!forceRefresh) {
+          const cachedData = getFromSessionStorage<RankItem[]>(cacheKey);
+          if (cachedData) {
+            debugLog.dev('DesignArticleGrid: 使用本地文章缓存:', cachedData.length, '条');
+            if (isMountedRef.current) {
+              setArticles(cachedData);
+              setIsLoading(false);
+              setError(null);
+            }
+            return;
+          }
+        }
+
+        const response = await getArticles({
+          page: 1,
+          pageSize: fetchLimit,
+        });
+        const normalizedRows = Array.isArray(response?.data)
+          ? response.data.map((item) => mapLocalArticleToRankItem(item)).filter((item) => !!item.name)
+          : [];
+
+        if (!isMountedRef.current) return;
+
+        if (normalizedRows.length > 0) {
+          saveToSessionStorage(cacheKey, normalizedRows);
+          setArticles(normalizedRows);
+          setError(null);
+          setRetryCount(0);
+          return;
+        }
+
+        setArticles([]);
+        setError('暂无本地文章数据');
+      } catch (err) {
+        debugLog.error('DesignArticleGrid: 获取本地文章失败:', err);
+        if (!isMountedRef.current) return;
+        const fallbackData = getFromSessionStorage<RankItem[]>(cacheKey);
+        if (fallbackData && fallbackData.length > 0) {
+          setArticles(fallbackData);
+          setError('获取最新数据失败，显示缓存数据');
+        } else {
+          setArticles([]);
+          setError('本地文章读取失败，请稍后重试');
+        }
+        setRetryCount((prev) => prev + 1);
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+        isLoadingRef.current = false;
+      }
+      return;
+    }
+
+    const currentOption = getCurrentOption();
+    debugLog.dev('DesignArticleGrid: 开始获取文章，来源:', widgetArticleSource, '类型:', currentOption.type, 'ID:', currentOption.id, '当前标签:', activeTag, '强制刷新:', forceRefresh, '数量限制:', fetchLimit);
+
     // 创建缓存键 - 包含类型信息
     const cacheKey = `design-articles-${currentOption.type}-${currentOption.id}-${fetchLimit}`;
-    
+
     // 如果不是强制刷新，首先尝试从sessionStorage获取缓存
     if (!forceRefresh) {
       const cachedData = getFromSessionStorage<RankItem[]>(cacheKey);
@@ -494,19 +596,14 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           setIsLoading(false);
           setError(null);
         }
+        isLoadingRef.current = false;
         return;
       }
     }
-    
-    // 设置加载标志
-    if (isMountedRef.current) {
-      setIsLoading(true);
-      setError(null);
-    }
-    isLoadingRef.current = true;
-    
+
     try {
       debugLog.dev('DesignArticleGrid: 调用API获取数据，参数:', {
+        source: widgetArticleSource,
         type: currentOption.type,
         id: currentOption.id,
         page: 1,
@@ -515,9 +612,9 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
         order: 'desc',
         useMock
       });
-      
+
       let response;
-      
+
       // 如果使用模拟数据，直接返回案例数据
       if (useMock) {
         debugLog.dev('DesignArticleGrid: 使用案例数据进行样式调试');
@@ -545,20 +642,20 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           });
         }
       }
-      
+
       debugLog.dev('DesignArticleGrid: 返回数据:', response);
-      
+
       // 组件可能已卸载，检查挂载状态
       if (!isMountedRef.current) {
         debugLog.dev('DesignArticleGrid: 组件已卸载，停止处理');
         return;
       }
-      
+
       if (Array.isArray(response) && response.length > 0) {
         debugLog.dev('DesignArticleGrid: 成功获取', response.length, '条文章');
         // 保存到sessionStorage
         saveToSessionStorage(cacheKey, response);
-        
+
         // 更新状态
         setArticles(response);
         setError(null);
@@ -570,10 +667,10 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       }
     } catch (err) {
       debugLog.error('DesignArticleGrid: 获取设计文章失败:', err);
-      
+
       // 组件可能已卸载，检查挂载状态
       if (!isMountedRef.current) return;
-      
+
       // 尝试从sessionStorage获取任何类别的缓存数据作为后备
       let foundFallback = false;
       for (const option of TAG_OPTIONS) {
@@ -587,14 +684,14 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           break;
         }
       }
-      
+
       // 如果仍然没有数据，显示错误
       if (!foundFallback) {
         debugLog.dev('DesignArticleGrid: 无可用数据');
         setArticles([]);
         setError('暂时无法连接到服务器');
       }
-      
+
       setRetryCount(prev => prev + 1);
     } finally {
       if (isMountedRef.current) {
@@ -602,7 +699,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       }
       isLoadingRef.current = false;
     }
-  }, [effectiveLimit, useMock, getCurrentOption, activeTag, TAG_OPTIONS]);
+  }, [effectiveLimit, useMock, getCurrentOption, activeTag, TAG_OPTIONS, widgetArticleSource]);
 
   // 处理子分类切换
   const handleTagChange = useCallback((tagKey: string) => {
@@ -658,13 +755,18 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
     fetchArticles(true); // 强制刷新
   }, [fetchArticles]);
 
-  // 组件挂载时获取数据 - 等待activeTag设置后再获取
+  // 组件挂载时获取数据 - 本地源直接拉取，API 源等待 activeTag 就绪
   useEffect(() => {
+    if (widgetArticleSource === 'local') {
+      debugLog.dev('DesignArticleGrid: 本地文章模式，获取初始数据');
+      fetchArticles();
+      return;
+    }
     if (activeTag) {
       debugLog.dev('DesignArticleGrid: activeTag已设置，获取初始数据', activeTag);
       fetchArticles();
     }
-  }, [activeTag, fetchArticles]);
+  }, [activeTag, fetchArticles, widgetArticleSource]);
 
   // 当组件配置变化时，清除缓存并重新获取数据
   useEffect(() => {

@@ -373,6 +373,14 @@ module.exports = options => {
       'uied:delivery:init:preview': [ 'uied:setting:get' ],
       'uied:delivery:init:execute': [ 'uied:setting:save' ],
       'uied:delivery:package:export': [ 'uied:setting:get' ],
+      // 商业版：升级中心默认复用站点设置权限（最终以“仅超级管理员 + 操作密码”双重校验）
+      'uied:upgrade:config:get': [ 'uied:setting:get' ],
+      'uied:upgrade:bundle:list': [ 'uied:setting:get' ],
+      'uied:upgrade:task:list': [ 'uied:setting:get' ],
+      'uied:upgrade:task:detail': [ 'uied:setting:get' ],
+      'uied:upgrade:task:log': [ 'uied:setting:get' ],
+      'uied:upgrade:config:save': [ 'uied:setting:save' ],
+      'uied:upgrade:start': [ 'uied:setting:save' ],
     };
     if (perms.some(item => item && (auths === item || auths.startsWith(item + ':')))) {
       return true;

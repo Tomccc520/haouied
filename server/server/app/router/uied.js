@@ -208,6 +208,15 @@ module.exports = app => {
   router.all('/api/uied/delivery/init/execute', controller.uied.deliveryInit.execute);
   router.all('/api/uied/delivery/package/export', controller.uied.deliveryInit.exportPackage);
 
+  // ==================== 升级中心 ====================
+  router.all('/api/uied/upgrade/config/get', controller.uied.upgradeCenter.configGet);
+  router.all('/api/uied/upgrade/config/save', controller.uied.upgradeCenter.configSave);
+  router.all('/api/uied/upgrade/bundle/list', controller.uied.upgradeCenter.bundleList);
+  router.all('/api/uied/upgrade/task/list', controller.uied.upgradeCenter.taskList);
+  router.all('/api/uied/upgrade/task/detail', controller.uied.upgradeCenter.taskDetail);
+  router.all('/api/uied/upgrade/task/log', controller.uied.upgradeCenter.taskLog);
+  router.all('/api/uied/upgrade/start', controller.uied.upgradeCenter.start);
+
   // ==================== 授权中心 ====================
   router.all('/api/uied/license/public-status', controller.uied.licenseCenter.publicStatus);
   router.all('/api/uied/license/info', controller.uied.licenseCenter.info);

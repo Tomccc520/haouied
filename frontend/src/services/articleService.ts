@@ -23,6 +23,48 @@ import { PaginationParams } from '../types/api';
 
 import { unwrapApiResponse } from '../utils/apiResponse';
 
+interface WrappedResponseShape {
+  code?: number | string;
+  message?: string;
+  msg?: string;
+  data?: unknown;
+}
+
+/**
+ * 创建前端服务错误对象，保留 code 便于上层判断未登录等业务分支。
+ */
+const createServiceError = (message: string, code?: number): Error & { code?: number } => {
+  const error = new Error(String(message || '请求失败')) as Error & { code?: number };
+  if (Number.isFinite(Number(code))) {
+    error.code = Number(code);
+  }
+  return error;
+};
+
+/**
+ * 解析后端包装响应，若业务 code 非成功则直接抛错。
+ */
+const unwrapResponseOrThrow = <T>(raw: unknown, fallback: T): T => {
+  const payload = raw as WrappedResponseShape;
+  const hasWrappedData = !!payload && typeof payload === 'object' && (
+    'code' in payload
+    || 'message' in payload
+    || 'msg' in payload
+    || 'data' in payload
+  );
+  if (hasWrappedData) {
+    const code = Number(payload.code);
+    const isSuccessCode = code === 0 || code === 1 || code === 200;
+    if (Number.isFinite(code) && !isSuccessCode) {
+      throw createServiceError(
+        String(payload.message || payload.msg || '请求失败'),
+        code
+      );
+    }
+  }
+  return unwrapApiResponse<T>(raw, fallback);
+};
+
 /**
  * 统一格式化评论时间字段，兼容时间戳/日期字符串两种后端返回
  */
@@ -96,7 +138,7 @@ export const getArticles = async (params: ArticleListParams): Promise<ArticleLis
  */
 export const getArticleDetail = async (slug: string): Promise<ArticleDetail> => {
   const response = await api.get<ArticleDetail>(`/articles/${slug}`);
-  return unwrapApiResponse<ArticleDetail>(response.data, {} as ArticleDetail);
+  return unwrapResponseOrThrow<ArticleDetail>(response.data, {} as ArticleDetail);
 };
 
 /**
@@ -174,7 +216,62 @@ export const toggleArticleCollect = async (articleId: number): Promise<boolean> 
  */
 export const toggleArticleLike = async (articleId: number): Promise<boolean> => {
   const response = await api.post('/article/like/toggle', { articleId });
-  return unwrapApiResponse<any>(response.data, {}).liked;
+  const payload = unwrapResponseOrThrow<any>(response.data, {});
+  const rawLiked = payload?.isLike ?? payload?.liked ?? false;
+  return Number(rawLiked) === 1 || rawLiked === true;
+};
+
+/**
+ * 点赞文章（含点赞总数返回）
+ * POST /api/article/like/toggle
+ */
+export interface ArticleLikeToggleResult {
+  liked: boolean;
+  likeCount: number;
+}
+
+export const toggleArticleLikeWithDetail = async (articleId: number): Promise<ArticleLikeToggleResult> => {
+  const response = await api.post('/article/like/toggle', { articleId });
+  const payload = unwrapResponseOrThrow<any>(response.data, {});
+  const rawLiked = payload?.isLike ?? payload?.liked ?? 0;
+  const liked = Number(rawLiked) === 1 || rawLiked === true;
+  const likeCount = Number(payload?.likeCount ?? payload?.like_count ?? 0);
+  return {
+    liked,
+    likeCount: Number.isFinite(likeCount) ? likeCount : 0,
+  };
+};
+
+/**
+ * 查询单篇文章互动状态（点赞总数 + 当前用户是否已点赞）
+ * GET /api/article/stats?ids=:id
+ */
+export interface ArticleInteractionStat {
+  likeCount: number;
+  isLike: boolean;
+}
+
+export const getArticleInteractionStat = async (articleId: number): Promise<ArticleInteractionStat> => {
+  if (!Number.isFinite(Number(articleId)) || Number(articleId) <= 0) {
+    return { likeCount: 0, isLike: false };
+  }
+  const response = await api.get('/article/stats', {
+    params: { ids: String(articleId) },
+  });
+  const payload = unwrapResponseOrThrow<any>(response.data, []);
+  const rows = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.lists) ? payload.lists : []);
+  const target = rows.find((item: any) => String(item?.id || '') === String(articleId));
+  if (!target) {
+    return { likeCount: 0, isLike: false };
+  }
+  const likeCount = Number(target?.likeCount ?? target?.like_count ?? 0);
+  const rawLike = target?.isLike ?? target?.is_like ?? 0;
+  return {
+    likeCount: Number.isFinite(likeCount) ? Math.max(0, likeCount) : 0,
+    isLike: Number(rawLike) === 1 || rawLike === true,
+  };
 };
 
 /**

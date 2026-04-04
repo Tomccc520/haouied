@@ -163,6 +163,31 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         ]
     },
     /**
+     * 升级中心静态兜底路由：
+     * 1. 确保未执行菜单补丁时仍可通过地址直接访问
+     * 2. 便于本地与宝塔环境先联调升级流程
+     */
+    {
+        path: '/system-setting',
+        component: LAYOUT,
+        children: [
+            {
+                path: 'upgrade-center',
+                name: Symbol(),
+                component: () => import('@/views/uied/upgradeCenter/index.vue'),
+                meta: {
+                    title: '升级中心',
+                    hidden: true,
+                    activeMenu: '/system-setting/upgrade-center'
+                }
+            }
+        ]
+    },
+    {
+        path: '/uied/operation/upgrade-center',
+        redirect: '/system-setting/upgrade-center'
+    },
+    /**
      * 历史地址兼容：旧版本中授权中心路径为 /uied/commercial-license/license-center
      */
     {

@@ -664,6 +664,43 @@ export function uiedDeliveryPackageExport(params?: any) {
     return request.get({ url: '/uied/delivery/package/export', params })
 }
 
+// ==================== 升级中心 ====================
+
+// 获取升级中心配置
+export function uiedUpgradeConfigGet() {
+    return request.get({ url: '/uied/upgrade/config/get' })
+}
+
+// 保存升级中心配置
+export function uiedUpgradeConfigSave(params: any) {
+    return request.post({ url: '/uied/upgrade/config/save', params })
+}
+
+// 获取服务器升级包列表
+export function uiedUpgradeBundleList() {
+    return request.get({ url: '/uied/upgrade/bundle/list' })
+}
+
+// 获取升级任务列表
+export function uiedUpgradeTaskList(params?: any) {
+    return request.get({ url: '/uied/upgrade/task/list', params })
+}
+
+// 获取升级任务详情
+export function uiedUpgradeTaskDetail(params: any) {
+    return request.get({ url: '/uied/upgrade/task/detail', params })
+}
+
+// 获取升级任务日志
+export function uiedUpgradeTaskLog(params: any) {
+    return request.get({ url: '/uied/upgrade/task/log', params })
+}
+
+// 发起升级任务
+export function uiedUpgradeStart(params: any) {
+    return request.post({ url: '/uied/upgrade/start', params })
+}
+
 // 获取许可证信息
 export function uiedLicenseInfo() {
     return request.get({ url: '/uied/license/info' })

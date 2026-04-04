@@ -27,6 +27,7 @@ export interface WordPressWidget {
   enableSubCategories?: boolean;
   fixedFilterType?: 'category' | 'tag';
   fixedFilterId?: number;
+  articleSource?: 'api' | 'local';
 }
 
 interface UseWordPressWidgetsOptions {
@@ -71,6 +72,14 @@ const normalizeIdList = (value: unknown): number[] => {
 };
 
 /**
+ * 统一解析文章来源配置，兼容历史缺省值。
+ */
+const normalizeArticleSource = (value: unknown): 'api' | 'local' => {
+  const source = String(value || '').trim().toLowerCase();
+  return source === 'local' ? 'local' : 'api';
+};
+
+/**
  * 统一规范化 WordPress 组件配置，兼容 meta 与扁平字段两种结构。
  */
 const normalizeWidget = (row: Record<string, any>): WordPressWidget => {
@@ -97,6 +106,7 @@ const normalizeWidget = (row: Record<string, any>): WordPressWidget => {
     enableSubCategories: meta.enableSubCategories === undefined ? undefined : meta.enableSubCategories === true,
     fixedFilterType: String(meta.fixedFilterType || '').trim().toLowerCase() === 'tag' ? 'tag' : 'category',
     fixedFilterId: toPositiveInt(meta.fixedFilterId, 0),
+    articleSource: normalizeArticleSource(meta.articleSource ?? row.articleSource),
   };
 };
 

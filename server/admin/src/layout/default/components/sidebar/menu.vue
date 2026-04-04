@@ -140,6 +140,25 @@ const getRouteGroupText = (item: RouteRecordRaw) => {
 }
 
 /**
+ * 统一菜单显示名称：兼容历史菜单名（Banner配置/广告管理）并收敛为“广告设置”。
+ * @param title 原始菜单标题
+ * @param pathText 菜单路径文本
+ * @param permsText 菜单权限标识
+ */
+const resolveMenuDisplayTitle = (title: string, pathText: string, permsText: string): string => {
+    const rawTitle = String(title || '').trim()
+    const normalizedPath = String(pathText || '').toLowerCase()
+    const normalizedPerms = String(permsText || '').toLowerCase()
+    const isBannerSettingMenu =
+        normalizedPath.includes('/commercial-monetization/banner') ||
+        normalizedPerms.includes('uied:banner')
+    if (isBannerSettingMenu) {
+        return '广告设置'
+    }
+    return rawTitle
+}
+
+/**
  * 一级菜单分组定义：按业务域拆分，控制每组信息密度，避免导航拥挤。
  */
 const MENU_CATEGORY_DEFINITIONS: MenuCategoryDefinition[] = [
@@ -314,6 +333,8 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
             '详情页配置',
             '注册登录',
             '备份恢复',
+            '升级中心',
+            'upgrade-center',
             '/system-setting',
             '/setting',
             'uied:setting:',
@@ -420,7 +441,8 @@ const MENU_FINE_GROUP_RULES: Record<string, MenuFineGroupDefinition[]> = {
         { key: 'detail', label: '详情配置', icon: 'el-icon-View', keywords: ['网站详情页配置', '详情页配置', 'detail-page', 'detail'], order: 30 },
         { key: 'auth', label: '认证配置', icon: 'el-icon-UserFilled', keywords: ['注册登录配置', 'auth-config', '登录配置', 'register', 'login'], order: 40 },
         { key: 'seo', label: 'SEO中心', icon: 'el-icon-Compass', keywords: ['seo中心', 'seo', 'sitemap', 'robots', '重定向'], order: 50 },
-        { key: 'backup', label: '备份恢复', icon: 'el-icon-RefreshRight', keywords: ['备份恢复', 'backup', 'restore'], order: 60 }
+        { key: 'backup', label: '备份恢复', icon: 'el-icon-RefreshRight', keywords: ['备份恢复', 'backup', 'restore'], order: 60 },
+        { key: 'upgrade', label: '升级中心', icon: 'el-icon-UploadFilled', keywords: ['升级中心', 'upgrade-center', '版本升级'], order: 70 }
     ],
     mcp: [
         { key: 'mcp-list', label: 'MCP列表', icon: 'el-icon-List', keywords: ['mcp列表', '资源管理', '/mcp-list', 'uied:mcp:list'], order: 10 },
@@ -525,6 +547,7 @@ const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
     授权中心: 'el-icon-Key',
     许可证中心: 'el-icon-Key',
     交付初始化: 'el-icon-Suitcase',
+    广告设置: 'el-icon-Picture',
     权限管理: 'el-icon-Lock',
     角色管理: 'el-icon-UserFilled',
     菜单管理: 'el-icon-Menu',
@@ -537,7 +560,8 @@ const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
     商业位体系: 'el-icon-PriceTag',
     数据统计: 'el-icon-Histogram',
     数据导出: 'el-icon-Download',
-    操作日志: 'el-icon-Notebook'
+    操作日志: 'el-icon-Notebook',
+    升级中心: 'el-icon-UploadFilled'
 }
 
 /**
@@ -589,6 +613,7 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'settings:注册登录配置': 40,
     'settings:AI配置': 50,
     'settings:备份恢复': 60,
+    'settings:升级中心': 70,
 
     'operation:热门推荐': 10,
     'operation:每日热榜': 20,
@@ -598,6 +623,7 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'operation:网站提交': 60,
     'operation:商业位体系': 70,
     'operation:商业变现': 60,
+    'operation:广告设置': 60,
     'operation:评论管理': 75,
     'operation:数据统计': 80,
     'operation:数据导出': 90,
@@ -884,6 +910,11 @@ const buildStructuredRoutes = (list: RouteRecordRaw[] = []): RouteRecordRaw[] =>
                 if (!bucket) return
                 const children = Array.isArray(bucket.children) ? bucket.children : []
                 const metaRecord = getRouteMetaRecord(leaf)
+                metaRecord.title = resolveMenuDisplayTitle(
+                    String(metaRecord.title || ''),
+                    String(leaf?.path || ''),
+                    String(metaRecord.perms || '')
+                )
                 const fineRule = resolveFineGroupRule(groupKey, getRouteGroupText(leaf))
                 metaRecord.icon =
                     fineRule?.icon || resolveSecondLevelIcon(String(metaRecord.title || ''), groupKey)

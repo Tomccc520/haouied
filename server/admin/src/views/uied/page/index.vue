@@ -386,7 +386,7 @@
                             </div>
                             <div class="mt-1">
                                 <el-button type="primary" link @click="goBannerSetting">
-                                    前往 Banner 广告设置
+                                    前往 广告设置
                                 </el-button>
                             </div>
                         </el-form-item>
@@ -399,9 +399,21 @@
                         <el-form-item label="显示侧边栏">
                             <el-switch v-model="editData.showSidebar" />
                         </el-form-item>
-                        <el-divider content-position="left">设计文章 API 配置</el-divider>
+                        <el-divider content-position="left">设计文章配置</el-divider>
                         <el-form-item label="启用文章模块">
                             <el-switch v-model="editData.designArticleEnabled" />
+                        </el-form-item>
+                        <el-form-item label="文章来源">
+                            <el-radio-group
+                                v-model="editData.designArticleSource"
+                                :disabled="!editData.designArticleEnabled"
+                            >
+                                <el-radio-button label="api">API文章</el-radio-button>
+                                <el-radio-button label="local">本地文章</el-radio-button>
+                            </el-radio-group>
+                            <div class="text-gray-400 text-xs mt-1">
+                                API文章：读取外部内容源；本地文章：读取本站后台已发布文章。
+                            </div>
                         </el-form-item>
                         <el-form-item label="模块标题">
                             <el-input
@@ -418,7 +430,10 @@
                                 :disabled="!editData.designArticleEnabled"
                             />
                         </el-form-item>
-                        <el-form-item label="筛选源数据">
+                        <el-form-item
+                            v-if="editData.designArticleSource === 'api'"
+                            label="筛选源数据"
+                        >
                             <el-button
                                 :loading="designArticleFilterLoading"
                                 :disabled="!editData.designArticleEnabled"
@@ -430,7 +445,10 @@
                                 分类 {{ wordpressCategoryOptions.length }} 项，标签 {{ wordpressTagOptions.length }} 项
                             </span>
                         </el-form-item>
-                        <el-form-item label="文章分类（下拉）">
+                        <el-form-item
+                            v-if="editData.designArticleSource === 'api'"
+                            label="文章分类（下拉）"
+                        >
                             <el-select
                                 v-model="designArticleCategoryIdsModel"
                                 multiple
@@ -451,7 +469,10 @@
                                 />
                             </el-select>
                         </el-form-item>
-                        <el-form-item label="文章标签（下拉）">
+                        <el-form-item
+                            v-if="editData.designArticleSource === 'api'"
+                            label="文章标签（下拉）"
+                        >
                             <el-select
                                 v-model="designArticleTagIdsModel"
                                 multiple
@@ -475,7 +496,10 @@
                                 选中后会自动写入组件配置，无需手工维护 ID 文本。
                             </div>
                         </el-form-item>
-                        <el-form-item label="展示方式">
+                        <el-form-item
+                            v-if="editData.designArticleSource === 'api'"
+                            label="展示方式"
+                        >
                             <el-radio-group
                                 v-model="editData.designArticleDisplayMode"
                                 :disabled="!editData.designArticleEnabled"
@@ -488,7 +512,10 @@
                             </div>
                         </el-form-item>
                         <el-form-item
-                            v-if="editData.designArticleDisplayMode === 'fixed'"
+                            v-if="
+                                editData.designArticleSource === 'api' &&
+                                editData.designArticleDisplayMode === 'fixed'
+                            "
                             label="固定来源"
                         >
                             <el-radio-group
@@ -500,7 +527,10 @@
                             </el-radio-group>
                         </el-form-item>
                         <el-form-item
-                            v-if="editData.designArticleDisplayMode === 'fixed'"
+                            v-if="
+                                editData.designArticleSource === 'api' &&
+                                editData.designArticleDisplayMode === 'fixed'
+                            "
                             label="固定项"
                         >
                             <el-select
@@ -523,6 +553,14 @@
                             </el-select>
                             <div class="text-gray-400 text-xs mt-1">
                                 仅展示当前固定项；请先在上方分类/标签里选择来源数据。
+                            </div>
+                        </el-form-item>
+                        <el-form-item
+                            v-if="editData.designArticleSource === 'local'"
+                            label="本地文章提示"
+                        >
+                            <div class="text-gray-400 text-xs">
+                                本地文章模式会按发布时间展示本站已发布文章，分类与标签由文章管理模块维护。
                             </div>
                         </el-form-item>
                         <el-form-item label="更多链接">
@@ -931,6 +969,7 @@ interface WordPressWidgetRow {
     tagIds?: number[]
     limit?: number
     showMoreLink?: string
+    articleSource?: 'api' | 'local'
 }
 
 interface WordPressFilterOption {
@@ -1194,6 +1233,7 @@ const editData = reactive({
     themeColor: '',
     designArticleWidgetId: 0,
     designArticleEnabled: true,
+    designArticleSource: 'api',
     designArticleTitle: '设计文章',
     designArticleLimit: 8,
     designArticleShowMoreLink: '',
@@ -1620,6 +1660,14 @@ const designArticleTagIdsModel = computed<number[]>({
 })
 
 /**
+ * 规范化设计文章来源。
+ */
+const normalizeDesignArticleSource = (value: unknown): 'api' | 'local' => {
+    const source = String(value || '').trim().toLowerCase()
+    return source === 'local' ? 'local' : 'api'
+}
+
+/**
  * 规范化设计文章展示模式。
  */
 const normalizeDesignArticleDisplayMode = (value: unknown): 'fixed' | 'tabs' => {
@@ -1738,6 +1786,7 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
     if (!normalizedSlug) {
         editData.designArticleWidgetId = 0
         editData.designArticleEnabled = true
+        editData.designArticleSource = 'api'
         editData.designArticleTitle = '设计文章'
         editData.designArticleLimit = 8
         editData.designArticleShowMoreLink = ''
@@ -1764,6 +1813,7 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
         if (!target) {
             editData.designArticleWidgetId = 0
             editData.designArticleEnabled = true
+            editData.designArticleSource = 'api'
             editData.designArticleTitle = '设计文章'
             editData.designArticleLimit = 8
             editData.designArticleShowMoreLink = ''
@@ -1779,6 +1829,7 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
         const tagIds = Array.isArray(meta.tagIds) ? meta.tagIds : target.tagIds || []
         editData.designArticleWidgetId = Number(target.id || 0)
         editData.designArticleEnabled = target.visible !== false
+        editData.designArticleSource = normalizeDesignArticleSource(meta.articleSource ?? target.articleSource)
         editData.designArticleTitle = String(target.title || meta.title || '设计文章').trim() || '设计文章'
         editData.designArticleLimit = Number.parseInt(String(meta.limit ?? target.limit ?? 8), 10) || 8
         editData.designArticleShowMoreLink = String(meta.showMoreLink || target.showMoreLink || '').trim()
@@ -1806,6 +1857,7 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
     } catch (error) {
         console.error('加载设计文章组件配置失败:', error)
         editData.designArticleWidgetId = 0
+        editData.designArticleSource = 'api'
         editData.designArticleDisplayMode = 'fixed'
         editData.designArticleFixedType = 'category'
         editData.designArticleFixedId = 0
@@ -1837,6 +1889,7 @@ const syncDesignArticleWidgetConfig = async (pageSlug: string) => {
         meta: {
             position: 'main',
             componentType: 'designArticleGrid',
+            articleSource: normalizeDesignArticleSource(editData.designArticleSource),
             limit: Number.parseInt(String(editData.designArticleLimit || 8), 10) || 8,
             showMoreLink: String(editData.designArticleShowMoreLink || '').trim(),
             categoryIds,
@@ -1967,7 +2020,7 @@ const openSystemPageSettingByRow = (row: any) => {
 }
 
 /**
- * 跳转到 Banner 广告配置页，便于页面配置与广告配置联动调整。
+ * 跳转到“广告设置”页面，便于页面配置与广告配置联动调整。
  */
 const goBannerSetting = () => {
     const targetPath = '/uied/operation/commercial-monetization/banner'
@@ -2127,6 +2180,7 @@ const resetEditData = () => {
         themeColor: '',
         designArticleWidgetId: 0,
         designArticleEnabled: true,
+        designArticleSource: 'api',
         designArticleTitle: '设计文章',
         designArticleLimit: 8,
         designArticleShowMoreLink: '',
@@ -2259,6 +2313,7 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         editData.showCategories = false
         editData.designArticleWidgetId = 0
         editData.designArticleEnabled = false
+        editData.designArticleSource = 'api'
     }
 
     // 加载分类列表

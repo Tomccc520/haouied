@@ -773,6 +773,32 @@ class InstallService extends Service {
     );
 
     /**
+     * 升级中心挂到“网站设置”(814)，用于服务器内安全升级与审计回溯。
+     */
+    await app.model.query(
+      `INSERT INTO \`${menuTable}\`
+       (id, pid, menu_type, menu_name, menu_icon, menu_sort, perms, paths, component, selected, params, is_cache, is_show, is_disable, create_time, update_time)
+       VALUES
+       (1203, 814, 'C', '升级中心', 'el-icon-UploadFilled', 110, 'uied:upgrade:task:list', 'upgrade-center', 'uied/upgradeCenter/index', '/system-setting/upgrade-center', '', 0, 1, 0, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         pid = VALUES(pid),
+         menu_name = VALUES(menu_name),
+         menu_icon = VALUES(menu_icon),
+         menu_sort = VALUES(menu_sort),
+         perms = VALUES(perms),
+         paths = VALUES(paths),
+         component = VALUES(component),
+         selected = VALUES(selected),
+         is_show = VALUES(is_show),
+         is_disable = VALUES(is_disable),
+         update_time = VALUES(update_time)`,
+      {
+        replacements: [ now, now ],
+        type: app.Sequelize.QueryTypes.INSERT,
+      }
+    );
+
+    /**
      * 功能开关保留能力但默认隐藏，归档到“网站设置”(814)。
      */
     await app.model.query(
@@ -807,7 +833,7 @@ class InstallService extends Service {
      * 给系统角色补授权（role 0/1）
      */
     const roleIds = [ 0, 1 ];
-    const menuIds = [ 864 ];
+    const menuIds = [ 864, 1203 ];
     for (const roleId of roleIds) {
       for (const menuId of menuIds) {
         const [ exists ] = await app.model.query(

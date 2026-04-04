@@ -15,6 +15,16 @@
                     在这里统一维护分类图标库。页面分类配置中可直接使用
                     <code>svg:key</code> 引用。
                 </p>
+                <div class="svg-library-page__recommend">
+                    <span class="svg-library-page__recommend-label">免费图标推荐：</span>
+                    <el-link
+                        type="primary"
+                        href="https://hao.uied.cn/category/uiux-design-resources-icons"
+                        target="_blank"
+                    >
+                        https://hao.uied.cn/category/uiux-design-resources-icons
+                    </el-link>
+                </div>
             </div>
 
             <div class="svg-library-page__toolbar">
@@ -615,6 +625,18 @@ onMounted(() => {
     color: #606266;
     font-size: 13px;
     line-height: 1.6;
+}
+
+.svg-library-page__recommend {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #606266;
+    line-height: 1.6;
+}
+
+.svg-library-page__recommend-label {
+    color: #909399;
+    margin-right: 6px;
 }
 
 .svg-library-page__alert {

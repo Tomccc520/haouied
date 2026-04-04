@@ -7,7 +7,7 @@
  * @version 1.5.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Chip, DesignIcons } from '../UI';
 import { useLocation, useNavigate } from 'react-router-dom'; // 导入路由钩子
@@ -321,14 +321,29 @@ const Navbar = () => {
   /**
    * 打开认证弹窗（受个人中心总开关控制）
    */
-  const openAuthModal = () => {
+  const openAuthModal = useCallback((mode: 'login' | 'register' = 'login') => {
     if (!userCenterEnabled) {
       window.alert(userCenterCloseMessage);
       return;
     }
-    setAuthMode('login');
+    setAuthMode(mode);
     setAuthModalVisible(true);
-  };
+  }, [userCenterCloseMessage, userCenterEnabled]);
+
+  /**
+   * 监听全局登录弹窗事件，允许业务页面触发登录引导。
+   */
+  useEffect(() => {
+    const handleAuthModalEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ mode?: 'login' | 'register' }>;
+      const mode = customEvent?.detail?.mode === 'register' ? 'register' : 'login';
+      openAuthModal(mode);
+    };
+    window.addEventListener('uied:open-auth-modal', handleAuthModalEvent as EventListener);
+    return () => {
+      window.removeEventListener('uied:open-auth-modal', handleAuthModalEvent as EventListener);
+    };
+  }, [openAuthModal]);
 
   useEffect(() => {
     if (!userCenterEnabled && authModalVisible) {
@@ -1064,7 +1079,7 @@ const Navbar = () => {
               <Button 
                 type="primary" 
                 className="navbar-login-btn"
-                onClick={openAuthModal}
+                onClick={() => openAuthModal()}
               >
                 登录
               </Button>
