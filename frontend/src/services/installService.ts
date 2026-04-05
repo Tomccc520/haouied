@@ -59,6 +59,7 @@ export interface InstallInitializePayload {
   adminPassword: string;
   adminNickname?: string;
   adminEmail?: string;
+  importDemoData?: boolean;
 }
 
 /**
@@ -87,6 +88,12 @@ export interface InstallInitializeResult {
   menu: {
     commercialLicenseMenuId: number;
     deliveryCenterMenuId: number;
+  };
+  deliveryInit?: {
+    imported: boolean;
+    profile: string;
+    profileName: string;
+    summary?: Record<string, unknown> | null;
   };
 }
 
@@ -201,6 +208,12 @@ export const runInstallInitialize = async (
     menu: {
       commercialLicenseMenuId: 0,
       deliveryCenterMenuId: 0,
+    },
+    deliveryInit: {
+      imported: false,
+      profile: '',
+      profileName: '',
+      summary: null,
     },
   });
 };

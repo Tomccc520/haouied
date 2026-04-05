@@ -18,6 +18,7 @@ import Banner from '../../components/Banner';
 import AdBanner from '../../components/AdBanner';
 import SEO from '../../components/SEO';
 import DesignArticleGrid from '../../components/DesignArticleGrid';
+import AdminShortcutHint from '../../components/AdminShortcutHint';
 import { RankingListSkeleton } from '../../components/Skeleton';
 import { getRankings, getRankingsAggregate } from '../../services/rankingService';
 import { getDailyHotDisplayConfig } from '../../services/dailyHotService';
@@ -107,6 +108,7 @@ const Home: React.FC = () => {
       newWindow: card.newWindow !== false,
     }))
   ), [brandConfig.homeFallbackBannerCards]);
+  const hasFallbackBannerCards = fallbackBannerCards.length > 0;
 
   /**
    * 判断当前是否为移动端视口（仅用于展示层开关判定）
@@ -620,7 +622,7 @@ const Home: React.FC = () => {
         </div>
       )}
       {/* 顶部区域：按后台排序渲染轮播和推荐模块 */}
-      {topModules.length > 0 && (
+      {topModules.length > 0 ? (
         <div className="home-top-section">
           {topModules.map((moduleKey) => {
             if (moduleKey === 'carousel') {
@@ -679,6 +681,10 @@ const Home: React.FC = () => {
                   {!recommendationContentEnabled ? (
                     <div className="ranking-error">
                       <div className="error-message">推荐内容已在后台关闭</div>
+                      <AdminShortcutHint
+                        adminPath="/system-setting/base-config/content-hub?tab=rankings"
+                        actionText="去配置推荐内容"
+                      />
                     </div>
                   ) : loading ? (
                     <RankingListSkeleton count={10} />
@@ -689,6 +695,10 @@ const Home: React.FC = () => {
                       <button className="retry-button" onClick={handleRetry}>
                         重新加载
                       </button>
+                      <AdminShortcutHint
+                        adminPath="/system-setting/base-config/content-hub?tab=rankings"
+                        actionText="去配置推荐内容"
+                      />
                     </div>
                   ) : (
                     <div className="ranking-list">
@@ -700,12 +710,34 @@ const Home: React.FC = () => {
             );
           })}
         </div>
+      ) : (
+        <div className="home-top-empty">
+          <div className="home-top-empty__title">首页顶部模块暂未配置内容</div>
+          <div className="home-top-empty__desc">
+            当前轮播区与推荐区都没有可展示内容。建议先在后台配置首页轮播、推荐区或对应内容中心数据。
+          </div>
+          <div className="home-top-empty__actions">
+            <AdminShortcutHint
+              adminPath="/uied/page"
+              actionText="去配置首页模块"
+            />
+            <AdminShortcutHint
+              adminPath="/system-setting/base-config/content-hub?tab=rankings"
+              actionText="去配置推荐数据"
+            />
+          </div>
+        </div>
       )}
 
       {/* 中间：Banner区域 */}
       <div className="home-banner-section">
         <AdBanner pageSlug="home" position="top" className="home-banner-section__ad" />
-        <Banner useBackend={false} cards={fallbackBannerCards} />
+        <Banner
+          useBackend={false}
+          cards={fallbackBannerCards}
+          emptyAdminPath={hasFallbackBannerCards ? '' : '/uied/operation/commercial-monetization/banner'}
+          emptyAdminActionText="去配置 Banner"
+        />
       </div>
 
       {/* 下方：设计文章网格 */}
@@ -720,6 +752,8 @@ const Home: React.FC = () => {
           moreButtonLink="/uiux"
           pageSlug="home"
           position="main"
+          emptyAdminPath="/uied/page"
+          emptyAdminActionText="去配置文章模块"
         />
       </div>
 

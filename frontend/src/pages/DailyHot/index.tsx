@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SEO from '../../components/SEO';
 import ContentHubSwitch from '../../components/ContentHubSwitch';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
+import AdminShortcutHint from '../../components/AdminShortcutHint';
 import { useDetailLayoutWidthMode } from '../../hooks/useDetailLayoutWidthMode';
 import {
   getDailyHot,
@@ -429,6 +430,10 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
                 {retryText}
               </button>
             )}
+            <AdminShortcutHint
+              adminPath="/system-setting/base-config/content-hub?tab=dailyHot"
+              actionText="去配置每日热榜"
+            />
           </div>
         ) : (
           <section

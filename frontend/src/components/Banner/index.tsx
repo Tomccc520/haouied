@@ -11,6 +11,7 @@ import React, { useMemo } from 'react';
 import { DesignIcons } from '../UI';
 import { useBanners, type Banner as BackendBanner } from '../../hooks/useBanners';
 import { IconComponent } from '../../types/icon';
+import AdminShortcutHint from '../AdminShortcutHint';
 import './index.css';
 import './index.mobile.css';
 
@@ -34,6 +35,10 @@ interface BannerProps {
   useBackend?: boolean;
   backendPosition?: string;
   className?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyAdminPath?: string;
+  emptyAdminActionText?: string;
 }
 
 const backendCardColors = ['#8B5DFF', '#22D3EE', '#10a37f', '#FF6B6B', '#6366f1', '#f59e0b'];
@@ -73,7 +78,11 @@ const Banner: React.FC<BannerProps> = ({
   cards,
   useBackend = true,
   backendPosition = 'home',
-  className = ''
+  className = '',
+  emptyTitle = '当前还没有 Banner 内容',
+  emptyDescription = '先在后台配置首页 Banner 或运营卡片，前台刷新后这里会直接生效。',
+  emptyAdminPath = '',
+  emptyAdminActionText = '去配置 Banner',
 }) => {
   const { banners: backendBanners } = useBanners({
     position: backendPosition,
@@ -111,7 +120,24 @@ const Banner: React.FC<BannerProps> = ({
   };
 
   if (displayCards.length === 0) {
-    return null;
+    if (!emptyAdminPath) {
+      return null;
+    }
+
+    return (
+      <section className={`banner-section ${className}`}>
+        <div className="banner-container">
+          <div className="banner-empty-state">
+            <div className="banner-empty-state__title">{emptyTitle}</div>
+            <div className="banner-empty-state__desc">{emptyDescription}</div>
+            <AdminShortcutHint
+              adminPath={emptyAdminPath}
+              actionText={emptyAdminActionText}
+            />
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (

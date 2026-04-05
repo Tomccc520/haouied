@@ -101,6 +101,7 @@ const InstallPage: React.FC = () => {
     confirmPassword: '',
     adminNickname: brandConfig.installAdminNickname,
     adminEmail: '',
+    importDemoData: true,
   });
 
   const [dbFormData, setDbFormData] = useState({
@@ -323,11 +324,12 @@ const InstallPage: React.FC = () => {
         adminPassword: formData.adminPassword,
         adminNickname: formData.adminNickname,
         adminEmail: formData.adminEmail,
+        importDemoData: formData.importDemoData,
       });
       setSubmitMessage(
         `安装完成：站点「${result.site.siteName}」，管理员「${result.admin.username}」，授权版本「${String(
           result.license?.edition || '-'
-        ).toUpperCase()}」。请前往 /admin 登录。`
+        ).toUpperCase()}」${result.deliveryInit?.imported ? '，已自动导入默认演示数据' : ''}。请前往 /admin 登录。`
       );
       await refreshData();
     } catch (error: any) {
@@ -602,7 +604,7 @@ const InstallPage: React.FC = () => {
         <div className="install-card">
           <h2>步骤 3：初始化安装</h2>
           <p className="install-card__desc">
-            这一步只负责写入站点信息并创建管理员。授权必须先校验通过，否则不允许继续。
+            这一步负责写入站点信息、创建管理员；可选自动导入默认演示数据。授权必须先校验通过，否则不允许继续。
           </p>
           <div className="install-form-grid">
             <label>
@@ -686,6 +688,19 @@ const InstallPage: React.FC = () => {
                 placeholder="example@domain.com"
               />
             </label>
+          </div>
+          <div className="install-option-card">
+            <label className="install-option-card__checkbox">
+              <input
+                type="checkbox"
+                checked={formData.importDemoData}
+                onChange={(event) => setFormData(prev => ({ ...prev, importDemoData: event.target.checked }))}
+              />
+              <span>自动导入默认演示数据（推荐）</span>
+            </label>
+            <p className="install-option-card__desc">
+              开启后，安装完成会自动写入默认分类、标签、示例网址、示例文章和基础前台配置。这样客户第一次打开不是空站，后续再按需替换为自己的数据。
+            </p>
           </div>
           <div className="install-form-footer">
             <button

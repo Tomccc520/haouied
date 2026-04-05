@@ -423,6 +423,7 @@ class InstallService extends Service {
     const licenseKey = String(source.licenseKey || '').trim();
     const bindDomain = String(source.bindDomain || '').trim();
     const roleId = Number.parseInt(String(source.roleId || 1), 10) || 1;
+    const importDemoData = source.importDemoData !== false && String(source.importDemoData || '').trim() !== 'false';
 
     if (!/^[a-zA-Z0-9_]{4,20}$/.test(adminUsername)) {
       throw new Error('管理员账号需为4-20位字母/数字/下划线');
@@ -448,6 +449,7 @@ class InstallService extends Service {
       licenseKey,
       bindDomain,
       roleId,
+      importDemoData,
     };
   }
 
@@ -903,6 +905,37 @@ class InstallService extends Service {
       roleId,
     });
 
+    let deliveryInitResult = null;
+    /**
+     * 售卖版首装默认导入演示数据：
+     * 1. 直接复用交付初始化模板，避免维护第二套 seed
+     * 2. 不再重复激活授权
+     * 3. 不导入测试用户，避免交付包混入无关账号
+     */
+    if (normalized.importDemoData) {
+      deliveryInitResult = await ctx.service.uied.deliveryInit.execute({
+        profile: 'commercial_default',
+        edition: String(licenseInfo?.effectiveEdition || licenseInfo?.edition || 'pro'),
+        brandName: normalized.siteName,
+        brandDomain: normalized.bindDomain,
+        customerName: '',
+        companyName: '',
+        contactEmail: normalized.adminEmail || '',
+        includeSiteSettings: true,
+        includeWebsiteCategories: true,
+        includeWebsiteTags: true,
+        includeSampleWebsites: true,
+        includeArticleCategories: true,
+        includeArticleTags: true,
+        includeSampleArticles: true,
+        applyLicense: false,
+        seedUsers: false,
+      });
+    }
+
+    /**
+     * 无论是否导入默认数据，最终都以安装向导填写的站点信息为准。
+     */
     await ctx.service.uied.setting.saveSiteInfo({
       siteName: normalized.siteName,
       siteTitle: normalized.siteTitle,
@@ -930,6 +963,7 @@ class InstallService extends Service {
         licenseEdition: String(licenseInfo?.effectiveEdition || licenseInfo?.edition || ''),
         licenseStatus: String(licenseInfo?.status || ''),
         licenseKeyMasked: this.maskLicenseKey(normalized.licenseKey),
+        importDemoData: normalized.importDemoData === true,
       },
     });
 
@@ -961,6 +995,12 @@ class InstallService extends Service {
       menu: {
         commercialLicenseMenuId: 864,
         deliveryCenterMenuId: 1203,
+      },
+      deliveryInit: {
+        imported: Boolean(deliveryInitResult),
+        profile: String(deliveryInitResult?.profile || ''),
+        profileName: String(deliveryInitResult?.profileName || ''),
+        summary: deliveryInitResult?.summary || null,
       },
     };
   }

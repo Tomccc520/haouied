@@ -24,6 +24,7 @@ import { useWordPressTags } from '../hooks/useWordPressTags';
 import { debugLog } from '../utils/debugHelper';
 import { getArticles } from '../services/articleService';
 import type { ArticleListItem } from '../types/article';
+import AdminShortcutHint from './AdminShortcutHint';
 
 // 导入RankItem类型
 interface RankItem {
@@ -268,6 +269,8 @@ interface DesignArticleGridProps {
   moreButtonLink?: string; // 查看更多按钮链接
   pageSlug?: string; // 页面标识，用于获取组件配置
   position?: string; // 组件位置，用于获取组件配置
+  emptyAdminPath?: string; // 空态时的后台配置路径
+  emptyAdminActionText?: string; // 空态时的后台按钮文案
 }
 
 const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({ 
@@ -279,7 +282,9 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   showMoreButton = false, // 默认不显示查看更多按钮
   moreButtonLink = '/articles', // 默认查看更多按钮链接
   pageSlug, // 页面标识
-  position = 'main' // 组件位置
+  position = 'main', // 组件位置
+  emptyAdminPath = '',
+  emptyAdminActionText = '去后台配置文章模块',
 }) => {
   // 获取 WordPress 组件配置
   const { getWidgetByPosition } = useWordPressWidgets({
@@ -956,6 +961,10 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
                 重试
               </button>
             )}
+            <AdminShortcutHint
+              adminPath={emptyAdminPath}
+              actionText={emptyAdminActionText}
+            />
           </div>
         </div>
       ) : (

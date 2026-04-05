@@ -66,6 +66,42 @@
   min-height: 400px;
 }
 
+.home-top-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 280px;
+  margin-top: var(--spacing-6);
+  margin-bottom: var(--spacing-8);
+  padding: 28px 24px;
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.98) 100%);
+  text-align: center;
+}
+
+.home-top-empty__title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.home-top-empty__desc {
+  max-width: 620px;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.home-top-empty__actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 /* 轮播图区域 */
 .home-carousel-section {
   width: 100%;
