@@ -145,6 +145,47 @@ class FrontendService extends Service {
   }
 
   /**
+   * 确保页面表存在动态页区块文案字段，避免前台读取历史库时报列不存在。
+   */
+  async ensurePageContentCopyColumns() {
+    if (this._pageContentCopyColumnsReady) return;
+    const { app, ctx } = this;
+    const columnPatchList = [
+      {
+        name: 'latest_updates_title',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_title` varchar(120) NOT NULL DEFAULT '最新网站更新' COMMENT '最新网站更新区标题' AFTER `show_hot_recommendations`",
+      },
+      {
+        name: 'latest_updates_more_text',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_more_text` varchar(60) NOT NULL DEFAULT '查看更多' COMMENT '最新网站更新查看更多文案' AFTER `latest_updates_title`",
+      },
+      {
+        name: 'latest_updates_loading_text',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_loading_text` varchar(120) NOT NULL DEFAULT '正在加载最新网站...' COMMENT '最新网站更新加载文案' AFTER `latest_updates_more_text`",
+      },
+      {
+        name: 'latest_updates_empty_text',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_empty_text` varchar(120) NOT NULL DEFAULT '近 7 天暂无更新数据' COMMENT '最新网站更新空状态文案' AFTER `latest_updates_loading_text`",
+      },
+      {
+        name: 'hot_recommendations_title',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_recommendations_title` varchar(80) NOT NULL DEFAULT '热门推荐' COMMENT '热门推荐区标题' AFTER `latest_updates_empty_text`",
+      },
+    ];
+    for (const patch of columnPatchList) {
+      try {
+        await app.model.query(patch.sql, { type: app.Sequelize.QueryTypes.RAW });
+      } catch (error) {
+        const message = String(error?.message || '');
+        if (!/Duplicate column name/i.test(message)) {
+          ctx.logger.warn('[uied.frontend] 自动补齐 uied_page.%s 失败，请手动执行 SQL 补丁: %s', patch.name, message);
+        }
+      }
+    }
+    this._pageContentCopyColumnsReady = true;
+  }
+
+  /**
    * 确保网站点击日表存在（用于热门搜索标签的 7 天窗口统计）。
    */
   async ensureWebsiteClickDailyTable() {
@@ -278,6 +319,7 @@ class FrontendService extends Service {
       }
     }
     await this.ensurePageHotSearchColumns();
+    await this.ensurePageContentCopyColumns();
     this._pageShowBannerColumnReady = true;
   }
 
@@ -304,6 +346,11 @@ class FrontendService extends Service {
               search_enabled as searchEnabled,
               show_banner as showBanner,
               show_hot_recommendations as showHotRecommendations,
+              latest_updates_title as latestUpdatesSectionTitle,
+              latest_updates_more_text as latestUpdatesMoreText,
+              latest_updates_loading_text as latestUpdatesLoadingText,
+              latest_updates_empty_text as latestUpdatesEmptyText,
+              hot_recommendations_title as hotRecommendationsTitle,
               show_categories as showCategories,
               show_sidebar as showSidebar,
               theme_color as themeColor,
@@ -316,11 +363,16 @@ class FrontendService extends Service {
 
     return pages.map(p => ({
       ...p,
-      searchEnabled: p.searchEnabled === 1,
-      showBanner: p.showBanner === 1,
-      showHotRecommendations: p.showHotRecommendations === 1,
-      showCategories: p.showCategories === 1,
-      showSidebar: p.showSidebar === 1,
+        searchEnabled: p.searchEnabled === 1,
+        showBanner: p.showBanner === 1,
+        showHotRecommendations: p.showHotRecommendations === 1,
+        latestUpdatesSectionTitle: p.latestUpdatesSectionTitle,
+        latestUpdatesMoreText: p.latestUpdatesMoreText,
+        latestUpdatesLoadingText: p.latestUpdatesLoadingText,
+        latestUpdatesEmptyText: p.latestUpdatesEmptyText,
+        hotRecommendationsTitle: p.hotRecommendationsTitle,
+        showCategories: p.showCategories === 1,
+        showSidebar: p.showSidebar === 1,
       hotSearchTags: p.hotSearchTags ? this.safeJsonParse(p.hotSearchTags, []) : [],
       hotSearchMode: this.normalizeHotSearchMode(p.hotSearchMode),
       hotSearchFixedCount: this.normalizeHotSearchNumber(p.hotSearchFixedCount, 4, 0, 20),
@@ -515,6 +567,11 @@ class FrontendService extends Service {
         searchEnabled: page.search_enabled === 1,
         showBanner: page.show_banner === 1,
         showHotRecommendations: page.show_hot_recommendations === 1,
+        latestUpdatesSectionTitle: page.latest_updates_title,
+        latestUpdatesMoreText: page.latest_updates_more_text,
+        latestUpdatesLoadingText: page.latest_updates_loading_text,
+        latestUpdatesEmptyText: page.latest_updates_empty_text,
+        hotRecommendationsTitle: page.hot_recommendations_title,
         showCategories: page.show_categories === 1,
         showSidebar: page.show_sidebar === 1,
         themeColor: page.theme_color,

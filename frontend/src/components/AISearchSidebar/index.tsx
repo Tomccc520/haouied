@@ -6,6 +6,11 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import searchService from '../../services/searchService';
+import type { SearchConfig } from '../../services/publicSettingService';
+import {
+  formatAiKeywordResultSummary,
+  formatAiResultSummary,
+} from '../../utils/searchCopy';
 import './index.css';
 
 // SVG 图标组件
@@ -76,11 +81,18 @@ interface AiSearchApiResult {
 interface AISearchSidebarProps {
   visible: boolean;
   enabled?: boolean;
+  searchCopy?: Partial<SearchConfig>;
   onClose: () => void;
   onWebsiteClick?: (website: SearchResult) => void;
 }
 
-const AISearchSidebar: React.FC<AISearchSidebarProps> = ({ visible, enabled = true, onClose, onWebsiteClick }) => {
+const AISearchSidebar: React.FC<AISearchSidebarProps> = ({
+  visible,
+  enabled = true,
+  searchCopy,
+  onClose,
+  onWebsiteClick,
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -122,7 +134,7 @@ const AISearchSidebar: React.FC<AISearchSidebarProps> = ({ visible, enabled = tr
     if (!enabled) {
       const disabledMessage: Message = {
         id: `disabled-${Date.now()}`,
-        content: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
+        content: String(searchCopy?.aiSearchDisabledText || 'AI 搜索功能已关闭，请在后台配置中开启后再使用。'),
         role: 'assistant',
         timestamp: new Date(),
       };
@@ -159,10 +171,14 @@ const AISearchSidebar: React.FC<AISearchSidebarProps> = ({ visible, enabled = tr
       let aiContent = '';
       if (results.length > 0) {
         aiContent = mode === 'ai' 
-          ? `AI 智能推荐找到 ${results.length} 个相关资源${reason ? `\n${reason}` : ''}`
-          : `关键词匹配找到 ${results.length} 个相关资源`;
+          ? formatAiResultSummary(
+              searchCopy || {},
+              results.length,
+              reason ? `\n${reason}` : '',
+            )
+          : formatAiKeywordResultSummary(searchCopy || {}, results.length);
       } else {
-        aiContent = '抱歉，没有找到相关资源。试试其他关键词？';
+        aiContent = String(searchCopy?.aiNoResultText || 'AI 未找到相关结果，请尝试其他描述');
       }
 
       const aiMessage: Message = {
@@ -185,7 +201,7 @@ const AISearchSidebar: React.FC<AISearchSidebarProps> = ({ visible, enabled = tr
       console.error('AI搜索失败:', error);
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
-        content: 'AI 搜索暂时不可用，请稍后重试',
+        content: String(searchCopy?.aiFallbackErrorText || 'AI 搜索暂时不可用，请稍后重试'),
         role: 'assistant',
         timestamp: new Date(),
       };
@@ -193,7 +209,7 @@ const AISearchSidebar: React.FC<AISearchSidebarProps> = ({ visible, enabled = tr
     } finally {
       setLoading(false);
     }
-  }, [enabled, inputValue, loading]);
+  }, [enabled, inputValue, loading, searchCopy]);
 
   // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {

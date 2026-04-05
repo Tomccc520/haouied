@@ -1808,6 +1808,75 @@
                                 :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
                             />
                         </el-form-item>
+                        <el-divider content-position="left">AI 搜索文案</el-divider>
+                        <p class="section-desc">
+                            统一控制搜索页和 AI 搜索侧边栏的提示语，避免两个入口各自写死。
+                        </p>
+                        <el-form-item label="站内搜索关闭提示">
+                            <el-input
+                                v-model="searchData.searchDisabledText"
+                                placeholder="站内搜索功能已关闭"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="AI搜索关闭提示">
+                            <el-input
+                                v-model="searchData.aiSearchDisabledText"
+                                placeholder="AI 搜索功能已关闭，请在后台配置中开启后再使用。"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="AI命中模板">
+                            <el-input
+                                v-model="searchData.aiResultSummaryTemplate"
+                                placeholder="AI 智能推荐找到 {count} 个结果{extra}"
+                                :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
+                            />
+                            <div class="text-gray-400 text-xs mt-1">
+                                支持占位符：<code>{count}</code>、<code>{extra}</code>
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="关键词命中模板">
+                            <el-input
+                                v-model="searchData.aiKeywordResultSummaryTemplate"
+                                placeholder="关键词匹配找到 {count} 个结果"
+                                :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
+                            />
+                            <div class="text-gray-400 text-xs mt-1">
+                                支持占位符：<code>{count}</code>
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="语义扩展模板">
+                            <el-input
+                                v-model="searchData.aiSemanticResultSummaryTemplate"
+                                placeholder="AI 语义扩展已返回 {count} 个结果{extra}"
+                                :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
+                            />
+                            <div class="text-gray-400 text-xs mt-1">
+                                支持占位符：<code>{count}</code>、<code>{extra}</code>
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="无结果提示">
+                            <el-input
+                                v-model="searchData.aiNoResultText"
+                                placeholder="AI 未找到相关结果，请尝试其他描述"
+                                :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="失败降级提示">
+                            <el-input
+                                v-model="searchData.aiFallbackErrorText"
+                                placeholder="AI 搜索暂时不可用，请稍后重试"
+                                :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="缓存后缀">
+                            <el-input
+                                v-model="searchData.aiCacheSuffixText"
+                                placeholder="（缓存）"
+                                :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
+                            />
+                        </el-form-item>
                         <el-divider content-position="left">搜索结果</el-divider>
                         <p class="section-desc">控制搜索结果页面的展示方式。</p>
                         <el-form-item>
@@ -3197,8 +3266,55 @@ const searchData = reactive({
     articleSearchEnabled: true,
     aiSearchEnabled: true,
     aiSearchBtnText: 'AI 搜索',
+    searchDisabledText: '站内搜索功能已关闭',
+    aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
+    aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
+    aiKeywordResultSummaryTemplate: '关键词匹配找到 {count} 个结果',
+    aiSemanticResultSummaryTemplate: 'AI 语义扩展已返回 {count} 个结果{extra}',
+    aiNoResultText: 'AI 未找到相关结果，请尝试其他描述',
+    aiFallbackErrorText: 'AI 搜索暂时不可用，请稍后重试',
+    aiCacheSuffixText: '（缓存）',
     highlightKeyword: true,
     resultsPerPage: 20
+})
+
+/**
+ * 规范化搜索配置，统一 AI 搜索文案模板与分页范围。
+ */
+const normalizeSearchConfigData = (config: any) => ({
+    enabled: config?.enabled !== false,
+    placeholder: String(config?.placeholder || '搜索网站名称...').trim() || '搜索网站名称...',
+    debounceDelay: Number.isFinite(Number(config?.debounceDelay))
+        ? Math.max(100, Math.min(2000, Number(config.debounceDelay)))
+        : 300,
+    websiteSearchEnabled: config?.websiteSearchEnabled !== false,
+    articleSearchEnabled: config?.articleSearchEnabled !== false,
+    aiSearchEnabled: config?.aiSearchEnabled !== false,
+    aiSearchBtnText: String(config?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索',
+    searchDisabledText: String(config?.searchDisabledText || '站内搜索功能已关闭').trim()
+        || '站内搜索功能已关闭',
+    aiSearchDisabledText: String(
+        config?.aiSearchDisabledText || 'AI 搜索功能已关闭，请在后台配置中开启后再使用。'
+    ).trim() || 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
+    aiResultSummaryTemplate: String(
+        config?.aiResultSummaryTemplate || 'AI 智能推荐找到 {count} 个结果{extra}'
+    ).trim() || 'AI 智能推荐找到 {count} 个结果{extra}',
+    aiKeywordResultSummaryTemplate: String(
+        config?.aiKeywordResultSummaryTemplate || '关键词匹配找到 {count} 个结果'
+    ).trim() || '关键词匹配找到 {count} 个结果',
+    aiSemanticResultSummaryTemplate: String(
+        config?.aiSemanticResultSummaryTemplate || 'AI 语义扩展已返回 {count} 个结果{extra}'
+    ).trim() || 'AI 语义扩展已返回 {count} 个结果{extra}',
+    aiNoResultText: String(config?.aiNoResultText || 'AI 未找到相关结果，请尝试其他描述').trim()
+        || 'AI 未找到相关结果，请尝试其他描述',
+    aiFallbackErrorText: String(
+        config?.aiFallbackErrorText || 'AI 搜索暂时不可用，请稍后重试'
+    ).trim() || 'AI 搜索暂时不可用，请稍后重试',
+    aiCacheSuffixText: String(config?.aiCacheSuffixText || '（缓存）').trim() || '（缓存）',
+    highlightKeyword: config?.highlightKeyword !== false,
+    resultsPerPage: Number.isFinite(Number(config?.resultsPerPage))
+        ? Math.max(10, Math.min(100, Number(config.resultsPerPage)))
+        : 20
 })
 
 // ==================== 用户认证 ====================
@@ -3806,7 +3922,7 @@ const loadSidebar = async () => {
 const loadSearch = async () => {
     try {
         const res = await uiedSettingGet({ key: 'searchConfig' })
-        if (res) Object.assign(searchData, res)
+        if (res) Object.assign(searchData, normalizeSearchConfigData(res))
     } catch (e) {
         console.error('加载搜索配置失败', e)
     }
@@ -3958,7 +4074,7 @@ const handleSaveSidebar = async () => {
 const handleSaveSearch = async () => {
     searchLoading.value = true
     try {
-        await uiedSettingSave({ searchConfig: searchData })
+        await uiedSettingSave({ searchConfig: normalizeSearchConfigData(cloneConfig(searchData)) })
         markSaved()
         feedback.msgSuccess('保存成功')
     } catch (error) {
@@ -4051,7 +4167,7 @@ const handleSaveAll = async () => {
                 pageGlobalConfig: normalizePageConfigData(pageConfigData),
                 cardStyleConfig: cardStyleData,
                 sidebarConfig: sidebarData,
-                searchConfig: searchData,
+                searchConfig: normalizeSearchConfigData(cloneConfig(searchData)),
                 submissionServiceConfig: buildSubmissionServicePayload(),
                 paymentConfig: buildPaymentConfigPayload(),
                 exitModalConfig: exitModalData

@@ -128,6 +128,11 @@ export interface PageConfig {
   searchPlaceholder?: string;
   searchEnabled: boolean;
   showHotRecommendations: boolean;
+  latestUpdatesSectionTitle?: string;
+  latestUpdatesMoreText?: string;
+  latestUpdatesLoadingText?: string;
+  latestUpdatesEmptyText?: string;
+  hotRecommendationsTitle?: string;
   showCategories: boolean;
   showSidebar?: boolean;
   themeColor?: string;

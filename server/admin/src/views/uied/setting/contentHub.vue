@@ -133,6 +133,46 @@
                             <el-form-item label="建议区说明">
                                 <el-input v-model="websiteCompareForm.copywriting.guideDescription" type="textarea" :rows="2" />
                             </el-form-item>
+                            <el-form-item label="优点模板">
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.strengthTemplates"
+                                    type="textarea"
+                                    :rows="4"
+                                    placeholder="每行一条，支持 {website} / {category} / {top_tags}"
+                                />
+                            </el-form-item>
+                            <el-form-item label="注意点模板">
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.cautionTemplates"
+                                    type="textarea"
+                                    :rows="4"
+                                    placeholder="每行一条，支持 {website} / {category} / {top_tags}"
+                                />
+                            </el-form-item>
+                            <el-form-item label="适用人群模板">
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.audienceTemplates"
+                                    type="textarea"
+                                    :rows="3"
+                                    placeholder="每行一条，支持 {website} / {category} / {top_tags}"
+                                />
+                            </el-form-item>
+                            <el-form-item label="势均力敌建议">
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.recommendationTieTemplate"
+                                    type="textarea"
+                                    :rows="2"
+                                    placeholder="支持 {left} / {right}"
+                                />
+                            </el-form-item>
+                            <el-form-item label="领先建议模板">
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.recommendationLeadTemplate"
+                                    type="textarea"
+                                    :rows="2"
+                                    placeholder="支持 {winner} / {loser}"
+                                />
+                            </el-form-item>
                             <el-form-item label="FAQ标题">
                                 <el-input v-model="websiteCompareForm.copywriting.faqTitle" />
                             </el-form-item>
@@ -469,6 +509,11 @@ interface WebsiteCompareFormState {
         coreDiffTitle: string
         guideTitle: string
         guideDescription: string
+        strengthTemplates: string
+        cautionTemplates: string
+        audienceTemplates: string
+        recommendationTieTemplate: string
+        recommendationLeadTemplate: string
         faqTitle: string
         internalLinksTitle: string
         internalLinksDescription: string
@@ -564,6 +609,25 @@ const getDefaultWebsiteCompareConfig = (): WebsiteCompareFormState => ({
         coreDiffTitle: '核心差异对比',
         guideTitle: '优缺点速览与适用人群',
         guideDescription: '基于站点公开信息自动生成结构化建议，辅助快速决策。',
+        strengthTemplates: [
+            '{website} 的定位更偏向「{category}」场景，适合目标明确时快速筛选。',
+            '从标签覆盖看，{website} 更接近 {top_tags} 等方向，功能边界相对清晰。',
+            '如果你更关注 {top_tags} 这类需求，{website} 更值得优先试用。',
+            '当前公开信息结构较完整，适合先纳入候选清单做进一步体验。',
+        ].join('\n'),
+        cautionTemplates: [
+            '建议结合官网实际体验确认 {website} 的核心功能与上手门槛。',
+            '如果你更看重深度文档或社区反馈，建议再补充外部资料验证。',
+            '在最终选择前，最好把 {website} 与同类工具的价格、更新频率一起比较。',
+            '若你的需求偏离「{category}」方向，建议再看一轮备选方案。',
+        ].join('\n'),
+        audienceTemplates: [
+            '适合正在寻找「{category}」相关资源的用户。',
+            '适合关注 {top_tags} 等方向的从业者或团队。',
+            '如果你希望先快速筛一轮候选站点，{website} 适合作为首批试用对象。',
+        ].join('\n'),
+        recommendationTieTemplate: '两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。',
+        recommendationLeadTemplate: '从当前收录信息完整度看，{winner} 的公开信息更丰富，适合先作为优先试用方案。',
         faqTitle: '常见问题',
         internalLinksTitle: '更多候选对比（内链）',
         internalLinksDescription: '基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。',
@@ -603,6 +667,30 @@ const getDefaultWebsiteCompareConfig = (): WebsiteCompareFormState => ({
 })
 
 const websiteCompareForm = reactive<WebsiteCompareFormState>(getDefaultWebsiteCompareConfig())
+
+/**
+ * 统一把模板数组转成多行文本，供后台 textarea 编辑。
+ */
+const normalizeTemplateTextarea = (value: unknown, fallback: string): string => {
+    const rows = Array.isArray(value)
+        ? value
+        : String(value || '')
+            .split(/\r?\n/)
+            .map(item => String(item || '').trim())
+            .filter(Boolean)
+    return rows.length > 0 ? rows.join('\n') : fallback
+}
+
+/**
+ * 把后台 textarea 文本转成模板数组，保存时统一写回结构化配置。
+ */
+const parseTemplateTextarea = (value: unknown, fallback: string[]): string[] => {
+    const rows = String(value || '')
+        .split(/\r?\n/)
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
+    return rows.length > 0 ? rows : fallback
+}
 
 /**
  * 获取 MCP 页面默认配置，和后端默认值保持一致。
@@ -722,6 +810,24 @@ const applyWebsiteCompareForm = (config: Record<string, any>) => {
     websiteCompareForm.copywriting.coreDiffTitle = String(copywriting?.coreDiffTitle || defaults.copywriting.coreDiffTitle)
     websiteCompareForm.copywriting.guideTitle = String(copywriting?.guideTitle || defaults.copywriting.guideTitle)
     websiteCompareForm.copywriting.guideDescription = String(copywriting?.guideDescription || defaults.copywriting.guideDescription)
+    websiteCompareForm.copywriting.strengthTemplates = normalizeTemplateTextarea(
+        copywriting?.strengthTemplates,
+        defaults.copywriting.strengthTemplates
+    )
+    websiteCompareForm.copywriting.cautionTemplates = normalizeTemplateTextarea(
+        copywriting?.cautionTemplates,
+        defaults.copywriting.cautionTemplates
+    )
+    websiteCompareForm.copywriting.audienceTemplates = normalizeTemplateTextarea(
+        copywriting?.audienceTemplates,
+        defaults.copywriting.audienceTemplates
+    )
+    websiteCompareForm.copywriting.recommendationTieTemplate = String(
+        copywriting?.recommendationTieTemplate || defaults.copywriting.recommendationTieTemplate
+    )
+    websiteCompareForm.copywriting.recommendationLeadTemplate = String(
+        copywriting?.recommendationLeadTemplate || defaults.copywriting.recommendationLeadTemplate
+    )
     websiteCompareForm.copywriting.faqTitle = String(copywriting?.faqTitle || defaults.copywriting.faqTitle)
     websiteCompareForm.copywriting.internalLinksTitle = String(copywriting?.internalLinksTitle || defaults.copywriting.internalLinksTitle)
     websiteCompareForm.copywriting.internalLinksDescription = String(copywriting?.internalLinksDescription || defaults.copywriting.internalLinksDescription)
@@ -931,7 +1037,8 @@ const saveDailyNewConfig = async () => {
 /**
  * 构建网站对比配置的保存载荷。
  */
-const buildWebsiteComparePayload = (): WebsiteCompareFormState => {
+const buildWebsiteComparePayload = (): Record<string, any> => {
+    const defaultCopywriting = getDefaultWebsiteCompareConfig().copywriting
     const metrics = (Array.isArray(websiteCompareForm.metrics) ? websiteCompareForm.metrics : [])
         .map((item, index) => ({
             key: item.key,
@@ -963,6 +1070,20 @@ const buildWebsiteComparePayload = (): WebsiteCompareFormState => {
             coreDiffTitle: String(websiteCompareForm.copywriting.coreDiffTitle || '').trim(),
             guideTitle: String(websiteCompareForm.copywriting.guideTitle || '').trim(),
             guideDescription: String(websiteCompareForm.copywriting.guideDescription || '').trim(),
+            strengthTemplates: parseTemplateTextarea(
+                websiteCompareForm.copywriting.strengthTemplates,
+                defaultCopywriting.strengthTemplates.split('\n')
+            ),
+            cautionTemplates: parseTemplateTextarea(
+                websiteCompareForm.copywriting.cautionTemplates,
+                defaultCopywriting.cautionTemplates.split('\n')
+            ),
+            audienceTemplates: parseTemplateTextarea(
+                websiteCompareForm.copywriting.audienceTemplates,
+                defaultCopywriting.audienceTemplates.split('\n')
+            ),
+            recommendationTieTemplate: String(websiteCompareForm.copywriting.recommendationTieTemplate || '').trim(),
+            recommendationLeadTemplate: String(websiteCompareForm.copywriting.recommendationLeadTemplate || '').trim(),
             faqTitle: String(websiteCompareForm.copywriting.faqTitle || '').trim(),
             internalLinksTitle: String(websiteCompareForm.copywriting.internalLinksTitle || '').trim(),
             internalLinksDescription: String(websiteCompareForm.copywriting.internalLinksDescription || '').trim(),

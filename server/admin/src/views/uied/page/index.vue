@@ -393,6 +393,37 @@
                         <el-form-item label="显示热门推荐">
                             <el-switch v-model="editData.showHotRecommendations" />
                         </el-form-item>
+                        <el-form-item label="热门推荐标题">
+                            <el-input
+                                v-model="editData.hotRecommendationsTitle"
+                                placeholder="例如：热门推荐"
+                            />
+                        </el-form-item>
+                        <el-divider content-position="left">最新网站更新</el-divider>
+                        <el-form-item label="区块标题">
+                            <el-input
+                                v-model="editData.latestUpdatesSectionTitle"
+                                placeholder="例如：最新网站更新"
+                            />
+                        </el-form-item>
+                        <el-form-item label="查看更多文案">
+                            <el-input
+                                v-model="editData.latestUpdatesMoreText"
+                                placeholder="例如：查看更多"
+                            />
+                        </el-form-item>
+                        <el-form-item label="加载中文案">
+                            <el-input
+                                v-model="editData.latestUpdatesLoadingText"
+                                placeholder="例如：正在加载最新网站..."
+                            />
+                        </el-form-item>
+                        <el-form-item label="空状态文案">
+                            <el-input
+                                v-model="editData.latestUpdatesEmptyText"
+                                placeholder="例如：近 7 天暂无更新数据"
+                            />
+                        </el-form-item>
                         <el-form-item label="显示分类">
                             <el-switch v-model="editData.showCategories" />
                         </el-form-item>
@@ -1228,6 +1259,11 @@ const editData = reactive({
     searchEnabled: true,
     showBanner: true,
     showHotRecommendations: true,
+    latestUpdatesSectionTitle: '最新网站更新',
+    latestUpdatesMoreText: '查看更多',
+    latestUpdatesLoadingText: '正在加载最新网站...',
+    latestUpdatesEmptyText: '近 7 天暂无更新数据',
+    hotRecommendationsTitle: '热门推荐',
     showCategories: true,
     showSidebar: true,
     themeColor: '',
@@ -2175,6 +2211,11 @@ const resetEditData = () => {
         searchEnabled: true,
         showBanner: true,
         showHotRecommendations: true,
+        latestUpdatesSectionTitle: '最新网站更新',
+        latestUpdatesMoreText: '查看更多',
+        latestUpdatesLoadingText: '正在加载最新网站...',
+        latestUpdatesEmptyText: '近 7 天暂无更新数据',
+        hotRecommendationsTitle: '热门推荐',
         showCategories: true,
         showSidebar: true,
         themeColor: '',
@@ -2288,6 +2329,11 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         searchEnabled: row.searchEnabled !== false,
         showBanner: row.showBanner !== false,
         showHotRecommendations: row.showHotRecommendations !== false,
+        latestUpdatesSectionTitle: String(row.latestUpdatesSectionTitle || '最新网站更新'),
+        latestUpdatesMoreText: String(row.latestUpdatesMoreText || '查看更多'),
+        latestUpdatesLoadingText: String(row.latestUpdatesLoadingText || '正在加载最新网站...'),
+        latestUpdatesEmptyText: String(row.latestUpdatesEmptyText || '近 7 天暂无更新数据'),
+        hotRecommendationsTitle: String(row.hotRecommendationsTitle || '热门推荐'),
         showCategories: row.showCategories !== false,
         showSidebar: row.showSidebar !== false
     })
@@ -2310,6 +2356,11 @@ const handleEdit = async (row: any, initialTab: 'basic' | 'hero' | 'config' = 'b
         editData.heroDisplayMode = 'search'
         editData.heroScrollWebsites = []
         editData.showHotRecommendations = false
+        editData.latestUpdatesSectionTitle = '最新网站更新'
+        editData.latestUpdatesMoreText = '查看更多'
+        editData.latestUpdatesLoadingText = '正在加载最新网站...'
+        editData.latestUpdatesEmptyText = '近 7 天暂无更新数据'
+        editData.hotRecommendationsTitle = '热门推荐'
         editData.showCategories = false
         editData.designArticleWidgetId = 0
         editData.designArticleEnabled = false
@@ -2421,6 +2472,11 @@ const handleSubmit = async () => {
             submitData.heroDisplayMode = 'search'
             submitData.heroScrollWebsites = []
             submitData.showHotRecommendations = false
+            submitData.latestUpdatesSectionTitle = '最新网站更新'
+            submitData.latestUpdatesMoreText = '查看更多'
+            submitData.latestUpdatesLoadingText = '正在加载最新网站...'
+            submitData.latestUpdatesEmptyText = '近 7 天暂无更新数据'
+            submitData.hotRecommendationsTitle = '热门推荐'
             submitData.showCategories = false
         }
 

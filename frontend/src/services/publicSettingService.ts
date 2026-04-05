@@ -148,6 +148,14 @@ export interface SearchConfig {
   articleSearchEnabled: boolean;
   aiSearchEnabled: boolean;
   aiSearchBtnText: string;
+  searchDisabledText: string;
+  aiSearchDisabledText: string;
+  aiResultSummaryTemplate: string;
+  aiKeywordResultSummaryTemplate: string;
+  aiSemanticResultSummaryTemplate: string;
+  aiNoResultText: string;
+  aiFallbackErrorText: string;
+  aiCacheSuffixText: string;
   highlightKeyword: boolean;
   resultsPerPage: number;
 }
@@ -329,6 +337,11 @@ export interface WebsiteCompareConfig {
     coreDiffTitle: string;
     guideTitle: string;
     guideDescription: string;
+    strengthTemplates: string[];
+    cautionTemplates: string[];
+    audienceTemplates: string[];
+    recommendationTieTemplate: string;
+    recommendationLeadTemplate: string;
     faqTitle: string;
     internalLinksTitle: string;
     internalLinksDescription: string;
@@ -545,6 +558,14 @@ export const DEFAULT_SEARCH: SearchConfig = {
   articleSearchEnabled: true,
   aiSearchEnabled: true,
   aiSearchBtnText: 'AI 搜索',
+  searchDisabledText: '站内搜索功能已关闭',
+  aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
+  aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
+  aiKeywordResultSummaryTemplate: '关键词匹配找到 {count} 个结果',
+  aiSemanticResultSummaryTemplate: 'AI 语义扩展已返回 {count} 个结果{extra}',
+  aiNoResultText: 'AI 未找到相关结果，请尝试其他描述',
+  aiFallbackErrorText: 'AI 搜索暂时不可用，请稍后重试',
+  aiCacheSuffixText: '（缓存）',
   highlightKeyword: true,
   resultsPerPage: 20,
 };
@@ -694,6 +715,25 @@ export const DEFAULT_WEBSITE_COMPARE: WebsiteCompareConfig = {
     coreDiffTitle: '核心差异对比',
     guideTitle: '优缺点速览与适用人群',
     guideDescription: '基于站点公开信息自动生成结构化建议，辅助快速决策。',
+    strengthTemplates: [
+      '{website} 的定位更偏向「{category}」场景，适合目标明确时快速筛选。',
+      '从标签覆盖看，{website} 更接近 {top_tags} 等方向，功能边界相对清晰。',
+      '如果你更关注 {top_tags} 这类需求，{website} 更值得优先试用。',
+      '当前公开信息结构较完整，适合先纳入候选清单做进一步体验。',
+    ],
+    cautionTemplates: [
+      '建议结合官网实际体验确认 {website} 的核心功能与上手门槛。',
+      '如果你更看重深度文档或社区反馈，建议再补充外部资料验证。',
+      '在最终选择前，最好把 {website} 与同类工具的价格、更新频率一起比较。',
+      '若你的需求偏离「{category}」方向，建议再看一轮备选方案。',
+    ],
+    audienceTemplates: [
+      '适合正在寻找「{category}」相关资源的用户。',
+      '适合关注 {top_tags} 等方向的从业者或团队。',
+      '如果你希望先快速筛一轮候选站点，{website} 适合作为首批试用对象。',
+    ],
+    recommendationTieTemplate: '两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。',
+    recommendationLeadTemplate: '从当前收录信息完整度看，{winner} 的公开信息更丰富，适合先作为优先试用方案。',
     faqTitle: '常见问题',
     internalLinksTitle: '更多候选对比（内链）',
     internalLinksDescription: '基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。',
@@ -1311,6 +1351,46 @@ export const publicSettingService = {
   },
 
   /**
+   * 规范化搜索配置，统一 AI 搜索文案模板与禁用提示，避免前端多处各自写死。
+   */
+  normalizeSearchConfig: (config: unknown): SearchConfig => {
+    const source = (config && typeof config === 'object')
+      ? (config as Partial<SearchConfig>)
+      : {};
+    const merged = { ...DEFAULT_SEARCH, ...source };
+    return {
+      enabled: merged.enabled !== false,
+      placeholder: String(merged.placeholder || DEFAULT_SEARCH.placeholder).trim() || DEFAULT_SEARCH.placeholder,
+      debounceDelay: Number.isFinite(Number(merged.debounceDelay))
+        ? Math.max(100, Math.min(2000, Number(merged.debounceDelay)))
+        : DEFAULT_SEARCH.debounceDelay,
+      websiteSearchEnabled: merged.websiteSearchEnabled !== false,
+      articleSearchEnabled: merged.articleSearchEnabled !== false,
+      aiSearchEnabled: merged.aiSearchEnabled !== false,
+      aiSearchBtnText: String(merged.aiSearchBtnText || DEFAULT_SEARCH.aiSearchBtnText).trim() || DEFAULT_SEARCH.aiSearchBtnText,
+      searchDisabledText: String(merged.searchDisabledText || DEFAULT_SEARCH.searchDisabledText).trim() || DEFAULT_SEARCH.searchDisabledText,
+      aiSearchDisabledText: String(merged.aiSearchDisabledText || DEFAULT_SEARCH.aiSearchDisabledText).trim()
+        || DEFAULT_SEARCH.aiSearchDisabledText,
+      aiResultSummaryTemplate: String(merged.aiResultSummaryTemplate || DEFAULT_SEARCH.aiResultSummaryTemplate).trim()
+        || DEFAULT_SEARCH.aiResultSummaryTemplate,
+      aiKeywordResultSummaryTemplate: String(
+        merged.aiKeywordResultSummaryTemplate || DEFAULT_SEARCH.aiKeywordResultSummaryTemplate
+      ).trim() || DEFAULT_SEARCH.aiKeywordResultSummaryTemplate,
+      aiSemanticResultSummaryTemplate: String(
+        merged.aiSemanticResultSummaryTemplate || DEFAULT_SEARCH.aiSemanticResultSummaryTemplate
+      ).trim() || DEFAULT_SEARCH.aiSemanticResultSummaryTemplate,
+      aiNoResultText: String(merged.aiNoResultText || DEFAULT_SEARCH.aiNoResultText).trim() || DEFAULT_SEARCH.aiNoResultText,
+      aiFallbackErrorText: String(merged.aiFallbackErrorText || DEFAULT_SEARCH.aiFallbackErrorText).trim()
+        || DEFAULT_SEARCH.aiFallbackErrorText,
+      aiCacheSuffixText: String(merged.aiCacheSuffixText || DEFAULT_SEARCH.aiCacheSuffixText).trim() || DEFAULT_SEARCH.aiCacheSuffixText,
+      highlightKeyword: merged.highlightKeyword !== false,
+      resultsPerPage: Number.isFinite(Number(merged.resultsPerPage))
+        ? Math.max(10, Math.min(100, Number(merged.resultsPerPage)))
+        : DEFAULT_SEARCH.resultsPerPage,
+    };
+  },
+
+  /**
    * 规范化网站对比配置，确保区块开关、指标项与 FAQ 数据结构稳定。
    */
   normalizeWebsiteCompareConfig: (config: unknown): WebsiteCompareConfig => {
@@ -1324,6 +1404,21 @@ export const publicSettingService = {
     const mergedCopywriting = {
       ...DEFAULT_WEBSITE_COMPARE.copywriting,
       ...(source.copywriting || {}),
+    };
+    /**
+     * 规范化模板列表，兼容数组或多行字符串。
+     */
+    const normalizeTemplateList = (value: unknown, fallback: string[], max: number = 6): string[] => {
+      const sourceList = Array.isArray(value)
+        ? value
+        : String(value || '')
+          .split(/\r?\n/)
+          .map((item) => String(item || '').trim())
+          .filter(Boolean);
+      const normalized = sourceList
+        .map((item) => String(item || '').trim().slice(0, 200))
+        .filter(Boolean);
+      return normalized.length > 0 ? normalized.slice(0, max) : fallback.slice(0, max);
     };
     const allowMetricKeys = new Set<WebsiteCompareMetricKey>([
       'category',
@@ -1379,6 +1474,27 @@ export const publicSettingService = {
           || DEFAULT_WEBSITE_COMPARE.copywriting.guideTitle,
         guideDescription: String(mergedCopywriting.guideDescription || DEFAULT_WEBSITE_COMPARE.copywriting.guideDescription).trim()
           || DEFAULT_WEBSITE_COMPARE.copywriting.guideDescription,
+        strengthTemplates: normalizeTemplateList(
+          mergedCopywriting.strengthTemplates,
+          DEFAULT_WEBSITE_COMPARE.copywriting.strengthTemplates,
+          6
+        ),
+        cautionTemplates: normalizeTemplateList(
+          mergedCopywriting.cautionTemplates,
+          DEFAULT_WEBSITE_COMPARE.copywriting.cautionTemplates,
+          6
+        ),
+        audienceTemplates: normalizeTemplateList(
+          mergedCopywriting.audienceTemplates,
+          DEFAULT_WEBSITE_COMPARE.copywriting.audienceTemplates,
+          6
+        ),
+        recommendationTieTemplate: String(
+          mergedCopywriting.recommendationTieTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationTieTemplate
+        ).trim() || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationTieTemplate,
+        recommendationLeadTemplate: String(
+          mergedCopywriting.recommendationLeadTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationLeadTemplate
+        ).trim() || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationLeadTemplate,
         faqTitle: String(mergedCopywriting.faqTitle || DEFAULT_WEBSITE_COMPARE.copywriting.faqTitle).trim()
           || DEFAULT_WEBSITE_COMPARE.copywriting.faqTitle,
         internalLinksTitle: String(mergedCopywriting.internalLinksTitle || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksTitle).trim()
@@ -1536,7 +1652,7 @@ export const publicSettingService = {
         pageGlobal: publicSettingService.normalizePageGlobalConfig(data.pageGlobal),
         cardStyle: data.cardStyle || DEFAULT_CARD_STYLE,
         sidebar: data.sidebar || DEFAULT_SIDEBAR,
-        search: { ...DEFAULT_SEARCH, ...(data.search || {}) },
+        search: publicSettingService.normalizeSearchConfig(data.search),
         exitModal: exitModalConfig || DEFAULT_EXIT_MODAL,
         detailPage: publicSettingService.normalizeDetailPageConfig(data.detailPage),
         article: publicSettingService.normalizeArticleConfig(data.article),
@@ -1653,7 +1769,7 @@ export const publicSettingService = {
   getSearchConfig: async (): Promise<SearchConfig> => {
     try {
       const settings = await publicSettingService.getPublicSettings();
-      return { ...DEFAULT_SEARCH, ...(settings.search || {}) };
+      return publicSettingService.normalizeSearchConfig(settings.search || DEFAULT_SEARCH);
     } catch (error) {
       debugLog.error('获取搜索配置失败，使用默认配置:', error);
       return DEFAULT_SEARCH;

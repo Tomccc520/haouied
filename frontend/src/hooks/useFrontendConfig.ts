@@ -164,6 +164,14 @@ interface SearchConfig {
   articleSearchEnabled: boolean;
   aiSearchEnabled: boolean;
   aiSearchBtnText: string;
+  searchDisabledText: string;
+  aiSearchDisabledText: string;
+  aiResultSummaryTemplate: string;
+  aiKeywordResultSummaryTemplate: string;
+  aiSemanticResultSummaryTemplate: string;
+  aiNoResultText: string;
+  aiFallbackErrorText: string;
+  aiCacheSuffixText: string;
   highlightKeyword: boolean;
   resultsPerPage: number;
 }
@@ -327,6 +335,14 @@ const defaultSearchConfig: SearchConfig = {
   articleSearchEnabled: true,
   aiSearchEnabled: true,
   aiSearchBtnText: 'AI 搜索',
+  searchDisabledText: '站内搜索功能已关闭',
+  aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
+  aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
+  aiKeywordResultSummaryTemplate: '关键词匹配找到 {count} 个结果',
+  aiSemanticResultSummaryTemplate: 'AI 语义扩展已返回 {count} 个结果{extra}',
+  aiNoResultText: 'AI 未找到相关结果，请尝试其他描述',
+  aiFallbackErrorText: 'AI 搜索暂时不可用，请稍后重试',
+  aiCacheSuffixText: '（缓存）',
   highlightKeyword: true,
   resultsPerPage: 20,
 };
@@ -513,6 +529,47 @@ const normalizeAuthConfig = (config: unknown): AuthConfig => {
   };
 };
 
+/**
+ * 规范化搜索配置，统一 AI 搜索提示文案和模板字段。
+ */
+const normalizeSearchConfig = (config: unknown): SearchConfig => {
+  const mergedConfig = { ...defaultSearchConfig, ...((config as Partial<SearchConfig>) || {}) };
+  return {
+    enabled: mergedConfig.enabled !== false,
+    placeholder: String(mergedConfig.placeholder || defaultSearchConfig.placeholder).trim() || defaultSearchConfig.placeholder,
+    debounceDelay: Number.isFinite(Number(mergedConfig.debounceDelay))
+      ? Math.max(100, Math.min(2000, Number(mergedConfig.debounceDelay)))
+      : defaultSearchConfig.debounceDelay,
+    websiteSearchEnabled: mergedConfig.websiteSearchEnabled !== false,
+    articleSearchEnabled: mergedConfig.articleSearchEnabled !== false,
+    aiSearchEnabled: mergedConfig.aiSearchEnabled !== false,
+    aiSearchBtnText: String(mergedConfig.aiSearchBtnText || defaultSearchConfig.aiSearchBtnText).trim()
+      || defaultSearchConfig.aiSearchBtnText,
+    searchDisabledText: String(mergedConfig.searchDisabledText || defaultSearchConfig.searchDisabledText).trim()
+      || defaultSearchConfig.searchDisabledText,
+    aiSearchDisabledText: String(mergedConfig.aiSearchDisabledText || defaultSearchConfig.aiSearchDisabledText).trim()
+      || defaultSearchConfig.aiSearchDisabledText,
+    aiResultSummaryTemplate: String(mergedConfig.aiResultSummaryTemplate || defaultSearchConfig.aiResultSummaryTemplate).trim()
+      || defaultSearchConfig.aiResultSummaryTemplate,
+    aiKeywordResultSummaryTemplate: String(
+      mergedConfig.aiKeywordResultSummaryTemplate || defaultSearchConfig.aiKeywordResultSummaryTemplate
+    ).trim() || defaultSearchConfig.aiKeywordResultSummaryTemplate,
+    aiSemanticResultSummaryTemplate: String(
+      mergedConfig.aiSemanticResultSummaryTemplate || defaultSearchConfig.aiSemanticResultSummaryTemplate
+    ).trim() || defaultSearchConfig.aiSemanticResultSummaryTemplate,
+    aiNoResultText: String(mergedConfig.aiNoResultText || defaultSearchConfig.aiNoResultText).trim()
+      || defaultSearchConfig.aiNoResultText,
+    aiFallbackErrorText: String(mergedConfig.aiFallbackErrorText || defaultSearchConfig.aiFallbackErrorText).trim()
+      || defaultSearchConfig.aiFallbackErrorText,
+    aiCacheSuffixText: String(mergedConfig.aiCacheSuffixText || defaultSearchConfig.aiCacheSuffixText).trim()
+      || defaultSearchConfig.aiCacheSuffixText,
+    highlightKeyword: mergedConfig.highlightKeyword !== false,
+    resultsPerPage: Number.isFinite(Number(mergedConfig.resultsPerPage))
+      ? Math.max(10, Math.min(100, Number(mergedConfig.resultsPerPage)))
+      : defaultSearchConfig.resultsPerPage,
+  };
+};
+
 const buildConfig = (data: FrontendConfigData): FrontendConfig => ({
   authConfig: normalizeAuthConfig(data.authConfig),
   exitModalEnabled: data.exitModalEnabled ?? true,
@@ -522,7 +579,7 @@ const buildConfig = (data: FrontendConfigData): FrontendConfig => ({
   homepageConfig: normalizeHomepageConfig(data.homepageConfig),
   cardStyleConfig: { ...defaultCardStyleConfig, ...(data.cardStyleConfig || {}) },
   sidebarConfig: { ...defaultSidebarConfig, ...(data.sidebarConfig || {}) },
-  searchConfig: { ...defaultSearchConfig, ...(data.searchConfig || {}) },
+  searchConfig: normalizeSearchConfig(data.searchConfig),
 });
 
 // ==================== Hook ====================

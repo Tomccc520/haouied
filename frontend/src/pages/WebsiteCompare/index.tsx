@@ -295,72 +295,47 @@ function getCompareTagNames(detail: CompareWebsiteDetail | null, tags: CompareWe
 }
 
 /**
- * 生成“优点”模板文案（SEO 内容块）。
+ * 构建对比页模板上下文，统一供优点/注意点/适用人群模板渲染使用。
  */
-function buildCompareStrengths(detail: CompareWebsiteDetail, tagNames: string[]): string[] {
-  const result: string[] = [];
-  if (detail.category?.name) {
-    result.push(`定位清晰，属于「${detail.category.name}」方向，适合目标明确的用户快速筛选。`);
-  }
-  if (tagNames.length > 0) {
-    result.push(`标签覆盖较完整（${tagNames.slice(0, 4).join('、')}），便于判断使用场景和功能方向。`);
-  }
-  if ((detail.totalRatings || 0) > 0) {
-    result.push(`已有用户评分数据（${detail.totalRatings} 条），适合做初步参考。`);
-  }
-  if ((detail.commentsCount || 0) > 0) {
-    result.push(`已有评论互动（${detail.commentsCount} 条），更容易看到真实使用反馈。`);
-  }
-  if (!result.length) {
-    result.push('基础信息完整，适合先作为候选方案进行试用与对比。');
-  }
-  return result.slice(0, 4);
+function buildCompareTemplateContext(detail: CompareWebsiteDetail, tagNames: string[]) {
+  const topTags = tagNames.slice(0, 4).join('、');
+  return {
+    website: String(detail?.name || '该网站'),
+    category: String(detail?.category?.name || '对应方向'),
+    top_tags: topTags || '相关使用场景',
+    rating_count: String(Number(detail?.totalRatings || 0)),
+    comment_count: String(Number(detail?.commentsCount || 0)),
+  };
 }
 
 /**
- * 生成“注意点”模板文案（SEO 内容块）。
+ * 按模板上下文渲染对比页内容，统一支持核心占位符替换。
  */
-function buildCompareCautions(detail: CompareWebsiteDetail, tagNames: string[]): string[] {
-  const result: string[] = [];
-  if (tagNames.length === 0) {
-    result.push('标签信息较少，建议结合截图与官网实际体验确认功能边界。');
-  }
-  if (!detail.description) {
-    result.push('站点描述信息较少，建议直接访问官网查看功能说明和更新日志。');
-  }
-  if ((detail.totalRatings || 0) === 0) {
-    result.push('暂无评分数据，适合通过实测体验或社区反馈进一步判断。');
-  }
-  if ((detail.commentsCount || 0) === 0) {
-    result.push('暂无评论互动，建议查看官网文档或搜索社区讨论。');
-  }
-  if (!result.length) {
-    result.push('建议重点对比实际功能、上手成本和长期使用稳定性，再决定是否长期使用。');
-  }
-  return result.slice(0, 4);
+function applyCompareTemplate(template: string, context: Record<string, string>): string {
+  return String(template || '')
+    .replace(/\{website\}/g, context.website || '')
+    .replace(/\{category\}/g, context.category || '')
+    .replace(/\{top_tags\}/g, context.top_tags || '')
+    .replace(/\{rating_count\}/g, context.rating_count || '0')
+    .replace(/\{comment_count\}/g, context.comment_count || '0')
+    .trim();
 }
 
 /**
- * 生成“适用人群”模板文案（SEO 内容块）。
+ * 根据后台模板生成“优点 / 注意点 / 适用人群”列表，避免前端继续写死具体行业话术。
  */
-function buildAudienceHints(detail: CompareWebsiteDetail, tagNames: string[]): string[] {
-  const audience: string[] = [];
-  if (detail.category?.name?.includes('AI')) {
-    audience.push('适合关注 AI 工具效率提升的用户');
-  }
-  if (detail.category?.name?.includes('设计')) {
-    audience.push('适合设计师、产品经理或创意从业者');
-  }
-  if (tagNames.some(tag => /UI|UX|设计系统/i.test(tag))) {
-    audience.push('适合做界面设计、交互设计和设计规范沉淀');
-  }
-  if (tagNames.some(tag => /灵感|素材|图库|图标/i.test(tag))) {
-    audience.push('适合做灵感收集、素材搜集与视觉参考');
-  }
-  if (!audience.length) {
-    audience.push('适合作为同类工具/网站的备选方案进行对比试用');
-  }
-  return audience.slice(0, 4);
+function buildCompareTemplateList(
+  detail: CompareWebsiteDetail,
+  tagNames: string[],
+  templates: string[],
+  fallback: string[],
+): string[] {
+  const context = buildCompareTemplateContext(detail, tagNames);
+  const source = Array.isArray(templates) && templates.length > 0 ? templates : fallback;
+  const rows = source
+    .map((template) => applyCompareTemplate(template, context))
+    .filter(Boolean);
+  return Array.from(new Set(rows)).slice(0, 4);
 }
 
 /**
@@ -617,6 +592,21 @@ const WebsiteComparePage: React.FC = () => {
         coreDiffTitle: String(normalizedCopywriting.coreDiffTitle || DEFAULT_WEBSITE_COMPARE.copywriting.coreDiffTitle),
         guideTitle: String(normalizedCopywriting.guideTitle || DEFAULT_WEBSITE_COMPARE.copywriting.guideTitle),
         guideDescription: String(normalizedCopywriting.guideDescription || DEFAULT_WEBSITE_COMPARE.copywriting.guideDescription),
+        strengthTemplates: Array.isArray(normalizedCopywriting.strengthTemplates)
+          ? normalizedCopywriting.strengthTemplates
+          : DEFAULT_WEBSITE_COMPARE.copywriting.strengthTemplates,
+        cautionTemplates: Array.isArray(normalizedCopywriting.cautionTemplates)
+          ? normalizedCopywriting.cautionTemplates
+          : DEFAULT_WEBSITE_COMPARE.copywriting.cautionTemplates,
+        audienceTemplates: Array.isArray(normalizedCopywriting.audienceTemplates)
+          ? normalizedCopywriting.audienceTemplates
+          : DEFAULT_WEBSITE_COMPARE.copywriting.audienceTemplates,
+        recommendationTieTemplate: String(
+          normalizedCopywriting.recommendationTieTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationTieTemplate
+        ),
+        recommendationLeadTemplate: String(
+          normalizedCopywriting.recommendationLeadTemplate || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationLeadTemplate
+        ),
         faqTitle: String(normalizedCopywriting.faqTitle || DEFAULT_WEBSITE_COMPARE.copywriting.faqTitle),
         internalLinksTitle: String(normalizedCopywriting.internalLinksTitle || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksTitle),
         internalLinksDescription: String(normalizedCopywriting.internalLinksDescription || DEFAULT_WEBSITE_COMPARE.copywriting.internalLinksDescription),
@@ -695,20 +685,56 @@ const WebsiteComparePage: React.FC = () => {
     }
     const leftTags = getCompareTagNames(leftWebsite, leftState.tags);
     const rightTags = getCompareTagNames(rightWebsite, rightState.tags);
-    const leftStrengths = buildCompareStrengths(leftWebsite, leftTags);
-    const rightStrengths = buildCompareStrengths(rightWebsite, rightTags);
-    const leftCautions = buildCompareCautions(leftWebsite, leftTags);
-    const rightCautions = buildCompareCautions(rightWebsite, rightTags);
-    const leftAudience = buildAudienceHints(leftWebsite, leftTags);
-    const rightAudience = buildAudienceHints(rightWebsite, rightTags);
+    const leftStrengths = buildCompareTemplateList(
+      leftWebsite,
+      leftTags,
+      compareConfig.copywriting.strengthTemplates,
+      DEFAULT_WEBSITE_COMPARE.copywriting.strengthTemplates
+    );
+    const rightStrengths = buildCompareTemplateList(
+      rightWebsite,
+      rightTags,
+      compareConfig.copywriting.strengthTemplates,
+      DEFAULT_WEBSITE_COMPARE.copywriting.strengthTemplates
+    );
+    const leftCautions = buildCompareTemplateList(
+      leftWebsite,
+      leftTags,
+      compareConfig.copywriting.cautionTemplates,
+      DEFAULT_WEBSITE_COMPARE.copywriting.cautionTemplates
+    );
+    const rightCautions = buildCompareTemplateList(
+      rightWebsite,
+      rightTags,
+      compareConfig.copywriting.cautionTemplates,
+      DEFAULT_WEBSITE_COMPARE.copywriting.cautionTemplates
+    );
+    const leftAudience = buildCompareTemplateList(
+      leftWebsite,
+      leftTags,
+      compareConfig.copywriting.audienceTemplates,
+      DEFAULT_WEBSITE_COMPARE.copywriting.audienceTemplates
+    );
+    const rightAudience = buildCompareTemplateList(
+      rightWebsite,
+      rightTags,
+      compareConfig.copywriting.audienceTemplates,
+      DEFAULT_WEBSITE_COMPARE.copywriting.audienceTemplates
+    );
 
     const leftScore = (leftWebsite.totalRatings || 0) + (leftWebsite.commentsCount || 0) + leftTags.length;
     const rightScore = (rightWebsite.totalRatings || 0) + (rightWebsite.commentsCount || 0) + rightTags.length;
     const recommendation = leftScore === rightScore
-      ? '两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。'
-      : (leftScore > rightScore
-        ? `从当前收录信息完整度看，${leftWebsite.name} 的公开信息更丰富，适合先作为优先试用方案。`
-        : `从当前收录信息完整度看，${rightWebsite.name} 的公开信息更丰富，适合先作为优先试用方案。`);
+      ? String(
+          compareConfig.copywriting.recommendationTieTemplate
+            || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationTieTemplate
+        )
+      : String(
+          (compareConfig.copywriting.recommendationLeadTemplate
+            || DEFAULT_WEBSITE_COMPARE.copywriting.recommendationLeadTemplate)
+            .replace(/\{winner\}/g, leftScore > rightScore ? leftWebsite.name : rightWebsite.name)
+            .replace(/\{loser\}/g, leftScore > rightScore ? rightWebsite.name : leftWebsite.name)
+        );
 
     return {
       leftStrengths,
@@ -719,7 +745,7 @@ const WebsiteComparePage: React.FC = () => {
       rightAudience,
       recommendation,
     };
-  }, [leftWebsite, rightWebsite, leftState.tags, rightState.tags]);
+  }, [compareConfig.copywriting, leftWebsite, rightWebsite, leftState.tags, rightState.tags]);
 
   /**
    * 动态构建指标对比行（后台配置 metrics 控制）。

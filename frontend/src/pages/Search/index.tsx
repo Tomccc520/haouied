@@ -22,6 +22,11 @@ import { usePermalinkConfig, generateWebsiteUrl } from '../../hooks/usePermalink
 import { getArrowConfigByWebsiteClickMode, appendRefParamToUrl } from '../../utils/clickMode';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { debugLog } from '../../utils/debugHelper';
+import {
+  formatAiKeywordResultSummary,
+  formatAiResultSummary,
+  formatAiSemanticResultSummary,
+} from '../../utils/searchCopy';
 import './index.css';
 
 const bgImage = '/bg.jpg';
@@ -708,6 +713,15 @@ const SearchPage: React.FC = () => {
   const suggestionDebounceDelay = normalizeDebounceDelay(searchConfig?.debounceDelay);
   const searchInputPlaceholder = String(searchConfig?.placeholder || '').trim() || '搜索网站或文章...';
   const aiSearchButtonText = String(searchConfig?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索';
+  const searchDisabledText = String(searchConfig?.searchDisabledText || '站内搜索功能已关闭').trim()
+    || '站内搜索功能已关闭';
+  const aiSearchDisabledText = String(searchConfig?.aiSearchDisabledText || 'AI 搜索功能已关闭，请在后台配置中开启后再使用。').trim()
+    || 'AI 搜索功能已关闭，请在后台配置中开启后再使用。';
+  const aiNoResultText = String(searchConfig?.aiNoResultText || 'AI 未找到相关结果，请尝试其他描述').trim()
+    || 'AI 未找到相关结果，请尝试其他描述';
+  const aiFallbackErrorText = String(searchConfig?.aiFallbackErrorText || 'AI 搜索暂时不可用，请稍后重试').trim()
+    || 'AI 搜索暂时不可用，请稍后重试';
+  const aiCacheSuffixText = String(searchConfig?.aiCacheSuffixText || '（缓存）').trim() || '（缓存）';
   const { isDirectMode, arrowLabel, arrowIsExternal } = getArrowConfigByWebsiteClickMode(websiteClickMode);
 
   /**
@@ -1067,7 +1081,7 @@ const SearchPage: React.FC = () => {
       setHasMore(false);
       setCurrentPage(1);
       setRelatedKeywords([]);
-      setAiMessage('站内搜索功能已关闭');
+      setAiMessage(searchDisabledText);
       setSearchErrorMessage('');
       setAiEnhancing(false);
       setAiEnhancedCount(0);
@@ -1129,7 +1143,7 @@ const SearchPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [buildSearchCacheKey, getSearchCache, resultPageSize, searchEnabled, setSearchCache]);
+  }, [buildSearchCacheKey, getSearchCache, resultPageSize, searchDisabledText, searchEnabled, setSearchCache]);
 
   /**
    * 执行普通搜索（统一走后端 /api/search 契约）
@@ -1147,7 +1161,7 @@ const SearchPage: React.FC = () => {
       setTotalResults(0);
       setHasMore(false);
       setCurrentPage(1);
-      setAiMessage('站内搜索功能已关闭');
+      setAiMessage(searchDisabledText);
       setAiEnhancing(false);
       setAiEnhancedCount(0);
       setAiExpandedKeywords([]);
@@ -1228,7 +1242,7 @@ const SearchPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performDefaultSearch, resultPageSize, runAiEnhancement, saveSearchHistory, searchEnabled, setSearchCache]);
+  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performDefaultSearch, resultPageSize, runAiEnhancement, saveSearchHistory, searchDisabledText, searchEnabled, setSearchCache]);
 
   /**
    * 执行 AI 搜索（统一走后端 /api/ai-search 契约）
@@ -1238,7 +1252,7 @@ const SearchPage: React.FC = () => {
 
     if (!searchEnabled) {
       setIsAiMode(false);
-      setAiMessage('站内搜索功能已关闭');
+      setAiMessage(searchDisabledText);
       setAiEnhancing(false);
       setAiEnhancedCount(0);
       setAiExpandedKeywords([]);
@@ -1247,7 +1261,7 @@ const SearchPage: React.FC = () => {
 
     if (!aiSearchEnabled) {
       setIsAiMode(false);
-      setAiMessage('AI 搜索功能已关闭');
+      setAiMessage(aiSearchDisabledText);
       setAiEnhancing(false);
       setAiEnhancedCount(0);
       setAiExpandedKeywords([]);
@@ -1277,7 +1291,9 @@ const SearchPage: React.FC = () => {
       setTotalResults(cachedRows.length);
       setHasMore(cachedRows.length > resultPageSize);
       setCurrentPage(1);
-      setAiMessage(`AI 智能推荐找到 ${cachedRows.length} 个结果（缓存）`);
+      setAiMessage(
+        formatAiResultSummary(searchConfig || {}, cachedRows.length, aiCacheSuffixText)
+      );
       setSearchErrorMessage('');
       setAiExpandedKeywords(cachedSemanticKeywords);
       generateRelatedKeywords(cachedRows, query);
@@ -1331,10 +1347,13 @@ const SearchPage: React.FC = () => {
         setCurrentPage(1);
 
         // 显示 AI 的推荐理由
-        const modeText = payload.mode === 'ai' ? 'AI 智能推荐' : '关键词匹配';
         const reasonText = payload.reason ? ` - ${payload.reason}` : '';
         const semanticText = semanticKeywords.length > 0 ? ` · 语义扩展 ${semanticKeywords.join(' / ')}` : '';
-        setAiMessage(`${modeText}找到 ${results.length} 个结果${reasonText}${semanticText}`);
+        setAiMessage(
+          payload.mode === 'ai'
+            ? formatAiResultSummary(searchConfig || {}, results.length, `${reasonText}${semanticText}`)
+            : formatAiKeywordResultSummary(searchConfig || {}, results.length)
+        );
         setSearchErrorMessage('');
         setAiExpandedKeywords(semanticKeywords.slice(0, MAX_SEMANTIC_KEYWORDS));
 
@@ -1352,7 +1371,13 @@ const SearchPage: React.FC = () => {
           setHasMore(rows.length > resultPageSize);
           setCurrentPage(1);
           setAiExpandedKeywords(semanticResult.keywords.slice(0, MAX_SEMANTIC_KEYWORDS));
-          setAiMessage(`AI 语义扩展已返回 ${rows.length} 个结果 · ${semanticResult.keywords.join(' / ')}`);
+          setAiMessage(
+            formatAiSemanticResultSummary(
+              searchConfig || {},
+              rows.length,
+              semanticResult.keywords.length > 0 ? ` · ${semanticResult.keywords.join(' / ')}` : ''
+            )
+          );
           setSearchErrorMessage('');
           generateRelatedKeywords(rows, query);
         } else {
@@ -1360,7 +1385,7 @@ const SearchPage: React.FC = () => {
           setSearchResults([]);
           setTotalResults(0);
           setHasMore(false);
-          setAiMessage('AI 未找到相关结果，请尝试其他描述');
+          setAiMessage(aiNoResultText);
           setSearchErrorMessage('');
           setAiExpandedKeywords([]);
         }
@@ -1369,7 +1394,11 @@ const SearchPage: React.FC = () => {
       debugLog.error('AI 搜索失败:', error);
       if (requestSeq !== searchRequestSeqRef.current) return;
       setShowThinking(false);
-      setAiMessage('AI 搜索暂时不可用，已切换到普通搜索');
+      setAiMessage(
+        aiFallbackErrorText.includes('普通搜索')
+          ? aiFallbackErrorText
+          : `${aiFallbackErrorText}，已切换到普通搜索`
+      );
       setIsAiMode(false);
       setAiExpandedKeywords([]);
       performSearch(query);
@@ -1378,7 +1407,24 @@ const SearchPage: React.FC = () => {
         setAiLoading(false);
       }
     }
-  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performSearch, resultPageSize, runSemanticKeywordSearch, saveSearchHistory, searchEnabled, setSearchCache]);
+  }, [
+    aiCacheSuffixText,
+    aiFallbackErrorText,
+    aiNoResultText,
+    aiSearchDisabledText,
+    aiSearchEnabled,
+    buildSearchCacheKey,
+    generateRelatedKeywords,
+    getSearchCache,
+    performSearch,
+    resultPageSize,
+    runSemanticKeywordSearch,
+    saveSearchHistory,
+    searchConfig,
+    searchDisabledText,
+    searchEnabled,
+    setSearchCache,
+  ]);
 
   // 来源筛选后的结果
   const sourceFilteredResults = useMemo(() => {
@@ -2633,6 +2679,7 @@ const SearchPage: React.FC = () => {
         visible={showAiSidebar}
         onClose={() => setShowAiSidebar(false)}
         enabled={aiSearchEnabled}
+        searchCopy={searchConfig}
         onWebsiteClick={(website) => handleWebsiteClick({
           id: website.id,
           name: website.name,

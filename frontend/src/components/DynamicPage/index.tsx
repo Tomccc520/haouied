@@ -782,9 +782,14 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
         <main className="tools-main">
           {/* 最新网站更新（Hero 下方固定 8 条） */}
           {!isSearchMode && (
-            <section className="latest-update-strip content-section" aria-label="最新网站更新">
+            <section
+              className="latest-update-strip content-section"
+              aria-label={pageConfig?.latestUpdatesSectionTitle || '最新网站更新'}
+            >
               <div className="latest-update-strip__header">
-                <h2 className="latest-update-strip__title">最新网站更新</h2>
+                <h2 className="latest-update-strip__title">
+                  {pageConfig?.latestUpdatesSectionTitle || '最新网站更新'}
+                </h2>
                 <div className="latest-update-strip__header-right">
                   <span className="latest-update-strip__meta">{latestUpdatesMetaText}</span>
                   <a
@@ -793,12 +798,14 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                     target={latestUpdatesMoreEntry.target}
                     rel={latestUpdatesMoreEntry.rel}
                   >
-                    查看更多
+                    {pageConfig?.latestUpdatesMoreText || '查看更多'}
                   </a>
                 </div>
               </div>
               {latestWebsiteUpdatesLoading && latestWebsiteUpdates.length === 0 ? (
-                <div className="latest-update-strip__loading">正在加载最新网站...</div>
+                <div className="latest-update-strip__loading">
+                  {pageConfig?.latestUpdatesLoadingText || '正在加载最新网站...'}
+                </div>
               ) : latestWebsiteUpdates.length > 0 ? (
                 <div className="latest-update-strip__list">
                   {latestWebsiteUpdates.map((item, index) => (
@@ -827,7 +834,9 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                   ))}
                 </div>
               ) : (
-                <div className="latest-update-strip__loading">近 7 天暂无更新数据</div>
+                <div className="latest-update-strip__loading">
+                  {pageConfig?.latestUpdatesEmptyText || '近 7 天暂无更新数据'}
+                </div>
               )}
             </section>
           )}
@@ -845,7 +854,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
           {pageConfig?.showHotRecommendations && !isSearchMode && (
             <HotRecommendations 
               limit={hotRecommendationLimit}
-              title="热门推荐"
+              title={pageConfig?.hotRecommendationsTitle || '热门推荐'}
               showMoreButton={false}
               enableSubCategories={true}
               useApi={true}

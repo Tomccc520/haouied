@@ -195,10 +195,52 @@ class PageService extends Service {
   }
 
   /**
+   * 确保页面表存在动态页区块文案字段，避免历史库未执行补丁时后台保存后前台不生效。
+   */
+  async ensurePageContentCopyColumns() {
+    if (this._pageContentCopyColumnsReady) return;
+    const { app, ctx } = this;
+    const columnPatchList = [
+      {
+        name: 'latest_updates_title',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_title` varchar(120) NOT NULL DEFAULT '最新网站更新' COMMENT '最新网站更新区标题' AFTER `show_hot_recommendations`",
+      },
+      {
+        name: 'latest_updates_more_text',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_more_text` varchar(60) NOT NULL DEFAULT '查看更多' COMMENT '最新网站更新查看更多文案' AFTER `latest_updates_title`",
+      },
+      {
+        name: 'latest_updates_loading_text',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_loading_text` varchar(120) NOT NULL DEFAULT '正在加载最新网站...' COMMENT '最新网站更新加载文案' AFTER `latest_updates_more_text`",
+      },
+      {
+        name: 'latest_updates_empty_text',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `latest_updates_empty_text` varchar(120) NOT NULL DEFAULT '近 7 天暂无更新数据' COMMENT '最新网站更新空状态文案' AFTER `latest_updates_loading_text`",
+      },
+      {
+        name: 'hot_recommendations_title',
+        sql: "ALTER TABLE `uied_page` ADD COLUMN `hot_recommendations_title` varchar(80) NOT NULL DEFAULT '热门推荐' COMMENT '热门推荐区标题' AFTER `latest_updates_empty_text`",
+      },
+    ];
+    for (const patch of columnPatchList) {
+      try {
+        await app.model.query(patch.sql, { type: app.Sequelize.QueryTypes.RAW });
+      } catch (error) {
+        const message = String(error?.message || '');
+        if (!/Duplicate column name/i.test(message)) {
+          ctx.logger.warn('[uied.page] 自动补齐 %s 字段失败，请手动执行 SQL 补丁: %s', patch.name, message);
+        }
+      }
+    }
+    this._pageContentCopyColumnsReady = true;
+  }
+
+  /**
    * 获取页面列表（分页）
    */
   async list({ page = 1, pageSize = 20, keyword = '', isActive = '', pageGroup = '' }) {
     await this.ensureShowBannerColumn();
+    await this.ensurePageContentCopyColumns();
     const { app } = this;
     const offset = (page - 1) * pageSize;
     const whereSql = [];
@@ -258,7 +300,13 @@ class PageService extends Service {
               hero_display_mode as heroDisplayMode, hero_scroll_websites as heroScrollWebsites,
               search_placeholder as searchPlaceholder, search_enabled as searchEnabled,
               show_banner as showBanner,
-              show_hot_recommendations as showHotRecommendations, show_categories as showCategories,
+              show_hot_recommendations as showHotRecommendations,
+              latest_updates_title as latestUpdatesSectionTitle,
+              latest_updates_more_text as latestUpdatesMoreText,
+              latest_updates_loading_text as latestUpdatesLoadingText,
+              latest_updates_empty_text as latestUpdatesEmptyText,
+              hot_recommendations_title as hotRecommendationsTitle,
+              show_categories as showCategories,
               show_sidebar as showSidebar, theme_color as themeColor,
               sort as sortOrder, is_show as isActive, create_time as createdAt
        FROM uied_page
@@ -295,6 +343,7 @@ class PageService extends Service {
    */
   async all() {
     await this.ensureShowBannerColumn();
+    await this.ensurePageContentCopyColumns();
     const { app } = this;
     const pages = await app.model.query(
       `SELECT id, name, slug, type, icon, sort as sortOrder
@@ -311,6 +360,7 @@ class PageService extends Service {
    */
   async detail(id, slug) {
     await this.ensureShowBannerColumn();
+    await this.ensurePageContentCopyColumns();
     const { app } = this;
 
     let whereClause = 'is_delete = 0';
@@ -355,6 +405,11 @@ class PageService extends Service {
       searchEnabled: page.search_enabled === 1,
       showBanner: page.show_banner === 1,
       showHotRecommendations: page.show_hot_recommendations === 1,
+      latestUpdatesSectionTitle: page.latest_updates_title,
+      latestUpdatesMoreText: page.latest_updates_more_text,
+      latestUpdatesLoadingText: page.latest_updates_loading_text,
+      latestUpdatesEmptyText: page.latest_updates_empty_text,
+      hotRecommendationsTitle: page.hot_recommendations_title,
       showCategories: page.show_categories === 1,
       showSidebar: page.show_sidebar === 1,
       themeColor: page.theme_color,
@@ -371,6 +426,7 @@ class PageService extends Service {
    */
   async add(data) {
     await this.ensureShowBannerColumn();
+    await this.ensurePageContentCopyColumns();
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const hotSearchConfig = this.resolveHotSearchConfig(data);
@@ -390,8 +446,9 @@ class PageService extends Service {
         hero_subtitle, hot_search_tags, hot_search_mode, hot_search_fixed_count, hot_search_dynamic_count,
         hot_search_window_days, hot_search_min_score, hero_bg_type, hero_bg_value, hero_display_mode,
         hero_scroll_websites, search_placeholder, search_enabled, show_banner, show_hot_recommendations,
-        show_categories, show_sidebar, theme_color, sort, is_show, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        latest_updates_title, latest_updates_more_text, latest_updates_loading_text, latest_updates_empty_text,
+        hot_recommendations_title, show_categories, show_sidebar, theme_color, sort, is_show, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           data.name, data.slug, normalizedType, data.description || '',
@@ -403,7 +460,13 @@ class PageService extends Service {
           data.heroDisplayMode || 'search', data.heroScrollWebsites ? JSON.stringify(data.heroScrollWebsites) : null,
           data.searchPlaceholder || '', data.searchEnabled !== false ? 1 : 0,
           data.showBanner !== false ? 1 : 0,
-          data.showHotRecommendations !== false ? 1 : 0, data.showCategories !== false ? 1 : 0,
+          data.showHotRecommendations !== false ? 1 : 0,
+          data.latestUpdatesSectionTitle || '最新网站更新',
+          data.latestUpdatesMoreText || '查看更多',
+          data.latestUpdatesLoadingText || '正在加载最新网站...',
+          data.latestUpdatesEmptyText || '近 7 天暂无更新数据',
+          data.hotRecommendationsTitle || '热门推荐',
+          data.showCategories !== false ? 1 : 0,
           data.showSidebar !== false ? 1 : 0, data.themeColor || null,
           data.sortOrder || 0, data.isActive !== false ? 1 : 0, now, now,
         ],
@@ -419,6 +482,7 @@ class PageService extends Service {
    */
   async edit(data) {
     await this.ensureShowBannerColumn();
+    await this.ensurePageContentCopyColumns();
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
 
@@ -465,6 +529,11 @@ class PageService extends Service {
     if (data.searchEnabled !== undefined) { updates.push('search_enabled = ?'); values.push(data.searchEnabled ? 1 : 0); }
     if (data.showBanner !== undefined) { updates.push('show_banner = ?'); values.push(data.showBanner ? 1 : 0); }
     if (data.showHotRecommendations !== undefined) { updates.push('show_hot_recommendations = ?'); values.push(data.showHotRecommendations ? 1 : 0); }
+    if (data.latestUpdatesSectionTitle !== undefined) { updates.push('latest_updates_title = ?'); values.push(data.latestUpdatesSectionTitle); }
+    if (data.latestUpdatesMoreText !== undefined) { updates.push('latest_updates_more_text = ?'); values.push(data.latestUpdatesMoreText); }
+    if (data.latestUpdatesLoadingText !== undefined) { updates.push('latest_updates_loading_text = ?'); values.push(data.latestUpdatesLoadingText); }
+    if (data.latestUpdatesEmptyText !== undefined) { updates.push('latest_updates_empty_text = ?'); values.push(data.latestUpdatesEmptyText); }
+    if (data.hotRecommendationsTitle !== undefined) { updates.push('hot_recommendations_title = ?'); values.push(data.hotRecommendationsTitle); }
     if (data.showCategories !== undefined) { updates.push('show_categories = ?'); values.push(data.showCategories ? 1 : 0); }
     if (data.showSidebar !== undefined) { updates.push('show_sidebar = ?'); values.push(data.showSidebar ? 1 : 0); }
     if (data.themeColor !== undefined) { updates.push('theme_color = ?'); values.push(data.themeColor); }

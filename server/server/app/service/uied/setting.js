@@ -937,6 +937,14 @@ class SettingService extends Service {
       articleSearchEnabled: true,
       aiSearchEnabled: true,
       aiSearchBtnText: 'AI 搜索',
+      searchDisabledText: '站内搜索功能已关闭',
+      aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
+      aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
+      aiKeywordResultSummaryTemplate: '关键词匹配找到 {count} 个结果',
+      aiSemanticResultSummaryTemplate: 'AI 语义扩展已返回 {count} 个结果{extra}',
+      aiNoResultText: 'AI 未找到相关结果，请尝试其他描述',
+      aiFallbackErrorText: 'AI 搜索暂时不可用，请稍后重试',
+      aiCacheSuffixText: '（缓存）',
       highlightKeyword: true,
       resultsPerPage: 20,
     };
@@ -958,6 +966,20 @@ class SettingService extends Service {
       articleSearchEnabled: searchEnabled ? contentSearchFallback.article : false,
       aiSearchEnabled: searchEnabled && merged.aiSearchEnabled !== false,
       aiSearchBtnText: String(merged.aiSearchBtnText || defaults.aiSearchBtnText).trim() || defaults.aiSearchBtnText,
+      searchDisabledText: String(merged.searchDisabledText || defaults.searchDisabledText).trim() || defaults.searchDisabledText,
+      aiSearchDisabledText: String(merged.aiSearchDisabledText || defaults.aiSearchDisabledText).trim() || defaults.aiSearchDisabledText,
+      aiResultSummaryTemplate: String(merged.aiResultSummaryTemplate || defaults.aiResultSummaryTemplate).trim()
+        || defaults.aiResultSummaryTemplate,
+      aiKeywordResultSummaryTemplate: String(
+        merged.aiKeywordResultSummaryTemplate || defaults.aiKeywordResultSummaryTemplate
+      ).trim() || defaults.aiKeywordResultSummaryTemplate,
+      aiSemanticResultSummaryTemplate: String(
+        merged.aiSemanticResultSummaryTemplate || defaults.aiSemanticResultSummaryTemplate
+      ).trim() || defaults.aiSemanticResultSummaryTemplate,
+      aiNoResultText: String(merged.aiNoResultText || defaults.aiNoResultText).trim() || defaults.aiNoResultText,
+      aiFallbackErrorText: String(merged.aiFallbackErrorText || defaults.aiFallbackErrorText).trim()
+        || defaults.aiFallbackErrorText,
+      aiCacheSuffixText: String(merged.aiCacheSuffixText || defaults.aiCacheSuffixText).trim() || defaults.aiCacheSuffixText,
       highlightKeyword: merged.highlightKeyword !== false,
       resultsPerPage: Number.isFinite(Number(merged.resultsPerPage))
         ? Math.max(10, Math.min(100, Number(merged.resultsPerPage)))
@@ -1350,6 +1372,25 @@ class SettingService extends Service {
         coreDiffTitle: '核心差异对比',
         guideTitle: '优缺点速览与适用人群',
         guideDescription: '基于站点公开信息自动生成结构化建议，辅助快速决策。',
+        strengthTemplates: [
+          '{website} 的定位更偏向「{category}」场景，适合目标明确时快速筛选。',
+          '从标签覆盖看，{website} 更接近 {top_tags} 等方向，功能边界相对清晰。',
+          '如果你更关注 {top_tags} 这类需求，{website} 更值得优先试用。',
+          '当前公开信息结构较完整，适合先纳入候选清单做进一步体验。',
+        ],
+        cautionTemplates: [
+          '建议结合官网实际体验确认 {website} 的核心功能与上手门槛。',
+          '如果你更看重深度文档或社区反馈，建议再补充外部资料验证。',
+          '在最终选择前，最好把 {website} 与同类工具的价格、更新频率一起比较。',
+          '若你的需求偏离「{category}」方向，建议再看一轮备选方案。',
+        ],
+        audienceTemplates: [
+          '适合正在寻找「{category}」相关资源的用户。',
+          '适合关注 {top_tags} 等方向的从业者或团队。',
+          '如果你希望先快速筛一轮候选站点，{website} 适合作为首批试用对象。',
+        ],
+        recommendationTieTemplate: '两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。',
+        recommendationLeadTemplate: '从当前收录信息完整度看，{winner} 的公开信息更丰富，适合先作为优先试用方案。',
         faqTitle: '常见问题',
         internalLinksTitle: '更多候选对比（内链）',
         internalLinksDescription: '基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。',
@@ -1393,6 +1434,21 @@ class SettingService extends Service {
       },
       metrics: Array.isArray(source.metrics) ? source.metrics : defaults.metrics,
       faqItems: Array.isArray(source.faqItems) ? source.faqItems : defaults.faqItems,
+    };
+    /**
+     * 规范化文本模板列表，兼容数组/多行文本两种输入方式。
+     */
+    const normalizeTemplateList = (value, fallback, max = 6) => {
+      const sourceList = Array.isArray(value)
+        ? value
+        : String(value || '')
+          .split(/\r?\n/)
+          .map(item => String(item || '').trim())
+          .filter(Boolean);
+      const normalized = sourceList
+        .map(item => String(item || '').trim().slice(0, 200))
+        .filter(Boolean);
+      return normalized.length > 0 ? normalized.slice(0, max) : fallback.slice(0, max);
     };
     const allowedMetricKeys = new Set([
       'category',
@@ -1449,6 +1505,27 @@ class SettingService extends Service {
         guideDescription: String(
           merged.copywriting.guideDescription || defaults.copywriting.guideDescription
         ).trim() || defaults.copywriting.guideDescription,
+        strengthTemplates: normalizeTemplateList(
+          merged.copywriting.strengthTemplates,
+          defaults.copywriting.strengthTemplates,
+          6
+        ),
+        cautionTemplates: normalizeTemplateList(
+          merged.copywriting.cautionTemplates,
+          defaults.copywriting.cautionTemplates,
+          6
+        ),
+        audienceTemplates: normalizeTemplateList(
+          merged.copywriting.audienceTemplates,
+          defaults.copywriting.audienceTemplates,
+          6
+        ),
+        recommendationTieTemplate: String(
+          merged.copywriting.recommendationTieTemplate || defaults.copywriting.recommendationTieTemplate
+        ).trim() || defaults.copywriting.recommendationTieTemplate,
+        recommendationLeadTemplate: String(
+          merged.copywriting.recommendationLeadTemplate || defaults.copywriting.recommendationLeadTemplate
+        ).trim() || defaults.copywriting.recommendationLeadTemplate,
         faqTitle: String(merged.copywriting.faqTitle || defaults.copywriting.faqTitle).trim() || defaults.copywriting.faqTitle,
         internalLinksTitle: String(
           merged.copywriting.internalLinksTitle || defaults.copywriting.internalLinksTitle
