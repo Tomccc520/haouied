@@ -14,6 +14,7 @@ module.exports = app => {
       type: INTEGER.UNSIGNED,
       allowNull: false,
       defaultValue: 0,
+      field: 'user_id',
     },
     openid: {
       type: STRING(200),
@@ -39,17 +40,20 @@ module.exports = app => {
       type: INTEGER.UNSIGNED,
       allowNull: false,
       defaultValue: 0,
+      field: 'create_time',
     },
     updateTime: {
       type: INTEGER.UNSIGNED,
       allowNull: false,
       defaultValue: 0,
+      field: 'update_time',
     },
   };
   const UserAuth = app.model.define('UserAuth', modelDefinition, {
+    createdAt: false,
+    updatedAt: false,
     tableName: 'la_user_auth', // 定义实际表名
   });
 
   return UserAuth;
 };
-

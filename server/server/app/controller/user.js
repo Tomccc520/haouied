@@ -85,6 +85,81 @@ class UserController extends BaseController {
   }
 
   /**
+   * 签发第三方登录 state 并返回授权地址
+   */
+  async socialLoginState() {
+    const { ctx } = this;
+    try {
+      const params = ctx.request.method === 'POST' ? (ctx.request.body || {}) : (ctx.request.query || {});
+      const data = await ctx.service.user.startSocialAuth(params.provider, {
+        origin: params.origin,
+        redirect: params.redirect,
+        mode: 'login',
+      });
+      this.result({ data });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 签发第三方绑定 state 并返回授权地址
+   */
+  async socialBindState() {
+    const { ctx } = this;
+    try {
+      const params = ctx.request.method === 'POST' ? (ctx.request.body || {}) : (ctx.request.query || {});
+      const userId = await ctx.service.user.getUserId();
+      const data = await ctx.service.user.startSocialAuth(params.provider, {
+        origin: params.origin,
+        redirect: params.redirect || '/profile?tab=security',
+        mode: 'bind',
+        userId,
+      });
+      this.result({ data });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 统一处理微信登录回调结果
+   * @param {'wechatWebsite'|'wechatOfficialAccount'} provider 平台标识
+   */
+  async handleSocialCallbackByProvider(provider) {
+    const { ctx } = this;
+    try {
+      const query = ctx.request.query || {};
+      const result = await ctx.service.user.handleSocialAuthCallback(provider, query);
+      if (result.redirectUrl) {
+        ctx.redirect(result.redirectUrl);
+        return;
+      }
+      if (result.success) {
+        this.result({ data: result.data || {}, message: result.message || '登录成功' });
+        return;
+      }
+      this.result({ data: '', message: result.message || '登录失败', code: 1001 });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 微信开放平台网站应用回调
+   */
+  async socialWechatWebsiteCallback() {
+    await this.handleSocialCallbackByProvider('wechatWebsite');
+  }
+
+  /**
+   * 微信公众号网页授权回调
+   */
+  async socialWechatOfficialAccountCallback() {
+    await this.handleSocialCallbackByProvider('wechatOfficialAccount');
+  }
+
+  /**
    * 登录二次验证：重新发送验证码
    */
   async loginTwoFactorSend() {
@@ -927,6 +1002,35 @@ class UserController extends BaseController {
       const userId = await ctx.service.user.getUserId();
       const body = ctx.request.body || {};
       await ctx.service.user.unbindAccount(userId, body);
+      this.result({ data: null, message: '解绑成功' });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 获取当前账号第三方绑定状态
+   */
+  async socialBindings() {
+    const { ctx } = this;
+    try {
+      const userId = await ctx.service.user.getUserId();
+      const data = await ctx.service.user.getUserSocialBindings(userId);
+      this.result({ data });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 解绑第三方账号
+   */
+  async socialUnbind() {
+    const { ctx } = this;
+    try {
+      const userId = await ctx.service.user.getUserId();
+      const body = ctx.request.body || {};
+      await ctx.service.user.unbindSocialAccount(userId, body.provider);
       this.result({ data: null, message: '解绑成功' });
     } catch (e) {
       this.result({ data: '', message: e.message, code: 1001 });

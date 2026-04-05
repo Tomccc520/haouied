@@ -10,12 +10,19 @@
  * @createDate 2026.1.27
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import userService, { LoginTwoFactorChallenge } from '../../services/userService';
 import Modal from '../UI/Modal';
 import publicSettingService from '../../services/publicSettingService';
 import { DEFAULT_BRAND_CONFIG, type BrandConfig } from '../../config/brandConfig';
+import {
+  getCurrentRelativePath,
+  getFrontendOrigin,
+  isSocialAuthPopupPayload,
+  openCenteredPopup,
+  resolvePreferredWechatProvider,
+} from '../../utils/socialAuth';
 import './AuthModal.css';
 
 interface AuthModalProps {
@@ -34,6 +41,16 @@ interface AuthConfig {
   register_close_message: string;
   login_close_message: string;
   user_center_close_message: string;
+  wechatWebsiteLogin: {
+    enabled: boolean;
+    appId: string;
+    callbackPath: string;
+  };
+  wechatOfficialAccountLogin: {
+    enabled: boolean;
+    appId: string;
+    oauthCallbackPath: string;
+  };
 }
 
 /**
@@ -44,11 +61,22 @@ const AuthModal: React.FC<AuthModalProps> = ({
   onClose, 
   initialMode = 'login' 
 }) => {
-  const { login, verifyLoginTwoFactor, register, error: authError, clearError, loading } = useUser();
+  const {
+    login,
+    verifyLoginTwoFactor,
+    acceptExternalAuthToken,
+    register,
+    error: authError,
+    clearError,
+    loading,
+  } = useUser();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [twoFactorChallenge, setTwoFactorChallenge] = useState<LoginTwoFactorChallenge | null>(null);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [sendingTwoFactorCode, setSendingTwoFactorCode] = useState(false);
+  const [socialSubmitting, setSocialSubmitting] = useState(false);
+  const [socialMessage, setSocialMessage] = useState('');
+  const socialPopupRef = useRef<Window | null>(null);
   
   // 认证配置状态
   const [authConfig, setAuthConfig] = useState<AuthConfig>({
@@ -58,6 +86,16 @@ const AuthModal: React.FC<AuthModalProps> = ({
     register_close_message: '',
     login_close_message: '',
     user_center_close_message: '',
+    wechatWebsiteLogin: {
+      enabled: false,
+      appId: '',
+      callbackPath: '/api/auth/wechat/open-platform/callback',
+    },
+    wechatOfficialAccountLogin: {
+      enabled: false,
+      appId: '',
+      oauthCallbackPath: '/api/auth/wechat/official-account/login/callback',
+    },
   });
   const [brandConfig, setBrandConfig] = useState<BrandConfig>(DEFAULT_BRAND_CONFIG);
   
@@ -85,6 +123,19 @@ const AuthModal: React.FC<AuthModalProps> = ({
           register_close_message: String(nextConfig.register_close_message || ''),
           login_close_message: String(nextConfig.login_close_message || ''),
           user_center_close_message: String(nextConfig.user_center_close_message || ''),
+          wechatWebsiteLogin: {
+            enabled: nextConfig?.wechatWebsiteLogin?.enabled === true,
+            appId: String(nextConfig?.wechatWebsiteLogin?.appId || ''),
+            callbackPath: String(nextConfig?.wechatWebsiteLogin?.callbackPath || '/api/auth/wechat/open-platform/callback'),
+          },
+          wechatOfficialAccountLogin: {
+            enabled: nextConfig?.wechatOfficialAccountLogin?.enabled === true,
+            appId: String(nextConfig?.wechatOfficialAccountLogin?.appId || ''),
+            oauthCallbackPath: String(
+              nextConfig?.wechatOfficialAccountLogin?.oauthCallbackPath
+              || '/api/auth/wechat/official-account/login/callback'
+            ),
+          },
         });
         setBrandConfig(settings.brand || DEFAULT_BRAND_CONFIG);
       } catch (error) {
@@ -101,10 +152,59 @@ const AuthModal: React.FC<AuthModalProps> = ({
       setFormData({ username: '', password: '', confirmPassword: '', nickname: '' });
       setTwoFactorChallenge(null);
       setTwoFactorCode('');
+      setSocialSubmitting(false);
+      setSocialMessage('');
       setErrors({});
       clearError();
     }
   }, [visible, initialMode, clearError]);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    /**
+     * 监听微信登录弹窗回传结果，并写入站内登录态
+     */
+    const handleSocialResultMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (!isSocialAuthPopupPayload(event.data) || event.data.action !== 'login') return;
+      socialPopupRef.current?.close();
+      socialPopupRef.current = null;
+      if (!event.data.success || !event.data.token) {
+        setSocialSubmitting(false);
+        setSocialMessage(event.data.message || '微信登录失败，请稍后重试');
+        return;
+      }
+      try {
+        await acceptExternalAuthToken(event.data.token);
+        setSocialSubmitting(false);
+        setSocialMessage('');
+        onClose();
+      } catch (error: any) {
+        setSocialSubmitting(false);
+        setSocialMessage(error?.message || '微信登录失败，请稍后重试');
+      }
+    };
+
+    window.addEventListener('message', handleSocialResultMessage);
+    return () => {
+      window.removeEventListener('message', handleSocialResultMessage);
+    };
+  }, [acceptExternalAuthToken, onClose, visible]);
+
+  useEffect(() => {
+    if (!socialSubmitting || !socialPopupRef.current) return;
+    const timer = window.setInterval(() => {
+      if (socialPopupRef.current && socialPopupRef.current.closed) {
+        socialPopupRef.current = null;
+        setSocialSubmitting(false);
+        setSocialMessage(prev => prev || '微信授权窗口已关闭，请重新发起登录');
+      }
+    }, 400);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [socialSubmitting]);
 
   /**
    * 校验表单输入
@@ -215,6 +315,8 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setMode(newMode);
     setTwoFactorChallenge(null);
     setTwoFactorCode('');
+    setSocialSubmitting(false);
+    setSocialMessage('');
     setErrors({});
     clearError();
   };
@@ -233,6 +335,58 @@ const AuthModal: React.FC<AuthModalProps> = ({
       setSendingTwoFactorCode(false);
     }
   };
+
+  /**
+   * 发起微信登录（PC 扫码 / 微信内网页授权）
+   */
+  const handleWechatLogin = async () => {
+    if (authConfig.enable_user_center === 0) {
+      setSocialMessage(authConfig.user_center_close_message || '个人中心功能暂时关闭');
+      return;
+    }
+    if (authConfig.enable_login === 0) {
+      setSocialMessage(authConfig.login_close_message || '系统维护中，暂时无法登录');
+      return;
+    }
+    const provider = resolvePreferredWechatProvider(authConfig);
+    if (!provider) {
+      setSocialMessage('管理员暂未开启微信登录');
+      return;
+    }
+    setSocialSubmitting(true);
+    setSocialMessage('');
+    clearError();
+    try {
+      const result = await userService.getSocialLoginState({
+        provider,
+        origin: getFrontendOrigin(),
+        redirect: getCurrentRelativePath(),
+      });
+      const authUrl = String(result?.authUrl || '').trim();
+      if (!authUrl) {
+        throw new Error('微信授权地址生成失败');
+      }
+      if (provider === 'wechatOfficialAccount') {
+        window.location.href = authUrl;
+        return;
+      }
+      const popup = openCenteredPopup(authUrl, '微信登录', 540, 720);
+      if (!popup) {
+        window.location.href = authUrl;
+        return;
+      }
+      socialPopupRef.current = popup;
+      popup.focus?.();
+    } catch (error: any) {
+      setSocialSubmitting(false);
+      setSocialMessage(error?.message || '微信登录启动失败，请稍后重试');
+    }
+  };
+
+  const availableWechatProvider = resolvePreferredWechatProvider(authConfig);
+  const showWechatLogin = mode === 'login'
+    && !twoFactorChallenge
+    && Boolean(availableWechatProvider);
 
   return (
     <Modal
@@ -277,6 +431,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
         {authError && (
           <div className="auth-global-error">
             {authError.message}
+          </div>
+        )}
+        {!authError && socialMessage && (
+          <div className="auth-global-error">
+            {socialMessage}
           </div>
         )}
 
@@ -379,11 +538,28 @@ const AuthModal: React.FC<AuthModalProps> = ({
           <button 
             type="submit" 
             className="auth-submit-btn"
-            disabled={loading}
+            disabled={loading || socialSubmitting}
           >
             {loading ? '处理中...' : (twoFactorChallenge ? '提交验证码' : (mode === 'login' ? '立即登录' : '立即注册'))}
           </button>
         </form>
+
+        {showWechatLogin && (
+          <div className="auth-social-section">
+            <div className="auth-social-divider">
+              <span>或使用微信继续</span>
+            </div>
+            <button
+              type="button"
+              className="auth-social-btn auth-social-btn--wechat"
+              onClick={handleWechatLogin}
+              disabled={loading || socialSubmitting}
+            >
+              <span className="auth-social-btn__icon" aria-hidden="true">微</span>
+              <span>{socialSubmitting ? '正在打开微信授权...' : '微信登录'}</span>
+            </button>
+          </div>
+        )}
 
         {!twoFactorChallenge && (
         <div className="auth-footer">

@@ -1,0 +1,59 @@
+/**
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-04-06
+ */
+
+.social-callback-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--primary-color) 16%, white) 0%, transparent 34%),
+    linear-gradient(180deg, var(--bg-page) 0%, color-mix(in srgb, var(--bg-page) 82%, white) 100%);
+}
+
+.social-callback-card {
+  width: min(420px, 100%);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  background: var(--bg-card);
+  padding: 28px 26px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+.social-callback-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.social-callback-badge.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.social-callback-title {
+  margin: 18px 0 10px;
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.social-callback-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+}

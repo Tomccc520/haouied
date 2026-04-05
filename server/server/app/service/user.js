@@ -7,6 +7,7 @@
 'use strict';
 
 const Service = require('egg').Service;
+const crypto = require('crypto');
 const md5 = require('md5');
 const Sequelize = require('sequelize');
 const moment = require('moment');
@@ -76,6 +77,24 @@ const normalizeVipGoodsItem = (item, defaults) => {
     duration,
     desc: source.desc || defaults.desc || '',
   };
+};
+
+const SOCIAL_AUTH_MODE_LOGIN = 'login';
+const SOCIAL_AUTH_MODE_BIND = 'bind';
+const SOCIAL_AUTH_STATE_PREFIX = 'uied_social_';
+const SOCIAL_AUTH_STATE_NONCE_KEY_PREFIX = 'social:state:nonce:';
+const SOCIAL_AUTH_RESULT_PATH = '/auth/social-callback';
+const SOCIAL_AUTH_DEFAULT_STATE_TTL_SECONDS = 600;
+const SOCIAL_AUTH_MIN_STATE_TTL_SECONDS = 180;
+const SOCIAL_AUTH_MAX_STATE_TTL_SECONDS = 1800;
+const SOCIAL_AUTH_STATE_VERSION = 1;
+const SOCIAL_AUTH_PROVIDER_MAP = {
+  wechatWebsite: 4,
+  wechatOfficialAccount: 2,
+};
+const SOCIAL_AUTH_PROVIDER_LABEL_MAP = {
+  wechatWebsite: '微信开放平台',
+  wechatOfficialAccount: '微信公众号',
 };
 
 class UserService extends Service {
@@ -1020,6 +1039,1174 @@ class UserService extends Service {
     }
     await this.refreshUserSessionActiveTime(token, tokenTtlSeconds);
     return parseInt(uid, 10);
+  }
+
+  /**
+   * 获取可选用户ID（未登录时返回 0）
+   * @return {Promise<number>} 用户ID
+   */
+  async getUserIdOptional() {
+    try {
+      return await this.getUserId();
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  /**
+   * 规范化第三方登录平台标识
+   * @param {string} provider 平台标识
+   * @return {string} 统一平台键
+   */
+  normalizeSocialAuthProviderKey(provider) {
+    const key = String(provider || '').trim().toLowerCase();
+    if ([ 'wechat', 'wechatpc', 'wechat_pc', 'wechat-pc', 'wechatwebsite', 'wechat_website', 'wechat-website', 'website', 'open-platform', 'open_platform' ].includes(key)) {
+      return 'wechatWebsite';
+    }
+    if ([ 'wechatmp', 'wechat_mp', 'wechat-mp', 'mp', 'official', 'officialaccount', 'wechatofficialaccount', 'wechat_official_account', 'wechat-official-account' ].includes(key)) {
+      return 'wechatOfficialAccount';
+    }
+    return '';
+  }
+
+  /**
+   * 获取第三方登录平台对应的客户端编码
+   * @param {string} provider 平台标识
+   * @return {number} 客户端编码
+   */
+  getSocialAuthClientCode(provider) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    return SOCIAL_AUTH_PROVIDER_MAP[providerKey] || 0;
+  }
+
+  /**
+   * 获取第三方登录平台文案
+   * @param {string} provider 平台标识
+   * @return {string} 平台名称
+   */
+  getSocialAuthProviderLabel(provider) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    return SOCIAL_AUTH_PROVIDER_LABEL_MAP[providerKey] || '微信登录';
+  }
+
+  /**
+   * 规范化第三方动作模式
+   * @param {string} mode 动作模式
+   * @return {string} login / bind
+   */
+  normalizeSocialAuthMode(mode) {
+    return String(mode || '').trim().toLowerCase() === SOCIAL_AUTH_MODE_BIND
+      ? SOCIAL_AUTH_MODE_BIND
+      : SOCIAL_AUTH_MODE_LOGIN;
+  }
+
+  /**
+   * 规范化第三方绑定平台（前台统一展示为微信）
+   * @param {string} provider 平台标识
+   * @return {string} 绑定平台键
+   */
+  normalizeSocialBindingProviderKey(provider) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if ([ 'wechatWebsite', 'wechatOfficialAccount' ].includes(providerKey)) {
+      return 'wechat';
+    }
+    if (String(provider || '').trim().toLowerCase() === 'wechat') {
+      return 'wechat';
+    }
+    return '';
+  }
+
+  /**
+   * 获取绑定平台对应的客户端编码集合
+   * @param {string} provider 绑定平台
+   * @return {number[]} 客户端编码集合
+   */
+  resolveSocialBindingClientCodes(provider) {
+    const bindingProvider = this.normalizeSocialBindingProviderKey(provider);
+    if (bindingProvider === 'wechat') {
+      return [ SOCIAL_AUTH_PROVIDER_MAP.wechatWebsite, SOCIAL_AUTH_PROVIDER_MAP.wechatOfficialAccount ];
+    }
+    return [];
+  }
+
+  /**
+   * 将第三方登录平台映射为前台绑定视图平台
+   * @param {string} provider 平台标识
+   * @return {string} 绑定平台键
+   */
+  resolveSocialBindingViewProvider(provider) {
+    return this.normalizeSocialBindingProviderKey(provider);
+  }
+
+  /**
+   * 对第三方 openid 做脱敏展示
+   * @param {string} openid 第三方标识
+   * @return {string} 脱敏后的 openid
+   */
+  maskSocialOpenid(openid) {
+    const value = String(openid || '').trim();
+    if (!value) return '';
+    if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
+    return `${value.slice(0, 4)}****${value.slice(-4)}`;
+  }
+
+  /**
+   * 从完整 URL 中提取 origin
+   * @param {string} rawUrl 原始 URL
+   * @return {string} origin
+   */
+  extractOriginFromUrl(rawUrl) {
+    const value = String(rawUrl || '').trim();
+    if (!value) return '';
+    try {
+      return new URL(value).origin;
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  /**
+   * 规范化前端来源域名，仅允许 http/https origin
+   * @param {string} rawOrigin 来源域名
+   * @return {string} 规范化后的 origin
+   */
+  normalizeSocialOrigin(rawOrigin) {
+    const value = String(rawOrigin || '').trim().replace(/\/+$/, '');
+    if (!value || !/^https?:\/\//i.test(value)) return '';
+    try {
+      return new URL(value).origin;
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  /**
+   * 解析当前第三方登录来源域名（优先显式参数，其次 Origin，再次 Referer）
+   * @param {string} rawOrigin 显式传入的来源域名
+   * @return {string} 最终来源域名
+   */
+  resolveSocialRequestOrigin(rawOrigin = '') {
+    const { ctx } = this;
+    return this.normalizeSocialOrigin(rawOrigin)
+      || this.normalizeSocialOrigin(ctx.request.header.origin || '')
+      || this.extractOriginFromUrl(ctx.request.header.referer || '');
+  }
+
+  /**
+   * 规范化第三方登录回跳路径，仅允许站内路径
+   * @param {string} rawPath 原始回跳路径
+   * @return {string} 站内路径
+   */
+  normalizeSocialRedirectPath(rawPath) {
+    const value = String(rawPath || '').trim();
+    if (!value || !value.startsWith('/') || value.startsWith('//')) {
+      return '/profile';
+    }
+    return value;
+  }
+
+  /**
+   * 对文本执行 URL Safe Base64 编码
+   * @param {string} text 文本
+   * @return {string} 编码结果
+   */
+  encodeSocialBase64Url(text) {
+    return Buffer.from(String(text || ''), 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+  }
+
+  /**
+   * 解析 URL Safe Base64 文本
+   * @param {string} text 编码文本
+   * @return {string} 解码结果
+   */
+  decodeSocialBase64Url(text) {
+    const value = String(text || '').trim();
+    if (!value) return '';
+    try {
+      const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+      return Buffer.from(padded, 'base64').toString('utf8');
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  /**
+   * 获取第三方登录 state 签名密钥
+   * @return {string} state 签名密钥
+   */
+  getSocialStateSecret() {
+    const appConfig = this.getAppConfig();
+    const keySeed = String(this.app?.config?.keys || appConfig.keys || '').trim();
+    const privateSeed = String(appConfig.privateKey || extendConfig.privateKey || '').trim();
+    return md5(`uied_social_state|${keySeed}|${privateSeed}`);
+  }
+
+  /**
+   * 构建第三方登录 state 签名
+   * @param {object} payload state 载荷
+   * @return {string} 签名结果
+   */
+  buildSocialStateSignature(payload) {
+    const normalized = {
+      v: Number(payload?.v || SOCIAL_AUTH_STATE_VERSION),
+      p: String(payload?.p || '').trim(),
+      m: this.normalizeSocialAuthMode(payload?.m || SOCIAL_AUTH_MODE_LOGIN),
+      u: Number(payload?.u || 0),
+      o: this.normalizeSocialOrigin(payload?.o || ''),
+      r: this.normalizeSocialRedirectPath(payload?.r || '/profile'),
+      t: Number(payload?.t || 0),
+      n: String(payload?.n || '').trim(),
+    };
+    return crypto
+      .createHmac('sha256', this.getSocialStateSecret())
+      .update(JSON.stringify(normalized))
+      .digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+  }
+
+  /**
+   * 构建第三方登录 state 一次性随机键缓存 Key
+   * @param {string} nonce 一次性随机串
+   * @return {string} Redis Key
+   */
+  buildSocialStateNonceCacheKey(nonce) {
+    const safeNonce = String(nonce || '').trim();
+    if (!safeNonce) return '';
+    return `${SOCIAL_AUTH_STATE_NONCE_KEY_PREFIX}${safeNonce}`;
+  }
+
+  /**
+   * 生成第三方登录回调路径
+   * @param {string} provider 平台标识
+   * @return {string} 回调路径
+   */
+  buildSocialCallbackPath(provider) {
+    const { ctx } = this;
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (providerKey === 'wechatWebsite') {
+      return ctx.service.uied.setting.getWechatOpenPlatformCallbackPath();
+    }
+    if (providerKey === 'wechatOfficialAccount') {
+      return ctx.service.uied.setting.getWechatOfficialAccountOauthCallbackPath();
+    }
+    return '';
+  }
+
+  /**
+   * 生成当前请求下的第三方登录回调地址
+   * @param {string} provider 平台标识
+   * @return {string} 完整回调地址
+   */
+  buildSocialCallbackUrl(provider) {
+    const { ctx } = this;
+    const callbackPath = this.buildSocialCallbackPath(provider);
+    if (!callbackPath) return '';
+    const origin = String(ctx.request.origin || '').trim().replace(/\/+$/, '');
+    if (!origin) return '';
+    return `${origin}${callbackPath}`;
+  }
+
+  /**
+   * 构建第三方登录结果页地址（敏感参数走 hash，避免泄露到服务端日志）
+   * @param {object} stateContext state 上下文
+   * @param {object} params hash 参数
+   * @return {string} 前端结果页地址
+   */
+  buildSocialLoginResultUrlByContext(stateContext, params = {}) {
+    const origin = this.normalizeSocialOrigin(stateContext?.origin || '');
+    if (!origin) return '';
+    try {
+      const url = new URL(SOCIAL_AUTH_RESULT_PATH, `${origin}/`);
+      const hashParams = new URLSearchParams();
+      const redirectPath = this.normalizeSocialRedirectPath(stateContext?.redirectPath || '/profile');
+      hashParams.set('redirect', redirectPath);
+      Object.keys(params || {}).forEach(key => {
+        const value = params[key];
+        if (value === undefined || value === null) return;
+        const text = String(value).trim();
+        if (!text) return;
+        hashParams.set(key, text);
+      });
+      url.hash = hashParams.toString();
+      return url.toString();
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  /**
+   * 断言前台登录功能已开启
+   * @return {Promise<boolean>} 是否通过校验
+   */
+  async assertFrontLoginEnabled() {
+    const { ctx } = this;
+    const authConfig = ctx.service.uied.setting.normalizeAuthConfig(
+      await ctx.service.uied.setting.getAuthConfig()
+    );
+    if (authConfig.enable_login === 0) {
+      throw new Error(authConfig.login_close_message || '系统维护中，暂时无法登录');
+    }
+    return true;
+  }
+
+  /**
+   * 获取指定微信平台配置
+   * @param {string} provider 平台标识
+   * @return {Promise<object>} 平台配置
+   */
+  async getWechatSocialProviderConfig(provider) {
+    const { ctx } = this;
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (!providerKey) {
+      throw new Error('暂不支持的第三方登录类型');
+    }
+    const authConfig = ctx.service.uied.setting.normalizeAuthConfig(
+      await ctx.service.uied.setting.getAuthConfig()
+    );
+    const providerConfig = providerKey === 'wechatWebsite'
+      ? (authConfig.wechatWebsiteLogin || {})
+      : (authConfig.wechatOfficialAccountLogin || {});
+    if (!providerConfig.enabled) {
+      throw new Error(`${this.getSocialAuthProviderLabel(providerKey)}未开启`);
+    }
+    if (!String(providerConfig.appId || '').trim() || !String(providerConfig.appSecret || '').trim()) {
+      throw new Error(`${this.getSocialAuthProviderLabel(providerKey)}参数不完整`);
+    }
+    return {
+      appId: String(providerConfig.appId || '').trim(),
+      appSecret: String(providerConfig.appSecret || '').trim(),
+    };
+  }
+
+  /**
+   * 生成微信开放平台网站应用授权地址
+   * @param {string} appId 开放平台 AppID
+   * @param {string} state 状态串
+   * @return {string} 授权地址
+   */
+  buildWechatWebsiteAuthorizeUrl(appId, state) {
+    const safeAppId = String(appId || '').trim();
+    const safeState = String(state || '').trim();
+    const redirectUri = this.buildSocialCallbackUrl('wechatWebsite');
+    if (!safeAppId || !safeState || !redirectUri) return '';
+    const params = new URLSearchParams({
+      appid: safeAppId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'snsapi_login',
+      state: safeState,
+    });
+    return `https://open.weixin.qq.com/connect/qrconnect?${params.toString()}#wechat_redirect`;
+  }
+
+  /**
+   * 生成微信公众号网页授权地址
+   * @param {string} appId 公众号 AppID
+   * @param {string} state 状态串
+   * @return {string} 授权地址
+   */
+  buildWechatOfficialAccountAuthorizeUrl(appId, state) {
+    const safeAppId = String(appId || '').trim();
+    const safeState = String(state || '').trim();
+    const redirectUri = this.buildSocialCallbackUrl('wechatOfficialAccount');
+    if (!safeAppId || !safeState || !redirectUri) return '';
+    const params = new URLSearchParams({
+      appid: safeAppId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'snsapi_userinfo',
+      state: safeState,
+    });
+    return `https://open.weixin.qq.com/connect/oauth2/authorize?${params.toString()}#wechat_redirect`;
+  }
+
+  /**
+   * 生成第三方登录授权地址
+   * @param {string} provider 平台标识
+   * @param {string} state 状态串
+   * @return {Promise<string>} 授权地址
+   */
+  async buildSocialAuthorizeUrl(provider, state) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    const config = await this.getWechatSocialProviderConfig(providerKey);
+    if (providerKey === 'wechatWebsite') {
+      return this.buildWechatWebsiteAuthorizeUrl(config.appId, state);
+    }
+    if (providerKey === 'wechatOfficialAccount') {
+      return this.buildWechatOfficialAccountAuthorizeUrl(config.appId, state);
+    }
+    return '';
+  }
+
+  /**
+   * 签发第三方登录 state
+   * @param {string} provider 平台标识
+   * @param {object} options 扩展选项
+   * @return {Promise<string>} state
+   */
+  async createSocialLoginState(provider, options = {}) {
+    const { ctx } = this;
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (!providerKey) throw new Error('暂不支持的第三方登录类型');
+    const mode = this.normalizeSocialAuthMode(options.mode);
+    if (mode === SOCIAL_AUTH_MODE_LOGIN) {
+      await this.assertFrontLoginEnabled();
+    }
+    await this.getWechatSocialProviderConfig(providerKey);
+    const bindUserId = mode === SOCIAL_AUTH_MODE_BIND ? Number(options.userId || 0) : 0;
+    if (mode === SOCIAL_AUTH_MODE_BIND && bindUserId <= 0) {
+      throw new Error('绑定用户信息无效，请刷新后重试');
+    }
+    const origin = this.resolveSocialRequestOrigin(options.origin || '');
+    if (!origin) {
+      throw new Error('前端来源域名无效');
+    }
+    const redirectPath = this.normalizeSocialRedirectPath(options.redirect || '/profile');
+    const now = Date.now();
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const payload = {
+      v: SOCIAL_AUTH_STATE_VERSION,
+      p: providerKey,
+      m: mode,
+      u: bindUserId,
+      o: origin,
+      r: redirectPath,
+      t: now,
+      n: nonce,
+    };
+    const signature = this.buildSocialStateSignature(payload);
+    const ttlSeconds = Math.min(
+      SOCIAL_AUTH_MAX_STATE_TTL_SECONDS,
+      Math.max(SOCIAL_AUTH_MIN_STATE_TTL_SECONDS, Number(options.ttlSeconds || SOCIAL_AUTH_DEFAULT_STATE_TTL_SECONDS))
+    );
+    const cacheKey = this.buildSocialStateNonceCacheKey(nonce);
+    await ctx.service.redis.set(cacheKey, {
+      provider: providerKey,
+      mode,
+      userId: bindUserId,
+      origin,
+      issuedAt: now,
+    }, ttlSeconds + 60);
+    return `${SOCIAL_AUTH_STATE_PREFIX}${this.encodeSocialBase64Url(JSON.stringify({
+      ...payload,
+      s: signature,
+    }))}`;
+  }
+
+  /**
+   * 解析第三方登录 state 结构
+   * @param {string} state 状态串
+   * @return {object|null} 解析后的上下文
+   */
+  parseSocialLoginStateContext(state) {
+    const raw = String(state || '').trim();
+    if (!raw.startsWith(SOCIAL_AUTH_STATE_PREFIX)) return null;
+    const payloadText = this.decodeSocialBase64Url(raw.slice(SOCIAL_AUTH_STATE_PREFIX.length));
+    if (!payloadText || !payloadText.startsWith('{')) return null;
+    try {
+      const payload = JSON.parse(payloadText);
+      const origin = this.normalizeSocialOrigin(payload?.o || payload?.origin || '');
+      if (!origin) return null;
+      return {
+        version: Number(payload?.v || payload?.version || SOCIAL_AUTH_STATE_VERSION),
+        provider: this.normalizeSocialAuthProviderKey(payload?.p || payload?.provider || ''),
+        mode: this.normalizeSocialAuthMode(payload?.m || payload?.mode || SOCIAL_AUTH_MODE_LOGIN),
+        userId: Number(payload?.u || payload?.userId || 0),
+        origin,
+        redirectPath: this.normalizeSocialRedirectPath(payload?.r || payload?.redirect || '/profile'),
+        issuedAt: Number(payload?.t || payload?.timestamp || 0),
+        nonce: String(payload?.n || payload?.nonce || '').trim(),
+        signature: String(payload?.s || payload?.signature || '').trim(),
+      };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  /**
+   * 消费并删除 state 对应的一次性随机串
+   * @param {string} nonce 一次性随机串
+   * @return {Promise<object|null>} 缓存上下文
+   */
+  async consumeSocialStateNonce(nonce) {
+    const { ctx } = this;
+    const key = this.buildSocialStateNonceCacheKey(nonce);
+    if (!key) return null;
+    const cacheValue = await ctx.service.redis.get(key);
+    if (!cacheValue) return null;
+    await ctx.service.redis.del(key);
+    return cacheValue;
+  }
+
+  /**
+   * 校验第三方登录回调 state
+   * @param {string} provider 平台标识
+   * @param {string} state 状态串
+   * @return {Promise<object>} 校验结果
+   */
+  async resolveSocialLoginStateContext(provider, state) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    const parsedState = this.parseSocialLoginStateContext(state);
+    if (!providerKey || !parsedState) {
+      return { success: false, message: '登录状态无效，请重试', context: null };
+    }
+    if (parsedState.provider !== providerKey) {
+      return { success: false, message: '登录状态已过期，请重新发起授权', context: null };
+    }
+    if (!parsedState.nonce || !parsedState.issuedAt || !parsedState.signature) {
+      return { success: false, message: '登录状态不完整，请重试', context: null };
+    }
+    const expectedSign = this.buildSocialStateSignature({
+      v: parsedState.version,
+      p: parsedState.provider,
+      m: parsedState.mode,
+      u: parsedState.userId,
+      o: parsedState.origin,
+      r: parsedState.redirectPath,
+      t: parsedState.issuedAt,
+      n: parsedState.nonce,
+    });
+    if (expectedSign !== parsedState.signature) {
+      return { success: false, message: '登录状态签名无效，请重试', context: null };
+    }
+    const now = Date.now();
+    const maxAge = SOCIAL_AUTH_DEFAULT_STATE_TTL_SECONDS * 1000;
+    if (parsedState.issuedAt <= 0 || now - parsedState.issuedAt > maxAge || parsedState.issuedAt - now > 30000) {
+      return { success: false, message: '登录状态已过期，请重新授权', context: null };
+    }
+    const consumed = await this.consumeSocialStateNonce(parsedState.nonce);
+    if (!consumed) {
+      return { success: false, message: '登录状态已失效，请重新发起登录', context: null };
+    }
+    if (this.normalizeSocialAuthProviderKey(consumed.provider || '') !== providerKey) {
+      return { success: false, message: '登录状态校验失败，请重试', context: null };
+    }
+    return { success: true, message: '', context: parsedState };
+  }
+
+  /**
+   * 发起第三方登录/绑定，返回 state 与授权地址
+   * @param {string} provider 平台标识
+   * @param {object} options 扩展选项
+   * @return {Promise<object>} 发起结果
+   */
+  async startSocialAuth(provider, options = {}) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (!providerKey) {
+      throw new Error('暂不支持的第三方登录类型');
+    }
+    const state = await this.createSocialLoginState(providerKey, options);
+    const authUrl = await this.buildSocialAuthorizeUrl(providerKey, state);
+    if (!authUrl) {
+      throw new Error(`${this.getSocialAuthProviderLabel(providerKey)}授权地址生成失败`);
+    }
+    return {
+      provider: providerKey,
+      mode: this.normalizeSocialAuthMode(options.mode),
+      state,
+      authUrl,
+    };
+  }
+
+  /**
+   * 确保第三方绑定表存在，并兼容历史 camelCase 字段
+   * @return {Promise<boolean>} 是否就绪
+   */
+  async ensureUserAuthTable() {
+    const { ctx, app } = this;
+    if (app.__userAuthTableReady) return true;
+    try {
+      await ctx.model.query(`
+        CREATE TABLE IF NOT EXISTS \`la_user_auth\` (
+          \`id\` int unsigned NOT NULL AUTO_INCREMENT,
+          \`user_id\` int unsigned NOT NULL DEFAULT 0,
+          \`openid\` varchar(200) NOT NULL DEFAULT '',
+          \`unionid\` varchar(200) NOT NULL DEFAULT '',
+          \`client\` tinyint unsigned NOT NULL DEFAULT 1,
+          \`create_time\` int unsigned NOT NULL DEFAULT 0,
+          \`update_time\` int unsigned NOT NULL DEFAULT 0,
+          PRIMARY KEY (\`id\`),
+          UNIQUE KEY \`openid\` (\`openid\`),
+          KEY \`idx_user_id\` (\`user_id\`),
+          KEY \`idx_unionid\` (\`unionid\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      const [ columns ] = await ctx.model.query('SHOW COLUMNS FROM `la_user_auth`;');
+      const columnNames = new Set(
+        (Array.isArray(columns) ? columns : [])
+          .map(item => String(item?.Field || item?.field || '').trim())
+          .filter(Boolean)
+      );
+      if (!columnNames.has('user_id') && columnNames.has('userId')) {
+        await ctx.model.query('ALTER TABLE `la_user_auth` CHANGE COLUMN `userId` `user_id` int unsigned NOT NULL DEFAULT 0;');
+      }
+      if (!columnNames.has('create_time') && columnNames.has('createTime')) {
+        await ctx.model.query('ALTER TABLE `la_user_auth` CHANGE COLUMN `createTime` `create_time` int unsigned NOT NULL DEFAULT 0;');
+      }
+      if (!columnNames.has('update_time') && columnNames.has('updateTime')) {
+        await ctx.model.query('ALTER TABLE `la_user_auth` CHANGE COLUMN `updateTime` `update_time` int unsigned NOT NULL DEFAULT 0;');
+      }
+      app.__userAuthTableReady = true;
+      return true;
+    } catch (error) {
+      ctx.logger.warn(`[user.ensureUserAuthTable] ${error.message || error}`);
+      return false;
+    }
+  }
+
+  /**
+   * 调用微信接口换取第三方资料
+   * @param {string} provider 平台标识
+   * @param {string} code 授权码
+   * @return {Promise<object>} 第三方资料
+   */
+  async fetchWechatSocialProfile(provider, code) {
+    const { ctx } = this;
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    const config = await this.getWechatSocialProviderConfig(providerKey);
+    const safeCode = String(code || '').trim();
+    if (!safeCode) {
+      throw new Error('授权码不能为空');
+    }
+    const tokenQuery = new URLSearchParams({
+      appid: config.appId,
+      secret: config.appSecret,
+      code: safeCode,
+      grant_type: 'authorization_code',
+    });
+    const tokenUrl = `https://api.weixin.qq.com/sns/oauth2/access_token?${tokenQuery.toString()}`;
+    const tokenResponse = await ctx.curl(tokenUrl, {
+      method: 'GET',
+      dataType: 'json',
+      timeout: 5000,
+    });
+    const tokenData = tokenResponse?.data || {};
+    if (Number(tokenData.errcode || 0) !== 0) {
+      throw new Error(String(tokenData.errmsg || '微信授权失败'));
+    }
+    const accessToken = String(tokenData.access_token || '').trim();
+    const openid = String(tokenData.openid || '').trim();
+    if (!accessToken || !openid) {
+      throw new Error('微信授权返回无效');
+    }
+    const userQuery = new URLSearchParams({
+      access_token: accessToken,
+      openid,
+      lang: 'zh_CN',
+    });
+    const userUrl = `https://api.weixin.qq.com/sns/userinfo?${userQuery.toString()}`;
+    const userResponse = await ctx.curl(userUrl, {
+      method: 'GET',
+      dataType: 'json',
+      timeout: 5000,
+    });
+    const userData = userResponse?.data || {};
+    if (Number(userData.errcode || 0) !== 0) {
+      throw new Error(String(userData.errmsg || '获取微信用户信息失败'));
+    }
+    return {
+      openid,
+      unionid: String(userData.unionid || tokenData.unionid || '').trim(),
+      nickname: String(userData.nickname || '').trim(),
+      avatar: String(userData.headimgurl || '').trim(),
+      raw: {
+        token: tokenData,
+        user: userData,
+      },
+    };
+  }
+
+  /**
+   * 按第三方身份查找已绑定用户
+   * @param {string} provider 平台标识
+   * @param {object} profile 第三方资料
+   * @return {Promise<object|null>} 用户实体
+   */
+  async findUserBySocialProfile(provider, profile = {}) {
+    const { ctx } = this;
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    const client = this.getSocialAuthClientCode(providerKey);
+    if (!client) return null;
+    const ready = await this.ensureUserAuthTable();
+    if (!ready) {
+      throw new Error('第三方登录服务初始化失败');
+    }
+    const openid = String(profile.openid || '').trim();
+    const unionid = String(profile.unionid || '').trim();
+    let authRecord = null;
+
+    if (openid) {
+      authRecord = await ctx.model.UserAuth.findOne({
+        where: { client, openid },
+      });
+    }
+
+    if (!authRecord && unionid && [ 'wechatWebsite', 'wechatOfficialAccount' ].includes(providerKey)) {
+      authRecord = await ctx.model.UserAuth.findOne({
+        where: {
+          unionid,
+          client: { [Op.in]: this.resolveSocialBindingClientCodes('wechat') },
+        },
+        order: [[ 'id', 'ASC' ]],
+      });
+    }
+
+    const userId = Number(authRecord?.userId || 0);
+    if (!userId) return null;
+    return await ctx.model.User.findOne({
+      where: {
+        id: userId,
+        isDelete: 0,
+      },
+    });
+  }
+
+  /**
+   * 生成第三方登录默认账号名
+   * @param {string} provider 平台标识
+   * @param {string} openid 第三方 openid
+   * @return {Promise<string>} 默认用户名
+   */
+  async generateSocialUsername(provider, openid) {
+    const { ctx } = this;
+    const prefixMap = {
+      wechatWebsite: 'wxpc',
+      wechatOfficialAccount: 'wxoa',
+    };
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    const prefix = prefixMap[providerKey] || 'user';
+    const openidSuffix = String(openid || '').replace(/[^0-9a-zA-Z]/g, '').slice(-8) || Date.now().toString(36);
+    let username = `${prefix}_${openidSuffix}`.slice(0, 32);
+    let serial = 0;
+    while (true) {
+      const exists = await ctx.model.User.findOne({
+        where: { username },
+        attributes: [ 'id' ],
+      });
+      if (!exists) return username;
+      serial += 1;
+      const suffix = `_${serial}`;
+      username = `${prefix}_${openidSuffix}`.slice(0, Math.max(1, 32 - suffix.length)) + suffix;
+    }
+  }
+
+  /**
+   * 首次第三方登录自动创建账号
+   * @param {string} provider 平台标识
+   * @param {object} profile 第三方资料
+   * @return {Promise<object>} 新用户实体
+   */
+  async createSocialUser(provider, profile = {}) {
+    const { ctx } = this;
+    const now = Math.floor(Date.now() / 1000);
+    const clientIp = ctx.service.uied?.websiteInteraction?.getClientIp
+      ? ctx.service.uied.websiteInteraction.getClientIp()
+      : String(ctx.ip || ctx.request.ip || '').trim();
+    const username = await this.generateSocialUsername(provider, profile.openid);
+    const nickname = String(profile.nickname || this.getSocialAuthProviderLabel(provider) || username).trim().slice(0, 32) || username;
+    const passwordSeed = `social:${provider}:${profile.openid || ''}:${Date.now()}`;
+    const user = await ctx.model.User.create({
+      sn: 0,
+      avatar: String(profile.avatar || '').trim().slice(0, 200),
+      nickname,
+      username,
+      password: md5(passwordSeed),
+      mobile: '',
+      createTime: now,
+      updateTime: now,
+      lastLoginIp: clientIp,
+      lastLoginTime: now,
+      channel: this.getSocialAuthClientCode(provider),
+    });
+    if (user && user.id) {
+      await ctx.model.User.update({
+        sn: user.id,
+        updateTime: now,
+      }, {
+        where: { id: user.id },
+      });
+      user.sn = user.id;
+    }
+    if (this.hasService('coupon') && typeof ctx.service.coupon.grantAutoToUser === 'function') {
+      await ctx.service.coupon.grantAutoToUser(user.id);
+    }
+    return user;
+  }
+
+  /**
+   * 同步第三方昵称与头像到站内账号
+   * @param {object} user 站内用户
+   * @param {object} profile 第三方资料
+   * @return {Promise<object>} 最新用户实体
+   */
+  async syncSocialUserProfile(user, profile = {}) {
+    const { ctx } = this;
+    if (!user || !user.id) return user;
+    const updateData = {};
+    const nickname = String(profile.nickname || '').trim().slice(0, 32);
+    const avatar = String(profile.avatar || '').trim().slice(0, 200);
+    if (nickname && nickname !== String(user.nickname || '').trim()) {
+      updateData.nickname = nickname;
+    }
+    if (avatar && avatar !== String(user.avatar || '').trim()) {
+      updateData.avatar = avatar;
+    }
+    if (!Object.keys(updateData).length) {
+      return user;
+    }
+    updateData.updateTime = Math.floor(Date.now() / 1000);
+    await ctx.model.User.update(updateData, {
+      where: { id: Number(user.id || 0) },
+    });
+    return await ctx.model.User.findOne({
+      where: { id: Number(user.id || 0), isDelete: 0 },
+    });
+  }
+
+  /**
+   * 写入第三方账号绑定关系
+   * @param {string} provider 平台标识
+   * @param {number} userId 用户ID
+   * @param {object} profile 第三方资料
+   * @return {Promise<void>}
+   */
+  async saveSocialAuthBinding(provider, userId, profile = {}) {
+    const { ctx } = this;
+    const client = this.getSocialAuthClientCode(provider);
+    const uid = Number(userId || 0);
+    const openid = String(profile.openid || '').trim();
+    const unionid = String(profile.unionid || '').trim();
+    if (!client || !uid || !openid) return;
+    const ready = await this.ensureUserAuthTable();
+    if (!ready) throw new Error('第三方登录绑定服务初始化失败');
+    const now = Math.floor(Date.now() / 1000);
+    const exists = await ctx.model.UserAuth.findOne({
+      where: { client, openid },
+    });
+    if (exists) {
+      await ctx.model.UserAuth.update({
+        userId: uid,
+        unionid,
+        updateTime: now,
+      }, {
+        where: { id: Number(exists.id || 0) },
+      });
+      return;
+    }
+    await ctx.model.UserAuth.create({
+      userId: uid,
+      openid,
+      unionid,
+      client,
+      createTime: now,
+      updateTime: now,
+    });
+  }
+
+  /**
+   * 获取用户第三方绑定状态
+   * @param {number} userId 用户ID
+   * @return {Promise<object>} 绑定状态
+   */
+  async getUserSocialBindings(userId) {
+    const { ctx } = this;
+    const uid = Number(userId || 0);
+    if (!uid) throw new Error('用户不存在');
+    const ready = await this.ensureUserAuthTable();
+    if (!ready) throw new Error('第三方登录服务初始化失败');
+    const rows = await ctx.model.UserAuth.findAll({
+      where: {
+        userId: uid,
+        client: {
+          [Op.in]: this.resolveSocialBindingClientCodes('wechat'),
+        },
+      },
+      order: [[ 'updateTime', 'DESC' ], [ 'id', 'DESC' ]],
+    });
+    const latestWechat = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    const updateTime = Number(latestWechat?.updateTime || latestWechat?.createTime || 0);
+    return {
+      wechat: {
+        provider: this.resolveSocialBindingViewProvider(
+          Number(latestWechat?.client || 0) === SOCIAL_AUTH_PROVIDER_MAP.wechatOfficialAccount
+            ? 'wechatOfficialAccount'
+            : 'wechatWebsite'
+        ) || 'wechat',
+        channel: Number(latestWechat?.client || 0) === SOCIAL_AUTH_PROVIDER_MAP.wechatOfficialAccount
+          ? '公众号'
+          : '开放平台',
+        bound: Boolean(latestWechat),
+        openid: this.maskSocialOpenid(latestWechat?.openid || ''),
+        bindTime: updateTime,
+        bindTimeText: updateTime ? moment.unix(updateTime).format('YYYY-MM-DD HH:mm:ss') : '',
+      },
+    };
+  }
+
+  /**
+   * 绑定第三方账号到当前用户
+   * @param {number} userId 用户ID
+   * @param {string} provider 平台标识
+   * @param {object} profile 第三方资料
+   * @return {Promise<void>}
+   */
+  async bindSocialAccount(userId, provider, profile = {}) {
+    const { ctx } = this;
+    const uid = Number(userId || 0);
+    if (!uid) throw new Error('用户不存在');
+    const user = await ctx.model.User.findOne({
+      where: { id: uid, isDelete: 0 },
+      attributes: [ 'id', 'isDisable' ],
+    });
+    if (!user) throw new Error('用户不存在');
+    if (Number(user.isDisable || 0) === 1) throw new Error('账号已禁用');
+
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    const bindingProvider = this.resolveSocialBindingViewProvider(providerKey);
+    if (!bindingProvider) throw new Error('暂不支持该平台绑定');
+
+    const openid = String(profile.openid || '').trim();
+    const unionid = String(profile.unionid || '').trim();
+    if (!openid) throw new Error('微信账号标识无效');
+
+    const client = this.getSocialAuthClientCode(providerKey);
+    const providerClients = this.resolveSocialBindingClientCodes(bindingProvider);
+    const ready = await this.ensureUserAuthTable();
+    if (!ready) throw new Error('第三方登录绑定服务初始化失败');
+    const now = Math.floor(Date.now() / 1000);
+
+    const existsByOpenid = await ctx.model.UserAuth.findOne({
+      where: { client, openid },
+      attributes: [ 'id', 'userId' ],
+    });
+    if (existsByOpenid && Number(existsByOpenid.userId || 0) !== uid) {
+      throw new Error('该微信账号已绑定到其他账号');
+    }
+
+    if (unionid) {
+      const existsByUnionid = await ctx.model.UserAuth.findOne({
+        where: {
+          unionid,
+          client: { [Op.in]: providerClients },
+        },
+        attributes: [ 'id', 'userId' ],
+        order: [[ 'id', 'ASC' ]],
+      });
+      if (existsByUnionid && Number(existsByUnionid.userId || 0) !== uid) {
+        throw new Error('该微信账号已绑定到其他账号');
+      }
+    }
+
+    await ctx.model.UserAuth.destroy({
+      where: {
+        userId: uid,
+        client: { [Op.in]: providerClients },
+      },
+    });
+
+    await ctx.model.UserAuth.create({
+      userId: uid,
+      openid,
+      unionid,
+      client,
+      createTime: now,
+      updateTime: now,
+    });
+
+    if (unionid) {
+      await ctx.model.UserAuth.update({
+        userId: uid,
+        unionid,
+        updateTime: now,
+      }, {
+        where: {
+          unionid,
+          client: { [Op.in]: providerClients },
+        },
+      });
+    }
+  }
+
+  /**
+   * 解绑第三方账号
+   * @param {number} userId 用户ID
+   * @param {string} provider 绑定平台
+   * @return {Promise<void>}
+   */
+  async unbindSocialAccount(userId, provider) {
+    const { ctx } = this;
+    const uid = Number(userId || 0);
+    if (!uid) throw new Error('用户不存在');
+    const bindingProvider = this.normalizeSocialBindingProviderKey(provider);
+    if (!bindingProvider) throw new Error('解绑类型错误');
+    const clients = this.resolveSocialBindingClientCodes(bindingProvider);
+    const deleted = await ctx.model.UserAuth.destroy({
+      where: {
+        userId: uid,
+        client: { [Op.in]: clients },
+      },
+    });
+    if (!Number(deleted || 0)) {
+      throw new Error('当前账号未绑定微信');
+    }
+  }
+
+  /**
+   * 执行第三方登录并复用现有用户 Token 体系
+   * @param {string} provider 平台标识
+   * @param {object} profile 第三方资料
+   * @return {Promise<object>} 登录结果
+   */
+  async loginBySocialProfile(provider, profile = {}) {
+    const { ctx } = this;
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (!providerKey) throw new Error('暂不支持的第三方登录类型');
+    await this.assertFrontLoginEnabled();
+    const openid = String(profile.openid || '').trim();
+    if (!openid) throw new Error('第三方用户标识无效');
+
+    let user = await this.findUserBySocialProfile(providerKey, profile);
+    if (user && Number(user.isDisable || 0) === 1) {
+      throw new Error('账号已禁用');
+    }
+    if (!user) {
+      user = await this.createSocialUser(providerKey, profile);
+    } else {
+      user = await this.syncSocialUserProfile(user, profile);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const clientIp = ctx.service.uied?.websiteInteraction?.getClientIp
+      ? ctx.service.uied.websiteInteraction.getClientIp()
+      : String(ctx.ip || ctx.request.ip || '').trim();
+    await ctx.model.User.update({
+      lastLoginIp: clientIp,
+      lastLoginTime: now,
+      updateTime: now,
+      channel: this.getSocialAuthClientCode(providerKey),
+    }, {
+      where: { id: Number(user.id || 0) },
+    });
+
+    await this.saveSocialAuthBinding(providerKey, user.id, profile);
+    await this.recordLoginLog(user.id, 1);
+    const token = await this.createUserToken(user, {
+      loginType: providerKey,
+      twoFactorVerified: true,
+    });
+    const userInfo = await this.getSafeUserInfoById(Number(user.id || 0), true);
+    return {
+      user: userInfo,
+      userInfo,
+      token,
+      provider: providerKey,
+    };
+  }
+
+  /**
+   * 统一处理第三方登录回调
+   * @param {string} provider 平台标识
+   * @param {object} query 回调查询参数
+   * @return {Promise<object>} 回调处理结果
+   */
+  async handleSocialAuthCallback(provider, query = {}) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (!providerKey) {
+      return {
+        success: false,
+        redirectUrl: '',
+        message: '暂不支持的第三方登录类型',
+        data: null,
+      };
+    }
+
+    const state = String(query.state || '').trim();
+    const stateResolveResult = await this.resolveSocialLoginStateContext(providerKey, state);
+    if (!stateResolveResult.success || !stateResolveResult.context) {
+      return {
+        success: false,
+        redirectUrl: '',
+        message: stateResolveResult.message || '登录状态无效，请重试',
+        data: null,
+      };
+    }
+    const stateContext = stateResolveResult.context;
+    const isBindMode = stateContext.mode === SOCIAL_AUTH_MODE_BIND;
+    const errorText = String(query.error_description || query.error || '').trim();
+    if (errorText) {
+      return {
+        success: false,
+        redirectUrl: this.buildSocialLoginResultUrlByContext(stateContext, {
+          [isBindMode ? 'social_bind_error' : 'social_error']: errorText,
+          social_provider: providerKey,
+        }),
+        message: errorText,
+        data: null,
+      };
+    }
+
+    const code = String(query.code || '').trim();
+    if (!code) {
+      const message = `${this.getSocialAuthProviderLabel(providerKey)}授权码缺失`;
+      return {
+        success: false,
+        redirectUrl: this.buildSocialLoginResultUrlByContext(stateContext, {
+          [isBindMode ? 'social_bind_error' : 'social_error']: message,
+          social_provider: providerKey,
+        }),
+        message,
+        data: null,
+      };
+    }
+
+    try {
+      const profile = await this.fetchWechatSocialProfile(providerKey, code);
+      if (isBindMode) {
+        const bindUserId = Number(stateContext.userId || 0);
+        if (!bindUserId) {
+          throw new Error('绑定会话已失效，请重试');
+        }
+        await this.bindSocialAccount(bindUserId, providerKey, profile);
+        return {
+          success: true,
+          redirectUrl: this.buildSocialLoginResultUrlByContext(stateContext, {
+            social_bind_success: '1',
+            social_provider: this.resolveSocialBindingViewProvider(providerKey) || providerKey,
+          }),
+          message: '绑定成功',
+          data: null,
+        };
+      }
+
+      const result = await this.loginBySocialProfile(providerKey, profile);
+      return {
+        success: true,
+        redirectUrl: this.buildSocialLoginResultUrlByContext(stateContext, {
+          social_token: result.token,
+          social_provider: providerKey,
+        }),
+        message: '登录成功',
+        data: result,
+      };
+    } catch (error) {
+      const message = String(error?.message || `${this.getSocialAuthProviderLabel(providerKey)}登录失败`).trim();
+      return {
+        success: false,
+        redirectUrl: this.buildSocialLoginResultUrlByContext(stateContext, {
+          [isBindMode ? 'social_bind_error' : 'social_error']: message,
+          social_provider: providerKey,
+        }),
+        message,
+        data: null,
+      };
+    }
   }
 
   /**

@@ -196,6 +196,9 @@ const rsa = {
     'sitemap-advanced', // GET /sitemap-advanced/:fileName
     'sitemap-advanced:*', // GET /sitemap-advanced/:fileName
     'auth:wechat:official-account:event', // GET/POST /api/auth/wechat/official-account/event
+    'auth:social:state', // GET/POST /api/auth/social/state
+    'auth:wechat:open-platform:callback', // GET /api/auth/wechat/open-platform/callback
+    'auth:wechat:official-account:login:callback', // GET /api/auth/wechat/official-account/login/callback
     'daily-hot', // GET /api/daily-hot
     'daily-hot:platforms', // GET /api/daily-hot/platforms
     'daily-new:config', // GET /api/daily-new/config

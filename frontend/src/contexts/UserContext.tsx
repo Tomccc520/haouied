@@ -19,6 +19,7 @@ interface UserContextValue {
   isLoggedIn: boolean;
   login: (params: LoginParams) => Promise<LoginActionResult>;
   verifyLoginTwoFactor: (params: { challengeToken: string; code: string }) => Promise<void>;
+  acceptExternalAuthToken: (token: string) => Promise<void>;
   register: (params: RegisterParams) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -129,6 +130,33 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [applyAuthSuccess]);
 
   /**
+   * 接收第三方登录返回的 token，并拉取最新用户资料
+   */
+  const acceptExternalAuthToken = useCallback(async (token: string) => {
+    const safeToken = String(token || '').trim();
+    if (!safeToken) {
+      throw new Error('第三方登录令牌无效');
+    }
+    setLoading(true);
+    setError(null);
+    localStorage.setItem('token', safeToken);
+    try {
+      const userProfile = await userService.getProfile();
+      setUser(userProfile);
+      localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(userProfile));
+    } catch (err) {
+      localStorage.removeItem('token');
+      localStorage.removeItem(USER_PROFILE_CACHE_KEY);
+      setUser(null);
+      const error = err instanceof Error ? err : new Error('第三方登录失败');
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
    * 执行注册并写入用户状态
    */
   const register = useCallback(async (params: RegisterParams) => {
@@ -200,6 +228,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isLoggedIn: !!user,
     login,
     verifyLoginTwoFactor,
+    acceptExternalAuthToken,
     register,
     logout,
     refreshProfile,

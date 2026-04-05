@@ -872,6 +872,46 @@
   gap: 10px;
 }
 
+.security-social-card {
+  display: grid;
+  gap: 10px;
+}
+
+.security-social-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.security-social-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.security-social-card__meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.security-social-card__submeta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.security-social-card__tip {
+  border: 1px dashed var(--border-medium);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-card) 80%, white);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
 .security-device-list {
   display: grid;
   gap: 8px;

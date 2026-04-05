@@ -45,6 +45,28 @@ export interface LoginTwoFactorChallenge {
 
 export type LoginResponse = AuthResponse | LoginTwoFactorChallenge;
 
+export type SocialAuthProvider = 'wechatWebsite' | 'wechatOfficialAccount' | 'wechat';
+
+export interface SocialAuthStartResponse {
+  provider: 'wechatWebsite' | 'wechatOfficialAccount';
+  mode: 'login' | 'bind';
+  state: string;
+  authUrl: string;
+}
+
+export interface SocialBindingItem {
+  provider: 'wechat';
+  channel: string;
+  bound: boolean;
+  openid: string;
+  bindTime: number;
+  bindTimeText: string;
+}
+
+export interface SocialBindingsResponse {
+  wechat: SocialBindingItem;
+}
+
 // 登录参数
 export interface LoginParams {
   username?: string;
@@ -151,6 +173,40 @@ export const userService = {
    */
   logout: async (): Promise<void> => {
     await api.post('/user/logout');
+  },
+
+  /**
+   * 获取第三方登录授权地址
+   */
+  getSocialLoginState: async (params: {
+    provider: Exclude<SocialAuthProvider, 'wechat'>;
+    origin: string;
+    redirect?: string;
+  }): Promise<SocialAuthStartResponse> => {
+    const response = await api.get('/auth/social/state', { params });
+    return unwrapApiResponse<SocialAuthStartResponse>(response.data, {
+      provider: 'wechatWebsite',
+      mode: 'login',
+      state: '',
+      authUrl: '',
+    });
+  },
+
+  /**
+   * 获取第三方绑定授权地址
+   */
+  getSocialBindState: async (params: {
+    provider: Exclude<SocialAuthProvider, 'wechat'>;
+    origin: string;
+    redirect?: string;
+  }): Promise<SocialAuthStartResponse> => {
+    const response = await api.get('/user/social/bind/state', { params });
+    return unwrapApiResponse<SocialAuthStartResponse>(response.data, {
+      provider: 'wechatWebsite',
+      mode: 'bind',
+      state: '',
+      authUrl: '',
+    });
   },
 
   /**
@@ -339,6 +395,30 @@ export const userService = {
   unbindAccount: async (params: { type: 'mobile' | 'email' }): Promise<any> => {
     const response = await api.post('/user/account/unbind', params);
     return unwrapApiResponse<any>(response.data, {});
+  },
+
+  /**
+   * 获取第三方绑定状态
+   */
+  getSocialBindings: async (): Promise<SocialBindingsResponse> => {
+    const response = await api.get('/user/social/bindings');
+    return unwrapApiResponse<SocialBindingsResponse>(response.data, {
+      wechat: {
+        provider: 'wechat',
+        channel: '',
+        bound: false,
+        openid: '',
+        bindTime: 0,
+        bindTimeText: '',
+      },
+    });
+  },
+
+  /**
+   * 解绑第三方账号
+   */
+  unbindSocialAccount: async (provider: 'wechat'): Promise<void> => {
+    await api.post('/user/social/unbind', { provider });
   },
 
   /**

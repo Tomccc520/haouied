@@ -5,20 +5,36 @@
  * @createDate 2026-02-27
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../../contexts/UserContext';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
-import { userService } from '../../services/userService';
+import { userService, type SocialBindingsResponse } from '../../services/userService';
 import {
   getUserCollectedArticles,
   getUserLikedArticles,
   toggleArticleCollect,
   toggleArticleLike,
 } from '../../services/articleService';
+import {
+  consumeSocialBindResult,
+  getFrontendOrigin,
+  isSocialAuthPopupPayload,
+  openCenteredPopup,
+  resolvePreferredWechatProvider,
+} from '../../utils/socialAuth';
 import './Profile.css';
 
 type ActiveTab = 'profile' | 'licenses' | 'collections' | 'likes' | 'comments' | 'messages' | 'orders' | 'loginLogs' | 'security';
+
+interface ProfileWechatAuthConfig {
+  wechatWebsiteLogin?: {
+    enabled?: boolean;
+  };
+  wechatOfficialAccountLogin?: {
+    enabled?: boolean;
+  };
+}
 
 /**
  * 兼容驼峰/下划线字段读取
@@ -166,12 +182,32 @@ const buildCommentThread = (list: any[]) => {
   return { roots, childMap };
 };
 
+/**
+ * 解析个人中心当前激活 Tab，兼容 /profile?tab=security 等回跳场景
+ */
+const resolveProfileActiveTab = (searchText: string): ActiveTab => {
+  const tab = String(new URLSearchParams(searchText || '').get('tab') || '').trim();
+  const validTabs: ActiveTab[] = [
+    'profile',
+    'licenses',
+    'collections',
+    'likes',
+    'comments',
+    'messages',
+    'orders',
+    'loginLogs',
+    'security',
+  ];
+  return validTabs.includes(tab as ActiveTab) ? (tab as ActiveTab) : 'profile';
+};
+
 const ProfilePage: React.FC = () => {
   const { user, loading, isLoggedIn, refreshProfile } = useUser();
   const { config: frontendConfig, loading: frontendConfigLoading } = useFrontendConfig();
   const userCenterEnabled = frontendConfig?.authConfig?.enable_user_center !== 0;
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => resolveProfileActiveTab(location.search || ''));
   const [licenseFocusId, setLicenseFocusId] = useState(0);
   const [stats, setStats] = useState<{ orderCount?: number; licenseCount?: number; registerDays?: number }>({});
   const [contentStats, setContentStats] = useState<{
@@ -250,6 +286,13 @@ const ProfilePage: React.FC = () => {
     });
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    const nextTab = resolveProfileActiveTab(location.search || '');
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+  }, [activeTab, location.search]);
+
   if (frontendConfigLoading || loading || !user) {
     return <div className="loading-state">加载中...</div>;
   }
@@ -257,6 +300,17 @@ const ProfilePage: React.FC = () => {
   if (!userCenterEnabled) {
     return null;
   }
+
+  /**
+   * 切换个人中心标签，并同步最小化 URL 状态
+   */
+  const handleChangeTab = (nextTab: ActiveTab) => {
+    setActiveTab(nextTab);
+    const targetPath = nextTab === 'profile' ? '/profile' : `/profile?tab=${nextTab}`;
+    if (`${location.pathname}${location.search}` !== targetPath) {
+      navigate(targetPath, { replace: true });
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -275,7 +329,7 @@ const ProfilePage: React.FC = () => {
           <MessagesList
             onOpenLicenses={(licenseId?: number) => {
               setLicenseFocusId(Number(licenseId || 0));
-              setActiveTab('licenses');
+              handleChangeTab('licenses');
             }}
           />
         );
@@ -284,7 +338,13 @@ const ProfilePage: React.FC = () => {
       case 'loginLogs':
         return <LoginLogsList />;
       case 'security':
-        return <SecuritySettings user={user} onUpdate={refreshProfile} />;
+        return (
+          <SecuritySettings
+            user={user}
+            authConfig={frontendConfig?.authConfig}
+            onUpdate={refreshProfile}
+          />
+        );
       default:
         return null;
     }
@@ -350,7 +410,7 @@ const ProfilePage: React.FC = () => {
           <div className="profile-menu">
             <div 
               className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => setActiveTab('profile')}
+              onClick={() => handleChangeTab('profile')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -360,7 +420,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'messages' ? 'active' : ''}`}
-              onClick={() => setActiveTab('messages')}
+              onClick={() => handleChangeTab('messages')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -369,7 +429,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
+              onClick={() => handleChangeTab('orders')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
@@ -380,7 +440,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'licenses' ? 'active' : ''}`}
-              onClick={() => setActiveTab('licenses')}
+              onClick={() => handleChangeTab('licenses')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 7h16v10H4z"></path>
@@ -391,7 +451,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'collections' ? 'active' : ''}`}
-              onClick={() => setActiveTab('collections')}
+              onClick={() => handleChangeTab('collections')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
@@ -400,7 +460,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'likes' ? 'active' : ''}`}
-              onClick={() => setActiveTab('likes')}
+              onClick={() => handleChangeTab('likes')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -409,7 +469,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'comments' ? 'active' : ''}`}
-              onClick={() => setActiveTab('comments')}
+              onClick={() => handleChangeTab('comments')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -418,7 +478,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'loginLogs' ? 'active' : ''}`}
-              onClick={() => setActiveTab('loginLogs')}
+              onClick={() => handleChangeTab('loginLogs')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 8v4l3 3"></path>
@@ -428,7 +488,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div 
               className={`menu-item ${activeTab === 'security' ? 'active' : ''}`}
-              onClick={() => setActiveTab('security')}
+              onClick={() => handleChangeTab('security')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -2990,7 +3050,11 @@ const CommentsList: React.FC = () => {
 };
 
 // 子组件：安全设置
-const SecuritySettings: React.FC<{ user: any; onUpdate: () => Promise<void> | void }> = ({ user, onUpdate }) => {
+const SecuritySettings: React.FC<{
+  user: any;
+  authConfig?: ProfileWechatAuthConfig;
+  onUpdate: () => Promise<void> | void;
+}> = ({ user, authConfig, onUpdate }) => {
   const [formData, setFormData] = useState({
     oldPassword: '',
     newPassword: '',
@@ -3020,8 +3084,20 @@ const SecuritySettings: React.FC<{ user: any; onUpdate: () => Promise<void> | vo
     code: '',
     password: '',
   });
+  const [socialBindings, setSocialBindings] = useState<SocialBindingsResponse>({
+    wechat: {
+      provider: 'wechat',
+      channel: '',
+      bound: false,
+      openid: '',
+      bindTime: 0,
+      bindTimeText: '',
+    },
+  });
+  const [socialActionLoading, setSocialActionLoading] = useState(false);
   const [twoFactorSending, setTwoFactorSending] = useState(false);
   const [twoFactorSaving, setTwoFactorSaving] = useState(false);
+  const socialPopupRef = useRef<Window | null>(null);
 
   useEffect(() => {
     setBindForm(prev => ({
@@ -3034,12 +3110,13 @@ const SecuritySettings: React.FC<{ user: any; onUpdate: () => Promise<void> | vo
   /**
    * 拉取账号安全数据（2FA 状态 + 活跃设备会话）
    */
-  const loadSecurityData = async () => {
+  const loadSecurityData = useCallback(async () => {
     setLoadingSessions(true);
     try {
-      const [statusRes, sessionRes] = await Promise.allSettled([
+      const [statusRes, sessionRes, socialRes] = await Promise.allSettled([
         userService.getTwoFactorStatus(),
         userService.getSessionList(),
+        userService.getSocialBindings(),
       ]);
       setTwoFactorState(statusRes.status === 'fulfilled'
         ? (statusRes.value || { enabled: false, method: '', maskedAccount: '', hasMobile: false, hasEmail: false })
@@ -3048,14 +3125,78 @@ const SecuritySettings: React.FC<{ user: any; onUpdate: () => Promise<void> | vo
         ? (Array.isArray(sessionRes.value?.lists) ? sessionRes.value.lists : [])
         : [];
       setSessions(nextSessions);
+      setSocialBindings(socialRes.status === 'fulfilled'
+        ? (socialRes.value || {
+          wechat: {
+            provider: 'wechat',
+            channel: '',
+            bound: false,
+            openid: '',
+            bindTime: 0,
+            bindTimeText: '',
+          },
+        })
+        : {
+          wechat: {
+            provider: 'wechat',
+            channel: '',
+            bound: false,
+            openid: '',
+            bindTime: 0,
+            bindTimeText: '',
+          },
+        });
     } finally {
       setLoadingSessions(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadSecurityData().catch(() => {});
-  }, []);
+  }, [loadSecurityData]);
+
+  useEffect(() => {
+    const bindResult = consumeSocialBindResult();
+    if (!bindResult) return;
+    setMessage(bindResult.message || (bindResult.success ? '微信绑定成功' : '微信绑定失败'));
+    loadSecurityData().catch(() => {});
+  }, [loadSecurityData]);
+
+  useEffect(() => {
+    /**
+     * 接收微信绑定弹窗回传结果，并刷新绑定状态
+     */
+    const handleSocialBindMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (!isSocialAuthPopupPayload(event.data) || event.data.action !== 'bind') return;
+      socialPopupRef.current?.close();
+      socialPopupRef.current = null;
+      setSocialActionLoading(false);
+      setMessage(event.data.message || (event.data.success ? '微信绑定成功' : '微信绑定失败'));
+      if (event.data.success) {
+        loadSecurityData().catch(() => {});
+      }
+    };
+
+    window.addEventListener('message', handleSocialBindMessage);
+    return () => {
+      window.removeEventListener('message', handleSocialBindMessage);
+    };
+  }, [loadSecurityData]);
+
+  useEffect(() => {
+    if (!socialActionLoading || !socialPopupRef.current) return;
+    const timer = window.setInterval(() => {
+      if (socialPopupRef.current && socialPopupRef.current.closed) {
+        socialPopupRef.current = null;
+        setSocialActionLoading(false);
+        setMessage(prev => prev || '微信授权窗口已关闭，请重新发起绑定');
+      }
+    }, 400);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [socialActionLoading]);
 
   /**
    * 提交密码修改
@@ -3236,6 +3377,66 @@ const SecuritySettings: React.FC<{ user: any; onUpdate: () => Promise<void> | vo
     }
   };
 
+  /**
+   * 发起微信绑定流程，PC 端使用弹窗，微信内直接整页跳转授权
+   */
+  const handleWechatBind = async () => {
+    const provider = resolvePreferredWechatProvider(authConfig);
+    if (!provider) {
+      setMessage('管理员暂未开启微信登录配置，暂时无法绑定微信');
+      return;
+    }
+    setSocialActionLoading(true);
+    setMessage('');
+    try {
+      const result = await userService.getSocialBindState({
+        provider,
+        origin: getFrontendOrigin(),
+        redirect: '/profile?tab=security',
+      });
+      const authUrl = String(result?.authUrl || '').trim();
+      if (!authUrl) {
+        throw new Error('微信绑定授权地址生成失败');
+      }
+      if (provider === 'wechatOfficialAccount') {
+        window.location.href = authUrl;
+        return;
+      }
+      const popup = openCenteredPopup(authUrl, '绑定微信', 540, 720);
+      if (!popup) {
+        window.location.href = authUrl;
+        return;
+      }
+      socialPopupRef.current = popup;
+      popup.focus?.();
+    } catch (error: any) {
+      setSocialActionLoading(false);
+      setMessage(error?.message || '微信绑定启动失败，请稍后重试');
+    }
+  };
+
+  /**
+   * 解绑当前已绑定微信
+   */
+  const handleWechatUnbind = async () => {
+    if (!window.confirm('确认解绑当前微信账号吗？解绑后将无法继续使用微信登录。')) return;
+    setSocialActionLoading(true);
+    setMessage('');
+    try {
+      await userService.unbindSocialAccount('wechat');
+      setMessage('微信已解绑');
+      await loadSecurityData();
+    } catch (error: any) {
+      setMessage(error?.message || '微信解绑失败，请稍后重试');
+    } finally {
+      setSocialActionLoading(false);
+    }
+  };
+
+  const wechatAvailableProvider = resolvePreferredWechatProvider(authConfig);
+  const wechatBindEnabled = Boolean(wechatAvailableProvider);
+  const wechatBinding = socialBindings.wechat;
+
   return (
     <div>
       <div className="content-header">
@@ -3336,6 +3537,59 @@ const SecuritySettings: React.FC<{ user: any; onUpdate: () => Promise<void> | vo
               解绑
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="security-section">
+        <h3 className="security-section__title">第三方账号</h3>
+        <div className="security-social-card">
+          <div className="security-social-card__header">
+            <div>
+              <div className="security-social-card__title">微信账号</div>
+              <div className="security-social-card__meta">
+                {wechatBinding.bound
+                  ? `已绑定${wechatBinding.channel ? ` · ${wechatBinding.channel}` : ''}${wechatBinding.openid ? ` · ${wechatBinding.openid}` : ''}`
+                  : '未绑定微信账号'}
+              </div>
+              {wechatBinding.bound && wechatBinding.bindTimeText && (
+                <div className="security-social-card__submeta">
+                  绑定时间：{wechatBinding.bindTimeText}
+                </div>
+              )}
+            </div>
+            <span className={`status-badge ${wechatBinding.bound ? 'status-1' : 'status-0'}`}>
+              {wechatBinding.bound ? '已绑定' : '未绑定'}
+            </span>
+          </div>
+          <div className="security-social-card__tip">
+            PC 端使用微信开放平台扫码授权，微信内访问时会自动切换到公众号网页授权。
+          </div>
+          <div className="security-action-row">
+            {wechatBinding.bound ? (
+              <button
+                type="button"
+                className="action-btn"
+                disabled={socialActionLoading}
+                onClick={handleWechatUnbind}
+              >
+                {socialActionLoading ? '处理中...' : '解绑微信'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="save-btn"
+                disabled={socialActionLoading || !wechatBindEnabled}
+                onClick={handleWechatBind}
+              >
+                {socialActionLoading ? '正在打开微信授权...' : '绑定微信'}
+              </button>
+            )}
+          </div>
+          {!wechatBindEnabled && (
+            <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
+              当前站点暂未开启微信登录配置，请先到后台完成微信开放平台或公众号参数配置。
+            </div>
+          )}
         </div>
       </div>
 

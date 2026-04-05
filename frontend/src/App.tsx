@@ -33,6 +33,7 @@ import FigmaDetailPage from './pages/Figma/detail';
 import NotFoundPage from './pages/NotFound';
 import WebsiteDetail from './pages/WebsiteDetail';
 import InstallPage from './pages/Install';
+import SocialAuthCallbackPage from './pages/Auth/SocialCallback';
 import Layout from './components/layout/Layout';
 import DynamicPage from './components/DynamicPage';
 import { FIXED_DYNAMIC_ROUTES, ROOT_NAV_SLUG, isFixedDynamicNavSlug } from './config/navModel';
@@ -181,8 +182,16 @@ const MainRouteTree: React.FC = () => {
 const AppRouteSwitch: React.FC = () => {
   const location = useLocation();
   const isInstallRoute = location.pathname === '/install' || location.pathname.startsWith('/install/');
+  const isSocialCallbackRoute = location.pathname === '/auth/social-callback';
   if (isInstallRoute) {
     return <InstallPage />;
+  }
+  if (isSocialCallbackRoute) {
+    return (
+      <UserProvider>
+        <SocialAuthCallbackPage />
+      </UserProvider>
+    );
   }
   return <MainRouteTree />;
 };
