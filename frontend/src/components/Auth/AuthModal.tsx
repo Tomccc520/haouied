@@ -14,7 +14,8 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../contexts/UserContext';
 import userService, { LoginTwoFactorChallenge } from '../../services/userService';
 import Modal from '../UI/Modal';
-import api from '../../services/api';
+import publicSettingService from '../../services/publicSettingService';
+import { DEFAULT_BRAND_CONFIG, type BrandConfig } from '../../config/brandConfig';
 import './AuthModal.css';
 
 interface AuthModalProps {
@@ -58,6 +59,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
     login_close_message: '',
     user_center_close_message: '',
   });
+  const [brandConfig, setBrandConfig] = useState<BrandConfig>(DEFAULT_BRAND_CONFIG);
   
   // 表单状态
   const [formData, setFormData] = useState({
@@ -74,18 +76,17 @@ const AuthModal: React.FC<AuthModalProps> = ({
   useEffect(() => {
     const loadAuthConfig = async () => {
       try {
-        const response = await api.get('/settings/public');
-        if (response.data?.authConfig) {
-          const nextConfig = response.data.authConfig || {};
-          setAuthConfig({
-            enable_register: nextConfig.enable_register === 0 ? 0 : 1,
-            enable_login: nextConfig.enable_login === 0 ? 0 : 1,
-            enable_user_center: nextConfig.enable_user_center === 0 ? 0 : 1,
-            register_close_message: String(nextConfig.register_close_message || ''),
-            login_close_message: String(nextConfig.login_close_message || ''),
-            user_center_close_message: String(nextConfig.user_center_close_message || ''),
-          });
-        }
+        const settings = await publicSettingService.getPublicSettings();
+        const nextConfig = settings.authConfig || {};
+        setAuthConfig({
+          enable_register: nextConfig.enable_register === 0 ? 0 : 1,
+          enable_login: nextConfig.enable_login === 0 ? 0 : 1,
+          enable_user_center: nextConfig.enable_user_center === 0 ? 0 : 1,
+          register_close_message: String(nextConfig.register_close_message || ''),
+          login_close_message: String(nextConfig.login_close_message || ''),
+          user_center_close_message: String(nextConfig.user_center_close_message || ''),
+        });
+        setBrandConfig(settings.brand || DEFAULT_BRAND_CONFIG);
       } catch (error) {
         console.error('加载认证配置失败:', error);
         // 使用默认配置（允许登录和注册）
@@ -246,12 +247,12 @@ const AuthModal: React.FC<AuthModalProps> = ({
         <button className="auth-close-btn" onClick={onClose}>×</button>
         
         <div className="auth-header">
-          <div className="auth-logo">UIED</div>
+          <div className="auth-logo">{brandConfig.authLogoText}</div>
           <h2 className="auth-title">
-            {mode === 'login' ? '欢迎回来' : '加入 UIED'}
+            {mode === 'login' ? brandConfig.authLoginTitle : brandConfig.authRegisterTitle}
           </h2>
           <p className="auth-subtitle">
-            {mode === 'login' ? '登录以体验更多精彩功能' : '开启您的设计探索之旅'}
+            {mode === 'login' ? brandConfig.authLoginSubtitle : brandConfig.authRegisterSubtitle}
           </p>
         </div>
 

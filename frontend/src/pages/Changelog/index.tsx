@@ -14,6 +14,7 @@ import SEO from '../../components/SEO';
 import api from '../../services/api';
 import { fetchGitHubChangelog, type ChangelogRelease } from '../../services/changelogService';
 import { unwrapApiResponse } from '../../utils/apiResponse';
+import { usePublicSettings } from '../../hooks/usePublicSettings';
 import './index.css';
 
 // 图标组件
@@ -50,25 +51,12 @@ const ArrowIcon: React.FC<{ size?: number }> = ({ size = 12 }) => (
   </svg>
 );
 
-// 仓库链接数据
-const repoLinks = [
-  { name: 'GitHub 仓库', url: 'https://github.com/Tomccc520/UIED-NAV', icon: GitHubIcon },
-  { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/uied-nav', icon: GiteeIcon },
-  { name: 'CSDN 博客', url: 'https://blog.csdn.net/Tomdac?spm=1000.2115.3001.5343', icon: CSDNIcon },
-  { name: 'UIED技术团队', url: 'https://fsuied.com/', icon: UIEDIcon },
-];
-
-// 相关平台链接
-const platformLinks = [
-  { name: 'AI学习平台', url: 'https://www.uied.cn/' },
-  { name: 'AI免费工具', url: 'https://uiedtool.com' },
-  { name: 'AI资讯热榜', url: 'https://hot.uied.cn' },
-  { name: 'AI工具导航', url: 'https://hao.uied.cn/ai' },
-  { name: 'AI交流群', url: 'https://ai.feishu.cn/wiki/CUuaw5ooxiHAkckgtRkcn6rnnVQ?from=from_copylink' },
-  { name: 'AI知识库', url: 'https://ai.feishu.cn/wiki/ZjddwTFpWivK6ukwBoDc5DoHnVt?from=from_copylink' },
-];
-
-const PRODUCT_BUY_URL = 'https://fsuied.com/products/10';
+const repoIconMap = {
+  github: GitHubIcon,
+  gitee: GiteeIcon,
+  csdn: CSDNIcon,
+  uied: UIEDIcon,
+} as const;
 
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
@@ -639,6 +627,8 @@ const fetchPublicWebsiteCount = async (): Promise<number | null> => {
 };
 
 const ChangelogPage: React.FC = () => {
+  const { data: publicSettings } = usePublicSettings();
+  const brandConfig = publicSettings.brand;
   const [changelogData, setChangelogData] = useState<ChangelogRelease[]>(localChangelogData);
   const [syncStatus, setSyncStatus] = useState<'loading' | 'github' | 'local'>('loading');
   const [websiteCount, setWebsiteCount] = useState<number | null>(null);
@@ -731,6 +721,11 @@ const ChangelogPage: React.FC = () => {
       window.scrollTo({ top, behavior: 'smooth' });
     }
   };
+  const repoLinks = brandConfig.changelogRepoLinks.map((link) => ({
+    ...link,
+    icon: repoIconMap[link.iconKey] || UIEDIcon,
+  }));
+  const platformLinks = brandConfig.changelogPlatformLinks;
 
   return (
     <div className="changelog-page">
@@ -764,16 +759,16 @@ const ChangelogPage: React.FC = () => {
           <div className="changelog-header">
             <h1>更新日志</h1>
             <p className="header-desc">
-              由 <a href="https://tomda.top/" target="_blank" rel="noopener noreferrer" className="author-link">Tomda</a> 开发（AI协助）并记录 UIED-NAV 的开发历程和功能更新。公众号：Tomda
+              由 <a href={brandConfig.changelogAuthorUrl} target="_blank" rel="noopener noreferrer" className="author-link">{brandConfig.changelogAuthorName}</a> {brandConfig.changelogAuthorDescription}
             </p>
             <div className="changelog-actions">
               <a
-                href={PRODUCT_BUY_URL}
+                href={brandConfig.buyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="changelog-buy-link"
               >
-                购买源码授权
+                {brandConfig.changelogBuyButtonText}
               </a>
             </div>
             

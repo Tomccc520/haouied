@@ -17,6 +17,16 @@ import {
 import { debugLog } from '../utils/debugHelper';
 import { DEFAULT_NAV_SWITCH_ITEMS } from '../config/navModel';
 import { DEFAULT_ARTICLE_CONFIG as DEFAULT_ARTICLE_UI_CONFIG, ARTICLE_TOPICS } from '../config/articleConfig';
+import {
+  DEFAULT_BRAND_CONFIG,
+  type BrandConfig,
+  type BrandQuickLinkItem,
+  type BrandBannerCard,
+  type BrandCarouselSlide,
+  type BrandRepoLinkItem,
+  type BrandPlatformLinkItem,
+  type BrandRepoIconKey,
+} from '../config/brandConfig';
 
 // ==================== 类型定义 ====================
 
@@ -382,6 +392,7 @@ export interface AuthConfig {
 // 公开设置（所有配置的集合）
 export interface PublicSettings {
   authConfig: AuthConfig;
+  brand: BrandConfig;
   siteInfo: SiteInfo;
   appearance: AppearanceConfig;
   homepage: HomepageConfig;
@@ -400,6 +411,7 @@ export interface PublicSettings {
 
 interface PublicSettingsPayload {
   authConfig?: Partial<AuthConfig>;
+  brand?: Partial<BrandConfig>;
   siteInfo?: SiteInfo;
   appearance?: AppearanceConfig;
   homepage?: HomepageConfig;
@@ -913,6 +925,165 @@ export const publicSettingService = {
   },
 
   /**
+   * 规范化品牌与默认内容配置，确保安装页、404、登录弹窗、首页兜底内容与更新记录页可统一消费。
+   */
+  normalizeBrandConfig: (config: unknown): BrandConfig => {
+    const merged = { ...DEFAULT_BRAND_CONFIG, ...((config as Partial<BrandConfig>) || {}) };
+    const normalizeText = (value: unknown, fallback: string): string => {
+      return String(value || '').trim() || fallback;
+    };
+    const normalizeUrl = (value: unknown, fallback = ''): string => {
+      const text = String(value || '').trim();
+      return text || fallback;
+    };
+    /**
+     * 规范化 404 快捷入口，支持站内相对路径与外链两种模式。
+     */
+    const normalizeQuickLinks = (value: unknown): BrandQuickLinkItem[] => {
+      if (Array.isArray(value) && value.length === 0) return [];
+      const rawList = Array.isArray(value) ? value : [];
+      const normalized = rawList
+        .map((item, index) => {
+          const fallback = DEFAULT_BRAND_CONFIG.notFoundQuickLinks[index % DEFAULT_BRAND_CONFIG.notFoundQuickLinks.length];
+          const label = normalizeText((item as BrandQuickLinkItem | undefined)?.label, fallback?.label || '');
+          const to = normalizeUrl((item as BrandQuickLinkItem | undefined)?.to, fallback?.to || '');
+          if (!label || !to) return null;
+          return {
+            label,
+            to,
+            newWindow: (item as BrandQuickLinkItem | undefined)?.newWindow === true,
+          };
+        })
+        .filter((item): item is BrandQuickLinkItem => Boolean(item));
+      return normalized.length > 0 ? normalized : DEFAULT_BRAND_CONFIG.notFoundQuickLinks;
+    };
+    /**
+     * 规范化首页 Banner 兜底卡片，未配置时返回空数组以避免继续展示演示内容。
+     */
+    const normalizeBannerCards = (value: unknown): BrandBannerCard[] => {
+      const rawList = Array.isArray(value) ? value : [];
+      return rawList
+        .map((item, index) => {
+          const title = String((item as BrandBannerCard | undefined)?.title || '').trim();
+          const link = normalizeUrl((item as BrandBannerCard | undefined)?.link);
+          if (!title || !link) return null;
+          return {
+            id: normalizeText((item as BrandBannerCard | undefined)?.id, `brand-banner-${index + 1}`),
+            title,
+            description: String((item as BrandBannerCard | undefined)?.description || '').trim(),
+            link,
+            badge: String((item as BrandBannerCard | undefined)?.badge || '').trim(),
+            color: normalizeText((item as BrandBannerCard | undefined)?.color, index % 2 === 0 ? '#2563eb' : '#0f766e'),
+            newWindow: (item as BrandBannerCard | undefined)?.newWindow !== false,
+          };
+        })
+        .filter((item): item is BrandBannerCard => Boolean(item));
+    };
+    /**
+     * 规范化首页轮播兜底内容，未配置时返回空数组以避免继续展示演示素材。
+     */
+    const normalizeCarouselSlides = (value: unknown): BrandCarouselSlide[] => {
+      const rawList = Array.isArray(value) ? value : [];
+      return rawList
+        .map((item, index) => {
+          const title = String((item as BrandCarouselSlide | undefined)?.title || '').trim();
+          const image = String((item as BrandCarouselSlide | undefined)?.image || '').trim();
+          const link = normalizeUrl((item as BrandCarouselSlide | undefined)?.link);
+          if (!title || !image || !link) return null;
+          return {
+            id: normalizeText((item as BrandCarouselSlide | undefined)?.id, `brand-carousel-${index + 1}`),
+            title,
+            subtitle: String((item as BrandCarouselSlide | undefined)?.subtitle || '').trim(),
+            image,
+            link,
+            newWindow: (item as BrandCarouselSlide | undefined)?.newWindow !== false,
+          };
+        })
+        .filter((item): item is BrandCarouselSlide => Boolean(item));
+    };
+    /**
+     * 规范化更新记录页仓库链接，限制在受控图标枚举内。
+     */
+    const normalizeRepoLinks = (value: unknown): BrandRepoLinkItem[] => {
+      if (Array.isArray(value) && value.length === 0) return [];
+      const iconAllowSet = new Set<BrandRepoIconKey>([ 'github', 'gitee', 'csdn', 'uied' ]);
+      const rawList = Array.isArray(value) ? value : [];
+      const normalized = rawList
+        .map((item, index) => {
+          const fallback = DEFAULT_BRAND_CONFIG.changelogRepoLinks[index % DEFAULT_BRAND_CONFIG.changelogRepoLinks.length];
+          const name = normalizeText((item as BrandRepoLinkItem | undefined)?.name, fallback?.name || '');
+          const url = normalizeUrl((item as BrandRepoLinkItem | undefined)?.url, fallback?.url || '');
+          const iconKey = String((item as BrandRepoLinkItem | undefined)?.iconKey || fallback?.iconKey || 'github').trim() as BrandRepoIconKey;
+          if (!name || !url) return null;
+          return {
+            name,
+            url,
+            iconKey: iconAllowSet.has(iconKey) ? iconKey : 'github',
+          };
+        })
+        .filter((item): item is BrandRepoLinkItem => Boolean(item));
+      return normalized.length > 0 ? normalized : DEFAULT_BRAND_CONFIG.changelogRepoLinks;
+    };
+    /**
+     * 规范化更新记录页平台链接，空值时回退品牌默认链接组。
+     */
+    const normalizePlatformLinks = (value: unknown): BrandPlatformLinkItem[] => {
+      if (Array.isArray(value) && value.length === 0) return [];
+      const rawList = Array.isArray(value) ? value : [];
+      const normalized = rawList
+        .map((item, index) => {
+          const fallback = DEFAULT_BRAND_CONFIG.changelogPlatformLinks[index % DEFAULT_BRAND_CONFIG.changelogPlatformLinks.length];
+          const name = normalizeText((item as BrandPlatformLinkItem | undefined)?.name, fallback?.name || '');
+          const url = normalizeUrl((item as BrandPlatformLinkItem | undefined)?.url, fallback?.url || '');
+          if (!name || !url) return null;
+          return { name, url };
+        })
+        .filter((item): item is BrandPlatformLinkItem => Boolean(item));
+      return normalized.length > 0 ? normalized : DEFAULT_BRAND_CONFIG.changelogPlatformLinks;
+    };
+
+    return {
+      ...merged,
+      brandName: normalizeText(merged.brandName, DEFAULT_BRAND_CONFIG.brandName),
+      officialSiteUrl: normalizeUrl(merged.officialSiteUrl, DEFAULT_BRAND_CONFIG.officialSiteUrl),
+      buyUrl: normalizeUrl(merged.buyUrl, DEFAULT_BRAND_CONFIG.buyUrl),
+      supportUrl: normalizeUrl(merged.supportUrl, DEFAULT_BRAND_CONFIG.supportUrl),
+      supportLabel: normalizeText(merged.supportLabel, DEFAULT_BRAND_CONFIG.supportLabel),
+      supportQq: String(merged.supportQq || '').trim(),
+      supportQqGroup: String(merged.supportQqGroup || '').trim(),
+      installPageTitle: normalizeText(merged.installPageTitle, DEFAULT_BRAND_CONFIG.installPageTitle),
+      installPageDescription: normalizeText(merged.installPageDescription, DEFAULT_BRAND_CONFIG.installPageDescription),
+      installSiteName: normalizeText(merged.installSiteName, DEFAULT_BRAND_CONFIG.installSiteName),
+      installSiteTitle: normalizeText(merged.installSiteTitle, DEFAULT_BRAND_CONFIG.installSiteTitle),
+      installSiteDescription: normalizeText(merged.installSiteDescription, DEFAULT_BRAND_CONFIG.installSiteDescription),
+      installSiteKeywords: normalizeText(merged.installSiteKeywords, DEFAULT_BRAND_CONFIG.installSiteKeywords),
+      installAdminNickname: normalizeText(merged.installAdminNickname, DEFAULT_BRAND_CONFIG.installAdminNickname),
+      authLogoText: normalizeText(merged.authLogoText, DEFAULT_BRAND_CONFIG.authLogoText),
+      authLoginTitle: normalizeText(merged.authLoginTitle, DEFAULT_BRAND_CONFIG.authLoginTitle),
+      authLoginSubtitle: normalizeText(merged.authLoginSubtitle, DEFAULT_BRAND_CONFIG.authLoginSubtitle),
+      authRegisterTitle: normalizeText(merged.authRegisterTitle, DEFAULT_BRAND_CONFIG.authRegisterTitle),
+      authRegisterSubtitle: normalizeText(merged.authRegisterSubtitle, DEFAULT_BRAND_CONFIG.authRegisterSubtitle),
+      notFoundTitle: normalizeText(merged.notFoundTitle, DEFAULT_BRAND_CONFIG.notFoundTitle),
+      notFoundDescription: normalizeText(merged.notFoundDescription, DEFAULT_BRAND_CONFIG.notFoundDescription),
+      notFoundSeoTitle: normalizeText(merged.notFoundSeoTitle, DEFAULT_BRAND_CONFIG.notFoundSeoTitle),
+      notFoundSeoDescription: normalizeText(merged.notFoundSeoDescription, DEFAULT_BRAND_CONFIG.notFoundSeoDescription),
+      notFoundSeoKeywords: normalizeText(merged.notFoundSeoKeywords, DEFAULT_BRAND_CONFIG.notFoundSeoKeywords),
+      notFoundAutoRedirectSeconds: Number.isFinite(Number(merged.notFoundAutoRedirectSeconds))
+        ? Math.max(3, Math.min(30, Number(merged.notFoundAutoRedirectSeconds)))
+        : DEFAULT_BRAND_CONFIG.notFoundAutoRedirectSeconds,
+      notFoundQuickLinks: normalizeQuickLinks(merged.notFoundQuickLinks),
+      homeFallbackBannerCards: normalizeBannerCards(merged.homeFallbackBannerCards),
+      homeFallbackCarouselSlides: normalizeCarouselSlides(merged.homeFallbackCarouselSlides),
+      changelogAuthorName: normalizeText(merged.changelogAuthorName, DEFAULT_BRAND_CONFIG.changelogAuthorName),
+      changelogAuthorUrl: normalizeUrl(merged.changelogAuthorUrl, DEFAULT_BRAND_CONFIG.changelogAuthorUrl),
+      changelogAuthorDescription: normalizeText(merged.changelogAuthorDescription, DEFAULT_BRAND_CONFIG.changelogAuthorDescription),
+      changelogBuyButtonText: normalizeText(merged.changelogBuyButtonText, DEFAULT_BRAND_CONFIG.changelogBuyButtonText),
+      changelogRepoLinks: normalizeRepoLinks(merged.changelogRepoLinks),
+      changelogPlatformLinks: normalizePlatformLinks(merged.changelogPlatformLinks),
+    };
+  },
+
+  /**
    * 规范化详情页配置，确保 SEO 开关与排序数组结构稳定
    */
   normalizeDetailPageConfig: (config: unknown): DetailPageConfig => {
@@ -1358,6 +1529,7 @@ export const publicSettingService = {
       };
       return {
         authConfig,
+        brand: publicSettingService.normalizeBrandConfig(data.brand),
         siteInfo: data.siteInfo || DEFAULT_SITE_INFO,
         appearance: data.appearance || DEFAULT_APPEARANCE,
         homepage: publicSettingService.normalizeHomepageConfig(data.homepage),
@@ -1378,6 +1550,7 @@ export const publicSettingService = {
       // 返回默认配置
       return {
         authConfig: DEFAULT_AUTH_CONFIG,
+        brand: DEFAULT_BRAND_CONFIG,
         siteInfo: DEFAULT_SITE_INFO,
         appearance: DEFAULT_APPEARANCE,
         homepage: DEFAULT_HOMEPAGE,

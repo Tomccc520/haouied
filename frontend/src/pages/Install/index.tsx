@@ -20,6 +20,7 @@ import {
   InstallEnvResult,
   InstallStatus,
 } from '../../services/installService';
+import { DEFAULT_BRAND_CONFIG } from '../../config/brandConfig';
 import './index.css';
 
 /**
@@ -74,6 +75,7 @@ const resolveStepStatus = (
  * 安装向导主页面
  */
 const InstallPage: React.FC = () => {
+  const brandConfig = DEFAULT_BRAND_CONFIG;
   const [statusLoading, setStatusLoading] = useState<boolean>(true);
   const [envLoading, setEnvLoading] = useState<boolean>(true);
   const [submitLoading, setSubmitLoading] = useState<boolean>(false);
@@ -88,16 +90,16 @@ const InstallPage: React.FC = () => {
   const [submitMessage, setSubmitMessage] = useState<string>('');
 
   const [formData, setFormData] = useState({
-    siteName: 'UIED导航系统',
-    siteTitle: 'UIED导航系统 - 高质量资源导航',
-    siteDescription: '基于 UIED-NAV 构建的可运营网址导航系统。',
-    siteKeywords: 'UIED,导航系统,网址导航,AI导航',
+    siteName: brandConfig.installSiteName,
+    siteTitle: brandConfig.installSiteTitle,
+    siteDescription: brandConfig.installSiteDescription,
+    siteKeywords: brandConfig.installSiteKeywords,
     licenseKey: '',
     bindDomain: '',
     adminUsername: 'admin',
     adminPassword: '',
     confirmPassword: '',
-    adminNickname: '系统管理员',
+    adminNickname: brandConfig.installAdminNickname,
     adminEmail: '',
   });
 
@@ -132,7 +134,7 @@ const InstallPage: React.FC = () => {
       {
         key: 'license',
         title: '步骤 1：授权校验',
-        desc: '先在 fsuied.com 购买并绑定域名，再校验授权码。',
+        desc: `先在 ${brandConfig.officialSiteUrl} 购买并绑定域名，再校验授权码。`,
         status: resolveStepStatus(licenseCheckPassed, !installed),
       },
       {
@@ -148,7 +150,7 @@ const InstallPage: React.FC = () => {
         status: resolveStepStatus(installed, !installed && licenseCheckPassed),
       },
     ];
-  }, [dbReady, licenseCheckPassed, statusData?.installed]);
+  }, [brandConfig.officialSiteUrl, dbReady, licenseCheckPassed, statusData?.installed]);
 
   /**
    * 拉取安装状态
@@ -367,8 +369,8 @@ const InstallPage: React.FC = () => {
     <div className="install-page">
       <div className="install-page__container">
         <div className="install-page__header">
-          <h1>安装向导</h1>
-          <p>正式交付流程：先授权校验，再做数据库测试，最后初始化站点与管理员</p>
+          <h1>{brandConfig.installPageTitle}</h1>
+          <p>{brandConfig.installPageDescription}</p>
           <button
             type="button"
             className="install-page__refresh-btn"
@@ -457,8 +459,8 @@ const InstallPage: React.FC = () => {
           <p className="install-card__desc">
             先在
             {' '}
-            <a href="https://fsuied.com/products/10" target="_blank" rel="noreferrer">
-              fsuied.com
+            <a href={brandConfig.buyUrl} target="_blank" rel="noreferrer">
+              {brandConfig.brandName}
             </a>
             {' '}
             完成购买并绑定域名，然后在这里校验授权码；校验通过后才允许执行初始化。
@@ -470,7 +472,7 @@ const InstallPage: React.FC = () => {
                 type="text"
                 value={formData.licenseKey}
                 onChange={(event) => updateFormField('licenseKey', event.target.value)}
-                placeholder="请输入 fsuied.com 下发的授权码（例如 LIC-XXXX-XXXX）"
+                placeholder={`请输入 ${brandConfig.brandName} 下发的授权码（例如 LIC-XXXX-XXXX）`}
               />
             </label>
             <label className="is-full">
@@ -499,7 +501,7 @@ const InstallPage: React.FC = () => {
             ) : (
               <span className="tip">
                 {String(formData.bindDomain || '').trim()
-                  ? '请确认该域名已在 fsuied.com 授权中心绑定。'
+                  ? `请确认该域名已在 ${brandConfig.officialSiteUrl} 授权中心绑定。`
                   : '本地联调可留空；正式安装建议填写真实域名后校验。'}
               </span>
             )}

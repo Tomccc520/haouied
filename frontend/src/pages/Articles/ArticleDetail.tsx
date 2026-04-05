@@ -13,8 +13,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Lightbox from 'yet-another-react-lightbox';
+import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
+import 'yet-another-react-lightbox/plugins/thumbnails.css';
+import '../../styles/uiedLightbox.css';
 import {
   getArticleDetail,
   getArticles,
@@ -322,6 +325,8 @@ const ArticleDetail: React.FC = () => {
   const [imageLightboxOpen, setImageLightboxOpen] = useState(false);
   const [imageLightboxIndex, setImageLightboxIndex] = useState(0);
   const commentsRef = useRef<HTMLElement | null>(null);
+  const leftTocListRef = useRef<HTMLDivElement | null>(null);
+  const inlineTocListRef = useRef<HTMLDivElement | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
   const articleLikeCountRaw = Number((article as any)?.likeCount || 0);
 
@@ -620,6 +625,7 @@ const ArticleDetail: React.FC = () => {
   const articleGallerySlides = useMemo(
     () => articleGalleryImages.map((src, index) => ({
       src,
+      thumbnail: src,
       alt: `${article?.title || '文章'} 图片 ${index + 1}`,
     })),
     [article?.title, articleGalleryImages]
@@ -667,6 +673,32 @@ const ArticleDetail: React.FC = () => {
       window.removeEventListener('resize', resolveActiveToc);
     };
   }, [articleToc]);
+
+  /**
+   * 让目录列表自动跟随当前锚点，避免长目录时激活项滚出可视区。
+   */
+  useEffect(() => {
+    if (!activeTocId) return;
+    const syncTocScrollPosition = (container: HTMLDivElement | null) => {
+      if (!container) return;
+      const activeItem = Array.from(container.querySelectorAll<HTMLElement>('[data-toc-id]'))
+        .find((element) => element.dataset.tocId === activeTocId);
+      if (!activeItem) return;
+      const padding = 18;
+      const itemTop = activeItem.offsetTop;
+      const itemBottom = itemTop + activeItem.offsetHeight;
+      const visibleTop = container.scrollTop;
+      const visibleBottom = visibleTop + container.clientHeight;
+      if (itemTop >= visibleTop + padding && itemBottom <= visibleBottom - padding) return;
+      const nextTop = itemTop - (container.clientHeight - activeItem.offsetHeight) / 2;
+      container.scrollTo({
+        top: Math.max(0, nextTop),
+        behavior: 'auto',
+      });
+    };
+    syncTocScrollPosition(leftTocListRef.current);
+    syncTocScrollPosition(inlineTocListRef.current);
+  }, [activeTocId]);
 
   /**
    * 拉取文章详情页侧栏“最新文章”数据。
@@ -1127,7 +1159,7 @@ const ArticleDetail: React.FC = () => {
                       <div className="detail-left-toc__header">
                         <span className="detail-left-toc__eyebrow">目录</span>
                       </div>
-                      <div className="detail-left-toc__list">
+                      <div className="detail-left-toc__list" ref={leftTocListRef}>
                         {articleToc.map((item) => (
                           <button
                             key={`left-toc-${item.id}`}
@@ -1136,6 +1168,7 @@ const ArticleDetail: React.FC = () => {
                             onClick={() => handleTocNavigate(item.id)}
                             title={item.text}
                             data-tip={item.text}
+                            data-toc-id={item.id}
                             aria-label={`跳转到：${item.text}`}
                           >
                             <span className="detail-left-toc__bar" aria-hidden="true" />
@@ -1190,7 +1223,7 @@ const ArticleDetail: React.FC = () => {
                             <span className="detail-inline-toc__eyebrow">目录</span>
                             <span className="detail-inline-toc__count">{articleToc.length} 节</span>
                           </div>
-                          <div className="detail-inline-toc__list">
+                          <div className="detail-inline-toc__list" ref={inlineTocListRef}>
                             {articleToc.map((item) => (
                               <button
                                 key={`inline-toc-${item.id}`}
@@ -1198,6 +1231,7 @@ const ArticleDetail: React.FC = () => {
                                 className={`detail-inline-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
                                 onClick={() => handleTocNavigate(item.id)}
                                 title={item.text}
+                                data-toc-id={item.id}
                               >
                                 {item.text}
                               </button>
@@ -1381,8 +1415,19 @@ const ArticleDetail: React.FC = () => {
         close={() => setImageLightboxOpen(false)}
         slides={articleGallerySlides}
         index={imageLightboxIndex}
-        plugins={[Zoom]}
+        plugins={[Zoom, Thumbnails]}
         carousel={{ finite: articleGallerySlides.length <= 1 }}
+        thumbnails={{
+          position: 'bottom',
+          width: 68,
+          height: 42,
+          border: 1,
+          borderRadius: 12,
+          padding: 2,
+          gap: 8,
+          vignette: false,
+          showToggle: false,
+        }}
         zoom={{
           maxZoomPixelRatio: 2.5,
           zoomInMultiplier: 1.8,

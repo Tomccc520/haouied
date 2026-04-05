@@ -19,10 +19,11 @@ interface BannerCard {
   id: string;
   title: string;
   description: string;
-  icon: IconComponent;
+  icon?: IconComponent;
   color: string;
   link?: string;
   badge?: string;
+  newWindow?: boolean;
 }
 
 // Banner组件属性接口
@@ -34,52 +35,6 @@ interface BannerProps {
   backendPosition?: string;
   className?: string;
 }
-
-// 默认卡片数据
-const defaultCards: BannerCard[] = [
-  {
-    id: 'featured-ai',
-    title: 'AI工具集合',
-    description: '最新最热门的人工智能工具，提升工作效率',
-    icon: DesignIcons.AI,
-    color: '#8B5DFF',
-    link: '/ai',
-    badge: '热门'
-  },
-  {
-    id: 'design-resources',
-    title: '设计资源库',
-    description: '精选设计素材、模板和灵感来源',
-    icon: DesignIcons.Material,
-    color: '#22D3EE',
-    link: '/#category-4'
-  },
-  {
-    id: 'aigc-knowledge',
-    title: 'AIGC知识共创文档',
-    description: 'AIGC领域知识分享与协作文档',
-    icon: DesignIcons.AI,
-    color: '#10a37f',
-    link: 'https://www.uied.cn/circle/89814.html',
-    badge: '共创'
-  },
-  {
-    id: 'adobe-ai',
-    title: 'Adobe AI',
-    description: 'Adobe AI工具与应用指南',
-    icon: DesignIcons.Image,
-    color: '#FF6B6B',
-    link: 'https://universalbus.cn/?s=lPLG02aydo'
-  },
-  {
-    id: 'ai-account',
-    title: 'AI账号',
-    description: 'AI服务账号获取与管理',
-    icon: DesignIcons.Analytics,
-    color: '#6366f1',
-    link: 'https://nf.video/xOlBA'
-  }
-];
 
 const backendCardColors = ['#8B5DFF', '#22D3EE', '#10a37f', '#FF6B6B', '#6366f1', '#f59e0b'];
 const backendCardIcons: IconComponent[] = [
@@ -103,6 +58,7 @@ const mapBackendBannerToCard = (banner: BackendBanner, index: number): BannerCar
     color: backendCardColors[index % backendCardColors.length],
     link: banner.linkUrl || '',
     badge: index === 0 ? '推荐' : undefined,
+    newWindow: true,
   };
 };
 
@@ -131,7 +87,7 @@ const Banner: React.FC<BannerProps> = ({
     if (useBackend && backendBanners.length > 0) {
       return backendBanners.map(mapBackendBannerToCard);
     }
-    return defaultCards;
+    return [];
   }, [cards, useBackend, backendBanners]);
   
   /**
@@ -139,13 +95,24 @@ const Banner: React.FC<BannerProps> = ({
    */
   const handleCardClick = (card: BannerCard) => {
     if (card.link) {
+      const shouldOpenInNewWindow = card.newWindow !== false;
       if (card.link.startsWith('http')) {
+        if (shouldOpenInNewWindow) {
+          window.open(card.link, '_blank', 'noopener,noreferrer');
+        } else {
+          window.location.href = card.link;
+        }
+      } else if (shouldOpenInNewWindow) {
         window.open(card.link, '_blank', 'noopener,noreferrer');
       } else {
         window.location.href = card.link;
       }
     }
   };
+
+  if (displayCards.length === 0) {
+    return null;
+  }
 
   return (
     <section className={`banner-section ${className}`}>
@@ -155,7 +122,7 @@ const Banner: React.FC<BannerProps> = ({
         {/* 卡片网格 */}
         <div className="banner-cards">
           {displayCards.map((card, index) => {
-            const IconComponent = card.icon;
+            const IconComponent = card.icon || backendCardIcons[index % backendCardIcons.length];
             
             return (
               <div

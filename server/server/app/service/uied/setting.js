@@ -966,6 +966,228 @@ class SettingService extends Service {
   }
 
   /**
+   * 获取品牌与默认内容配置默认值。
+   */
+  getDefaultBrandConfig() {
+    return {
+      brandName: 'UIED导航系统',
+      officialSiteUrl: 'https://fsuied.com',
+      buyUrl: 'https://fsuied.com/products/10',
+      supportUrl: 'https://fsuied.com',
+      supportLabel: '前往官网咨询',
+      supportQq: '403479454',
+      supportQqGroup: '1082794860',
+      installPageTitle: '安装向导',
+      installPageDescription: '正式交付流程：先授权校验，再做数据库测试，最后初始化站点与管理员',
+      installSiteName: 'UIED导航系统',
+      installSiteTitle: 'UIED导航系统 - 高质量资源导航',
+      installSiteDescription: '基于 UIED-NAV 构建的可运营网址导航系统。',
+      installSiteKeywords: 'UIED,导航系统,网址导航,AI导航',
+      installAdminNickname: '系统管理员',
+      authLogoText: 'UIED',
+      authLoginTitle: '欢迎回来',
+      authLoginSubtitle: '登录以体验更多精彩功能',
+      authRegisterTitle: '加入 UIED',
+      authRegisterSubtitle: '开启您的设计探索之旅',
+      notFoundTitle: '页面不存在或已迁移',
+      notFoundDescription: '你访问的链接可能已经下线、改名或暂未开放。你可以返回首页，或直接进入常用入口继续浏览。',
+      notFoundSeoTitle: '页面未找到',
+      notFoundSeoDescription: '访问的页面不存在或已迁移，请返回首页继续浏览 UIED 导航。',
+      notFoundSeoKeywords: '404,页面未找到,导航站',
+      notFoundAutoRedirectSeconds: 10,
+      notFoundQuickLinks: [
+        { label: 'AI导航', to: '/ai', newWindow: false },
+        { label: 'UI导航', to: '/uiux', newWindow: false },
+        { label: '平面导航', to: '/design', newWindow: false },
+        { label: 'MCP中心', to: '/mcp', newWindow: false },
+        { label: 'Figma频道', to: '/figma', newWindow: false },
+        { label: '热门内容', to: '/p/hot', newWindow: false },
+      ],
+      homeFallbackBannerCards: [],
+      homeFallbackCarouselSlides: [],
+      changelogAuthorName: 'Tomda',
+      changelogAuthorUrl: 'https://tomda.top/',
+      changelogAuthorDescription: '开发（AI协助）并记录 UIED-NAV 的开发历程和功能更新。公众号：Tomda',
+      changelogBuyButtonText: '购买源码授权',
+      changelogRepoLinks: [
+        { name: 'GitHub 仓库', url: 'https://github.com/Tomccc520/UIED-NAV', iconKey: 'github' },
+        { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/uied-nav', iconKey: 'gitee' },
+        { name: 'CSDN 博客', url: 'https://blog.csdn.net/Tomdac?spm=1000.2115.3001.5343', iconKey: 'csdn' },
+        { name: 'UIED技术团队', url: 'https://fsuied.com/', iconKey: 'uied' },
+      ],
+      changelogPlatformLinks: [
+        { name: 'AI学习平台', url: 'https://www.uied.cn/' },
+        { name: 'AI免费工具', url: 'https://uiedtool.com' },
+        { name: 'AI资讯热榜', url: 'https://hot.uied.cn' },
+        { name: 'AI工具导航', url: 'https://hao.uied.cn/ai' },
+        { name: 'AI交流群', url: 'https://ai.feishu.cn/wiki/CUuaw5ooxiHAkckgtRkcn6rnnVQ?from=from_copylink' },
+        { name: 'AI知识库', url: 'https://ai.feishu.cn/wiki/ZjddwTFpWivK6ukwBoDc5DoHnVt?from=from_copylink' },
+      ],
+    };
+  }
+
+  /**
+   * 规范化品牌与默认内容配置，统一前台多处兜底内容的结构与字段。
+   */
+  normalizeBrandConfig(config = {}) {
+    const defaults = this.getDefaultBrandConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const merged = { ...defaults, ...source };
+    const normalizeText = (value, fallback = '') => String(value || '').trim() || fallback;
+    const normalizeUrl = (value, fallback = '') => String(value || '').trim() || fallback;
+    const normalizeBoolean = value => value === true;
+    /**
+     * 规范化 404 快捷入口数组，兼容历史缺失字段并回退默认项。
+     */
+    const normalizeQuickLinks = value => {
+      if (Array.isArray(value) && value.length === 0) return [];
+      const rawList = Array.isArray(value) ? value : [];
+      const normalized = rawList
+        .map((item, index) => {
+          const current = this.isPlainObject(item) ? item : {};
+          const fallback = defaults.notFoundQuickLinks[index % defaults.notFoundQuickLinks.length] || {};
+          const label = normalizeText(current.label, fallback.label || '');
+          const to = normalizeUrl(current.to, fallback.to || '');
+          if (!label || !to) return null;
+          return {
+            label,
+            to,
+            newWindow: normalizeBoolean(current.newWindow),
+          };
+        })
+        .filter(Boolean);
+      return normalized.length > 0 ? normalized : defaults.notFoundQuickLinks;
+    };
+    /**
+     * 规范化首页 Banner 兜底卡片，未配置时返回空数组，避免继续暴露演示内容。
+     */
+    const normalizeBannerCards = value => {
+      const rawList = Array.isArray(value) ? value : [];
+      return rawList
+        .map((item, index) => {
+          const current = this.isPlainObject(item) ? item : {};
+          const title = normalizeText(current.title);
+          const link = normalizeUrl(current.link);
+          if (!title || !link) return null;
+          return {
+            id: normalizeText(current.id, `brand-banner-${index + 1}`),
+            title,
+            description: normalizeText(current.description),
+            link,
+            badge: normalizeText(current.badge),
+            color: normalizeText(current.color, index % 2 === 0 ? '#2563eb' : '#0f766e'),
+            newWindow: current.newWindow !== false,
+          };
+        })
+        .filter(Boolean);
+    };
+    /**
+     * 规范化首页轮播兜底内容，未配置时返回空数组，避免继续暴露演示素材。
+     */
+    const normalizeCarouselSlides = value => {
+      const rawList = Array.isArray(value) ? value : [];
+      return rawList
+        .map((item, index) => {
+          const current = this.isPlainObject(item) ? item : {};
+          const title = normalizeText(current.title);
+          const image = normalizeText(current.image);
+          const link = normalizeUrl(current.link);
+          if (!title || !image || !link) return null;
+          return {
+            id: normalizeText(current.id, `brand-carousel-${index + 1}`),
+            title,
+            subtitle: normalizeText(current.subtitle),
+            image,
+            link,
+            newWindow: current.newWindow !== false,
+          };
+        })
+        .filter(Boolean);
+    };
+    /**
+     * 规范化更新记录页仓库链接，仅允许受控 iconKey 枚举。
+     */
+    const normalizeRepoLinks = value => {
+      if (Array.isArray(value) && value.length === 0) return [];
+      const allowIconKeys = new Set([ 'github', 'gitee', 'csdn', 'uied' ]);
+      const rawList = Array.isArray(value) ? value : [];
+      const normalized = rawList
+        .map((item, index) => {
+          const current = this.isPlainObject(item) ? item : {};
+          const fallback = defaults.changelogRepoLinks[index % defaults.changelogRepoLinks.length] || {};
+          const name = normalizeText(current.name, fallback.name || '');
+          const url = normalizeUrl(current.url, fallback.url || '');
+          if (!name || !url) return null;
+          const iconKey = normalizeText(current.iconKey, fallback.iconKey || 'github');
+          return {
+            name,
+            url,
+            iconKey: allowIconKeys.has(iconKey) ? iconKey : 'github',
+          };
+        })
+        .filter(Boolean);
+      return normalized.length > 0 ? normalized : defaults.changelogRepoLinks;
+    };
+    /**
+     * 规范化更新记录页平台链接，空值时回退默认链接组。
+     */
+    const normalizePlatformLinks = value => {
+      if (Array.isArray(value) && value.length === 0) return [];
+      const rawList = Array.isArray(value) ? value : [];
+      const normalized = rawList
+        .map((item, index) => {
+          const current = this.isPlainObject(item) ? item : {};
+          const fallback = defaults.changelogPlatformLinks[index % defaults.changelogPlatformLinks.length] || {};
+          const name = normalizeText(current.name, fallback.name || '');
+          const url = normalizeUrl(current.url, fallback.url || '');
+          if (!name || !url) return null;
+          return { name, url };
+        })
+        .filter(Boolean);
+      return normalized.length > 0 ? normalized : defaults.changelogPlatformLinks;
+    };
+
+    return {
+      brandName: normalizeText(merged.brandName, defaults.brandName),
+      officialSiteUrl: normalizeUrl(merged.officialSiteUrl, defaults.officialSiteUrl),
+      buyUrl: normalizeUrl(merged.buyUrl, defaults.buyUrl),
+      supportUrl: normalizeUrl(merged.supportUrl, defaults.supportUrl),
+      supportLabel: normalizeText(merged.supportLabel, defaults.supportLabel),
+      supportQq: normalizeText(merged.supportQq),
+      supportQqGroup: normalizeText(merged.supportQqGroup),
+      installPageTitle: normalizeText(merged.installPageTitle, defaults.installPageTitle),
+      installPageDescription: normalizeText(merged.installPageDescription, defaults.installPageDescription),
+      installSiteName: normalizeText(merged.installSiteName, defaults.installSiteName),
+      installSiteTitle: normalizeText(merged.installSiteTitle, defaults.installSiteTitle),
+      installSiteDescription: normalizeText(merged.installSiteDescription, defaults.installSiteDescription),
+      installSiteKeywords: normalizeText(merged.installSiteKeywords, defaults.installSiteKeywords),
+      installAdminNickname: normalizeText(merged.installAdminNickname, defaults.installAdminNickname),
+      authLogoText: normalizeText(merged.authLogoText, defaults.authLogoText),
+      authLoginTitle: normalizeText(merged.authLoginTitle, defaults.authLoginTitle),
+      authLoginSubtitle: normalizeText(merged.authLoginSubtitle, defaults.authLoginSubtitle),
+      authRegisterTitle: normalizeText(merged.authRegisterTitle, defaults.authRegisterTitle),
+      authRegisterSubtitle: normalizeText(merged.authRegisterSubtitle, defaults.authRegisterSubtitle),
+      notFoundTitle: normalizeText(merged.notFoundTitle, defaults.notFoundTitle),
+      notFoundDescription: normalizeText(merged.notFoundDescription, defaults.notFoundDescription),
+      notFoundSeoTitle: normalizeText(merged.notFoundSeoTitle, defaults.notFoundSeoTitle),
+      notFoundSeoDescription: normalizeText(merged.notFoundSeoDescription, defaults.notFoundSeoDescription),
+      notFoundSeoKeywords: normalizeText(merged.notFoundSeoKeywords, defaults.notFoundSeoKeywords),
+      notFoundAutoRedirectSeconds: Number.isFinite(Number(merged.notFoundAutoRedirectSeconds))
+        ? Math.max(3, Math.min(30, Number(merged.notFoundAutoRedirectSeconds)))
+        : defaults.notFoundAutoRedirectSeconds,
+      notFoundQuickLinks: normalizeQuickLinks(merged.notFoundQuickLinks),
+      homeFallbackBannerCards: normalizeBannerCards(merged.homeFallbackBannerCards),
+      homeFallbackCarouselSlides: normalizeCarouselSlides(merged.homeFallbackCarouselSlides),
+      changelogAuthorName: normalizeText(merged.changelogAuthorName, defaults.changelogAuthorName),
+      changelogAuthorUrl: normalizeUrl(merged.changelogAuthorUrl, defaults.changelogAuthorUrl),
+      changelogAuthorDescription: normalizeText(merged.changelogAuthorDescription, defaults.changelogAuthorDescription),
+      changelogBuyButtonText: normalizeText(merged.changelogBuyButtonText, defaults.changelogBuyButtonText),
+      changelogRepoLinks: normalizeRepoLinks(merged.changelogRepoLinks),
+      changelogPlatformLinks: normalizePlatformLinks(merged.changelogPlatformLinks),
+    };
+  }
+
+  /**
    * 获取 MCP 页面默认配置
    */
   getDefaultMcpPageConfig() {
@@ -1905,6 +2127,8 @@ class SettingService extends Service {
         value = this.normalizeExitModalConfig(rawValue);
       } else if (key === 'searchConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSearchConfig(rawValue);
+      } else if (key === 'brandConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeBrandConfig(rawValue);
       } else if (key === 'footerAboutConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeFooterAboutConfig(rawValue);
       } else if (key === 'paymentConfig' && rawValue && typeof rawValue === 'object') {
@@ -2095,6 +2319,7 @@ class SettingService extends Service {
     const websiteCompareConfig = await this.get('websiteCompareConfig');
     const mcpPageConfig = await this.get('mcpPageConfig');
     const figmaPageConfig = await this.get('figmaPageConfig');
+    const brandConfig = await this.get('brandConfig');
     const authConfig = await this.getAuthConfig();
 
     // 默认配置
@@ -2326,6 +2551,7 @@ class SettingService extends Service {
     const defaultWebsiteCompareConfig = this.getDefaultWebsiteCompareConfig();
     const defaultMcpPageConfig = this.getDefaultMcpPageConfig();
     const defaultFigmaPageConfig = this.getDefaultFigmaPageConfig();
+    const defaultBrandConfig = this.getDefaultBrandConfig();
 
     const defaultHotArticlesConfig = {
       enabled: true,
@@ -2376,6 +2602,7 @@ class SettingService extends Service {
     return {
       siteInfo,
       authConfig, // 注册/登录配置
+      brand: this.normalizeBrandConfig(brandConfig || defaultBrandConfig),
       pageGlobal: { ...defaultPageGlobal, ...normalizedPageGlobalConfig },
       appearance: appearanceConfig || defaultAppearance,
       homepage: this.normalizeHomepageConfig(homepageConfig || defaultHomepage),

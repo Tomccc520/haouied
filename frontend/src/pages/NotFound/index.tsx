@@ -13,21 +13,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SEO from '../../components/SEO';
 import { resolveSeoRedirect } from '../../services/seoRedirectService';
+import { usePublicSettings } from '../../hooks/usePublicSettings';
 import './index.css';
-
-const AUTO_REDIRECT_SECONDS = 10;
-
-/**
- * 404 常用快捷入口。
- */
-const QUICK_LINKS = [
-  { label: 'AI导航', to: '/ai' },
-  { label: 'UI导航', to: '/uiux' },
-  { label: '平面导航', to: '/design' },
-  { label: 'MCP中心', to: '/mcp' },
-  { label: 'Figma频道', to: '/figma' },
-  { label: '热门内容', to: '/p/hot' },
-];
 
 /**
  * 404 页面组件：统一站点风格，提供清晰回退路径。
@@ -35,12 +22,15 @@ const QUICK_LINKS = [
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [countdown, setCountdown] = useState<number>(AUTO_REDIRECT_SECONDS);
+  const { data: publicSettings } = usePublicSettings();
+  const brandConfig = publicSettings.brand;
+  const autoRedirectSeconds = Math.max(3, Number(brandConfig.notFoundAutoRedirectSeconds || 10));
+  const [countdown, setCountdown] = useState<number>(autoRedirectSeconds);
   const [resolvingRedirect, setResolvingRedirect] = useState<boolean>(true);
 
   useEffect(() => {
-    setCountdown(AUTO_REDIRECT_SECONDS);
-  }, [location.pathname, location.search]);
+    setCountdown(autoRedirectSeconds);
+  }, [autoRedirectSeconds, location.pathname, location.search]);
 
   useEffect(() => {
     let active = true;
@@ -106,14 +96,23 @@ const NotFoundPage: React.FC = () => {
   const redirectText = useMemo(() => (
     resolvingRedirect ? '正在检查运营短链...' : `${countdown}s 后自动回到首页`
   ), [countdown, resolvingRedirect]);
+  const seoUrl = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    return `${window.location.origin}/404`;
+  }, []);
+
+  /**
+   * 判断快捷入口是否为外链。
+   */
+  const isExternalLink = (value: string): boolean => /^(https?:)?\/\//i.test(String(value || '').trim());
 
   return (
     <>
       <SEO
-        title="页面未找到"
-        description="访问的页面不存在或已迁移，请返回首页继续浏览 UIED 导航。"
-        keywords="404,页面未找到,导航站"
-        url="https://hao.uied.cn/404"
+        title={brandConfig.notFoundSeoTitle}
+        description={brandConfig.notFoundSeoDescription}
+        keywords={brandConfig.notFoundSeoKeywords}
+        url={seoUrl}
         noindex={true}
       />
       <div className="not-found-page">
@@ -123,10 +122,8 @@ const NotFoundPage: React.FC = () => {
             <span className="not-found-card__code-sub">PAGE NOT FOUND</span>
           </div>
           <div className="not-found-card__content">
-            <h1>页面不存在或已迁移</h1>
-            <p className="not-found-card__desc">
-              你访问的链接可能已经下线、改名或暂未开放。你可以返回首页，或直接进入常用入口继续浏览。
-            </p>
+            <h1>{brandConfig.notFoundTitle}</h1>
+            <p className="not-found-card__desc">{brandConfig.notFoundDescription}</p>
             <p className="not-found-card__redirect">{redirectText}</p>
             <div className="not-found-card__actions">
               <Link to="/" className="not-found-card__btn not-found-card__btn--primary">
@@ -137,10 +134,28 @@ const NotFoundPage: React.FC = () => {
               </button>
             </div>
             <div className="not-found-card__quick-links">
-              {QUICK_LINKS.map((item) => (
-                <Link key={item.to} to={item.to} className="not-found-card__quick-link">
-                  {item.label}
-                </Link>
+              {brandConfig.notFoundQuickLinks.map((item) => (
+                isExternalLink(item.to) ? (
+                  <a
+                    key={`${item.label}-${item.to}`}
+                    href={item.to}
+                    className="not-found-card__quick-link"
+                    target={item.newWindow ? '_blank' : '_self'}
+                    rel={item.newWindow ? 'noopener noreferrer' : undefined}
+                  >
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={`${item.label}-${item.to}`}
+                    to={item.to}
+                    className="not-found-card__quick-link"
+                    target={item.newWindow ? '_blank' : undefined}
+                    rel={item.newWindow ? 'noopener noreferrer' : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                )
               ))}
             </div>
           </div>

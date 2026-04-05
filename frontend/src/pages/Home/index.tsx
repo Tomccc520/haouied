@@ -26,6 +26,7 @@ import { RankingBoardData, RankingPublicConfig } from '../../types/ranking';
 import { DailyHotDisplayConfig } from '../../types/dailyHot';
 import { useBanners } from '../../hooks/useBanners';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
+import { usePublicSettings } from '../../hooks/usePublicSettings';
 import './index.css';
 import './mobile.css';
 
@@ -55,39 +56,8 @@ interface CarouselSlide {
   image: string;
   link: string;
   bannerId?: string;
+  newWindow?: boolean;
 }
-
-// 轮播图默认数据（当后台未配置广告时使用）
-const defaultCarouselData: CarouselSlide[] = [
-  {
-    id: 1,
-    title: '纳米AI超级搜索智能体炸裂升级！',
-    subtitle: '一键生成PPT、视频、口播稿，医学科研也能秒搜',
-    image: '/carousel1.jpg',
-    link: '/ai'
-  },
-  {
-    id: 2,
-    title: '加速发展:Gartner 预测生成 AI 应用',
-    subtitle: '将实现50% 的交付时间缩减',
-    image: '/carousel2.jpg',
-    link: '/ai'
-  },
-  {
-    id: 3,
-    title: 'Match Group新研究:AI伴侣受青睐',
-    subtitle: '60%认为不构成出轨',
-    image: '/carousel3.jpg',
-    link: '/ai'
-  },
-  {
-    id: 4,
-    title: '博世联手阿里云，AI 智能座舱技术',
-    subtitle: '迈入新纪元！',
-    image: '/carousel4.jpg',
-    link: '/ai'
-  }
-];
 
 // 榜单项目接口
 interface RankingItem {
@@ -116,14 +86,27 @@ const Home: React.FC = () => {
   const [hotArticlesDisplayConfig, setHotArticlesDisplayConfig] = useState<HotArticlesDisplayConfig | null>(null);
   const [rankingsDisplayConfig, setRankingsDisplayConfig] = useState<RankingPublicConfig | null>(null);
   const { config: frontendConfig } = useFrontendConfig();
+  const { data: publicSettings } = usePublicSettings();
   const { banners: homeBanners, recordClick: recordBannerClick } = useBanners({
     position: 'home',
     limit: 4,
   });
   const homepageConfig = frontendConfig.homepageConfig;
+  const brandConfig = publicSettings.brand;
   const carouselEnabled = homepageConfig.homeCarouselEnabled !== false;
   const recommendationEnabled = homepageConfig.homeRecommendationEnabled !== false;
   const recommendationContentEnabled = homepageConfig.hotRecommendationsEnabled !== false;
+  const fallbackBannerCards = useMemo(() => (
+    (brandConfig.homeFallbackBannerCards || []).map((card, index) => ({
+      id: card.id || `brand-banner-${index + 1}`,
+      title: card.title,
+      description: card.description,
+      color: card.color,
+      link: card.link,
+      badge: card.badge,
+      newWindow: card.newWindow !== false,
+    }))
+  ), [brandConfig.homeFallbackBannerCards]);
 
   /**
    * 判断当前是否为移动端视口（仅用于展示层开关判定）
@@ -213,7 +196,14 @@ const Home: React.FC = () => {
    */
   const carouselData = useMemo<CarouselSlide[]>(() => {
     if (!homeBanners || homeBanners.length === 0) {
-      return defaultCarouselData;
+      return (brandConfig.homeFallbackCarouselSlides || []).map((slide, index) => ({
+        id: slide.id || `brand-carousel-${index + 1}`,
+        title: slide.title,
+        subtitle: slide.subtitle,
+        image: slide.image,
+        link: slide.link,
+        newWindow: slide.newWindow !== false,
+      }));
     }
     return homeBanners.map((banner, index) => ({
       id: banner.id || `banner-${index}`,
@@ -222,15 +212,16 @@ const Home: React.FC = () => {
       image: banner.imageUrl || '',
       link: banner.linkUrl || '/ai',
       bannerId: banner.id,
+      newWindow: true,
     }));
-  }, [homeBanners]);
+  }, [brandConfig.homeFallbackCarouselSlides, homeBanners]);
 
   /**
    * 计算首页顶部模块展示顺序。
    */
   const topModules = useMemo<Array<'carousel' | 'recommendation'>>(() => {
     const modules = [
-      { key: 'carousel' as const, enabled: carouselEnabled, sort: Number(homepageConfig.homeCarouselSort || 10) },
+      { key: 'carousel' as const, enabled: carouselEnabled && carouselData.length > 0, sort: Number(homepageConfig.homeCarouselSort || 10) },
       { key: 'recommendation' as const, enabled: recommendationEnabled, sort: Number(homepageConfig.homeRecommendationSort || 20) },
     ];
     return modules
@@ -242,6 +233,7 @@ const Home: React.FC = () => {
     recommendationEnabled,
     homepageConfig.homeCarouselSort,
     homepageConfig.homeRecommendationSort,
+    carouselData.length,
   ]);
 
   /**
@@ -287,7 +279,13 @@ const Home: React.FC = () => {
       recordBannerClick(slide.bannerId).catch(() => {});
     }
     if (slide.link) {
-      window.open(slide.link, '_blank', 'noopener,noreferrer');
+      if (slide.link.startsWith('http') && slide.newWindow !== false) {
+        window.open(slide.link, '_blank', 'noopener,noreferrer');
+      } else if (slide.newWindow !== false) {
+        window.open(slide.link, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.href = slide.link;
+      }
     }
   };
 
@@ -707,7 +705,7 @@ const Home: React.FC = () => {
       {/* 中间：Banner区域 */}
       <div className="home-banner-section">
         <AdBanner pageSlug="home" position="top" className="home-banner-section__ad" />
-        <Banner useBackend={false} />
+        <Banner useBackend={false} cards={fallbackBannerCards} />
       </div>
 
       {/* 下方：设计文章网格 */}

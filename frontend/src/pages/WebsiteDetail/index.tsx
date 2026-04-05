@@ -9,6 +9,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import WebsiteFavicon from '../../components/WebsiteFavicon';
 import { AxiosError } from 'axios';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import Lightbox from 'yet-another-react-lightbox';
+import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
+import 'yet-another-react-lightbox/styles.css';
+import 'yet-another-react-lightbox/plugins/thumbnails.css';
 import api, { recordWebsiteClick } from '../../services/api';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { useUser } from '../../contexts/UserContext';
@@ -29,6 +34,7 @@ import useCache from '../../hooks/useCache';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import DetailCommercialSlot from './DetailCommercialSlot';
 import DetailMediaCarousel from '../../components/DetailMediaCarousel';
+import '../../styles/uiedLightbox.css';
 import './index.css';
 
 /**
@@ -1028,15 +1034,6 @@ const WebsiteDetailPage: React.FC = () => {
     navigate(comparePath);
   }, [navigate, website?.id, website?.slug]);
 
-  /**
-   * 打开缩略图/截图灯箱
-   * @param index - -1 表示主缩略图，其余为 screenshots 下标
-   */
-  const openLightbox = (index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
-  };
-
   // 截图列表
   const screenshots = normalizeScreenshotUrls(website?.screenshots);
 
@@ -1144,19 +1141,27 @@ const WebsiteDetailPage: React.FC = () => {
   })();
   const heroPreviewImage = previewImageCandidates[previewFallbackIndex] || '';
   /**
-   * 详情头部幻灯片数据：统一主预览图与截图缩略图，附带灯箱索引映射。
+   * 统一网站详情页灯箱图片数据：头部预览图优先，其次全部截图。
    */
-  const heroCarouselSlides = (() => {
-    const rows: Array<{ src: string; lightboxIndex: number }> = [];
+  const websiteLightboxSlides = (() => {
+    const rows: Array<{ src: string; thumbnail: string; alt: string }> = [];
     if (heroPreviewImage) {
-      rows.push({ src: heroPreviewImage, lightboxIndex: -1 });
+      rows.push({
+        src: heroPreviewImage,
+        thumbnail: heroPreviewImage,
+        alt: `${website.name} 预览图`,
+      });
     }
-    heroGalleryScreenshots.forEach((item, index) => {
+    screenshots.forEach((item, index) => {
       const src = getFullImageUrl(item);
       if (!src) return;
-      rows.push({ src, lightboxIndex: index });
+      rows.push({
+        src,
+        thumbnail: src,
+        alt: `${website.name} 截图 ${index + 1}`,
+      });
     });
-    const uniqueRows: Array<{ src: string; lightboxIndex: number }> = [];
+    const uniqueRows: Array<{ src: string; thumbnail: string; alt: string }> = [];
     const used = new Set<string>();
     rows.forEach((item) => {
       if (used.has(item.src)) return;
@@ -1165,7 +1170,32 @@ const WebsiteDetailPage: React.FC = () => {
     });
     return uniqueRows;
   })();
-  const heroCarouselImages = heroCarouselSlides.map((item) => item.src);
+  /**
+   * 头部轮播只展示预览图和首批截图，点击后仍进入完整灯箱。
+   */
+  const heroCarouselImages = (() => {
+    const rows: string[] = [];
+    if (heroPreviewImage) {
+      rows.push(heroPreviewImage);
+    }
+    heroGalleryScreenshots.forEach((item) => {
+      const src = getFullImageUrl(item);
+      if (src) {
+        rows.push(src);
+      }
+    });
+    return Array.from(new Set(rows));
+  })();
+  /**
+   * 根据图片地址打开统一灯箱，兼容头部预览图和正文截图入口。
+   */
+  const openLightboxByImageUrl = (imageUrl: string) => {
+    const targetUrl = String(imageUrl || '').trim();
+    if (!targetUrl || websiteLightboxSlides.length === 0) return;
+    const targetIndex = websiteLightboxSlides.findIndex((item) => item.src === targetUrl);
+    setLightboxIndex(targetIndex >= 0 ? targetIndex : 0);
+    setLightboxOpen(true);
+  };
   const currentCompareIdentifier = website.slug || website.id;
   const healthStatusLabel = formatHealthStatusLabel(websiteHealth, websiteHealthLoading);
   const httpStatusCodeLabel = formatHttpStatusCodeLabel(websiteHealth?.http?.statusCode, websiteHealthLoading);
@@ -1334,9 +1364,9 @@ const WebsiteDetailPage: React.FC = () => {
    * 点击详情头部幻灯片主图时，按映射打开对应灯箱内容。
    */
   const handleHeroCarouselMainClick = (slideIndex: number) => {
-    const target = heroCarouselSlides[slideIndex];
+    const target = heroCarouselImages[slideIndex];
     if (!target) return;
-    openLightbox(target.lightboxIndex);
+    openLightboxByImageUrl(target);
   };
 
   /**
@@ -1667,7 +1697,7 @@ const WebsiteDetailPage: React.FC = () => {
                       key={index} 
                       className="screenshot-item"
                       data-index={index + 1}
-                      onClick={() => openLightbox(index)}
+                      onClick={() => openLightboxByImageUrl(getFullImageUrl(url))}
                     >
                       <img src={getFullImageUrl(url)} alt={`截图 ${index + 1}`} loading="lazy" />
                     </div>
@@ -1776,39 +1806,36 @@ const WebsiteDetailPage: React.FC = () => {
         </main>
       </div>
 
-      {/* 图片灯箱 */}
-      {lightboxOpen && (lightboxIndex === -1 ? (
-        <div className="lightbox" onClick={() => setLightboxOpen(false)}>
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <button className="lightbox-close" onClick={() => setLightboxOpen(false)}>×</button>
-            <img src={heroPreviewImage} alt={`${website.name} 预览`} onError={handlePreviewImageError} />
-          </div>
-        </div>
-      ) : screenshots.length > 0 && (
-        <div className="lightbox" onClick={() => setLightboxOpen(false)}>
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <button className="lightbox-close" onClick={() => setLightboxOpen(false)}>×</button>
-            <img src={getFullImageUrl(screenshots[lightboxIndex])} alt={`截图 ${lightboxIndex + 1}`} />
-            {screenshots.length > 1 && (
-              <div className="lightbox-nav">
-                <button 
-                  className="lightbox-prev"
-                  onClick={() => setLightboxIndex((lightboxIndex - 1 + screenshots.length) % screenshots.length)}
-                >
-                  ‹
-                </button>
-                <span className="lightbox-counter">{lightboxIndex + 1} / {screenshots.length}</span>
-                <button 
-                  className="lightbox-next"
-                  onClick={() => setLightboxIndex((lightboxIndex + 1) % screenshots.length)}
-                >
-                  ›
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        slides={websiteLightboxSlides}
+        index={lightboxIndex}
+        plugins={[Zoom, Thumbnails]}
+        carousel={{ finite: websiteLightboxSlides.length <= 1 }}
+        thumbnails={{
+          position: 'bottom',
+          width: 72,
+          height: 46,
+          border: 1,
+          borderRadius: 12,
+          padding: 2,
+          gap: 8,
+          vignette: false,
+          showToggle: false,
+        }}
+        zoom={{
+          maxZoomPixelRatio: 2.5,
+          zoomInMultiplier: 1.8,
+          scrollToZoom: true,
+        }}
+        on={{
+          view: ({ index }) => setLightboxIndex(index),
+        }}
+        controller={{
+          closeOnBackdropClick: true,
+        }}
+      />
 
       {/* 发起对比选择层 */}
       {comparePickerOpen && (

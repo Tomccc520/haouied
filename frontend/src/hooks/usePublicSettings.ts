@@ -36,6 +36,7 @@ import publicSettingService, {
   DEFAULT_FIGMA_PAGE,
   DEFAULT_WEBSITE_COMPARE,
 } from '../services/publicSettingService';
+import { DEFAULT_BRAND_CONFIG } from '../config/brandConfig';
 import { debugLog } from '../utils/debugHelper';
 
 // ==================== 通用 Hook 类型 ====================
@@ -56,6 +57,7 @@ interface UseSettingResult<T> {
 export const usePublicSettings = (): UseSettingResult<PublicSettings> => {
   const [data, setData] = useState<PublicSettings>({
     authConfig: DEFAULT_AUTH_CONFIG,
+    brand: DEFAULT_BRAND_CONFIG,
     siteInfo: DEFAULT_SITE_INFO,
     appearance: DEFAULT_APPEARANCE,
     homepage: DEFAULT_HOMEPAGE,

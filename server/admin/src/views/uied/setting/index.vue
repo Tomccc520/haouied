@@ -221,6 +221,443 @@
                     </el-form>
                 </el-tab-pane>
 
+                <!-- ==================== 品牌配置 ==================== -->
+                <el-tab-pane label="品牌配置" name="brandConfig">
+                    <div class="setting-header">
+                        <h2 class="setting-title">品牌配置</h2>
+                        <p class="setting-desc">
+                            统一管理安装页、登录弹窗、404、首页兜底内容和更新记录页品牌链接。售卖版建议优先在这里收口品牌信息，避免前端继续写死。
+                        </p>
+                    </div>
+                    <el-form :model="brandConfigData" label-width="140px" class="form-max-700">
+                        <el-divider content-position="left">基础品牌信息</el-divider>
+                        <p class="section-desc">
+                            用于官网入口、购买链接和默认售后信息展示。
+                        </p>
+                        <el-form-item label="品牌名称">
+                            <el-input v-model="brandConfigData.brandName" placeholder="例如：UIED导航系统" />
+                        </el-form-item>
+                        <el-form-item label="官网地址">
+                            <el-input
+                                v-model="brandConfigData.officialSiteUrl"
+                                placeholder="https://fsuied.com"
+                            />
+                        </el-form-item>
+                        <el-form-item label="购买链接">
+                            <el-input
+                                v-model="brandConfigData.buyUrl"
+                                placeholder="https://fsuied.com/products/10"
+                            />
+                        </el-form-item>
+                        <el-form-item label="咨询链接">
+                            <el-input
+                                v-model="brandConfigData.supportUrl"
+                                placeholder="https://fsuied.com"
+                            />
+                        </el-form-item>
+                        <el-form-item label="咨询按钮文案">
+                            <el-input
+                                v-model="brandConfigData.supportLabel"
+                                placeholder="前往官网咨询"
+                            />
+                        </el-form-item>
+                        <el-form-item label="客服 QQ">
+                            <el-input
+                                v-model="brandConfigData.supportQq"
+                                placeholder="403479454"
+                            />
+                        </el-form-item>
+                        <el-form-item label="官方群号">
+                            <el-input
+                                v-model="brandConfigData.supportQqGroup"
+                                placeholder="1082794860"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">安装页默认值</el-divider>
+                        <p class="section-desc">
+                            安装页是首次交付场景，推荐把默认站点信息和引导文案在这里统一维护。
+                        </p>
+                        <el-form-item label="安装页标题">
+                            <el-input
+                                v-model="brandConfigData.installPageTitle"
+                                placeholder="安装向导"
+                            />
+                        </el-form-item>
+                        <el-form-item label="安装页说明">
+                            <el-input
+                                v-model="brandConfigData.installPageDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="正式交付流程说明"
+                            />
+                        </el-form-item>
+                        <el-form-item label="默认站点名称">
+                            <el-input
+                                v-model="brandConfigData.installSiteName"
+                                placeholder="默认站点名称"
+                            />
+                        </el-form-item>
+                        <el-form-item label="默认站点标题">
+                            <el-input
+                                v-model="brandConfigData.installSiteTitle"
+                                placeholder="默认站点标题"
+                            />
+                        </el-form-item>
+                        <el-form-item label="默认站点描述">
+                            <el-input
+                                v-model="brandConfigData.installSiteDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="默认站点描述"
+                            />
+                        </el-form-item>
+                        <el-form-item label="默认站点关键词">
+                            <el-input
+                                v-model="brandConfigData.installSiteKeywords"
+                                placeholder="多个关键词英文逗号分隔"
+                            />
+                        </el-form-item>
+                        <el-form-item label="默认管理员昵称">
+                            <el-input
+                                v-model="brandConfigData.installAdminNickname"
+                                placeholder="系统管理员"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">登录弹窗</el-divider>
+                        <p class="section-desc">
+                            登录/注册弹窗的品牌文案统一在这里配置，避免前台继续写死 UIED。
+                        </p>
+                        <el-form-item label="Logo 文案">
+                            <el-input
+                                v-model="brandConfigData.authLogoText"
+                                placeholder="例如：UIED"
+                            />
+                        </el-form-item>
+                        <el-form-item label="登录标题">
+                            <el-input
+                                v-model="brandConfigData.authLoginTitle"
+                                placeholder="欢迎回来"
+                            />
+                        </el-form-item>
+                        <el-form-item label="登录副标题">
+                            <el-input
+                                v-model="brandConfigData.authLoginSubtitle"
+                                placeholder="登录以体验更多精彩功能"
+                            />
+                        </el-form-item>
+                        <el-form-item label="注册标题">
+                            <el-input
+                                v-model="brandConfigData.authRegisterTitle"
+                                placeholder="加入品牌"
+                            />
+                        </el-form-item>
+                        <el-form-item label="注册副标题">
+                            <el-input
+                                v-model="brandConfigData.authRegisterSubtitle"
+                                placeholder="注册副标题"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">404 页面</el-divider>
+                        <p class="section-desc">
+                            配置 404 页的 SEO、默认文案和常用入口。短链命中时仍优先按运营规则跳转。
+                        </p>
+                        <el-form-item label="404 标题">
+                            <el-input
+                                v-model="brandConfigData.notFoundTitle"
+                                placeholder="页面不存在或已迁移"
+                            />
+                        </el-form-item>
+                        <el-form-item label="404 描述">
+                            <el-input
+                                v-model="brandConfigData.notFoundDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="404 页面说明"
+                            />
+                        </el-form-item>
+                        <el-form-item label="SEO 标题">
+                            <el-input
+                                v-model="brandConfigData.notFoundSeoTitle"
+                                placeholder="页面未找到"
+                            />
+                        </el-form-item>
+                        <el-form-item label="SEO 描述">
+                            <el-input
+                                v-model="brandConfigData.notFoundSeoDescription"
+                                type="textarea"
+                                :rows="2"
+                                placeholder="404 SEO 描述"
+                            />
+                        </el-form-item>
+                        <el-form-item label="SEO 关键词">
+                            <el-input
+                                v-model="brandConfigData.notFoundSeoKeywords"
+                                placeholder="404,页面未找到,导航站"
+                            />
+                        </el-form-item>
+                        <el-form-item label="自动返回秒数">
+                            <el-input-number
+                                v-model="brandConfigData.notFoundAutoRedirectSeconds"
+                                :min="3"
+                                :max="30"
+                            />
+                            <span class="form-tip">命中短链规则前，404 页面默认返回首页倒计时。</span>
+                        </el-form-item>
+                        <div class="brand-array-block">
+                            <div class="brand-array-block__header">
+                                <span>404 快捷入口</span>
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="brandConfigData.notFoundQuickLinks.push(createBrandQuickLinkItem())"
+                                >
+                                    新增入口
+                                </el-button>
+                            </div>
+                            <div
+                                v-for="(item, index) in brandConfigData.notFoundQuickLinks"
+                                :key="`quick-${index}`"
+                                class="brand-array-card"
+                            >
+                                <div class="brand-array-card__grid brand-array-card__grid--three">
+                                    <el-input v-model="item.label" placeholder="入口名称" />
+                                    <el-input v-model="item.to" placeholder="/ai 或 https://example.com" />
+                                    <div class="row-between-center">
+                                        <el-switch v-model="item.newWindow" active-text="新窗口" inactive-text="当前页" />
+                                        <el-button
+                                            text
+                                            type="danger"
+                                            @click="brandConfigData.notFoundQuickLinks.splice(index, 1)"
+                                        >
+                                            删除
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <el-divider content-position="left">首页兜底内容</el-divider>
+                        <p class="section-desc">
+                            当后台广告位未配置时，首页 Banner 和轮播图使用这里的品牌兜底内容；留空则前台直接隐藏，不再显示演示数据。
+                        </p>
+                        <div class="brand-array-block">
+                            <div class="brand-array-block__header">
+                                <span>首页 Banner 兜底卡片</span>
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="brandConfigData.homeFallbackBannerCards.push(createBrandBannerCardItem(brandConfigData.homeFallbackBannerCards.length))"
+                                >
+                                    新增卡片
+                                </el-button>
+                            </div>
+                            <div
+                                v-for="(item, index) in brandConfigData.homeFallbackBannerCards"
+                                :key="`banner-card-${index}`"
+                                class="brand-array-card"
+                            >
+                                <div class="brand-array-card__grid brand-array-card__grid--two">
+                                    <el-input v-model="item.title" placeholder="标题" />
+                                    <el-input v-model="item.link" placeholder="跳转链接" />
+                                </div>
+                                <div class="brand-array-card__grid brand-array-card__grid--two">
+                                    <el-input v-model="item.badge" placeholder="徽标文案（可空）" />
+                                    <div class="row-center-gap-12">
+                                        <el-color-picker v-model="item.color" />
+                                        <el-input v-model="item.color" placeholder="#2563eb" class="flex-1" />
+                                        <el-switch v-model="item.newWindow" active-text="新窗口" inactive-text="当前页" />
+                                    </div>
+                                </div>
+                                <el-input
+                                    v-model="item.description"
+                                    type="textarea"
+                                    :rows="2"
+                                    placeholder="简介文案"
+                                />
+                                <div class="brand-array-card__actions">
+                                    <el-button
+                                        text
+                                        type="danger"
+                                        @click="brandConfigData.homeFallbackBannerCards.splice(index, 1)"
+                                    >
+                                        删除卡片
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="brand-array-block">
+                            <div class="brand-array-block__header">
+                                <span>首页轮播兜底内容</span>
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="brandConfigData.homeFallbackCarouselSlides.push(createBrandCarouselSlideItem())"
+                                >
+                                    新增轮播
+                                </el-button>
+                            </div>
+                            <div
+                                v-for="(item, index) in brandConfigData.homeFallbackCarouselSlides"
+                                :key="`carousel-${index}`"
+                                class="brand-array-card"
+                            >
+                                <div class="brand-array-card__grid brand-array-card__grid--two">
+                                    <el-input v-model="item.title" placeholder="轮播标题" />
+                                    <el-input v-model="item.link" placeholder="跳转链接" />
+                                </div>
+                                <el-input
+                                    v-model="item.subtitle"
+                                    type="textarea"
+                                    :rows="2"
+                                    placeholder="轮播副标题"
+                                />
+                                <div class="row-start-gap-12">
+                                    <el-input
+                                        v-model="item.image"
+                                        placeholder="轮播图片地址"
+                                        class="flex-1"
+                                    />
+                                    <material-picker v-model="item.image" :limit="1">
+                                        <el-button>选择图片</el-button>
+                                    </material-picker>
+                                    <el-switch v-model="item.newWindow" active-text="新窗口" inactive-text="当前页" />
+                                </div>
+                                <div class="brand-array-card__actions">
+                                    <el-button
+                                        text
+                                        type="danger"
+                                        @click="brandConfigData.homeFallbackCarouselSlides.splice(index, 1)"
+                                    >
+                                        删除轮播
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <el-divider content-position="left">更新记录页</el-divider>
+                        <p class="section-desc">
+                            更新记录页的作者说明、购买按钮、仓库链接和平台链接统一在这里维护。
+                        </p>
+                        <el-form-item label="作者名称">
+                            <el-input
+                                v-model="brandConfigData.changelogAuthorName"
+                                placeholder="Tomda"
+                            />
+                        </el-form-item>
+                        <el-form-item label="作者链接">
+                            <el-input
+                                v-model="brandConfigData.changelogAuthorUrl"
+                                placeholder="https://tomda.top/"
+                            />
+                        </el-form-item>
+                        <el-form-item label="作者说明">
+                            <el-input
+                                v-model="brandConfigData.changelogAuthorDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="作者说明"
+                            />
+                        </el-form-item>
+                        <el-form-item label="购买按钮文案">
+                            <el-input
+                                v-model="brandConfigData.changelogBuyButtonText"
+                                placeholder="购买源码授权"
+                            />
+                        </el-form-item>
+
+                        <div class="brand-array-block">
+                            <div class="brand-array-block__header">
+                                <span>仓库链接</span>
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="brandConfigData.changelogRepoLinks.push(createBrandRepoLinkItem())"
+                                >
+                                    新增仓库链接
+                                </el-button>
+                            </div>
+                            <div
+                                v-for="(item, index) in brandConfigData.changelogRepoLinks"
+                                :key="`repo-${index}`"
+                                class="brand-array-card"
+                            >
+                                <div class="brand-array-card__grid brand-array-card__grid--three">
+                                    <el-input v-model="item.name" placeholder="名称" />
+                                    <el-input v-model="item.url" placeholder="链接地址" />
+                                    <div class="row-between-center">
+                                        <el-select v-model="item.iconKey" class="flex-1">
+                                            <el-option
+                                                v-for="option in brandRepoIconOptions"
+                                                :key="option.value"
+                                                :label="option.label"
+                                                :value="option.value"
+                                            />
+                                        </el-select>
+                                        <el-button
+                                            text
+                                            type="danger"
+                                            @click="brandConfigData.changelogRepoLinks.splice(index, 1)"
+                                        >
+                                            删除
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="brand-array-block">
+                            <div class="brand-array-block__header">
+                                <span>平台链接</span>
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="brandConfigData.changelogPlatformLinks.push(createBrandPlatformLinkItem())"
+                                >
+                                    新增平台链接
+                                </el-button>
+                            </div>
+                            <div
+                                v-for="(item, index) in brandConfigData.changelogPlatformLinks"
+                                :key="`platform-${index}`"
+                                class="brand-array-card"
+                            >
+                                <div class="brand-array-card__grid brand-array-card__grid--two">
+                                    <el-input v-model="item.name" placeholder="名称" />
+                                    <div class="row-between-center">
+                                        <el-input v-model="item.url" placeholder="链接地址" class="flex-1" />
+                                        <el-button
+                                            text
+                                            type="danger"
+                                            @click="brandConfigData.changelogPlatformLinks.splice(index, 1)"
+                                        >
+                                            删除
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <el-form-item>
+                            <el-button
+                                type="primary"
+                                :loading="brandConfigLoading"
+                                @click="handleSaveBrandConfig"
+                            >
+                                保存
+                            </el-button>
+                        </el-form-item>
+                    </el-form>
+                </el-tab-pane>
+
                 <!-- ==================== 外观配置 ==================== -->
                 <el-tab-pane label="外观配置" name="appearance">
                     <div class="setting-header">
@@ -1988,6 +2425,7 @@ const saveAllLoading = ref(false)
 const lastSavedAt = ref<number | null>(null)
 const settingTabNameSet = new Set([
     'siteInfo',
+    'brandConfig',
     'appearance',
     'homepage',
     'pageConfig',
@@ -2051,6 +2489,344 @@ const siteInfoData = reactive({
     contactEmail: '',
     analyticsCode: ''
 })
+
+// ==================== 品牌配置 ====================
+const brandConfigLoading = ref(false)
+const brandRepoIconOptions = [
+    { label: 'GitHub', value: 'github' },
+    { label: 'Gitee', value: 'gitee' },
+    { label: 'CSDN', value: 'csdn' },
+    { label: 'UIED', value: 'uied' }
+]
+
+/**
+ * 创建 404 快捷入口默认项。
+ */
+const createBrandQuickLinkItem = () => ({
+    label: '',
+    to: '',
+    newWindow: false
+})
+
+/**
+ * 创建首页 Banner 兜底卡片默认项。
+ */
+const createBrandBannerCardItem = (index = 0) => ({
+    id: '',
+    title: '',
+    description: '',
+    link: '',
+    badge: '',
+    color: index % 2 === 0 ? '#2563eb' : '#0f766e',
+    newWindow: true
+})
+
+/**
+ * 创建首页轮播兜底内容默认项。
+ */
+const createBrandCarouselSlideItem = () => ({
+    id: '',
+    title: '',
+    subtitle: '',
+    image: '',
+    link: '',
+    newWindow: true
+})
+
+/**
+ * 创建更新记录页仓库链接默认项。
+ */
+const createBrandRepoLinkItem = () => ({
+    name: '',
+    url: '',
+    iconKey: 'github'
+})
+
+/**
+ * 创建更新记录页平台链接默认项。
+ */
+const createBrandPlatformLinkItem = () => ({
+    name: '',
+    url: ''
+})
+const defaultBrandConfigData = {
+    brandName: 'UIED导航系统',
+    officialSiteUrl: 'https://fsuied.com',
+    buyUrl: 'https://fsuied.com/products/10',
+    supportUrl: 'https://fsuied.com',
+    supportLabel: '前往官网咨询',
+    supportQq: '403479454',
+    supportQqGroup: '1082794860',
+    installPageTitle: '安装向导',
+    installPageDescription: '正式交付流程：先授权校验，再做数据库测试，最后初始化站点与管理员',
+    installSiteName: 'UIED导航系统',
+    installSiteTitle: 'UIED导航系统 - 高质量资源导航',
+    installSiteDescription: '基于 UIED-NAV 构建的可运营网址导航系统。',
+    installSiteKeywords: 'UIED,导航系统,网址导航,AI导航',
+    installAdminNickname: '系统管理员',
+    authLogoText: 'UIED',
+    authLoginTitle: '欢迎回来',
+    authLoginSubtitle: '登录以体验更多精彩功能',
+    authRegisterTitle: '加入 UIED',
+    authRegisterSubtitle: '开启您的设计探索之旅',
+    notFoundTitle: '页面不存在或已迁移',
+    notFoundDescription: '你访问的链接可能已经下线、改名或暂未开放。你可以返回首页，或直接进入常用入口继续浏览。',
+    notFoundSeoTitle: '页面未找到',
+    notFoundSeoDescription: '访问的页面不存在或已迁移，请返回首页继续浏览 UIED 导航。',
+    notFoundSeoKeywords: '404,页面未找到,导航站',
+    notFoundAutoRedirectSeconds: 10,
+    notFoundQuickLinks: [
+        { label: 'AI导航', to: '/ai', newWindow: false },
+        { label: 'UI导航', to: '/uiux', newWindow: false },
+        { label: '平面导航', to: '/design', newWindow: false },
+        { label: 'MCP中心', to: '/mcp', newWindow: false },
+        { label: 'Figma频道', to: '/figma', newWindow: false },
+        { label: '热门内容', to: '/p/hot', newWindow: false }
+    ],
+    homeFallbackBannerCards: [] as Array<ReturnType<typeof createBrandBannerCardItem>>,
+    homeFallbackCarouselSlides: [] as Array<ReturnType<typeof createBrandCarouselSlideItem>>,
+    changelogAuthorName: 'Tomda',
+    changelogAuthorUrl: 'https://tomda.top/',
+    changelogAuthorDescription: '开发（AI协助）并记录 UIED-NAV 的开发历程和功能更新。公众号：Tomda',
+    changelogBuyButtonText: '购买源码授权',
+    changelogRepoLinks: [
+        {
+            name: 'GitHub 仓库',
+            url: 'https://github.com/Tomccc520/UIED-NAV',
+            iconKey: 'github'
+        },
+        { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/uied-nav', iconKey: 'gitee' },
+        {
+            name: 'CSDN 博客',
+            url: 'https://blog.csdn.net/Tomdac?spm=1000.2115.3001.5343',
+            iconKey: 'csdn'
+        },
+        { name: 'UIED技术团队', url: 'https://fsuied.com/', iconKey: 'uied' }
+    ],
+    changelogPlatformLinks: [
+        { name: 'AI学习平台', url: 'https://www.uied.cn/' },
+        { name: 'AI免费工具', url: 'https://uiedtool.com' },
+        { name: 'AI资讯热榜', url: 'https://hot.uied.cn' },
+        { name: 'AI工具导航', url: 'https://hao.uied.cn/ai' },
+        {
+            name: 'AI交流群',
+            url: 'https://ai.feishu.cn/wiki/CUuaw5ooxiHAkckgtRkcn6rnnVQ?from=from_copylink'
+        },
+        {
+            name: 'AI知识库',
+            url: 'https://ai.feishu.cn/wiki/ZjddwTFpWivK6ukwBoDc5DoHnVt?from=from_copylink'
+        }
+    ]
+}
+const brandConfigData = reactive(cloneDeep(defaultBrandConfigData))
+
+/**
+ * 深拷贝对象/数组，避免响应式引用污染默认值。
+ */
+function cloneDeep<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value))
+}
+
+/**
+ * 规范化品牌配置，确保数组结构、布尔开关与默认文案稳定。
+ */
+const normalizeBrandConfigData = (config: any) => {
+    const source = config && typeof config === 'object' ? config : {}
+    const normalizeText = (value: unknown, fallback = '') =>
+        String(value || '').trim() || fallback
+    const normalizeUrl = (value: unknown, fallback = '') =>
+        String(value || '').trim() || fallback
+    const normalizeQuickLinks = (value: unknown) => {
+        if (Array.isArray(value) && value.length === 0) return []
+        const rows = Array.isArray(value) ? value : []
+        const list = rows
+            .map((item: any, index: number) => {
+                const fallback =
+                    defaultBrandConfigData.notFoundQuickLinks[
+                        index % defaultBrandConfigData.notFoundQuickLinks.length
+                    ]
+                const label = normalizeText(item?.label, fallback?.label || '')
+                const to = normalizeUrl(item?.to, fallback?.to || '')
+                if (!label || !to) return null
+                return {
+                    label,
+                    to,
+                    newWindow: item?.newWindow === true
+                }
+            })
+            .filter(Boolean)
+        return list.length > 0 ? list : cloneDeep(defaultBrandConfigData.notFoundQuickLinks)
+    }
+    const normalizeBannerCards = (value: unknown) => {
+        const rows = Array.isArray(value) ? value : []
+        return rows
+            .map((item: any, index: number) => {
+                const title = normalizeText(item?.title)
+                const link = normalizeUrl(item?.link)
+                if (!title || !link) return null
+                return {
+                    id: normalizeText(item?.id, `brand-banner-${index + 1}`),
+                    title,
+                    description: normalizeText(item?.description),
+                    link,
+                    badge: normalizeText(item?.badge),
+                    color: normalizeText(item?.color, index % 2 === 0 ? '#2563eb' : '#0f766e'),
+                    newWindow: item?.newWindow !== false
+                }
+            })
+            .filter(Boolean)
+    }
+    const normalizeCarouselSlides = (value: unknown) => {
+        const rows = Array.isArray(value) ? value : []
+        return rows
+            .map((item: any, index: number) => {
+                const title = normalizeText(item?.title)
+                const image = normalizeText(item?.image)
+                const link = normalizeUrl(item?.link)
+                if (!title || !image || !link) return null
+                return {
+                    id: normalizeText(item?.id, `brand-carousel-${index + 1}`),
+                    title,
+                    subtitle: normalizeText(item?.subtitle),
+                    image,
+                    link,
+                    newWindow: item?.newWindow !== false
+                }
+            })
+            .filter(Boolean)
+    }
+    const normalizeRepoLinks = (value: unknown) => {
+        if (Array.isArray(value) && value.length === 0) return []
+        const allowSet = new Set(['github', 'gitee', 'csdn', 'uied'])
+        const rows = Array.isArray(value) ? value : []
+        const list = rows
+            .map((item: any, index: number) => {
+                const fallback =
+                    defaultBrandConfigData.changelogRepoLinks[
+                        index % defaultBrandConfigData.changelogRepoLinks.length
+                    ]
+                const name = normalizeText(item?.name, fallback?.name || '')
+                const url = normalizeUrl(item?.url, fallback?.url || '')
+                if (!name || !url) return null
+                const iconKey = normalizeText(item?.iconKey, fallback?.iconKey || 'github')
+                return {
+                    name,
+                    url,
+                    iconKey: allowSet.has(iconKey) ? iconKey : 'github'
+                }
+            })
+            .filter(Boolean)
+        return list.length > 0 ? list : cloneDeep(defaultBrandConfigData.changelogRepoLinks)
+    }
+    const normalizePlatformLinks = (value: unknown) => {
+        if (Array.isArray(value) && value.length === 0) return []
+        const rows = Array.isArray(value) ? value : []
+        const list = rows
+            .map((item: any, index: number) => {
+                const fallback =
+                    defaultBrandConfigData.changelogPlatformLinks[
+                        index % defaultBrandConfigData.changelogPlatformLinks.length
+                    ]
+                const name = normalizeText(item?.name, fallback?.name || '')
+                const url = normalizeUrl(item?.url, fallback?.url || '')
+                if (!name || !url) return null
+                return { name, url }
+            })
+            .filter(Boolean)
+        return list.length > 0 ? list : cloneDeep(defaultBrandConfigData.changelogPlatformLinks)
+    }
+    return {
+        ...cloneDeep(defaultBrandConfigData),
+        ...source,
+        brandName: normalizeText(source?.brandName, defaultBrandConfigData.brandName),
+        officialSiteUrl: normalizeUrl(source?.officialSiteUrl, defaultBrandConfigData.officialSiteUrl),
+        buyUrl: normalizeUrl(source?.buyUrl, defaultBrandConfigData.buyUrl),
+        supportUrl: normalizeUrl(source?.supportUrl, defaultBrandConfigData.supportUrl),
+        supportLabel: normalizeText(source?.supportLabel, defaultBrandConfigData.supportLabel),
+        supportQq: normalizeText(source?.supportQq),
+        supportQqGroup: normalizeText(source?.supportQqGroup),
+        installPageTitle: normalizeText(
+            source?.installPageTitle,
+            defaultBrandConfigData.installPageTitle
+        ),
+        installPageDescription: normalizeText(
+            source?.installPageDescription,
+            defaultBrandConfigData.installPageDescription
+        ),
+        installSiteName: normalizeText(source?.installSiteName, defaultBrandConfigData.installSiteName),
+        installSiteTitle: normalizeText(
+            source?.installSiteTitle,
+            defaultBrandConfigData.installSiteTitle
+        ),
+        installSiteDescription: normalizeText(
+            source?.installSiteDescription,
+            defaultBrandConfigData.installSiteDescription
+        ),
+        installSiteKeywords: normalizeText(
+            source?.installSiteKeywords,
+            defaultBrandConfigData.installSiteKeywords
+        ),
+        installAdminNickname: normalizeText(
+            source?.installAdminNickname,
+            defaultBrandConfigData.installAdminNickname
+        ),
+        authLogoText: normalizeText(source?.authLogoText, defaultBrandConfigData.authLogoText),
+        authLoginTitle: normalizeText(source?.authLoginTitle, defaultBrandConfigData.authLoginTitle),
+        authLoginSubtitle: normalizeText(
+            source?.authLoginSubtitle,
+            defaultBrandConfigData.authLoginSubtitle
+        ),
+        authRegisterTitle: normalizeText(
+            source?.authRegisterTitle,
+            defaultBrandConfigData.authRegisterTitle
+        ),
+        authRegisterSubtitle: normalizeText(
+            source?.authRegisterSubtitle,
+            defaultBrandConfigData.authRegisterSubtitle
+        ),
+        notFoundTitle: normalizeText(source?.notFoundTitle, defaultBrandConfigData.notFoundTitle),
+        notFoundDescription: normalizeText(
+            source?.notFoundDescription,
+            defaultBrandConfigData.notFoundDescription
+        ),
+        notFoundSeoTitle: normalizeText(
+            source?.notFoundSeoTitle,
+            defaultBrandConfigData.notFoundSeoTitle
+        ),
+        notFoundSeoDescription: normalizeText(
+            source?.notFoundSeoDescription,
+            defaultBrandConfigData.notFoundSeoDescription
+        ),
+        notFoundSeoKeywords: normalizeText(
+            source?.notFoundSeoKeywords,
+            defaultBrandConfigData.notFoundSeoKeywords
+        ),
+        notFoundAutoRedirectSeconds: Number.isFinite(Number(source?.notFoundAutoRedirectSeconds))
+            ? Math.max(3, Math.min(30, Number(source.notFoundAutoRedirectSeconds)))
+            : defaultBrandConfigData.notFoundAutoRedirectSeconds,
+        notFoundQuickLinks: normalizeQuickLinks(source?.notFoundQuickLinks),
+        homeFallbackBannerCards: normalizeBannerCards(source?.homeFallbackBannerCards),
+        homeFallbackCarouselSlides: normalizeCarouselSlides(source?.homeFallbackCarouselSlides),
+        changelogAuthorName: normalizeText(
+            source?.changelogAuthorName,
+            defaultBrandConfigData.changelogAuthorName
+        ),
+        changelogAuthorUrl: normalizeUrl(
+            source?.changelogAuthorUrl,
+            defaultBrandConfigData.changelogAuthorUrl
+        ),
+        changelogAuthorDescription: normalizeText(
+            source?.changelogAuthorDescription,
+            defaultBrandConfigData.changelogAuthorDescription
+        ),
+        changelogBuyButtonText: normalizeText(
+            source?.changelogBuyButtonText,
+            defaultBrandConfigData.changelogBuyButtonText
+        ),
+        changelogRepoLinks: normalizeRepoLinks(source?.changelogRepoLinks),
+        changelogPlatformLinks: normalizePlatformLinks(source?.changelogPlatformLinks)
+    }
+}
 
 // ==================== 外观配置 ====================
 const appearanceLoading = ref(false)
@@ -2779,6 +3555,7 @@ const normalizeExitModalConfigData = (config: any) => ({
 // ==================== 快照与比对 ====================
 const snapshotData = reactive({
     siteInfo: '',
+    brandConfig: '',
     appearance: '',
     homepage: '',
     pageConfig: '',
@@ -2814,6 +3591,7 @@ const getSerializedPageConfig = (): string => {
  */
 const refreshSnapshot = () => {
     snapshotData.siteInfo = serializeConfig(cloneConfig(siteInfoData))
+    snapshotData.brandConfig = serializeConfig(normalizeBrandConfigData(cloneConfig(brandConfigData)))
     snapshotData.appearance = serializeConfig(cloneConfig(appearanceData))
     snapshotData.homepage = serializeConfig(cloneConfig(homepageData))
     snapshotData.pageConfig = getSerializedPageConfig()
@@ -2844,6 +3622,11 @@ const readSnapshotObject = (value: string): Record<string, any> => {
 const hasTabChanges = (tab: string): boolean => {
     if (tab === 'siteInfo')
         return serializeConfig(cloneConfig(siteInfoData)) !== snapshotData.siteInfo
+    if (tab === 'brandConfig')
+        return (
+            serializeConfig(normalizeBrandConfigData(cloneConfig(brandConfigData))) !==
+            snapshotData.brandConfig
+        )
     if (tab === 'appearance')
         return serializeConfig(cloneConfig(appearanceData)) !== snapshotData.appearance
     if (tab === 'homepage')
@@ -2870,6 +3653,7 @@ const hasTabChanges = (tab: string): boolean => {
 const hasPendingChanges = computed(
     () =>
         hasTabChanges('siteInfo') ||
+        hasTabChanges('brandConfig') ||
         hasTabChanges('appearance') ||
         hasTabChanges('homepage') ||
         hasTabChanges('pageConfig') ||
@@ -2903,6 +3687,7 @@ const markSaved = () => {
  */
 const applyPublicSettings = (settings: Record<string, any>) => {
     if (settings.siteInfo) Object.assign(siteInfoData, settings.siteInfo)
+    if (settings.brand) Object.assign(brandConfigData, normalizeBrandConfigData(settings.brand))
     if (settings.appearance) Object.assign(appearanceData, settings.appearance)
     if (settings.homepage)
         Object.assign(homepageData, normalizeHomepageConfigData(settings.homepage))
@@ -2938,6 +3723,7 @@ const loadAllSettings = async (silent = false) => {
         console.error('加载公开设置失败，回退分项加载:', error)
         await Promise.all([
             loadSiteInfo(),
+            loadBrandConfig(),
             loadAppearance(),
             loadHomepage(),
             loadPageConfig(),
@@ -2971,6 +3757,18 @@ const loadAppearance = async () => {
         if (res) Object.assign(appearanceData, res)
     } catch (e) {
         console.error('加载外观配置失败', e)
+    }
+}
+
+/**
+ * 加载品牌配置（安装页/404/更新记录等统一品牌默认值）。
+ */
+const loadBrandConfig = async () => {
+    try {
+        const res = await uiedSettingGet({ key: 'brandConfig' })
+        if (res) Object.assign(brandConfigData, normalizeBrandConfigData(res))
+    } catch (e) {
+        console.error('加载品牌配置失败', e)
     }
 }
 const loadHomepage = async () => {
@@ -3069,6 +3867,25 @@ const handleSaveSiteInfo = async () => {
         feedback.msgError('保存失败')
     } finally {
         siteInfoLoading.value = false
+    }
+}
+
+/**
+ * 保存品牌配置，统一收口前台写死品牌文案与兜底内容。
+ */
+const handleSaveBrandConfig = async () => {
+    brandConfigLoading.value = true
+    try {
+        await uiedSettingSave({
+            brandConfig: normalizeBrandConfigData(cloneConfig(brandConfigData))
+        })
+        markSaved()
+        feedback.msgSuccess('保存成功')
+    } catch (error) {
+        console.error('保存品牌配置失败:', error)
+        feedback.msgError('保存失败')
+    } finally {
+        brandConfigLoading.value = false
     }
 }
 const handleSaveAppearance = async () => {
@@ -3228,6 +4045,7 @@ const handleSaveAll = async () => {
         await Promise.all([
             uiedSaveSiteInfo(siteInfoData),
             uiedSettingSave({
+                brandConfig: normalizeBrandConfigData(cloneConfig(brandConfigData)),
                 appearanceConfig: appearanceData,
                 homepageConfig: normalizeHomepageConfigData(cloneConfig(homepageData)),
                 pageGlobalConfig: normalizePageConfigData(pageConfigData),
@@ -3258,6 +4076,11 @@ const handleResetCurrentTab = () => {
     if (!hasTabChanges(tab)) return
 
     if (tab === 'siteInfo') Object.assign(siteInfoData, readSnapshotObject(snapshotData.siteInfo))
+    if (tab === 'brandConfig')
+        Object.assign(
+            brandConfigData,
+            normalizeBrandConfigData(readSnapshotObject(snapshotData.brandConfig))
+        )
     if (tab === 'appearance')
         Object.assign(appearanceData, readSnapshotObject(snapshotData.appearance))
     if (tab === 'homepage')
@@ -3644,6 +4467,49 @@ onMounted(() => {
 .exit-logo-preview-image {
     width: 120px;
     height: 40px;
+}
+
+.brand-array-block {
+    margin-bottom: 20px;
+}
+
+.brand-array-block__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #303133;
+}
+
+.brand-array-card {
+    padding: 14px;
+    border: 1px solid #ebeef5;
+    border-radius: 10px;
+    background: #fafafa;
+    margin-bottom: 12px;
+}
+
+.brand-array-card__grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.brand-array-card__grid--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.brand-array-card__grid--three {
+    grid-template-columns: 1fr 1.2fr 220px;
+}
+
+.brand-array-card__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
 }
 
 </style>
