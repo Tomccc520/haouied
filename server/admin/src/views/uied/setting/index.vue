@@ -779,7 +779,7 @@
                             ></template>
                             <el-input
                                 v-model="appearanceData.fontFamily"
-                                placeholder="Lexend, -apple-system, sans-serif"
+                                placeholder='Lexend, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
                             />
                             <div class="font-preview-panel">
                                 <div class="font-preview-panel__header">

@@ -62,9 +62,11 @@ const repoIconMap = {
 const localChangelogData: ChangelogRelease[] = [
   {
     version: '1.1.1',
-    date: '2026-03-31',
-    title: '正式版1.1.1：左侧菜单跟随与锚点联动稳定性修复',
+    date: '2026-04-05',
+    title: '正式版1.1.1：售卖版交付体验增强与前台联动修复',
     changes: [
+      { type: 'improve', scope: 'frontend', text: '【安装向导】重构 /install 为“授权校验 -> 数据库测试 -> 初始化安装”三步工作台，步骤切换不再跳转锚点，视觉重心统一回归安装流程，适配正式售卖版首次部署体验' },
+      { type: 'fix', scope: 'frontend', text: '【外观配置字体】修复后台“外观配置 -> 主字体”保存后前台无变化的问题：前台根路由补齐公开外观配置全局应用，主字体、主题色等变量会在进入站点时同步写入 :root，全站标题/导航/正文统一跟随后台设置生效' },
       { type: 'fix', scope: 'frontend', text: '【左侧菜单跟随】动态频道页侧栏恢复桌面端吸顶跟随（CSS sticky），滚动时保持可见且不再脱离主内容区' },
       { type: 'fix', scope: 'frontend', text: '【锚点联动】分类高亮跟随逻辑统一基于 window 滚动容器计算，修复部分页面滚动时左侧菜单不跟随右侧分类锚点的问题' },
       { type: 'fix', scope: 'frontend', text: '【左侧菜单边界】侧栏可视高度改为按顶部导航自动计算，菜单列表改为“仅 sticky 态内部滚动”，修复长分类下底部超出与滚动冲突问题' },

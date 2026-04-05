@@ -37,6 +37,7 @@ import Layout from './components/layout/Layout';
 import DynamicPage from './components/DynamicPage';
 import { FIXED_DYNAMIC_ROUTES, ROOT_NAV_SLUG, isFixedDynamicNavSlug } from './config/navModel';
 import { useFrontendConfig } from './hooks/useFrontendConfig';
+import { useAppearanceConfig } from './hooks/usePublicSettings';
 
 // @pro-feature-start: articles
 import { ArticleList, ArticleDetail } from './pages/Articles';
@@ -92,6 +93,12 @@ const LegacyContentHubRedirect: React.FC<{ tab: 'hot' | 'rankings' | 'daily-hot'
  * 前台主业务路由（站点首页、搜索、详情等）
  */
 const MainRouteTree: React.FC = () => {
+  /**
+   * 根路由进入时同步应用后台外观配置。
+   * 这里必须在前台全局挂载一次，保证主字体、主题色等变量真正写入到 :root。
+   */
+  useAppearanceConfig();
+
   return (
     <SiteProvider>
       <UserProvider>
