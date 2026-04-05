@@ -59,6 +59,18 @@ const resolveDefaultBindDomain = (): string => {
 };
 
 /**
+ * 解析安装步骤状态，便于安装页按“授权优先”展示当前进度。
+ */
+const resolveStepStatus = (
+  ready: boolean,
+  blocked: boolean
+): 'done' | 'current' | 'pending' => {
+  if (ready) return 'done';
+  if (blocked) return 'current';
+  return 'pending';
+};
+
+/**
  * 安装向导主页面
  */
 const InstallPage: React.FC = () => {
@@ -96,6 +108,8 @@ const InstallPage: React.FC = () => {
     password: '',
     database: '',
   });
+  const licenseCheckPassed = Boolean(licenseCheckResult?.valid);
+  const dbReady = Boolean(dbTestResult?.success);
 
   /**
    * 计算当前是否允许执行安装
@@ -103,11 +117,38 @@ const InstallPage: React.FC = () => {
   const canInitialize = useMemo(() => {
     if (!envData?.canInstall) return false;
     if (statusData?.installed) return false;
-    if (!formData.licenseKey.trim()) return false;
+    if (!licenseCheckPassed) return false;
     if (!formData.adminUsername.trim() || !formData.adminPassword.trim()) return false;
     if (formData.adminPassword !== formData.confirmPassword) return false;
     return true;
-  }, [envData, statusData, formData]);
+  }, [envData, statusData, formData, licenseCheckPassed]);
+
+  /**
+   * 安装步骤摘要：明确要求先完成授权，再做数据库与初始化。
+   */
+  const installSteps = useMemo(() => {
+    const installed = Boolean(statusData?.installed);
+    return [
+      {
+        key: 'license',
+        title: '步骤 1：授权校验',
+        desc: '先在 fsuied.com 购买并绑定域名，再校验授权码。',
+        status: resolveStepStatus(licenseCheckPassed, !installed),
+      },
+      {
+        key: 'database',
+        title: '步骤 2：数据库测试',
+        desc: '建议先验证宝塔 MySQL 参数，避免初始化中途失败。',
+        status: resolveStepStatus(dbReady, !installed && licenseCheckPassed),
+      },
+      {
+        key: 'initialize',
+        title: '步骤 3：初始化安装',
+        desc: '授权通过后再写入站点信息并创建管理员。',
+        status: resolveStepStatus(installed, !installed && licenseCheckPassed),
+      },
+    ];
+  }, [dbReady, licenseCheckPassed, statusData?.installed]);
 
   /**
    * 拉取安装状态
@@ -244,6 +285,10 @@ const InstallPage: React.FC = () => {
    */
   const handleInitialize = async () => {
     if (!canInitialize || submitLoading) return;
+    if (!licenseCheckPassed) {
+      setErrorMessage('请先完成授权码校验，通过后再执行初始化');
+      return;
+    }
     if (!formData.licenseKey.trim()) {
       setErrorMessage('请先填写授权码 Key');
       return;
@@ -323,7 +368,7 @@ const InstallPage: React.FC = () => {
       <div className="install-page__container">
         <div className="install-page__header">
           <h1>安装向导</h1>
-          <p>环境检测、站点初始化与管理员账号创建</p>
+          <p>正式交付流程：先授权校验，再做数据库测试，最后初始化站点与管理员</p>
           <button
             type="button"
             className="install-page__refresh-btn"
@@ -332,6 +377,15 @@ const InstallPage: React.FC = () => {
           >
             {refreshing ? '刷新中...' : '刷新检测'}
           </button>
+        </div>
+
+        <div className="install-steps">
+          {installSteps.map((item) => (
+            <div key={item.key} className={`install-step install-step--${item.status}`}>
+              <div className="install-step__title">{item.title}</div>
+              <div className="install-step__desc">{item.desc}</div>
+            </div>
+          ))}
         </div>
 
         {errorMessage ? (
@@ -399,7 +453,81 @@ const InstallPage: React.FC = () => {
         </div>
 
         <div className="install-card">
-          <h2>数据库连接测试</h2>
+          <h2>步骤 1：授权校验</h2>
+          <p className="install-card__desc">
+            先在
+            {' '}
+            <a href="https://fsuied.com/products/10" target="_blank" rel="noreferrer">
+              fsuied.com
+            </a>
+            {' '}
+            完成购买并绑定域名，然后在这里校验授权码；校验通过后才允许执行初始化。
+          </p>
+          <div className="install-form-grid">
+            <label className="is-full">
+              授权码 Key
+              <input
+                type="text"
+                value={formData.licenseKey}
+                onChange={(event) => updateFormField('licenseKey', event.target.value)}
+                placeholder="请输入 fsuied.com 下发的授权码（例如 LIC-XXXX-XXXX）"
+              />
+            </label>
+            <label className="is-full">
+              绑定域名
+              <input
+                type="text"
+                value={formData.bindDomain}
+                onChange={(event) => updateFormField('bindDomain', event.target.value)}
+                placeholder="正式环境请填写实际域名；本地 localhost 可留空"
+              />
+            </label>
+          </div>
+          <div className="install-form-footer">
+            <button
+              type="button"
+              className="install-page__submit-btn install-page__submit-btn--ghost"
+              disabled={licenseCheckLoading || submitLoading || !String(formData.licenseKey || '').trim()}
+              onClick={handleLicenseCheck}
+            >
+              {licenseCheckLoading ? '校验中...' : '校验授权码'}
+            </button>
+            {licenseCheckResult ? (
+              <span className="tip is-success">
+                {`校验通过：${String(licenseCheckResult.edition || '-').toUpperCase()} / 域名额度 ${licenseCheckResult.domainWhitelist.length}/${licenseCheckResult.domainLimit}`}
+              </span>
+            ) : (
+              <span className="tip">
+                {String(formData.bindDomain || '').trim()
+                  ? '请确认该域名已在 fsuied.com 授权中心绑定。'
+                  : '本地联调可留空；正式安装建议填写真实域名后校验。'}
+              </span>
+            )}
+          </div>
+          {licenseCheckResult ? (
+            <div className="install-status-grid install-status-grid--detail">
+              <div className="install-status-item">
+                <span className="label">授权版本</span>
+                <span className="value">{String(licenseCheckResult.edition || '-').toUpperCase()}</span>
+              </div>
+              <div className="install-status-item">
+                <span className="label">授权状态</span>
+                <span className="value is-ok">{licenseCheckResult.status || '-'}</span>
+              </div>
+              <div className="install-status-item">
+                <span className="label">授权码</span>
+                <span className="value">{licenseCheckResult.licenseKeyMasked || '-'}</span>
+              </div>
+              <div className="install-status-item">
+                <span className="label">项目编码</span>
+                <span className="value">{licenseCheckResult.projectCode || '-'}</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="install-card">
+          <h2>步骤 2：数据库连接测试</h2>
           <p className="install-card__desc">用于安装前验证宝塔 MySQL 连接参数是否可用</p>
           <div className="install-form-grid install-form-grid--compact">
             <label>
@@ -470,15 +598,9 @@ const InstallPage: React.FC = () => {
         </div>
 
         <div className="install-card">
-          <h2>一键初始化</h2>
+          <h2>步骤 3：初始化安装</h2>
           <p className="install-card__desc">
-            请先在
-            {' '}
-            <a href="https://fsuied.com/products/10" target="_blank" rel="noreferrer">
-              fsuied.com
-            </a>
-            {' '}
-            完成购买并绑定域名，再填写授权码执行安装。
+            这一步只负责写入站点信息并创建管理员。授权必须先校验通过，否则不允许继续。
           </p>
           <div className="install-form-grid">
             <label>
@@ -515,24 +637,6 @@ const InstallPage: React.FC = () => {
                 value={formData.siteKeywords}
                 onChange={(event) => updateFormField('siteKeywords', event.target.value)}
                 placeholder="多个关键词可用英文逗号分隔"
-              />
-            </label>
-            <label className="is-full">
-              授权码 Key
-              <input
-                type="text"
-                value={formData.licenseKey}
-                onChange={(event) => updateFormField('licenseKey', event.target.value)}
-                placeholder="请输入 fsuied.com 下发的授权码（例如 UIED-PRO-XXXX-XXXX）"
-              />
-            </label>
-            <label className="is-full">
-              绑定域名（可选）
-              <input
-                type="text"
-                value={formData.bindDomain}
-                onChange={(event) => updateFormField('bindDomain', event.target.value)}
-                placeholder="留空默认使用当前访问域名，例如 hao.uied.cn"
               />
             </label>
             <label>
@@ -584,29 +688,21 @@ const InstallPage: React.FC = () => {
           <div className="install-form-footer">
             <button
               type="button"
-              className="install-page__submit-btn install-page__submit-btn--ghost"
-              disabled={licenseCheckLoading || submitLoading || !String(formData.licenseKey || '').trim()}
-              onClick={handleLicenseCheck}
-            >
-              {licenseCheckLoading ? '校验中...' : '校验授权码'}
-            </button>
-            <button
-              type="button"
               className="install-page__submit-btn"
               disabled={!canInitialize || submitLoading}
               onClick={handleInitialize}
             >
               {submitLoading ? '初始化中...' : '执行初始化'}
             </button>
-            {licenseCheckResult ? (
+            {licenseCheckPassed ? (
               <span className="tip is-success">
-                {`校验通过：${String(licenseCheckResult.edition || '-').toUpperCase()} / 域名额度 ${licenseCheckResult.domainWhitelist.length}/${licenseCheckResult.domainLimit}`}
+                授权已校验通过，可以开始安装
               </span>
             ) : (
               <span className="tip">
                 {statusData?.installed
                   ? '当前系统已安装，如需重装请先清理管理员数据。'
-                  : '建议先点“校验授权码”，通过后再执行初始化。'}
+                  : '请先完成“步骤 1：授权校验”，通过后再执行初始化。'}
               </span>
             )}
           </div>

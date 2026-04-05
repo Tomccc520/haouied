@@ -209,6 +209,7 @@ module.exports = app => {
   router.all('/api/uied/delivery/package/export', controller.uied.deliveryInit.exportPackage);
 
   // ==================== 升级中心 ====================
+  router.all('/api/uied/upgrade/overview', controller.uied.upgradeCenter.overview);
   router.all('/api/uied/upgrade/config/get', controller.uied.upgradeCenter.configGet);
   router.all('/api/uied/upgrade/config/save', controller.uied.upgradeCenter.configSave);
   router.all('/api/uied/upgrade/bundle/list', controller.uied.upgradeCenter.bundleList);

@@ -11,6 +11,61 @@
         <el-card shadow="never" class="!border-none">
             <template #header>
                 <div class="flex items-center justify-between">
+                    <span class="font-medium">升级中心概览</span>
+                    <el-button :loading="overviewLoading" @click="loadOverview">刷新概览</el-button>
+                </div>
+            </template>
+            <el-alert
+                title="本地可测：启动 5173 管理后台和 8002 后端后，可直接在本页完成目录配置、升级包识别和任务启动联调；仅不要把部署目录指向生产环境。"
+                type="info"
+                :closable="false"
+                show-icon
+                class="mb-4"
+            />
+            <el-descriptions v-if="upgradeOverview" :column="2" border>
+                <el-descriptions-item label="当前版本">
+                    {{ upgradeOverview.currentVersion || '-' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="启动状态">
+                    <el-tag :type="upgradeOverview.startReady ? 'success' : 'warning'">
+                        {{ upgradeOverview.startReady ? '可启动升级' : '未准备完成' }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="升级包数量">
+                    {{ upgradeOverview.packageCount ?? 0 }}
+                </el-descriptions-item>
+                <el-descriptions-item label="最近升级包">
+                    {{ upgradeOverview.latestBundle?.bundleName || '-' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="进行中任务">
+                    {{ upgradeOverview.runningTask?.task_no || '无' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="最近任务">
+                    {{ upgradeOverview.latestTask?.task_no || '无' }}
+                </el-descriptions-item>
+            </el-descriptions>
+            <div v-if="upgradeOverview?.configChecks?.length" class="upgrade-overview-checks">
+                <div
+                    v-for="item in upgradeOverview.configChecks"
+                    :key="item.key"
+                    class="upgrade-overview-check"
+                    :class="{ 'is-ok': item.ok, 'is-fail': !item.ok }"
+                >
+                    <div class="upgrade-overview-check__head">
+                        <span>{{ item.label }}</span>
+                        <el-tag size="small" :type="item.ok ? 'success' : 'danger'">
+                            {{ item.ok ? '就绪' : '待处理' }}
+                        </el-tag>
+                    </div>
+                    <div class="upgrade-overview-check__path">{{ item.path || '-' }}</div>
+                    <div class="upgrade-overview-check__desc">{{ item.message || '-' }}</div>
+                </div>
+            </div>
+        </el-card>
+
+        <el-card shadow="never" class="!border-none">
+            <template #header>
+                <div class="flex items-center justify-between">
                     <span class="font-medium">升级中心配置</span>
                     <el-space>
                         <el-button :loading="configLoading" @click="loadConfig">刷新配置</el-button>
@@ -217,6 +272,7 @@ import { reactive, ref } from 'vue'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import {
+    uiedUpgradeOverview,
     uiedUpgradeConfigGet,
     uiedUpgradeConfigSave,
     uiedUpgradeBundleList,
@@ -230,6 +286,7 @@ const configLoading = ref(false)
 const configSaving = ref(false)
 const bundleLoading = ref(false)
 const upgradeStarting = ref(false)
+const overviewLoading = ref(false)
 const detailDialogVisible = ref(false)
 const logDialogVisible = ref(false)
 const taskLogLoading = ref(false)
@@ -237,6 +294,7 @@ const currentLogTaskNo = ref('')
 const taskLogText = ref('')
 const bundleList = ref<any[]>([])
 const taskDetail = ref<any>(null)
+const upgradeOverview = ref<any>(null)
 
 const upgradeConfig = reactive({
     packageDir: '',
@@ -264,6 +322,21 @@ const { pager: taskPager, getLists: fetchTaskList } = usePaging({
     size: 10,
     fetchFun: uiedUpgradeTaskList
 })
+
+/**
+ * 加载升级中心概览
+ */
+const loadOverview = async () => {
+    overviewLoading.value = true
+    try {
+        const data = await uiedUpgradeOverview()
+        upgradeOverview.value = data || null
+    } catch (error: any) {
+        feedback.msgError(error?.message || '加载升级中心概览失败')
+    } finally {
+        overviewLoading.value = false
+    }
+}
 
 /**
  * 格式化文件体积
@@ -327,6 +400,7 @@ const saveConfig = async () => {
     try {
         await uiedUpgradeConfigSave({ ...upgradeConfig })
         feedback.msgSuccess('升级配置已保存')
+        await loadOverview()
     } catch (error: any) {
         feedback.msgError(error?.message || '保存升级配置失败')
     } finally {
@@ -410,6 +484,11 @@ const openTaskLog = async (taskNo: string) => {
  * 发起升级任务（带二次确认）
  */
 const startUpgradeTask = async () => {
+    await loadOverview()
+    if (upgradeOverview.value && upgradeOverview.value.startReady === false) {
+        feedback.msgError('升级中心尚未准备完成，请先处理概览区中的待处理项')
+        return
+    }
     const bundleName = String(upgradeForm.bundleName || '').trim()
     const expectedSha256 = String(upgradeForm.expectedSha256 || '').trim().toLowerCase()
     const adminPassword = String(upgradeForm.adminPassword || '').trim()
@@ -446,7 +525,7 @@ const startUpgradeTask = async () => {
         })
         feedback.msgSuccess(`升级任务已启动：${data?.taskNo || ''}`)
         upgradeForm.adminPassword = ''
-        await loadTaskList()
+        await Promise.all([loadTaskList(), loadOverview()])
     } catch (error: any) {
         feedback.msgError(error?.message || '启动升级失败')
     } finally {
@@ -459,7 +538,7 @@ const startUpgradeTask = async () => {
  */
 const bootstrap = async () => {
     await loadConfig()
-    await Promise.all([loadBundleList(), loadTaskList()])
+    await Promise.all([loadOverview(), loadBundleList(), loadTaskList()])
 }
 
 bootstrap()
@@ -471,7 +550,61 @@ bootstrap()
     gap: 16px;
 }
 
+.upgrade-overview-checks {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.upgrade-overview-check {
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid #ebeef5;
+    background: #ffffff;
+}
+
+.upgrade-overview-check.is-ok {
+    border-color: #ccebd7;
+    background: #f4fbf6;
+}
+
+.upgrade-overview-check.is-fail {
+    border-color: #f8d7da;
+    background: #fff7f7;
+}
+
+.upgrade-overview-check__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-weight: 600;
+    color: #303133;
+}
+
+.upgrade-overview-check__path {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    word-break: break-all;
+    color: #606266;
+}
+
+.upgrade-overview-check__desc {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #909399;
+}
+
 .upgrade-form {
     max-width: 980px;
+}
+
+@media (max-width: 900px) {
+    .upgrade-overview-checks {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

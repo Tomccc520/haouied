@@ -22,6 +22,13 @@ const DEFAULT_ADMIN_AVATAR = '/public/static/backend_avatar.png';
 
 class InstallService extends Service {
   /**
+   * 获取安装向导展示版本，优先复用系统版本号
+   */
+  getWizardVersion() {
+    return String(this.app?.config?.version || INSTALL_WIZARD_VERSION || '').trim() || INSTALL_WIZARD_VERSION;
+  }
+
+  /**
    * 生成随机字符串（用于管理员盐值）
    */
   randomString(length = 6) {
@@ -368,7 +375,7 @@ class InstallService extends Service {
       installed,
       adminCount,
       installState: installState || null,
-      wizardVersion: INSTALL_WIZARD_VERSION,
+      wizardVersion: this.getWizardVersion(),
       now: Math.floor(Date.now() / 1000),
     };
   }
@@ -916,7 +923,7 @@ class InstallService extends Service {
       [INSTALL_STATE_KEY]: {
         completed: true,
         completedAt,
-        version: INSTALL_WIZARD_VERSION,
+        version: this.getWizardVersion(),
         adminUsername: normalized.adminUsername,
         adminEmail: normalized.adminEmail || '',
         siteName: normalized.siteName,
@@ -952,8 +959,8 @@ class InstallService extends Service {
         licenseKey: String(licenseInfo?.licenseKey || normalized.licenseKey || ''),
       },
       menu: {
-        commercialLicenseMenuId: 0,
-        deliveryCenterMenuId: 0,
+        commercialLicenseMenuId: 864,
+        deliveryCenterMenuId: 1203,
       },
     };
   }

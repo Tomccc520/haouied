@@ -175,24 +175,26 @@
 }
 
 .detail-product-layout {
-  --detail-rail-width: 70px;
-  display: grid;
-  grid-template-columns: var(--detail-rail-width) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
+  --detail-floating-rail-width: 52px;
+  --detail-floating-rail-gap: 18px;
+  position: relative;
   margin-bottom: 24px;
 }
 
-.detail-product-layout--with-left-toc {
-  --detail-rail-width: 188px;
+.detail-left-rail {
+  position: absolute;
+  top: 0;
+  right: calc(100% + var(--detail-floating-rail-gap));
+  width: var(--detail-floating-rail-width);
+  z-index: 2;
 }
 
-.detail-left-rail {
+.detail-left-rail__inner {
   position: sticky;
   top: calc(var(--header-height) + 18px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .detail-action-rail {
@@ -210,13 +212,13 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 2px 0 0;
+  padding: 4px 0 0;
 }
 
 .detail-left-toc__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
 }
 
@@ -227,87 +229,105 @@
   color: var(--article-heading);
 }
 
-.detail-left-toc__count {
-  font-size: 11px;
-  color: var(--article-subtle);
-}
-
 .detail-left-toc__list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .detail-left-toc__item {
   border: none;
   background: transparent;
   padding: 0;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 10px;
-  text-align: left;
-  color: var(--article-muted);
+  justify-content: center;
+  width: 100%;
+  min-height: 16px;
   cursor: pointer;
-  transition: color 0.2s ease, transform 0.2s ease;
+  position: relative;
+  transition: transform 0.2s ease;
 }
 
-.detail-left-toc__item:hover {
-  color: var(--primary-color);
-  transform: translateX(1px);
+.detail-left-toc__item::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 12;
 }
 
-.detail-left-toc__item.is-active {
-  color: var(--article-heading);
+.detail-left-toc__item::before {
+  content: '';
+  position: absolute;
+  right: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-left-color: rgba(15, 23, 42, 0.94);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 11;
+}
+
+.detail-left-toc__item:hover,
+.detail-left-toc__item:focus-visible {
+  transform: translateX(-1px);
 }
 
 .detail-left-toc__bar {
-  width: 100%;
+  width: 22px;
   height: 2px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--border-medium) 78%, transparent 22%);
-  transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
-  transform-origin: left center;
+  transition: width 0.2s ease, background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+  transform-origin: center center;
   opacity: 0.88;
 }
 
-.detail-left-toc__item:hover .detail-left-toc__bar {
-  background: color-mix(in srgb, var(--primary-color) 48%, var(--border-medium) 52%);
+.detail-left-toc__item:hover .detail-left-toc__bar,
+.detail-left-toc__item:focus-visible .detail-left-toc__bar {
+  width: 30px;
+  background: color-mix(in srgb, var(--primary-color) 52%, var(--border-medium) 48%);
 }
 
-.detail-left-toc__item.is-active .detail-left-toc__bar {
-  background: var(--primary-color);
-  transform: scaleX(1.08);
+.detail-left-toc__item:hover::after,
+.detail-left-toc__item:hover::before,
+.detail-left-toc__item:focus-visible::after,
+.detail-left-toc__item:focus-visible::before {
   opacity: 1;
 }
 
-.detail-left-toc__text {
-  min-width: 0;
-  font-size: 12px;
-  line-height: 1.55;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.detail-left-toc__item.is-active .detail-left-toc__bar {
+  width: 34px;
+  background: var(--primary-color);
+  transform: scaleX(1.02);
+  opacity: 1;
 }
 
 .detail-left-toc__item.level-3 {
-  grid-template-columns: 24px minmax(0, 1fr);
-  color: var(--article-subtle);
-}
-
-.detail-left-toc__item.level-3 .detail-left-toc__text {
-  font-size: 11px;
+  opacity: 0.82;
 }
 
 .detail-action-pill {
   border: 1px solid var(--article-surface-border);
   background: color-mix(in srgb, var(--bg-card) 88%, transparent 12%);
   border-radius: 999px;
-  min-height: 52px;
-  width: 100%;
-  padding: 7px 6px;
+  min-height: 44px;
+  width: 44px;
+  padding: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -329,7 +349,7 @@
 .detail-action-pill::after {
   content: attr(data-tip);
   position: absolute;
-  left: calc(100% + 10px);
+  right: calc(100% + 10px);
   top: 50%;
   transform: translateY(-50%);
   padding: 5px 9px;
@@ -348,11 +368,11 @@
 .detail-action-pill::before {
   content: '';
   position: absolute;
-  left: calc(100% + 4px);
+  right: calc(100% + 4px);
   top: 50%;
   transform: translateY(-50%);
   border: 5px solid transparent;
-  border-right-color: rgba(15, 23, 42, 0.94);
+  border-left-color: rgba(15, 23, 42, 0.94);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -1674,20 +1694,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .detail-product-layout--with-left-toc {
-    --detail-rail-width: 70px;
-  }
-
   .article-detail-main {
     max-width: min(100%, var(--article-detail-max-width));
     margin: 0 auto;
   }
 
   .detail-left-rail {
-    gap: 0;
-  }
-
-  .detail-left-toc {
     display: none;
   }
 
@@ -1749,13 +1761,11 @@
   }
 
   .detail-product-layout {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    margin-bottom: 20px;
   }
 
   .detail-left-rail {
     position: static;
-    gap: 12px;
   }
 
   .detail-action-rail {
@@ -1770,6 +1780,7 @@
   .detail-action-pill {
     min-height: auto;
     padding: 8px 4px;
+    width: 100%;
   }
 
   .detail-action-pill::after,

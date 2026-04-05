@@ -1361,6 +1361,33 @@ class DeliveryInitService extends Service {
     let articleCategoryInfoMap = new Map();
     let articleTagInfoMap = new Map();
 
+    /**
+     * 正式交付口径：先完成授权激活，再写入站点与演示数据。
+     * 这样授权失败时不会留下“半初始化”的后台状态。
+     */
+    if (options.applyLicense) {
+      const licenseKey = String(options.licenseKey || '').trim();
+      if (!licenseKey) {
+        throw new Error('已勾选授权激活，请先填写授权码 Key');
+      }
+      const licenseInfo = await this.ctx.service.uied.licenseCenter.activateLicenseByKey({
+        licenseKey,
+        bindDomain: String(options.bindDomain || '').trim(),
+      });
+      if (options.resetFeatureOverrides) {
+        await this.ctx.service.uied.licenseCenter.saveFeatureOverrides({});
+      } else if (options.featureOverrides && Object.keys(options.featureOverrides).length > 0) {
+        await this.ctx.service.uied.licenseCenter.saveFeatureOverrides(options.featureOverrides);
+      }
+      summary.license = {
+        applied: true,
+        edition: licenseInfo.effectiveEdition,
+        status: licenseInfo.status,
+        licenseKey: String(licenseInfo.licenseKey || licenseKey),
+        activatedBy: 'license_key',
+      };
+    }
+
     if (options.includeSiteSettings) {
       await this.ctx.service.uied.setting.saveSiteInfo(preset.siteInfo);
       await this.ctx.service.uied.setting.save(preset.settings);
@@ -1413,29 +1440,6 @@ class DeliveryInitService extends Service {
         articleTagInfoMap
       );
       summary.sampleArticles = articleResult;
-    }
-
-    if (options.applyLicense) {
-      const licenseKey = String(options.licenseKey || '').trim();
-      if (!licenseKey) {
-        throw new Error('已勾选授权激活，请先填写授权码 Key');
-      }
-      const licenseInfo = await this.ctx.service.uied.licenseCenter.activateLicenseByKey({
-        licenseKey,
-        bindDomain: String(options.bindDomain || '').trim(),
-      });
-      if (options.resetFeatureOverrides) {
-        await this.ctx.service.uied.licenseCenter.saveFeatureOverrides({});
-      } else if (options.featureOverrides && Object.keys(options.featureOverrides).length > 0) {
-        await this.ctx.service.uied.licenseCenter.saveFeatureOverrides(options.featureOverrides);
-      }
-      summary.license = {
-        applied: true,
-        edition: licenseInfo.effectiveEdition,
-        status: licenseInfo.status,
-        licenseKey: String(licenseInfo.licenseKey || licenseKey),
-        activatedBy: 'license_key',
-      };
     }
 
     if (options.seedUsers) {

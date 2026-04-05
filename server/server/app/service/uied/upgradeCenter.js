@@ -27,6 +27,13 @@ const ALLOWED_BUNDLE_SUFFIX = [ '.tgz', '.tar.gz' ];
 
 class UpgradeCenterService extends Service {
   /**
+   * 获取当前系统版本号
+   */
+  getCurrentVersion() {
+    return this.toText(this.app?.config?.version, 'v1.0.0');
+  }
+
+  /**
    * 获取升级任务表名
    */
   getTaskTableName() {
@@ -80,6 +87,55 @@ class UpgradeCenterService extends Service {
     if ([ '1', 'true', 'yes', 'y', 'on' ].includes(text)) return true;
     if ([ '0', 'false', 'no', 'n', 'off' ].includes(text)) return false;
     return fallback;
+  }
+
+  /**
+   * 检查目录状态：用于升级中心概览提示“是否已准备好”
+   */
+  async inspectDirectoryState(targetPath = '', options = {}) {
+    const dirPath = this.toText(targetPath, '');
+    const ensureCreate = this.parseBoolean(options.ensureCreate, false);
+    const mustExist = this.parseBoolean(options.mustExist, true);
+    if (!dirPath) {
+      return {
+        path: '',
+        exists: false,
+        writable: false,
+        ok: false,
+        message: '目录未配置',
+      };
+    }
+    try {
+      if (ensureCreate) {
+        await fs.promises.mkdir(dirPath, { recursive: true });
+      }
+      const stat = await fs.promises.stat(dirPath);
+      if (!stat.isDirectory()) {
+        return {
+          path: dirPath,
+          exists: true,
+          writable: false,
+          ok: false,
+          message: '路径存在但不是目录',
+        };
+      }
+      await fs.promises.access(dirPath, fs.constants.R_OK | fs.constants.W_OK);
+      return {
+        path: dirPath,
+        exists: true,
+        writable: true,
+        ok: true,
+        message: '目录可读写',
+      };
+    } catch (error) {
+      return {
+        path: dirPath,
+        exists: false,
+        writable: false,
+        ok: mustExist ? false : true,
+        message: mustExist ? (error?.message || '目录不可用') : '目录将在任务启动时自动创建',
+      };
+    }
   }
 
   /**
@@ -267,6 +323,94 @@ class UpgradeCenterService extends Service {
     await fs.promises.mkdir(packageDir, { recursive: true });
     const list = await this.collectBundleFiles(packageDir, packageDir, 0, []);
     return list.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+  }
+
+  /**
+   * 获取升级中心概览：当前版本、目录状态、升级包状态、最近任务摘要
+   */
+  async getOverview() {
+    await this.ensureTaskTable();
+    const { app } = this;
+    const config = await this.getUpgradeConfig();
+    const [
+      bundleList,
+      packageDirState,
+      backupDirState,
+      tempDirState,
+      frontendDeployState,
+      adminDeployState,
+      backendDeployState,
+      latestTask,
+      runningTask,
+    ] = await Promise.all([
+      this.listBundlePackages(),
+      this.inspectDirectoryState(config.packageDir, { ensureCreate: true, mustExist: false }),
+      this.inspectDirectoryState(config.backupDir, { ensureCreate: true, mustExist: false }),
+      this.inspectDirectoryState(config.tempDir, { ensureCreate: true, mustExist: false }),
+      this.inspectDirectoryState(config.frontendDeployDir, { mustExist: true }),
+      this.inspectDirectoryState(config.adminDeployDir, { mustExist: true }),
+      this.inspectDirectoryState(config.backendDeployDir, { mustExist: true }),
+      app.model.query(
+        `SELECT task_no, status, target_version, bundle_name, started_at, finished_at
+         FROM \`${this.getTaskTableName()}\`
+         ORDER BY id DESC
+         LIMIT 1`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      ).then(rows => rows?.[0] || null),
+      app.model.query(
+        `SELECT task_no, status, target_version, bundle_name, started_at
+         FROM \`${this.getTaskTableName()}\`
+         WHERE status IN ('pending', 'running')
+         ORDER BY id DESC
+         LIMIT 1`,
+        { type: app.Sequelize.QueryTypes.SELECT }
+      ).then(rows => rows?.[0] || null),
+    ]);
+    const configChecks = [
+      { key: 'packageDir', label: '升级包目录', ...packageDirState },
+      { key: 'backupDir', label: '备份目录', ...backupDirState },
+      { key: 'tempDir', label: '临时目录', ...tempDirState },
+      { key: 'frontendDeployDir', label: '前端部署目录', ...frontendDeployState },
+      { key: 'adminDeployDir', label: '管理后台目录', ...adminDeployState },
+      { key: 'backendDeployDir', label: '后端部署目录', ...backendDeployState },
+      {
+        key: 'healthcheckUrl',
+        label: '健康检查地址',
+        path: this.toText(config.healthcheckUrl, ''),
+        exists: Boolean(this.toText(config.healthcheckUrl, '')),
+        writable: true,
+        ok: /^https?:\/\//i.test(this.toText(config.healthcheckUrl, '')),
+        message: /^https?:\/\//i.test(this.toText(config.healthcheckUrl, ''))
+          ? '已配置健康检查地址'
+          : '请填写 http/https 健康检查地址',
+      },
+      {
+        key: 'confirmPhrase',
+        label: '二次确认口令',
+        path: this.toText(config.confirmPhrase, ''),
+        exists: Boolean(this.toText(config.confirmPhrase, '')),
+        writable: true,
+        ok: this.toText(config.confirmPhrase, '').length >= 4,
+        message: this.toText(config.confirmPhrase, '').length >= 4
+          ? '口令已配置'
+          : '建议设置 4 位以上确认口令',
+      },
+    ];
+    const configReady = configChecks.every(item => item.ok === true);
+    const packageReady = Array.isArray(bundleList) && bundleList.length > 0;
+    return {
+      currentVersion: this.getCurrentVersion(),
+      config,
+      configChecks,
+      configReady,
+      packageReady,
+      packageCount: Array.isArray(bundleList) ? bundleList.length : 0,
+      latestBundle: Array.isArray(bundleList) && bundleList.length > 0 ? bundleList[0] : null,
+      latestTask: latestTask || null,
+      runningTask: runningTask || null,
+      startReady: configReady && packageReady && !runningTask,
+      checkedAt: this.now(),
+    };
   }
 
   /**

@@ -21,6 +21,21 @@ class UpgradeCenterController extends baseController {
   }
 
   /**
+   * 获取升级中心概览
+   */
+  async overview() {
+    const { ctx } = this;
+    try {
+      this.ensureSuperAdmin();
+      const data = await ctx.service.uied.upgradeCenter.getOverview();
+      this.result({ data });
+    } catch (error) {
+      ctx.logger.error('获取升级中心概览失败:', error);
+      this.result({ code: 500, message: error.message || '获取升级中心概览失败' });
+    }
+  }
+
+  /**
    * 获取升级中心配置
    */
   async configGet() {

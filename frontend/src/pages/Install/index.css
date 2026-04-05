@@ -76,6 +76,47 @@
   background: #f0fdf4;
 }
 
+.install-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.install-step {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #e6e9ee;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.install-step__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.install-step__desc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.install-step--done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.install-step--current {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.install-step--pending {
+  opacity: 0.9;
+}
+
 .install-card {
   margin-bottom: 16px;
   padding: 18px 18px 20px;
@@ -116,6 +157,10 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.install-status-grid--detail {
+  margin-top: 12px;
 }
 
 .install-status-item {
@@ -296,6 +341,7 @@
   }
 
   .install-status-grid,
+  .install-steps,
   .install-form-grid {
     grid-template-columns: 1fr;
   }

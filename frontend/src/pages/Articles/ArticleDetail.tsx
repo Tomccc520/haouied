@@ -1128,87 +1128,89 @@ const ArticleDetail: React.FC = () => {
 
         <div className={`article-detail-layout ${shouldRenderSidebar ? 'article-detail-layout--with-sidebar' : ''}`}>
           <div className="article-detail-main">
-            <section className={`detail-product-layout ${articleToc.length > 0 && activeTab === 'intro' ? 'detail-product-layout--with-left-toc' : ''}`}>
+            <section className="detail-product-layout">
               <aside className="detail-left-rail">
-                <div className="detail-action-rail">
-                  <button
-                    type="button"
-                    className="detail-action-pill"
-                    onClick={handleFocusComments}
-                    data-tip="查看评论"
-                    aria-label="查看评论"
-                  >
-                    <span className="detail-action-pill__glyph" aria-hidden="true">
-                      <DetailRailCommentIcon className="detail-action-pill__icon" />
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`detail-action-pill detail-action-pill--like ${isLiked ? 'is-active' : ''}`}
-                    onClick={handleToggleLike}
-                    data-tip={`${isLiked ? '已点赞' : '点赞'} ${Math.max(0, likeCount)}`}
-                    aria-label={`${isLiked ? '取消点赞' : '点赞'}，当前 ${Math.max(0, likeCount)} 人点赞`}
-                    disabled={isLikeSubmitting}
-                  >
-                    <span className="detail-action-pill__glyph" aria-hidden="true">
-                      <DetailRailLikeIcon className="detail-action-pill__icon" />
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="detail-action-pill detail-action-pill--hot"
-                    data-tip={`阅读 ${article.viewCount}`}
-                    aria-label={`阅读 ${article.viewCount}`}
-                  >
-                    <span className="detail-action-pill__glyph" aria-hidden="true">
-                      <DetailRailTrendingIcon className="detail-action-pill__icon" />
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="detail-action-pill"
-                    onClick={() => setActiveTab('related')}
-                    data-tip={`关联网址 ${relatedWebsites.length}`}
-                    aria-label={`关联网址 ${relatedWebsites.length}`}
-                  >
-                    <span className="detail-action-pill__glyph" aria-hidden="true">
-                      <DetailRailLinkIcon className="detail-action-pill__icon" />
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="detail-action-pill"
-                    onClick={handleCopyArticleLink}
-                    data-tip="复制链接"
-                    aria-label="复制链接"
-                  >
-                    <span className="detail-action-pill__glyph" aria-hidden="true">
-                      <DetailRailShareIcon className="detail-action-pill__icon" />
-                    </span>
-                  </button>
+                <div className="detail-left-rail__inner">
+                  <div className="detail-action-rail">
+                    <button
+                      type="button"
+                      className="detail-action-pill"
+                      onClick={handleFocusComments}
+                      data-tip="查看评论"
+                      aria-label="查看评论"
+                    >
+                      <span className="detail-action-pill__glyph" aria-hidden="true">
+                        <DetailRailCommentIcon className="detail-action-pill__icon" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`detail-action-pill detail-action-pill--like ${isLiked ? 'is-active' : ''}`}
+                      onClick={handleToggleLike}
+                      data-tip={`${isLiked ? '已点赞' : '点赞'} ${Math.max(0, likeCount)}`}
+                      aria-label={`${isLiked ? '取消点赞' : '点赞'}，当前 ${Math.max(0, likeCount)} 人点赞`}
+                      disabled={isLikeSubmitting}
+                    >
+                      <span className="detail-action-pill__glyph" aria-hidden="true">
+                        <DetailRailLikeIcon className="detail-action-pill__icon" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="detail-action-pill detail-action-pill--hot"
+                      data-tip={`阅读 ${article.viewCount}`}
+                      aria-label={`阅读 ${article.viewCount}`}
+                    >
+                      <span className="detail-action-pill__glyph" aria-hidden="true">
+                        <DetailRailTrendingIcon className="detail-action-pill__icon" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="detail-action-pill"
+                      onClick={() => setActiveTab('related')}
+                      data-tip={`关联网址 ${relatedWebsites.length}`}
+                      aria-label={`关联网址 ${relatedWebsites.length}`}
+                    >
+                      <span className="detail-action-pill__glyph" aria-hidden="true">
+                        <DetailRailLinkIcon className="detail-action-pill__icon" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="detail-action-pill"
+                      onClick={handleCopyArticleLink}
+                      data-tip="复制链接"
+                      aria-label="复制链接"
+                    >
+                      <span className="detail-action-pill__glyph" aria-hidden="true">
+                        <DetailRailShareIcon className="detail-action-pill__icon" />
+                      </span>
+                    </button>
+                  </div>
+                  {articleToc.length > 0 && activeTab === 'intro' && (
+                    <nav className="detail-left-toc" aria-label="文章目录">
+                      <div className="detail-left-toc__header">
+                        <span className="detail-left-toc__eyebrow">目录</span>
+                      </div>
+                      <div className="detail-left-toc__list">
+                        {articleToc.map((item) => (
+                          <button
+                            key={`left-toc-${item.id}`}
+                            type="button"
+                            className={`detail-left-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
+                            onClick={() => handleTocNavigate(item.id)}
+                            title={item.text}
+                            data-tip={item.text}
+                            aria-label={`跳转到：${item.text}`}
+                          >
+                            <span className="detail-left-toc__bar" aria-hidden="true" />
+                          </button>
+                        ))}
+                      </div>
+                    </nav>
+                  )}
                 </div>
-                {articleToc.length > 0 && activeTab === 'intro' && (
-                  <nav className="detail-left-toc" aria-label="文章目录">
-                    <div className="detail-left-toc__header">
-                      <span className="detail-left-toc__eyebrow">目录</span>
-                      <span className="detail-left-toc__count">{articleToc.length} 节</span>
-                    </div>
-                    <div className="detail-left-toc__list">
-                      {articleToc.map((item) => (
-                        <button
-                          key={`left-toc-${item.id}`}
-                          type="button"
-                          className={`detail-left-toc__item level-${item.level} ${activeTocId === item.id ? 'is-active' : ''}`}
-                          onClick={() => handleTocNavigate(item.id)}
-                          title={item.text}
-                        >
-                          <span className="detail-left-toc__bar" aria-hidden="true" />
-                          <span className="detail-left-toc__text">{item.text}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </nav>
-                )}
               </aside>
 
               <div className="detail-product-main">

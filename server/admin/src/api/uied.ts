@@ -666,6 +666,11 @@ export function uiedDeliveryPackageExport(params?: any) {
 
 // ==================== 升级中心 ====================
 
+// 获取升级中心概览
+export function uiedUpgradeOverview() {
+    return request.get({ url: '/uied/upgrade/overview' })
+}
+
 // 获取升级中心配置
 export function uiedUpgradeConfigGet() {
     return request.get({ url: '/uied/upgrade/config/get' })
