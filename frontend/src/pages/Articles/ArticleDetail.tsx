@@ -12,6 +12,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import Lightbox from 'yet-another-react-lightbox';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
+import 'yet-another-react-lightbox/styles.css';
 import {
   getArticleDetail,
   getArticles,
@@ -175,25 +178,6 @@ const DetailRailLinkIcon: React.FC<DetailActionRailIconProps> = ({ className }) 
   >
     <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-/**
- * 文章详情操作栏：分享图标
- */
-const DetailRailShareIcon: React.FC<DetailActionRailIconProps> = ({ className }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    <path d="M18 8a3 3 0 1 0-2.8-4h-.4A3 3 0 0 0 12 8h6zM6 14a3 3 0 1 0-2.8-4h-.4A3 3 0 0 0 0 14h6zM18 24a3 3 0 1 0-2.8-4h-.4A3 3 0 0 0 12 24h6z" stroke="currentColor" strokeWidth="0" />
-    <path d="M8.6 12.6l6.8 3.8M15.4 7.6l-6.8 3.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="2" />
-    <circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-    <circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="2" />
   </svg>
 );
 
@@ -446,7 +430,7 @@ const ArticleDetail: React.FC = () => {
   }, []);
 
   /**
-   * 复制文章当前链接，方便转发分享
+   * 展示文章交互轻提示，统一点赞等操作反馈。
    */
   const showActionFeedback = (text: string, type: 'success' | 'error' = 'success') => {
     setActionFeedback({ text, type });
@@ -457,18 +441,6 @@ const ArticleDetail: React.FC = () => {
       setActionFeedback(null);
       feedbackTimerRef.current = null;
     }, 1800);
-  };
-
-  /**
-   * 复制文章当前链接，成功后展示轻提示而非阻断弹窗。
-   */
-  const handleCopyArticleLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      showActionFeedback('链接已复制');
-    } catch (copyError) {
-      showActionFeedback('复制失败，请手动复制', 'error');
-    }
   };
 
   /**
@@ -641,6 +613,16 @@ const ArticleDetail: React.FC = () => {
   const articleGalleryComparableUrls = useMemo(
     () => articleGalleryImages.map((item) => normalizeImageCompareUrl(item)),
     [articleGalleryImages]
+  );
+  /**
+   * 生成文章图片灯箱数据，统一正文图与封面图的预览描述。
+   */
+  const articleGallerySlides = useMemo(
+    () => articleGalleryImages.map((src, index) => ({
+      src,
+      alt: `${article?.title || '文章'} 图片 ${index + 1}`,
+    })),
+    [article?.title, articleGalleryImages]
   );
   const latestArticlesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'latest_articles');
   const hotWebsitesModuleEnabled = isArticleSidebarModuleEnabled(detailSidebarModules, 'hot_websites');
@@ -889,27 +871,6 @@ const ArticleDetail: React.FC = () => {
   }, [article?.id]);
 
   /**
-   * 灯箱打开时支持 ESC/方向键操作，提升阅读体验。
-   */
-  useEffect(() => {
-    if (!imageLightboxOpen || articleGalleryImages.length === 0) return;
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setImageLightboxOpen(false);
-        return;
-      }
-      if (articleGalleryImages.length <= 1) return;
-      if (event.key === 'ArrowLeft') {
-        setImageLightboxIndex((prev) => (prev - 1 + articleGalleryImages.length) % articleGalleryImages.length);
-      } else if (event.key === 'ArrowRight') {
-        setImageLightboxIndex((prev) => (prev + 1) % articleGalleryImages.length);
-      }
-    };
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
-  }, [imageLightboxOpen, articleGalleryImages.length]);
-
-  /**
    * 根据点击图片定位灯箱索引并打开预览。
    */
   const openImageLightboxByUrl = (imageUrl: string) => {
@@ -952,22 +913,6 @@ const ArticleDetail: React.FC = () => {
     const topOffset = 96;
     const targetTop = target.getBoundingClientRect().top + window.scrollY - topOffset;
     window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
-  };
-
-  /**
-   * 灯箱上一张切换。
-   */
-  const handleLightboxPrev = () => {
-    if (articleGalleryImages.length <= 1) return;
-    setImageLightboxIndex((prev) => (prev - 1 + articleGalleryImages.length) % articleGalleryImages.length);
-  };
-
-  /**
-   * 灯箱下一张切换。
-   */
-  const handleLightboxNext = () => {
-    if (articleGalleryImages.length <= 1) return;
-    setImageLightboxIndex((prev) => (prev + 1) % articleGalleryImages.length);
   };
 
   if (loading) return <div className="detail-loading"><div className="spinner" /></div>;
@@ -1176,17 +1121,6 @@ const ArticleDetail: React.FC = () => {
                         <DetailRailLinkIcon className="detail-action-pill__icon" />
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      className="detail-action-pill"
-                      onClick={handleCopyArticleLink}
-                      data-tip="复制链接"
-                      aria-label="复制链接"
-                    >
-                      <span className="detail-action-pill__glyph" aria-hidden="true">
-                        <DetailRailShareIcon className="detail-action-pill__icon" />
-                      </span>
-                    </button>
                   </div>
                   {articleToc.length > 0 && activeTab === 'intro' && (
                     <nav className="detail-left-toc" aria-label="文章目录">
@@ -1227,9 +1161,6 @@ const ArticleDetail: React.FC = () => {
                   <div className="detail-content-meta__actions">
                     <button type="button" className="detail-header-action" onClick={() => navigate('/articles')}>
                       返回列表
-                    </button>
-                    <button type="button" className="detail-header-action detail-header-action--primary" onClick={handleCopyArticleLink}>
-                      复制链接
                     </button>
                   </div>
                 </div>
@@ -1445,38 +1376,25 @@ const ArticleDetail: React.FC = () => {
           )}
         </div>
       </div>
-      {imageLightboxOpen && articleGalleryImages.length > 0 && (
-        <div className="article-image-lightbox" role="dialog" aria-modal="true" onClick={() => setImageLightboxOpen(false)}>
-          <div className="article-image-lightbox__dialog" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="article-image-lightbox__close"
-              aria-label="关闭图片预览"
-              onClick={() => setImageLightboxOpen(false)}
-            >
-              ×
-            </button>
-            <img
-              src={articleGalleryImages[imageLightboxIndex]}
-              alt={`${article.title} 图片 ${imageLightboxIndex + 1}`}
-              className="article-image-lightbox__image"
-            />
-            {articleGalleryImages.length > 1 && (
-              <div className="article-image-lightbox__nav">
-                <button type="button" className="article-image-lightbox__nav-btn" onClick={handleLightboxPrev}>
-                  上一张
-                </button>
-                <span className="article-image-lightbox__counter">
-                  {imageLightboxIndex + 1} / {articleGalleryImages.length}
-                </span>
-                <button type="button" className="article-image-lightbox__nav-btn" onClick={handleLightboxNext}>
-                  下一张
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <Lightbox
+        open={imageLightboxOpen}
+        close={() => setImageLightboxOpen(false)}
+        slides={articleGallerySlides}
+        index={imageLightboxIndex}
+        plugins={[Zoom]}
+        carousel={{ finite: articleGallerySlides.length <= 1 }}
+        zoom={{
+          maxZoomPixelRatio: 2.5,
+          zoomInMultiplier: 1.8,
+          scrollToZoom: true,
+        }}
+        on={{
+          view: ({ index }) => setImageLightboxIndex(index),
+        }}
+        controller={{
+          closeOnBackdropClick: true,
+        }}
+      />
     </article>
   );
 };
