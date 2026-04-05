@@ -32,7 +32,7 @@ code {
   font-weight: var(--font-extrabold);
 }
 
-/* 强制所有元素使用Lexend字体 */
+/* 强制所有元素使用当前主题主字体 */
 * {
   font-family: var(--font-sans) !important;
   box-sizing: border-box;

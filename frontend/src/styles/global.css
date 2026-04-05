@@ -42,7 +42,7 @@ html {
   }
 }
 
-/* 全局字体 - Lexend优先 */
+/* 全局字体 - 跟随主题主字体 */
 * {
   font-family: var(--font-sans) !important;
   box-sizing: border-box;
@@ -358,21 +358,17 @@ body {
   scrollbar-color: var(--border-color) var(--background-light);
 }
 
-/* 确保输入框和按钮也使用Lexend字体 */
+/* 确保输入框和按钮也跟随主题主字体 */
 input, textarea, button, select {
-  font-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif !important;
+  font-family: var(--font-sans) !important;
 }
 
 /* Ant Design组件字体覆盖 */
 .ant-btn, .ant-input, .ant-select, .ant-menu, .ant-tabs, .ant-card, .ant-list, .ant-table {
-  font-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif !important;
+  font-family: var(--font-sans) !important;
 }
 
-/* 强制所有元素使用Lexend字体 */
+/* 强制所有元素使用当前主题主字体 */
 html, body, div, span, applet, object, iframe,
 h1, h2, h3, h4, h5, h6, p, blockquote, pre,
 a, abbr, acronym, address, big, cite, code,
@@ -387,9 +383,7 @@ figure, figcaption, footer, header, hgroup,
 menu, nav, output, ruby, section, summary,
 time, mark, audio, video,
 button, input, textarea, select, option {
-  font-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif !important;
+  font-family: var(--font-sans) !important;
 }
 
 /* Ant Design 组件字体覆盖 */
@@ -406,9 +400,7 @@ button, input, textarea, select, option {
 .ant-tree-select, .ant-cascader, .ant-auto-complete,
 .ant-mention, .ant-spin, .ant-back-top, .ant-divider,
 .ant-layout, .ant-affix, .ant-grid {
-  font-family: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif !important;
+  font-family: var(--font-sans) !important;
 }
 
 /* 代码相关元素保持等宽字体 */

@@ -169,13 +169,20 @@ export const useAppearanceConfig = (): UseSettingResult<AppearanceConfig> => {
  */
 const applyAppearanceConfig = (config: AppearanceConfig) => {
   const root = document.documentElement;
+  /**
+   * 规范化运行时字体栈。
+   * 后台留空时回退到默认设计系统字体，避免出现空变量导致字体丢失。
+   */
+  const runtimeFontFamily = String(config.fontFamily || DEFAULT_APPEARANCE.fontFamily).trim()
+    || DEFAULT_APPEARANCE.fontFamily;
   
   // 设置 CSS 变量
   root.style.setProperty('--primary-color', config.primaryColor);
   root.style.setProperty('--background-color', config.backgroundColor);
   root.style.setProperty('--card-background-color', config.cardBackgroundColor);
   root.style.setProperty('--text-primary-color', config.textPrimaryColor);
-  root.style.setProperty('--font-family', config.fontFamily);
+  root.style.setProperty('--font-family', runtimeFontFamily);
+  root.style.setProperty('--font-sans', runtimeFontFamily);
   root.style.setProperty('--base-font-size', `${config.baseFontSize}px`);
   root.style.setProperty('--border-radius', `${config.borderRadius}px`);
   root.style.setProperty('--content-max-width', config.contentMaxWidth > 0 ? `${config.contentMaxWidth}px` : '100%');

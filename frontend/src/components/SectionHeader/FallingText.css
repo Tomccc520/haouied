@@ -7,8 +7,6 @@
  * @version 1.0.0
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
-
 .falling-text-container {
   position: relative;
   z-index: 1;
@@ -20,13 +18,13 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: 'Lexend', sans-serif;
+  font-family: var(--font-sans);
   background: transparent;
 }
 
 .falling-text-target {
   display: inline-block;
-  font-family: 'Lexend', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 500;
   max-width: 90%;
   background: transparent;
@@ -38,7 +36,7 @@
   margin: 0 6px;
   padding: 3px 6px;
   user-select: none;
-  font-family: 'Lexend', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   transition: transform 0.2s ease;
   line-height: 1.5;

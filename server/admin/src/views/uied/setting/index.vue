@@ -750,7 +750,26 @@
                             </div>
                         </el-form-item>
                         <el-divider content-position="left">字体设置</el-divider>
-                        <p class="section-desc">自定义网站使用的字体。留空则使用系统默认字体。</p>
+                        <p class="section-desc">
+                            统一控制前端全站主字体。建议优先选预设方案，不够用时再填写自定义字体栈。
+                        </p>
+                        <el-form-item label="字体方案">
+                            <el-select
+                                v-model="appearanceFontPreset"
+                                placeholder="请选择字体方案"
+                                @change="handleAppearanceFontPresetChange"
+                            >
+                                <el-option
+                                    v-for="item in fontPresetOptions"
+                                    :key="item.value"
+                                    :label="item.label"
+                                    :value="item.value"
+                                />
+                            </el-select>
+                            <div class="form-tip">
+                                预设会自动写入推荐字体栈，自定义模式下可手工修改下方主字体。
+                            </div>
+                        </el-form-item>
                         <el-form-item>
                             <template #label
                                 ><span>主字体</span
@@ -762,6 +781,20 @@
                                 v-model="appearanceData.fontFamily"
                                 placeholder="Lexend, -apple-system, sans-serif"
                             />
+                            <div class="font-preview-panel">
+                                <div class="font-preview-panel__header">
+                                    <strong>字体预览</strong>
+                                    <span>{{ appearanceData.fontFamily || '系统默认字体栈' }}</span>
+                                </div>
+                                <div
+                                    class="font-preview-panel__content"
+                                    :style="{ fontFamily: appearanceData.fontFamily || undefined }"
+                                >
+                                    <p>UIED 导航系统让前端品牌风格可以通过后台统一调整。</p>
+                                    <p>ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789</p>
+                                    <p>常规标题、按钮文案、正文阅读都会跟随这里的字体设置。</p>
+                                </div>
+                            </div>
                         </el-form-item>
                         <el-form-item>
                             <template #label
@@ -2936,17 +2969,99 @@ const normalizeBrandConfigData = (config: any) => {
 
 // ==================== 外观配置 ====================
 const appearanceLoading = ref(false)
+const FONT_PRESET_DEFAULT = 'lexend'
+const fontPresetOptions = [
+    {
+        value: 'lexend',
+        label: 'Lexend（默认）',
+        fontFamily: 'Lexend, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+    },
+    {
+        value: 'system',
+        label: '系统字体',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif'
+    },
+    {
+        value: 'pingfang',
+        label: '苹方 / 中文优先',
+        fontFamily: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif'
+    },
+    {
+        value: 'harmony',
+        label: 'HarmonyOS Sans',
+        fontFamily: '"HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif'
+    },
+    {
+        value: 'misans',
+        label: 'MiSans',
+        fontFamily: '"MiSans", "PingFang SC", "Microsoft YaHei", sans-serif'
+    },
+    {
+        value: 'sourcehan',
+        label: '思源黑体',
+        fontFamily: '"Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif'
+    },
+    {
+        value: 'alibaba',
+        label: '阿里巴巴普惠体',
+        fontFamily: '"Alibaba PuHuiTi 3.0", "PingFang SC", "Microsoft YaHei", sans-serif'
+    },
+    {
+        value: 'custom',
+        label: '自定义字体栈',
+        fontFamily: ''
+    }
+]
 const appearanceData = reactive({
     primaryColor: '#0066ff',
     backgroundColor: '#f6f8fb',
     cardBackgroundColor: '#ffffff',
     textPrimaryColor: '#333333',
-    fontFamily: '',
+    fontFamily: 'Lexend, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     baseFontSize: 16,
     borderRadius: 12,
     contentMaxWidth: 1200,
     customCss: ''
 })
+
+/**
+ * 解析当前字体值匹配的预设键，便于后台展示当前方案。
+ */
+const resolveFontPresetByFamily = (fontFamily: unknown): string => {
+    const normalized = String(fontFamily || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+    if (!normalized) return FONT_PRESET_DEFAULT
+    const matched = fontPresetOptions.find(item =>
+        item.value !== 'custom'
+        && String(item.fontFamily || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase() === normalized
+    )
+    return matched?.value || 'custom'
+}
+
+/**
+ * 外观配置字体方案：预设和自定义输入共用一条配置，不新增重复字段。
+ */
+const appearanceFontPreset = computed({
+    get: () => resolveFontPresetByFamily(appearanceData.fontFamily),
+    set: (value: string) => {
+        handleAppearanceFontPresetChange(value)
+    }
+})
+
+/**
+ * 切换字体预设方案，自动回填推荐字体栈。
+ */
+const handleAppearanceFontPresetChange = (presetValue: string) => {
+    const matched = fontPresetOptions.find(item => item.value === presetValue)
+    if (!matched) return
+    if (presetValue === 'custom') return
+    appearanceData.fontFamily = matched.fontFamily
+}
 
 // ==================== 首页配置 ====================
 const homepageLoading = ref(false)
@@ -4716,6 +4831,40 @@ onMounted(() => {
     display: flex;
     justify-content: flex-end;
     margin-top: 8px;
+}
+
+.font-preview-panel {
+    margin-top: 10px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid #e4ebf3;
+    background: #f8fbfd;
+}
+
+.font-preview-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    color: #606266;
+    margin-bottom: 10px;
+}
+
+.font-preview-panel__header strong {
+    font-size: 13px;
+    color: #303133;
+}
+
+.font-preview-panel__content {
+    display: grid;
+    gap: 8px;
+    color: #303133;
+    line-height: 1.8;
+}
+
+.font-preview-panel__content p {
+    margin: 0;
 }
 
 </style>

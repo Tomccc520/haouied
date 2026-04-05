@@ -272,7 +272,7 @@ const defaultAppearanceConfig: AppearanceConfig = {
   backgroundColor: '#f6f8fb',
   cardBackgroundColor: '#ffffff',
   textPrimaryColor: '#333333',
-  fontFamily: '',
+  fontFamily: 'Lexend, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   baseFontSize: 16,
   borderRadius: 12,
   contentMaxWidth: 1200,
