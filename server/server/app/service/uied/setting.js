@@ -10,9 +10,13 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const Service = require('egg').Service;
 const SETTING_BACKUP_VERSION = 'uied-setting-backup-v1';
 const AUTH_CONFIG_SETTING_KEY = 'authConfig';
+const WECHAT_OPEN_PLATFORM_CALLBACK_PATH = '/api/auth/wechat/open-platform/callback';
+const WECHAT_OFFICIAL_ACCOUNT_OAUTH_CALLBACK_PATH = '/api/auth/wechat/official-account/login/callback';
+const WECHAT_OFFICIAL_ACCOUNT_EVENT_CALLBACK_PATH = '/api/auth/wechat/official-account/event';
 
 class SettingService extends Service {
   /**
@@ -48,6 +52,22 @@ class SettingService extends Service {
       register_close_message: '注册功能暂时关闭',
       login_close_message: '系统维护中，暂时无法登录',
       user_center_close_message: '个人中心功能暂时关闭',
+      wechatWebsiteLogin: {
+        enabled: false,
+        appId: '',
+        appSecret: '',
+      },
+      wechatOfficialAccountLogin: {
+        enabled: false,
+        appId: '',
+        appSecret: '',
+        domainVerifyFileName: '',
+        domainVerifyFileContent: '',
+        scanAutoLoginEnabled: false,
+        scanAutoLoginPrompt: '扫码关注公众号后可自动完成登录，请根据页面提示继续操作。',
+        callbackToken: '',
+        encodingAESKey: '',
+      },
     };
   }
 
@@ -56,6 +76,36 @@ class SettingService extends Service {
    */
   normalizeAuthConfig(config = {}) {
     const defaults = this.getDefaultAuthConfig();
+    /**
+     * 规范化微信公众号域名校验文件名，仅允许 MP_verify_*.txt 格式。
+     */
+    const normalizeWechatVerifyFileName = value => {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      if (!/^MP_verify_[A-Za-z0-9_-]+\.txt$/i.test(text)) return '';
+      return text;
+    };
+    /**
+     * 规范化微信公众号回调 Token，限制长度并去除空白。
+     */
+    const normalizeCallbackToken = value => String(value || '').trim().slice(0, 120);
+    /**
+     * 规范化微信公众号 EncodingAESKey，按微信要求保留 43 位可见字符。
+     */
+    const normalizeEncodingAESKey = value => {
+      const text = String(value || '').trim();
+      return /^[A-Za-z0-9]{43}$/.test(text) ? text : '';
+    };
+    const mergedWebsiteLogin = {
+      ...defaults.wechatWebsiteLogin,
+      ...(this.isPlainObject(config?.wechatWebsiteLogin) ? config.wechatWebsiteLogin : {}),
+    };
+    const mergedOfficialAccountLogin = {
+      ...defaults.wechatOfficialAccountLogin,
+      ...(this.isPlainObject(config?.wechatOfficialAccountLogin)
+        ? config.wechatOfficialAccountLogin
+        : {}),
+    };
     return {
       enable_register: config?.enable_register === 0 ? 0 : 1,
       enable_login: config?.enable_login === 0 ? 0 : 1,
@@ -69,7 +119,122 @@ class SettingService extends Service {
       user_center_close_message: String(
         config?.user_center_close_message || defaults.user_center_close_message
       ).trim() || defaults.user_center_close_message,
+      wechatWebsiteLogin: {
+        enabled: mergedWebsiteLogin.enabled === true,
+        appId: String(mergedWebsiteLogin.appId || '').trim().slice(0, 120),
+        appSecret: String(mergedWebsiteLogin.appSecret || '').trim().slice(0, 255),
+      },
+      wechatOfficialAccountLogin: {
+        enabled: mergedOfficialAccountLogin.enabled === true,
+        appId: String(mergedOfficialAccountLogin.appId || '').trim().slice(0, 120),
+        appSecret: String(mergedOfficialAccountLogin.appSecret || '').trim().slice(0, 255),
+        domainVerifyFileName: normalizeWechatVerifyFileName(
+          mergedOfficialAccountLogin.domainVerifyFileName
+        ),
+        domainVerifyFileContent: String(
+          mergedOfficialAccountLogin.domainVerifyFileContent || ''
+        ).trim().slice(0, 5000),
+        scanAutoLoginEnabled: mergedOfficialAccountLogin.scanAutoLoginEnabled === true,
+        scanAutoLoginPrompt: String(
+          mergedOfficialAccountLogin.scanAutoLoginPrompt
+            || defaults.wechatOfficialAccountLogin.scanAutoLoginPrompt
+        ).trim() || defaults.wechatOfficialAccountLogin.scanAutoLoginPrompt,
+        callbackToken: normalizeCallbackToken(mergedOfficialAccountLogin.callbackToken),
+        encodingAESKey: normalizeEncodingAESKey(mergedOfficialAccountLogin.encodingAESKey),
+      },
     };
+  }
+
+  /**
+   * 生成前台可公开读取的脱敏认证配置，避免泄漏 AppSecret / Token / AESKey。
+   */
+  toPublicAuthConfig(config = {}) {
+    const normalized = this.normalizeAuthConfig(config);
+    return {
+      enable_register: normalized.enable_register,
+      enable_login: normalized.enable_login,
+      enable_user_center: normalized.enable_user_center,
+      register_close_message: normalized.register_close_message,
+      login_close_message: normalized.login_close_message,
+      user_center_close_message: normalized.user_center_close_message,
+      wechatWebsiteLogin: {
+        enabled: normalized.wechatWebsiteLogin.enabled === true,
+        appId: String(normalized.wechatWebsiteLogin.appId || '').trim(),
+        callbackPath: WECHAT_OPEN_PLATFORM_CALLBACK_PATH,
+      },
+      wechatOfficialAccountLogin: {
+        enabled: normalized.wechatOfficialAccountLogin.enabled === true,
+        appId: String(normalized.wechatOfficialAccountLogin.appId || '').trim(),
+        domainVerifyFileName: String(
+          normalized.wechatOfficialAccountLogin.domainVerifyFileName || ''
+        ).trim(),
+        scanAutoLoginEnabled: normalized.wechatOfficialAccountLogin.scanAutoLoginEnabled === true,
+        scanAutoLoginPrompt: String(
+          normalized.wechatOfficialAccountLogin.scanAutoLoginPrompt || ''
+        ).trim(),
+        oauthCallbackPath: WECHAT_OFFICIAL_ACCOUNT_OAUTH_CALLBACK_PATH,
+        eventCallbackPath: WECHAT_OFFICIAL_ACCOUNT_EVENT_CALLBACK_PATH,
+      },
+    };
+  }
+
+  /**
+   * 获取脱敏后的公开认证配置，供前端登录页与公开配置接口使用。
+   */
+  async getPublicAuthConfig() {
+    const config = await this.getAuthConfig();
+    return this.toPublicAuthConfig(config || {});
+  }
+
+  /**
+   * 获取微信公众号域名校验文件配置。
+   */
+  async getWechatOfficialAccountVerifyFileConfig() {
+    const config = await this.getAuthConfig();
+    const officialAccount = this.normalizeAuthConfig(config || {}).wechatOfficialAccountLogin || {};
+    return {
+      fileName: String(officialAccount.domainVerifyFileName || '').trim(),
+      content: String(officialAccount.domainVerifyFileContent || '').trim(),
+    };
+  }
+
+  /**
+   * 获取微信公众号事件回调固定路径。
+   */
+  getWechatOfficialAccountEventCallbackPath() {
+    return WECHAT_OFFICIAL_ACCOUNT_EVENT_CALLBACK_PATH;
+  }
+
+  /**
+   * 获取微信公众号网页授权回调固定路径。
+   */
+  getWechatOfficialAccountOauthCallbackPath() {
+    return WECHAT_OFFICIAL_ACCOUNT_OAUTH_CALLBACK_PATH;
+  }
+
+  /**
+   * 获取微信开放平台网站应用回调固定路径。
+   */
+  getWechatOpenPlatformCallbackPath() {
+    return WECHAT_OPEN_PLATFORM_CALLBACK_PATH;
+  }
+
+  /**
+   * 校验微信公众号服务器配置签名。
+   */
+  verifyWechatOfficialAccountSignature({ token, timestamp, nonce, signature }) {
+    const callbackToken = String(token || '').trim();
+    const currentTimestamp = String(timestamp || '').trim();
+    const currentNonce = String(nonce || '').trim();
+    const currentSignature = String(signature || '').trim();
+    if (!callbackToken || !currentTimestamp || !currentNonce || !currentSignature) {
+      return false;
+    }
+    const expected = crypto
+      .createHash('sha1')
+      .update([ callbackToken, currentTimestamp, currentNonce ].sort().join(''))
+      .digest('hex');
+    return expected === currentSignature;
   }
 
   /**
@@ -2422,7 +2587,7 @@ class SettingService extends Service {
     const mcpPageConfig = await this.get('mcpPageConfig');
     const figmaPageConfig = await this.get('figmaPageConfig');
     const brandConfig = await this.get('brandConfig');
-    const authConfig = await this.getAuthConfig();
+    const authConfig = await this.getPublicAuthConfig();
 
     // 默认配置
     const defaultPageGlobal = {

@@ -72,6 +72,12 @@ module.exports = app => {
   router.get('/sitemap-advanced.xml', controller.uied.frontend.sitemapAdvancedXml);
   // GET /sitemap-advanced/:fileName
   router.get('/sitemap-advanced/:fileName', controller.uied.frontend.sitemapAdvancedFile);
+  // GET /MP_verify_xxx.txt - 微信公众号业务域名 / JS 安全域名校验文件
+  router.get('/MP_verify_:verifyToken.txt', controller.uied.frontend.wechatOfficialAccountVerifyFile);
+  // GET /api/auth/wechat/official-account/event - 微信公众号服务器配置首次校验
+  router.get('/api/auth/wechat/official-account/event', controller.uied.frontend.wechatOfficialAccountEventVerify);
+  // POST /api/auth/wechat/official-account/event - 微信公众号事件回调占位
+  router.post('/api/auth/wechat/official-account/event', controller.uied.frontend.wechatOfficialAccountEventCallback);
 
   // ==================== 页面相关 ====================
   // GET /api/pages - 获取所有页面

@@ -190,10 +190,12 @@ const rsa = {
     'seo:prerender-manifest', // GET /api/seo/prerender-manifest
     'seo:report-404', // POST /api/seo/report-404
     'robots.txt', // GET /robots.txt
+    'MP_verify_*.txt', // GET /MP_verify_xxx.txt
     'sitemap.xml', // GET /sitemap.xml
     'sitemap-advanced.xml', // GET /sitemap-advanced.xml
     'sitemap-advanced', // GET /sitemap-advanced/:fileName
     'sitemap-advanced:*', // GET /sitemap-advanced/:fileName
+    'auth:wechat:official-account:event', // GET/POST /api/auth/wechat/official-account/event
     'daily-hot', // GET /api/daily-hot
     'daily-hot:platforms', // GET /api/daily-hot/platforms
     'daily-new:config', // GET /api/daily-new/config

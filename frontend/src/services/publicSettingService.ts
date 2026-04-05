@@ -397,6 +397,22 @@ export interface FigmaPageConfig {
 }
 
 // 登录/注册/个人中心配置
+export interface WechatWebsiteLoginPublicConfig {
+  enabled: boolean;
+  appId: string;
+  callbackPath: string;
+}
+
+export interface WechatOfficialAccountLoginPublicConfig {
+  enabled: boolean;
+  appId: string;
+  domainVerifyFileName: string;
+  scanAutoLoginEnabled: boolean;
+  scanAutoLoginPrompt: string;
+  oauthCallbackPath: string;
+  eventCallbackPath: string;
+}
+
 export interface AuthConfig {
   enable_register: number;
   enable_login: number;
@@ -404,6 +420,8 @@ export interface AuthConfig {
   register_close_message: string;
   login_close_message: string;
   user_center_close_message: string;
+  wechatWebsiteLogin: WechatWebsiteLoginPublicConfig;
+  wechatOfficialAccountLogin: WechatOfficialAccountLoginPublicConfig;
 }
 
 // 公开设置（所有配置的集合）
@@ -827,6 +845,20 @@ export const DEFAULT_AUTH_CONFIG: AuthConfig = {
   register_close_message: '注册功能暂时关闭',
   login_close_message: '系统维护中，暂时无法登录',
   user_center_close_message: '个人中心功能暂时关闭',
+  wechatWebsiteLogin: {
+    enabled: false,
+    appId: '',
+    callbackPath: '/api/auth/wechat/open-platform/callback',
+  },
+  wechatOfficialAccountLogin: {
+    enabled: false,
+    appId: '',
+    domainVerifyFileName: '',
+    scanAutoLoginEnabled: false,
+    scanAutoLoginPrompt: '扫码关注公众号后可自动完成登录，请根据页面提示继续操作。',
+    oauthCallbackPath: '/api/auth/wechat/official-account/login/callback',
+    eventCallbackPath: '/api/auth/wechat/official-account/event',
+  },
 };
 
 // ==================== API 服务 ====================
@@ -1672,6 +1704,42 @@ export const publicSettingService = {
         user_center_close_message: String(
           rawAuthConfig.user_center_close_message || DEFAULT_AUTH_CONFIG.user_center_close_message
         ).trim() || DEFAULT_AUTH_CONFIG.user_center_close_message,
+        wechatWebsiteLogin: {
+          enabled: rawAuthConfig?.wechatWebsiteLogin?.enabled === true,
+          appId: String(
+            rawAuthConfig?.wechatWebsiteLogin?.appId
+              || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.appId
+          ).trim(),
+          callbackPath: String(
+            rawAuthConfig?.wechatWebsiteLogin?.callbackPath
+              || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath
+          ).trim() || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath,
+        },
+        wechatOfficialAccountLogin: {
+          enabled: rawAuthConfig?.wechatOfficialAccountLogin?.enabled === true,
+          appId: String(
+            rawAuthConfig?.wechatOfficialAccountLogin?.appId
+              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.appId
+          ).trim(),
+          domainVerifyFileName: String(
+            rawAuthConfig?.wechatOfficialAccountLogin?.domainVerifyFileName
+              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.domainVerifyFileName
+          ).trim(),
+          scanAutoLoginEnabled:
+            rawAuthConfig?.wechatOfficialAccountLogin?.scanAutoLoginEnabled === true,
+          scanAutoLoginPrompt: String(
+            rawAuthConfig?.wechatOfficialAccountLogin?.scanAutoLoginPrompt
+              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.scanAutoLoginPrompt
+          ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.scanAutoLoginPrompt,
+          oauthCallbackPath: String(
+            rawAuthConfig?.wechatOfficialAccountLogin?.oauthCallbackPath
+              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.oauthCallbackPath
+          ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.oauthCallbackPath,
+          eventCallbackPath: String(
+            rawAuthConfig?.wechatOfficialAccountLogin?.eventCallbackPath
+              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.eventCallbackPath
+          ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.eventCallbackPath,
+        },
       };
       return {
         authConfig,

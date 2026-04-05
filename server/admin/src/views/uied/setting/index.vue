@@ -1990,10 +1990,10 @@
                     <div class="setting-header">
                         <h2 class="setting-title">用户认证与个人中心</h2>
                         <p class="setting-desc">
-                            统一管理前端登录、注册、个人中心开关。关闭个人中心后，前端将隐藏登录/注册与个人中心入口。
+                            统一管理前端登录、注册、个人中心开关，以及微信开放平台网站应用登录、微信公众号登录的对接参数。
                         </p>
                     </div>
-                    <el-form :model="authConfigData" label-width="140px" class="form-max-650">
+                    <el-form :model="authConfigData" label-width="160px" class="form-max-700">
                         <el-divider content-position="left">注册与登录</el-divider>
                         <el-form-item label="允许用户注册">
                             <el-switch
@@ -2060,6 +2060,147 @@
                                 maxlength="255"
                                 show-word-limit
                                 placeholder="个人中心功能暂时关闭"
+                            />
+                        </el-form-item>
+                        <el-divider content-position="left"
+                            >微信开放平台网站应用 PC 扫码登录</el-divider
+                        >
+                        <el-form-item label="是否启用">
+                            <el-switch v-model="authConfigData.wechatWebsiteLogin.enabled" />
+                        </el-form-item>
+                        <el-form-item label="AppID">
+                            <el-input
+                                v-model="authConfigData.wechatWebsiteLogin.appId"
+                                maxlength="120"
+                                show-word-limit
+                                placeholder="请输入微信开放平台网站应用 AppID"
+                            />
+                        </el-form-item>
+                        <el-form-item label="AppSecret">
+                            <el-input
+                                v-model="authConfigData.wechatWebsiteLogin.appSecret"
+                                type="password"
+                                show-password
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="请输入微信开放平台网站应用 AppSecret"
+                            />
+                        </el-form-item>
+                        <el-form-item label="回调地址">
+                            <el-input :model-value="wechatOpenPlatformCallbackPreview" readonly />
+                            <div class="form-tips">
+                                微信开放平台网站应用申请地址：
+                                <a
+                                    href="https://open.weixin.qq.com/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    https://open.weixin.qq.com/
+                                </a>
+                                。回调地址按当前 API 域名自动生成，无需手动填写。
+                            </div>
+                        </el-form-item>
+                        <el-divider content-position="left">微信公众号登录</el-divider>
+                        <el-form-item label="是否启用">
+                            <el-switch v-model="authConfigData.wechatOfficialAccountLogin.enabled" />
+                        </el-form-item>
+                        <el-form-item label="AppID">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.appId"
+                                maxlength="120"
+                                show-word-limit
+                                placeholder="请输入微信公众号 AppID"
+                            />
+                        </el-form-item>
+                        <el-form-item label="AppSecret">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.appSecret"
+                                type="password"
+                                show-password
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="请输入微信公众号 AppSecret"
+                            />
+                            <div class="form-tips">
+                                微信公众平台入口：
+                                <a
+                                    href="https://mp.weixin.qq.com/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    https://mp.weixin.qq.com/
+                                </a>
+                                。请在公众号后台配置“网页授权域名”与“服务器配置”后再联调。公众号授权登录建议使用已认证服务号，订阅号通常无法用于完整网页授权登录。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="网页授权回调">
+                            <el-input :model-value="wechatOfficialOauthCallbackPreview" readonly />
+                        </el-form-item>
+                        <el-divider content-position="left">域名校验文件</el-divider>
+                        <el-form-item label="域名校验文件名">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.domainVerifyFileName"
+                                maxlength="120"
+                                show-word-limit
+                                placeholder="例如：MP_verify_xxx.txt"
+                            />
+                            <div class="form-tips">
+                                用于微信公众平台配置业务域名 / JS安全域名时的文件校验。保存后，官网根路径会自动返回该文件。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="域名校验文件内容">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.domainVerifyFileContent"
+                                type="textarea"
+                                :rows="4"
+                                maxlength="5000"
+                                show-word-limit
+                                placeholder="例如访问：https://fsuied.com/MP_verify_xxx.txt 时，官网会直接输出这里保存的内容。"
+                            />
+                        </el-form-item>
+                        <el-form-item
+                            label="校验文件访问地址"
+                            v-if="wechatOfficialVerifyFilePreview"
+                        >
+                            <el-input :model-value="wechatOfficialVerifyFilePreview" readonly />
+                        </el-form-item>
+                        <el-divider content-position="left">扫码关注自动登录</el-divider>
+                        <el-form-item label="是否启用">
+                            <el-switch
+                                v-model="authConfigData.wechatOfficialAccountLogin.scanAutoLoginEnabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="提示文案">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.scanAutoLoginPrompt"
+                                type="textarea"
+                                :rows="2"
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="请输入扫码关注自动登录提示文案"
+                            />
+                        </el-form-item>
+                        <el-divider content-position="left">事件回调配置</el-divider>
+                        <el-form-item label="事件回调路径">
+                            <el-input :model-value="wechatOfficialEventCallbackPreview" readonly />
+                            <div class="form-tips">
+                                用于微信公众号“服务器配置”URL 路径，默认值即可。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="回调校验 Token">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.callbackToken"
+                                maxlength="120"
+                                show-word-limit
+                                placeholder="需与微信公众号后台“服务器配置”中的 Token 完全一致"
+                            />
+                        </el-form-item>
+                        <el-form-item label="EncodingAESKey">
+                            <el-input
+                                v-model="authConfigData.wechatOfficialAccountLogin.encodingAESKey"
+                                maxlength="43"
+                                show-word-limit
+                                placeholder="请输入 43 位 EncodingAESKey"
                             />
                         </el-form-item>
                         <el-form-item>
@@ -3524,34 +3665,133 @@ const buildSearchConfigPayload = () => {
 
 // ==================== 用户认证 ====================
 const authConfigLoading = ref(false)
+const WECHAT_OPEN_PLATFORM_CALLBACK_PATH = '/api/auth/wechat/open-platform/callback'
+const WECHAT_OFFICIAL_OAUTH_CALLBACK_PATH = '/api/auth/wechat/official-account/login/callback'
+const WECHAT_OFFICIAL_EVENT_CALLBACK_PATH = '/api/auth/wechat/official-account/event'
 const defaultAuthConfig = {
     enable_register: 1,
     enable_login: 1,
     enable_user_center: 1,
     register_close_message: '注册功能暂时关闭',
     login_close_message: '系统维护中，暂时无法登录',
-    user_center_close_message: '个人中心功能暂时关闭'
+    user_center_close_message: '个人中心功能暂时关闭',
+    wechatWebsiteLogin: {
+        enabled: false,
+        appId: '',
+        appSecret: ''
+    },
+    wechatOfficialAccountLogin: {
+        enabled: false,
+        appId: '',
+        appSecret: '',
+        domainVerifyFileName: '',
+        domainVerifyFileContent: '',
+        scanAutoLoginEnabled: false,
+        scanAutoLoginPrompt: '扫码关注公众号后可自动完成登录，请根据页面提示继续操作。',
+        callbackToken: '',
+        encodingAESKey: ''
+    }
 }
-const authConfigData = reactive({ ...defaultAuthConfig })
+const authConfigData = reactive(JSON.parse(JSON.stringify(defaultAuthConfig)))
+
+/**
+ * 生成后台当前域名下的完整回调地址预览。
+ */
+const buildAuthConfigPreviewUrl = (path: string) => {
+    const normalizedPath = String(path || '').trim()
+    if (!normalizedPath) return ''
+    if (typeof window === 'undefined') return normalizedPath
+    return `${window.location.origin}${normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`}`
+}
+
+const wechatOpenPlatformCallbackPreview = computed(() =>
+    buildAuthConfigPreviewUrl(WECHAT_OPEN_PLATFORM_CALLBACK_PATH)
+)
+const wechatOfficialOauthCallbackPreview = computed(() =>
+    buildAuthConfigPreviewUrl(WECHAT_OFFICIAL_OAUTH_CALLBACK_PATH)
+)
+const wechatOfficialEventCallbackPreview = computed(() =>
+    buildAuthConfigPreviewUrl(WECHAT_OFFICIAL_EVENT_CALLBACK_PATH)
+)
+const wechatOfficialVerifyFilePreview = computed(() => {
+    const fileName = String(authConfigData.wechatOfficialAccountLogin?.domainVerifyFileName || '').trim()
+    if (!fileName) return ''
+    if (typeof window === 'undefined') return `/${fileName}`
+    return `${window.location.origin}/${fileName.replace(/^\/+/, '')}`
+})
 
 /**
  * 规范化认证配置，统一登录/注册/个人中心开关语义。
  */
-const normalizeAuthConfigData = (config: any) => ({
-    ...defaultAuthConfig,
-    ...config,
-    enable_register: config?.enable_register === 0 ? 0 : 1,
-    enable_login: config?.enable_login === 0 ? 0 : 1,
-    enable_user_center: config?.enable_user_center === 0 ? 0 : 1,
-    register_close_message:
-        String(config?.register_close_message || '').trim() ||
-        defaultAuthConfig.register_close_message,
-    login_close_message:
-        String(config?.login_close_message || '').trim() || defaultAuthConfig.login_close_message,
-    user_center_close_message:
-        String(config?.user_center_close_message || '').trim() ||
-        defaultAuthConfig.user_center_close_message
-})
+const normalizeAuthConfigData = (config: any) => {
+    /**
+     * 规范化微信公众号域名校验文件名，仅允许 MP_verify_*.txt。
+     */
+    const normalizeWechatVerifyFileName = (value: any) => {
+        const text = String(value || '').trim()
+        if (!text) return ''
+        return /^MP_verify_[A-Za-z0-9_-]+\.txt$/i.test(text) ? text : ''
+    }
+    /**
+     * 规范化微信公众号回调校验 Token。
+     */
+    const normalizeCallbackToken = (value: any) => String(value || '').trim().slice(0, 120)
+    /**
+     * 规范化微信公众号 EncodingAESKey，未满足 43 位时置空。
+     */
+    const normalizeEncodingAESKey = (value: any) => {
+        const text = String(value || '').trim()
+        return /^[A-Za-z0-9]{43}$/.test(text) ? text : ''
+    }
+    const websiteLogin = {
+        ...defaultAuthConfig.wechatWebsiteLogin,
+        ...(config?.wechatWebsiteLogin || {})
+    }
+    const officialAccountLogin = {
+        ...defaultAuthConfig.wechatOfficialAccountLogin,
+        ...(config?.wechatOfficialAccountLogin || {})
+    }
+    return {
+        ...defaultAuthConfig,
+        ...config,
+        enable_register: config?.enable_register === 0 ? 0 : 1,
+        enable_login: config?.enable_login === 0 ? 0 : 1,
+        enable_user_center: config?.enable_user_center === 0 ? 0 : 1,
+        register_close_message:
+            String(config?.register_close_message || '').trim() ||
+            defaultAuthConfig.register_close_message,
+        login_close_message:
+            String(config?.login_close_message || '').trim() ||
+            defaultAuthConfig.login_close_message,
+        user_center_close_message:
+            String(config?.user_center_close_message || '').trim() ||
+            defaultAuthConfig.user_center_close_message,
+        wechatWebsiteLogin: {
+            enabled: websiteLogin?.enabled === true,
+            appId: String(websiteLogin?.appId || '').trim().slice(0, 120),
+            appSecret: String(websiteLogin?.appSecret || '').trim().slice(0, 255)
+        },
+        wechatOfficialAccountLogin: {
+            enabled: officialAccountLogin?.enabled === true,
+            appId: String(officialAccountLogin?.appId || '').trim().slice(0, 120),
+            appSecret: String(officialAccountLogin?.appSecret || '').trim().slice(0, 255),
+            domainVerifyFileName: normalizeWechatVerifyFileName(
+                officialAccountLogin?.domainVerifyFileName
+            ),
+            domainVerifyFileContent: String(
+                officialAccountLogin?.domainVerifyFileContent || ''
+            )
+                .trim()
+                .slice(0, 5000),
+            scanAutoLoginEnabled: officialAccountLogin?.scanAutoLoginEnabled === true,
+            scanAutoLoginPrompt:
+                String(officialAccountLogin?.scanAutoLoginPrompt || '').trim() ||
+                defaultAuthConfig.wechatOfficialAccountLogin.scanAutoLoginPrompt,
+            callbackToken: normalizeCallbackToken(officialAccountLogin?.callbackToken),
+            encodingAESKey: normalizeEncodingAESKey(officialAccountLogin?.encodingAESKey)
+        }
+    }
+}
 
 // ==================== 投稿与支付 ====================
 const submissionServiceLoading = ref(false)

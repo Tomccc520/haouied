@@ -25,6 +25,17 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 生成当前请求命中的微信公众号域名校验文件名。
+   * @param {unknown} verifyToken 路由参数中的文件标识
+   * @returns {string} 完整文件名
+   */
+  buildWechatVerifyFileName(verifyToken) {
+    const text = String(verifyToken || '').trim();
+    if (!text) return '';
+    return `MP_verify_${text}.txt`;
+  }
+
+  /**
    * 规范化 svg:key 里的 key，避免非法字符导致匹配失败。
    * @param {unknown} value 图标值
    * @returns {string} 规范化后的 key
@@ -1036,7 +1047,7 @@ class FrontendController extends Controller {
         ctx.service.uied.setting.get('searchConfig'),
         ctx.service.uied.setting.get('articleConfig'),
         ctx.service.uied.setting.get('articleTopicsConfig'),
-        ctx.service.uied.setting.getAuthConfig(),
+        ctx.service.uied.setting.getPublicAuthConfig(),
       ]);
 
       /**
@@ -1082,6 +1093,20 @@ class FrontendController extends Controller {
           register_close_message: '注册功能暂时关闭',
           login_close_message: '系统维护中，暂时无法登录',
           user_center_close_message: '个人中心功能暂时关闭',
+          wechatWebsiteLogin: {
+            enabled: false,
+            appId: '',
+            callbackPath: '/api/auth/wechat/open-platform/callback',
+          },
+          wechatOfficialAccountLogin: {
+            enabled: false,
+            appId: '',
+            domainVerifyFileName: '',
+            scanAutoLoginEnabled: false,
+            scanAutoLoginPrompt: '扫码关注公众号后可自动完成登录，请根据页面提示继续操作。',
+            oauthCallbackPath: '/api/auth/wechat/official-account/login/callback',
+            eventCallbackPath: '/api/auth/wechat/official-account/event',
+          },
         },
         exitModalEnabled: true,
         exitModalConfig: {},
@@ -1094,6 +1119,96 @@ class FrontendController extends Controller {
         articleConfig: {},
         articleTopicsConfig: {},
       };
+    }
+  }
+
+  /**
+   * 输出微信公众号业务域名 / JS 安全域名校验文件（原始文本）。
+   * GET /MP_verify_xxx.txt
+   */
+  async wechatOfficialAccountVerifyFile() {
+    const { ctx } = this;
+    const requestedFileName = this.buildWechatVerifyFileName(ctx.params?.verifyToken);
+    try {
+      this.setNoCacheHeaders();
+      const verifyFile = await ctx.service.uied.setting.getWechatOfficialAccountVerifyFileConfig();
+      if (!requestedFileName || !verifyFile.fileName || requestedFileName !== verifyFile.fileName) {
+        ctx.status = 404;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'verify file not found';
+        return;
+      }
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = String(verifyFile.content || '').trim();
+    } catch (error) {
+      ctx.logger.error('输出微信公众号域名校验文件失败:', error);
+      ctx.status = 500;
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'verify file output failed';
+    }
+  }
+
+  /**
+   * 微信公众号服务器配置 GET 校验。
+   * GET /api/auth/wechat/official-account/event
+   */
+  async wechatOfficialAccountEventVerify() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const authConfig = await ctx.service.uied.setting.getAuthConfig();
+      const officialAccount = ctx.service.uied.setting.normalizeAuthConfig(authConfig || {}).wechatOfficialAccountLogin || {};
+      const isValid = ctx.service.uied.setting.verifyWechatOfficialAccountSignature({
+        token: officialAccount.callbackToken,
+        timestamp: ctx.query?.timestamp,
+        nonce: ctx.query?.nonce,
+        signature: ctx.query?.signature,
+      });
+      if (!officialAccount.callbackToken || !isValid) {
+        ctx.status = 403;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'invalid wechat signature';
+        return;
+      }
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = String(ctx.query?.echostr || '').trim() || 'success';
+    } catch (error) {
+      ctx.logger.error('微信公众号服务器配置校验失败:', error);
+      ctx.status = 500;
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'wechat verify failed';
+    }
+  }
+
+  /**
+   * 微信公众号事件回调占位处理。
+   * POST /api/auth/wechat/official-account/event
+   */
+  async wechatOfficialAccountEventCallback() {
+    const { ctx } = this;
+    try {
+      this.setNoCacheHeaders();
+      const authConfig = await ctx.service.uied.setting.getAuthConfig();
+      const officialAccount = ctx.service.uied.setting.normalizeAuthConfig(authConfig || {}).wechatOfficialAccountLogin || {};
+      const isValid = ctx.service.uied.setting.verifyWechatOfficialAccountSignature({
+        token: officialAccount.callbackToken,
+        timestamp: ctx.query?.timestamp,
+        nonce: ctx.query?.nonce,
+        signature: ctx.query?.signature,
+      });
+      if (!officialAccount.callbackToken || !isValid) {
+        ctx.status = 403;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'invalid wechat signature';
+        return;
+      }
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'success';
+    } catch (error) {
+      ctx.logger.error('微信公众号事件回调处理失败:', error);
+      ctx.status = 500;
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'wechat callback failed';
     }
   }
 
