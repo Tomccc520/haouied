@@ -33,7 +33,6 @@ const bgImage = '/bg.jpg';
 const SEARCH_HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 10;
 const PAGE_SIZE = 40;
-const HOT_SEARCH_TAGS = ['AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG'];
 const MAX_SEMANTIC_KEYWORDS = 4;
 const MAX_AI_REWRITE_KEYWORDS = 8;
 const CATEGORY_CHIP_COLLAPSE_COUNT = 10;
@@ -104,6 +103,14 @@ interface BackendSearchItem {
  * 规范化文本，统一用于搜索相关性计算与去重键生成。
  */
 const normalizeText = (value: unknown): string => String(value || '').trim().toLowerCase();
+
+/**
+ * 用搜索配置模板生成搜索页 Hero 描述文案。
+ */
+const formatSearchHeroDescription = (template: string, count: number): string => {
+  const normalizedTemplate = String(template || '').trim() || '收录 {count} 个优质网站资源';
+  return normalizedTemplate.replace(/\{count\}/g, Number.isFinite(count) ? count.toLocaleString() : '0');
+};
 
 /**
  * 规范化分类筛选键，保证 URL 参数与本地筛选比对稳定。
@@ -682,7 +689,7 @@ const SearchPage: React.FC = () => {
   
   // 相关搜索
   const [relatedKeywords, setRelatedKeywords] = useState<string[]>([]);
-  const [hotSearchTags, setHotSearchTags] = useState<string[]>(HOT_SEARCH_TAGS);
+  const [hotSearchTags, setHotSearchTags] = useState<string[]>([]);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [aiEnhancedCount, setAiEnhancedCount] = useState(0);
   const [aiExpandedKeywords, setAiExpandedKeywords] = useState<string[]>([]);
@@ -713,6 +720,20 @@ const SearchPage: React.FC = () => {
   const suggestionDebounceDelay = normalizeDebounceDelay(searchConfig?.debounceDelay);
   const searchInputPlaceholder = String(searchConfig?.placeholder || '').trim() || '搜索网站或文章...';
   const aiSearchButtonText = String(searchConfig?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索';
+  const searchHeroTitle = String(searchConfig?.heroTitle || '全站搜索').trim() || '全站搜索';
+  const searchHeroHighlightText = String(searchConfig?.heroHighlightText || '').trim();
+  const searchHeroDescriptionTemplate = String(
+    searchConfig?.heroDescriptionTemplate || '收录 {count} 个优质网站资源'
+  ).trim() || '收录 {count} 个优质网站资源';
+  const fallbackHotSearchTags = useMemo(() => {
+    const rows = Array.isArray(searchConfig?.hotSearchTags) ? searchConfig.hotSearchTags : [];
+    const normalized = rows
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+    return normalized.length > 0
+      ? normalized
+      : [ 'AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG' ];
+  }, [searchConfig?.hotSearchTags]);
   const searchDisabledText = String(searchConfig?.searchDisabledText || '站内搜索功能已关闭').trim()
     || '站内搜索功能已关闭';
   const aiSearchDisabledText = String(searchConfig?.aiSearchDisabledText || 'AI 搜索功能已关闭，请在后台配置中开启后再使用。').trim()
@@ -1702,7 +1723,7 @@ const SearchPage: React.FC = () => {
   useEffect(() => {
     const run = async () => {
       if (!searchEnabled) {
-        setHotSearchTags(HOT_SEARCH_TAGS);
+        setHotSearchTags(fallbackHotSearchTags);
         return;
       }
       try {
@@ -1710,14 +1731,14 @@ const SearchPage: React.FC = () => {
         const normalized = (Array.isArray(hotList) ? hotList : [])
           .map(item => String(item || '').trim())
           .filter(Boolean);
-        setHotSearchTags(normalized.length > 0 ? normalized.slice(0, 12) : HOT_SEARCH_TAGS);
+        setHotSearchTags(normalized.length > 0 ? normalized.slice(0, 12) : fallbackHotSearchTags);
       } catch (error) {
         debugLog.warn('加载热门搜索失败，回退默认标签:', error);
-        setHotSearchTags(HOT_SEARCH_TAGS);
+        setHotSearchTags(fallbackHotSearchTags);
       }
     };
     run();
-  }, [searchEnabled]);
+  }, [fallbackHotSearchTags, searchEnabled]);
 
   /**
    * 从 URL 解析搜索参数（支持 `?ai=1` 直达 AI 搜索）
@@ -2127,12 +2148,14 @@ const SearchPage: React.FC = () => {
           onSearchFocus={handleSearchInputFocus}
           onSearchBlur={handleSearchInputBlur}
           hotTags={hotSearchTags}
+          fallbackHotTags={fallbackHotSearchTags}
           onTagClick={handleTagClick}
           searchPlaceholder={searchInputPlaceholder}
           searchPageType="all"
           showStats={true}
-          customTitle="全站搜索"
-          customDescription={`收录 ${totalWebsites.toLocaleString()} 个优质网站资源`}
+          customTitle={searchHeroTitle}
+          customDescription={formatSearchHeroDescription(searchHeroDescriptionTemplate, totalWebsites)}
+          highlightText={searchHeroHighlightText}
           aiSearchEnabled={aiSearchEnabled}
           aiSearchBtnText={aiSearchButtonText}
         />

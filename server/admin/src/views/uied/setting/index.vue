@@ -1808,6 +1808,43 @@
                                 :disabled="!searchData.enabled || !searchData.aiSearchEnabled"
                             />
                         </el-form-item>
+                        <el-divider content-position="left">搜索页 Hero</el-divider>
+                        <p class="section-desc">
+                            仅作用于 <code>/search</code> 页面首屏，不影响导航页 Hero；热门标签仍优先使用实时热搜，只有接口失败时才回退到这里。
+                        </p>
+                        <el-form-item label="Hero标题">
+                            <el-input
+                                v-model="searchData.heroTitle"
+                                placeholder="全站搜索"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="Hero描述模板">
+                            <el-input
+                                v-model="searchData.heroDescriptionTemplate"
+                                placeholder="收录 {count} 个优质网站资源"
+                                :disabled="!searchData.enabled"
+                            />
+                            <div class="text-gray-400 text-xs mt-1">
+                                支持占位符：<code>{count}</code>
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="Hero高亮词">
+                            <el-input
+                                v-model="searchData.heroHighlightText"
+                                placeholder="可选，匹配标题中的某段文字做高亮"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="热搜兜底标签">
+                            <el-input
+                                v-model="searchData.hotSearchTagsText"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="每行一条，接口失败时用于 Hero 与搜索建议兜底"
+                                :disabled="!searchData.enabled"
+                            />
+                        </el-form-item>
                         <el-divider content-position="left">AI 搜索文案</el-divider>
                         <p class="section-desc">
                             统一控制搜索页和 AI 搜索侧边栏的提示语，避免两个入口各自写死。
@@ -3266,6 +3303,10 @@ const searchData = reactive({
     articleSearchEnabled: true,
     aiSearchEnabled: true,
     aiSearchBtnText: 'AI 搜索',
+    heroTitle: '全站搜索',
+    heroDescriptionTemplate: '收录 {count} 个优质网站资源',
+    heroHighlightText: '',
+    hotSearchTagsText: 'AI绘画\nChatGPT\nFigma\n免费工具\nUI设计\nMidjourney\n字体\n图标库\nSVG',
     searchDisabledText: '站内搜索功能已关闭',
     aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
     aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
@@ -3282,6 +3323,29 @@ const searchData = reactive({
  * 规范化搜索配置，统一 AI 搜索文案模板与分页范围。
  */
 const normalizeSearchConfigData = (config: any) => ({
+    /**
+     * 规范化搜索页热门标签兜底词，兼容数组与多行文本格式。
+     */
+    hotSearchTags: (() => {
+        const sourceList = Array.isArray(config?.hotSearchTags)
+            ? config.hotSearchTags
+            : Array.isArray(config?.hotSearchTagsText)
+            ? config.hotSearchTagsText
+            : String(config?.hotSearchTagsText || config?.hotSearchTags || '')
+                  .split(/[，,\n|]+/)
+                  .map((item: any) => String(item || '').trim())
+                  .filter(Boolean)
+        const normalized = Array.from(
+            new Set(
+                sourceList
+                    .map((item: any) => String(item || '').trim().slice(0, 20))
+                    .filter(Boolean)
+            )
+        )
+        return normalized.length > 0
+            ? normalized.slice(0, 20)
+            : ['AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG']
+    })(),
     enabled: config?.enabled !== false,
     placeholder: String(config?.placeholder || '搜索网站名称...').trim() || '搜索网站名称...',
     debounceDelay: Number.isFinite(Number(config?.debounceDelay))
@@ -3291,6 +3355,23 @@ const normalizeSearchConfigData = (config: any) => ({
     articleSearchEnabled: config?.articleSearchEnabled !== false,
     aiSearchEnabled: config?.aiSearchEnabled !== false,
     aiSearchBtnText: String(config?.aiSearchBtnText || 'AI 搜索').trim() || 'AI 搜索',
+    heroTitle: String(config?.heroTitle || '全站搜索').trim() || '全站搜索',
+    heroDescriptionTemplate:
+        String(config?.heroDescriptionTemplate || '收录 {count} 个优质网站资源').trim()
+        || '收录 {count} 个优质网站资源',
+    heroHighlightText: String(config?.heroHighlightText || '').trim(),
+    hotSearchTagsText: (() => {
+        const sourceList = Array.isArray(config?.hotSearchTags)
+            ? config.hotSearchTags
+            : String(config?.hotSearchTagsText || config?.hotSearchTags || '')
+                  .split(/[，,\n|]+/)
+                  .map((item: any) => String(item || '').trim())
+                  .filter(Boolean)
+        const normalized = Array.from(new Set(sourceList.map((item: any) => String(item || '').trim()).filter(Boolean)))
+        return normalized.length > 0
+            ? normalized.join('\n')
+            : 'AI绘画\nChatGPT\nFigma\n免费工具\nUI设计\nMidjourney\n字体\n图标库\nSVG'
+    })(),
     searchDisabledText: String(config?.searchDisabledText || '站内搜索功能已关闭').trim()
         || '站内搜索功能已关闭',
     aiSearchDisabledText: String(
@@ -3316,6 +3397,15 @@ const normalizeSearchConfigData = (config: any) => ({
         ? Math.max(10, Math.min(100, Number(config.resultsPerPage)))
         : 20
 })
+
+/**
+ * 构建搜索配置保存载荷，剔除仅供后台表单使用的 UI 字段。
+ */
+const buildSearchConfigPayload = () => {
+    const normalized = normalizeSearchConfigData(cloneConfig(searchData))
+    const { hotSearchTagsText, ...payload } = normalized
+    return payload
+}
 
 // ==================== 用户认证 ====================
 const authConfigLoading = ref(false)
@@ -4074,7 +4164,7 @@ const handleSaveSidebar = async () => {
 const handleSaveSearch = async () => {
     searchLoading.value = true
     try {
-        await uiedSettingSave({ searchConfig: normalizeSearchConfigData(cloneConfig(searchData)) })
+        await uiedSettingSave({ searchConfig: buildSearchConfigPayload() })
         markSaved()
         feedback.msgSuccess('保存成功')
     } catch (error) {
@@ -4167,7 +4257,7 @@ const handleSaveAll = async () => {
                 pageGlobalConfig: normalizePageConfigData(pageConfigData),
                 cardStyleConfig: cardStyleData,
                 sidebarConfig: sidebarData,
-                searchConfig: normalizeSearchConfigData(cloneConfig(searchData)),
+                searchConfig: buildSearchConfigPayload(),
                 submissionServiceConfig: buildSubmissionServicePayload(),
                 paymentConfig: buildPaymentConfigPayload(),
                 exitModalConfig: exitModalData

@@ -8,8 +8,8 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { getDailyHot, getDailyHotPlatforms } from '../../services/dailyHotService';
-import { DailyHotItem, DailyHotPlatform } from '../../types/dailyHot';
+import { getDailyHot, getDailyHotDisplayConfig, getDailyHotPlatforms } from '../../services/dailyHotService';
+import { DailyHotDisplayConfig, DailyHotItem, DailyHotPlatform } from '../../types/dailyHot';
 import { RankingListSkeleton } from '../Skeleton';
 import './index.css';
 
@@ -24,6 +24,7 @@ const DailyHot: React.FC<DailyHotProps> = ({
   limit = 20,
   className = ''
 }) => {
+  const [displayConfig, setDisplayConfig] = useState<DailyHotDisplayConfig | null>(null);
   const [platforms, setPlatforms] = useState<DailyHotPlatform[]>([]);
   const [activePlatform, setActivePlatform] = useState<string>('');
   const [items, setItems] = useState<DailyHotItem[]>([]);
@@ -35,11 +36,28 @@ const DailyHot: React.FC<DailyHotProps> = ({
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const refreshRef = useRef(false);
 
+  /**
+   * 生成当前组件使用的兜底平台列表，避免平台接口异常时退回到前端写死平台名单。
+   */
+  const buildFallbackPlatforms = (config: DailyHotDisplayConfig | null): DailyHotPlatform[] => {
+    const platformTitles = Array.isArray(config?.defaultPlatforms)
+      ? (config?.defaultPlatforms || []).map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    return platformTitles.slice(0, 12).map((platformTitle, index) => ({
+      platformTitle,
+      displayName: platformTitle,
+      isEnabled: true,
+      sort: (index + 1) * 10,
+    }));
+  };
+
   // 获取平台列表
   useEffect(() => {
     const fetchPlatforms = async () => {
       try {
         setPlatformLoading(true);
+        const config = await getDailyHotDisplayConfig();
+        setDisplayConfig(config);
         const data = await getDailyHotPlatforms();
         // 过滤掉未启用的平台
         const activePlatforms = data
@@ -54,22 +72,33 @@ const DailyHot: React.FC<DailyHotProps> = ({
         }
       } catch (err) {
         console.error('获取热榜平台失败:', err);
-        // 如果失败，设置默认平台
-        const defaultPlatforms = [
-          { platformTitle: '哔哩哔哩', displayName: 'B站' },
-          { platformTitle: '知乎', displayName: '知乎' },
-          { platformTitle: '微博', displayName: '微博' },
-          { platformTitle: '今日头条', displayName: '头条' }
-        ];
+        const fallbackConfig = displayConfig || await getDailyHotDisplayConfig().catch(() => null);
+        if (fallbackConfig && !displayConfig) {
+          setDisplayConfig(fallbackConfig);
+        }
+        const defaultPlatforms = buildFallbackPlatforms(fallbackConfig);
         setPlatforms(defaultPlatforms);
-        setActivePlatform(defaultPlatforms[0].platformTitle);
+        setActivePlatform(defaultPlatforms[0]?.platformTitle || '');
       } finally {
         setPlatformLoading(false);
       }
     };
 
     fetchPlatforms();
+  // displayConfig 仅用于失败兜底，不作为依赖避免重复请求
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const componentSubtitle = String(displayConfig?.componentSubtitle || '聚合全平台热点，实时更新').trim()
+    || '聚合全平台热点，实时更新';
+  const loadingText = String(displayConfig?.loadingText || '热榜加载中...').trim() || '热榜加载中...';
+  const emptyText = String(displayConfig?.emptyText || '暂无数据').trim() || '暂无数据';
+  const errorText = String(displayConfig?.errorText || '热榜数据加载失败，请稍后重试').trim()
+    || '热榜数据加载失败，请稍后重试';
+  const retryText = String(displayConfig?.retryText || '重新加载').trim() || '重新加载';
+  const refreshText = String(displayConfig?.refreshText || '刷新热榜').trim() || '刷新热榜';
+  const refreshingText = String(displayConfig?.refreshingText || '刷新中...').trim() || '刷新中...';
+  const platformLinkText = String(displayConfig?.platformLinkText || '访问平台').trim() || '访问平台';
 
   /**
    * 若平台列表为空或 activePlatform 未设置，避免页面一直处于 loading
@@ -77,9 +106,9 @@ const DailyHot: React.FC<DailyHotProps> = ({
   useEffect(() => {
     if (!platformLoading && !activePlatform) {
       setLoading(false);
-      setError('暂无可用热榜平台，请稍后重试');
+      setError(errorText);
     }
-  }, [platformLoading, activePlatform]);
+  }, [platformLoading, activePlatform, errorText]);
 
   // 获取选中平台的热榜数据
   useEffect(() => {
@@ -108,7 +137,7 @@ const DailyHot: React.FC<DailyHotProps> = ({
         setLastUpdated(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
       } catch (err) {
         console.error(`获取${activePlatform}热榜失败:`, err);
-        setError('获取数据失败，请稍后重试');
+        setError(errorText);
         setItems([]);
       } finally {
         setLoading(false);
@@ -156,13 +185,13 @@ const DailyHot: React.FC<DailyHotProps> = ({
             {title}
           </h2>
           <span className="daily-hot-subtitle">
-            聚合全平台热点，实时更新
+            {componentSubtitle}
           </span>
         </div>
 
         <div className="daily-hot-actions">
           <span className="daily-hot-status">
-            {loading ? '加载中' : `共 ${items.length} 条`}
+            {loading ? loadingText : `共 ${items.length} 条`}
             {lastUpdated && !loading ? ` · ${lastUpdated}` : ''}
           </span>
           {activePlatformMeta?.url && (
@@ -172,7 +201,7 @@ const DailyHot: React.FC<DailyHotProps> = ({
               target="_blank"
               rel="noopener noreferrer"
             >
-              访问平台
+              {platformLinkText}
             </a>
           )}
           <button
@@ -181,7 +210,7 @@ const DailyHot: React.FC<DailyHotProps> = ({
             onClick={handleRefresh}
             disabled={loading}
           >
-            刷新
+            {refreshing ? refreshingText : refreshText}
           </button>
         </div>
       </div>
@@ -211,23 +240,23 @@ const DailyHot: React.FC<DailyHotProps> = ({
         {loading ? (
           <RankingListSkeleton count={10} />
         ) : error ? (
-          <div className="daily-hot-error">
-            <div className="daily-hot-error-icon">⚠️</div>
-            <div className="daily-hot-error-message">{error}</div>
-            <button 
-              className="daily-hot-retry-button" 
+            <div className="daily-hot-error">
+              <div className="daily-hot-error-icon">⚠️</div>
+              <div className="daily-hot-error-message">{error}</div>
+              <button
+                className="daily-hot-retry-button"
               onClick={() => {
                 const current = activePlatform;
                 setActivePlatform('');
                 setTimeout(() => setActivePlatform(current), 10);
               }}
-            >
-              重新加载
-            </button>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="daily-hot-empty">暂无数据</div>
-        ) : (
+              >
+                {retryText}
+              </button>
+            </div>
+          ) : items.length === 0 ? (
+          <div className="daily-hot-empty">{emptyText}</div>
+          ) : (
           <div className="daily-hot-list">
             {items.map((item, index) => (
               <a 

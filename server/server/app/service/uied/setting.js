@@ -937,6 +937,10 @@ class SettingService extends Service {
       articleSearchEnabled: true,
       aiSearchEnabled: true,
       aiSearchBtnText: 'AI 搜索',
+      heroTitle: '全站搜索',
+      heroDescriptionTemplate: '收录 {count} 个优质网站资源',
+      heroHighlightText: '',
+      hotSearchTags: [ 'AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG' ],
       searchDisabledText: '站内搜索功能已关闭',
       aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
       aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
@@ -955,6 +959,21 @@ class SettingService extends Service {
     const contentSearchFallback = websiteSearchEnabled || articleSearchEnabled
       ? { website: websiteSearchEnabled, article: articleSearchEnabled }
       : { website: true, article: false };
+    /**
+     * 规范化搜索页 Hero 的热搜兜底词，兼容数组与多行字符串格式。
+     */
+    const normalizedHotSearchTags = (() => {
+      const sourceList = Array.isArray(merged.hotSearchTags)
+        ? merged.hotSearchTags
+        : String(merged.hotSearchTags || '')
+          .split(/[，,\n|]+/)
+          .map(item => String(item || '').trim())
+          .filter(Boolean);
+      const normalized = Array.from(new Set(sourceList
+        .map(item => String(item || '').trim().slice(0, 20))
+        .filter(Boolean)));
+      return normalized.length > 0 ? normalized.slice(0, 20) : defaults.hotSearchTags;
+    })();
     return {
       ...merged,
       enabled: searchEnabled,
@@ -966,6 +985,12 @@ class SettingService extends Service {
       articleSearchEnabled: searchEnabled ? contentSearchFallback.article : false,
       aiSearchEnabled: searchEnabled && merged.aiSearchEnabled !== false,
       aiSearchBtnText: String(merged.aiSearchBtnText || defaults.aiSearchBtnText).trim() || defaults.aiSearchBtnText,
+      heroTitle: String(merged.heroTitle || defaults.heroTitle).trim() || defaults.heroTitle,
+      heroDescriptionTemplate: String(
+        merged.heroDescriptionTemplate || defaults.heroDescriptionTemplate
+      ).trim() || defaults.heroDescriptionTemplate,
+      heroHighlightText: String(merged.heroHighlightText || defaults.heroHighlightText).trim() || defaults.heroHighlightText,
+      hotSearchTags: normalizedHotSearchTags,
       searchDisabledText: String(merged.searchDisabledText || defaults.searchDisabledText).trim() || defaults.searchDisabledText,
       aiSearchDisabledText: String(merged.aiSearchDisabledText || defaults.aiSearchDisabledText).trim() || defaults.aiSearchDisabledText,
       aiResultSummaryTemplate: String(merged.aiResultSummaryTemplate || defaults.aiResultSummaryTemplate).trim()
@@ -2488,6 +2513,10 @@ class SettingService extends Service {
       articleSearchEnabled: true,
       aiSearchEnabled: true,
       aiSearchBtnText: 'AI 搜索',
+      heroTitle: '全站搜索',
+      heroDescriptionTemplate: '收录 {count} 个优质网站资源',
+      heroHighlightText: '',
+      hotSearchTags: [ 'AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG' ],
       highlightKeyword: true,
       resultsPerPage: 20,
     };

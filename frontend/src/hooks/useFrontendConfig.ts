@@ -164,6 +164,10 @@ interface SearchConfig {
   articleSearchEnabled: boolean;
   aiSearchEnabled: boolean;
   aiSearchBtnText: string;
+  heroTitle: string;
+  heroDescriptionTemplate: string;
+  heroHighlightText: string;
+  hotSearchTags: string[];
   searchDisabledText: string;
   aiSearchDisabledText: string;
   aiResultSummaryTemplate: string;
@@ -335,6 +339,10 @@ const defaultSearchConfig: SearchConfig = {
   articleSearchEnabled: true,
   aiSearchEnabled: true,
   aiSearchBtnText: 'AI 搜索',
+  heroTitle: '全站搜索',
+  heroDescriptionTemplate: '收录 {count} 个优质网站资源',
+  heroHighlightText: '',
+  hotSearchTags: [ 'AI绘画', 'ChatGPT', 'Figma', '免费工具', 'UI设计', 'Midjourney', '字体', '图标库', 'SVG' ],
   searchDisabledText: '站内搜索功能已关闭',
   aiSearchDisabledText: 'AI 搜索功能已关闭，请在后台配置中开启后再使用。',
   aiResultSummaryTemplate: 'AI 智能推荐找到 {count} 个结果{extra}',
@@ -534,6 +542,21 @@ const normalizeAuthConfig = (config: unknown): AuthConfig => {
  */
 const normalizeSearchConfig = (config: unknown): SearchConfig => {
   const mergedConfig = { ...defaultSearchConfig, ...((config as Partial<SearchConfig>) || {}) };
+  /**
+   * 规范化搜索页热门标签兜底词，兼容数组与多行文本格式。
+   */
+  const normalizeHotSearchTags = (value: unknown): string[] => {
+    const sourceList = Array.isArray(value)
+      ? value
+      : String(value || '')
+        .split(/[，,\n|]+/)
+        .map((item) => String(item || '').trim())
+        .filter(Boolean);
+    const normalized = Array.from(new Set(sourceList
+      .map((item) => String(item || '').trim().slice(0, 20))
+      .filter(Boolean)));
+    return normalized.length > 0 ? normalized.slice(0, 20) : defaultSearchConfig.hotSearchTags;
+  };
   return {
     enabled: mergedConfig.enabled !== false,
     placeholder: String(mergedConfig.placeholder || defaultSearchConfig.placeholder).trim() || defaultSearchConfig.placeholder,
@@ -545,6 +568,14 @@ const normalizeSearchConfig = (config: unknown): SearchConfig => {
     aiSearchEnabled: mergedConfig.aiSearchEnabled !== false,
     aiSearchBtnText: String(mergedConfig.aiSearchBtnText || defaultSearchConfig.aiSearchBtnText).trim()
       || defaultSearchConfig.aiSearchBtnText,
+    heroTitle: String(mergedConfig.heroTitle || defaultSearchConfig.heroTitle).trim()
+      || defaultSearchConfig.heroTitle,
+    heroDescriptionTemplate: String(
+      mergedConfig.heroDescriptionTemplate || defaultSearchConfig.heroDescriptionTemplate
+    ).trim() || defaultSearchConfig.heroDescriptionTemplate,
+    heroHighlightText: String(mergedConfig.heroHighlightText || defaultSearchConfig.heroHighlightText).trim()
+      || defaultSearchConfig.heroHighlightText,
+    hotSearchTags: normalizeHotSearchTags(mergedConfig.hotSearchTags),
     searchDisabledText: String(mergedConfig.searchDisabledText || defaultSearchConfig.searchDisabledText).trim()
       || defaultSearchConfig.searchDisabledText,
     aiSearchDisabledText: String(mergedConfig.aiSearchDisabledText || defaultSearchConfig.aiSearchDisabledText).trim()

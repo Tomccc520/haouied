@@ -233,6 +233,64 @@
                         </el-form-item>
                     </el-col>
                     <el-col :span="24">
+                        <el-divider content-position="left">前台文案</el-divider>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="组件副标题">
+                            <el-input v-model="globalForm.componentSubtitle" placeholder="聚合全平台热点，实时更新" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="页面角标">
+                            <el-input v-model="globalForm.pageEyebrow" placeholder="全网热点速览" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="24">
+                        <el-form-item label="页面描述">
+                            <el-input
+                                v-model="globalForm.pageDescription"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。"
+                            />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="加载提示">
+                            <el-input v-model="globalForm.loadingText" placeholder="热榜加载中..." />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="空数据提示">
+                            <el-input v-model="globalForm.emptyText" placeholder="暂无数据" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="失败提示">
+                            <el-input v-model="globalForm.errorText" placeholder="热榜数据加载失败，请稍后重试" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="重试按钮文案">
+                            <el-input v-model="globalForm.retryText" placeholder="重新加载" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="刷新按钮文案">
+                            <el-input v-model="globalForm.refreshText" placeholder="刷新热榜" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="刷新中文案">
+                            <el-input v-model="globalForm.refreshingText" placeholder="刷新中..." />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                        <el-form-item label="平台外链文案">
+                            <el-input v-model="globalForm.platformLinkText" placeholder="访问平台" />
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="24">
                         <el-form-item label="前台效果预览">
                             <div class="ops-preview-line">
                                 <span class="ops-preview-line__label">{{
@@ -416,6 +474,16 @@ interface GlobalForm {
     displayDesktop: boolean
     displayMobile: boolean
     displayOpenInNewTab: boolean
+    componentSubtitle: string
+    pageEyebrow: string
+    pageDescription: string
+    loadingText: string
+    emptyText: string
+    errorText: string
+    retryText: string
+    refreshText: string
+    refreshingText: string
+    platformLinkText: string
 }
 
 interface PlatformRow {
@@ -461,7 +529,18 @@ const globalForm = reactive<GlobalForm>({
     displaySort: 90,
     displayDesktop: true,
     displayMobile: true,
-    displayOpenInNewTab: false
+    displayOpenInNewTab: false,
+    componentSubtitle: '聚合全平台热点，实时更新',
+    pageEyebrow: '全网热点速览',
+    pageDescription:
+        '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。',
+    loadingText: '热榜加载中...',
+    emptyText: '暂无数据',
+    errorText: '热榜数据加载失败，请稍后重试',
+    retryText: '重新加载',
+    refreshText: '刷新热榜',
+    refreshingText: '刷新中...',
+    platformLinkText: '访问平台'
 })
 
 /**
@@ -547,6 +626,22 @@ const loadGlobalConfig = async () => {
         globalForm.displayDesktop = data?.displayDesktop !== false
         globalForm.displayMobile = data?.displayMobile !== false
         globalForm.displayOpenInNewTab = data?.displayOpenInNewTab === true
+        globalForm.componentSubtitle =
+            String(data?.componentSubtitle || '聚合全平台热点，实时更新').trim() || '聚合全平台热点，实时更新'
+        globalForm.pageEyebrow =
+            String(data?.pageEyebrow || '全网热点速览').trim() || '全网热点速览'
+        globalForm.pageDescription = String(
+            data?.pageDescription ||
+                '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
+        ).trim() || '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
+        globalForm.loadingText = String(data?.loadingText || '热榜加载中...').trim() || '热榜加载中...'
+        globalForm.emptyText = String(data?.emptyText || '暂无数据').trim() || '暂无数据'
+        globalForm.errorText =
+            String(data?.errorText || '热榜数据加载失败，请稍后重试').trim() || '热榜数据加载失败，请稍后重试'
+        globalForm.retryText = String(data?.retryText || '重新加载').trim() || '重新加载'
+        globalForm.refreshText = String(data?.refreshText || '刷新热榜').trim() || '刷新热榜'
+        globalForm.refreshingText = String(data?.refreshingText || '刷新中...').trim() || '刷新中...'
+        globalForm.platformLinkText = String(data?.platformLinkText || '访问平台').trim() || '访问平台'
     } finally {
         globalLoading.value = false
     }
@@ -623,7 +718,22 @@ const handleSaveGlobalConfig = async () => {
             displaySort: toInt(globalForm.displaySort, 90, 1, 9999),
             displayDesktop: globalForm.displayDesktop !== false,
             displayMobile: globalForm.displayMobile !== false,
-            displayOpenInNewTab: globalForm.displayOpenInNewTab === true
+            displayOpenInNewTab: globalForm.displayOpenInNewTab === true,
+            componentSubtitle:
+                String(globalForm.componentSubtitle || '').trim() || '聚合全平台热点，实时更新',
+            pageEyebrow: String(globalForm.pageEyebrow || '').trim() || '全网热点速览',
+            pageDescription:
+                String(globalForm.pageDescription || '').trim()
+                || '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。',
+            loadingText: String(globalForm.loadingText || '').trim() || '热榜加载中...',
+            emptyText: String(globalForm.emptyText || '').trim() || '暂无数据',
+            errorText:
+                String(globalForm.errorText || '').trim() || '热榜数据加载失败，请稍后重试',
+            retryText: String(globalForm.retryText || '').trim() || '重新加载',
+            refreshText: String(globalForm.refreshText || '').trim() || '刷新热榜',
+            refreshingText: String(globalForm.refreshingText || '').trim() || '刷新中...',
+            platformLinkText:
+                String(globalForm.platformLinkText || '').trim() || '访问平台'
         })
         feedback.msgSuccess('全局配置保存成功')
     } finally {

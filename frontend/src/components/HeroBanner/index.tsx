@@ -37,6 +37,7 @@ interface HeroBannerProps {
   onTagClick?: (tag: string) => void;
   searchPlaceholder?: string;
   searchPageType?: string;
+  fallbackHotTags?: string[];
   // 新增：页面特定配置
   pageType?: 'home' | 'ai' | 'uiux' | 'design' | 'search' | 'threed' | 'ecommerce' | 'interior' | 'font';
   customTitle?: string;
@@ -81,6 +82,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   onTagClick,
   searchPlaceholder = "搜索网站名称...",
   searchPageType = '',
+  fallbackHotTags,
   pageType = 'home',
   customTitle,
   customDescription,
@@ -272,6 +274,9 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
 
   // 根据页面类型设置不同的热门搜索标签
   const getHotTags = () => {
+    if (Array.isArray(fallbackHotTags) && fallbackHotTags.length > 0) {
+      return fallbackHotTags;
+    }
     switch (pageType) {
       case 'ai':
         return [

@@ -86,6 +86,16 @@ class DailyHotService extends Service {
       displayDesktop: true,
       displayMobile: true,
       displayOpenInNewTab: false,
+      componentSubtitle: '聚合全平台热点，实时更新',
+      pageEyebrow: '全网热点速览',
+      pageDescription: '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。',
+      loadingText: '热榜加载中...',
+      emptyText: '暂无数据',
+      errorText: '热榜数据加载失败，请稍后重试',
+      retryText: '重新加载',
+      refreshText: '刷新热榜',
+      refreshingText: '刷新中...',
+      platformLinkText: '访问平台',
     };
   }
 
@@ -121,6 +131,14 @@ class DailyHotService extends Service {
     const parsed = Number.parseInt(String(value || ''), 10);
     if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
     return Math.max(min, Math.min(max, parsed));
+  }
+
+  /**
+   * 规范化文本字段
+   */
+  normalizeText(value, fallback = '', maxLength = 200) {
+    const text = String(value || '').trim().slice(0, maxLength);
+    return text || fallback;
   }
 
   /**
@@ -167,7 +185,7 @@ class DailyHotService extends Service {
     const displayPath = rawDisplayPath === '/p/daily-hot' || rawDisplayPath === '/daily-hot'
       ? '/p/hot?tab=daily-hot'
       : (rawDisplayPath || defaults.displayPath);
-    const displayLabel = String(source.displayLabel || defaults.displayLabel).trim() || defaults.displayLabel;
+    const displayLabel = this.normalizeText(source.displayLabel, defaults.displayLabel, 40);
 
     return {
       enabled: this.parseBoolean(source.enabled, defaults.enabled),
@@ -188,6 +206,16 @@ class DailyHotService extends Service {
       displayDesktop: this.parseBoolean(source.displayDesktop, defaults.displayDesktop),
       displayMobile: this.parseBoolean(source.displayMobile, defaults.displayMobile),
       displayOpenInNewTab: this.parseBoolean(source.displayOpenInNewTab, defaults.displayOpenInNewTab),
+      componentSubtitle: this.normalizeText(source.componentSubtitle, defaults.componentSubtitle, 80),
+      pageEyebrow: this.normalizeText(source.pageEyebrow, defaults.pageEyebrow, 40),
+      pageDescription: this.normalizeText(source.pageDescription, defaults.pageDescription, 200),
+      loadingText: this.normalizeText(source.loadingText, defaults.loadingText, 80),
+      emptyText: this.normalizeText(source.emptyText, defaults.emptyText, 80),
+      errorText: this.normalizeText(source.errorText, defaults.errorText, 120),
+      retryText: this.normalizeText(source.retryText, defaults.retryText, 30),
+      refreshText: this.normalizeText(source.refreshText, defaults.refreshText, 30),
+      refreshingText: this.normalizeText(source.refreshingText, defaults.refreshingText, 30),
+      platformLinkText: this.normalizeText(source.platformLinkText, defaults.platformLinkText, 30),
       updatedAt: Math.floor(Date.now() / 1000),
     };
   }
@@ -456,6 +484,16 @@ class DailyHotService extends Service {
         { key: 'displayDesktop', type: 'switch', label: '桌面端显示', required: true, defaultValue: true },
         { key: 'displayMobile', type: 'switch', label: '移动端显示', required: true, defaultValue: true },
         { key: 'displayOpenInNewTab', type: 'switch', label: '新窗口打开', required: true, defaultValue: false },
+        { key: 'componentSubtitle', type: 'input', label: '组件副标题', required: false, defaultValue: '聚合全平台热点，实时更新' },
+        { key: 'pageEyebrow', type: 'input', label: '页面角标', required: false, defaultValue: '全网热点速览' },
+        { key: 'pageDescription', type: 'textarea', label: '页面描述', required: false, defaultValue: '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。' },
+        { key: 'loadingText', type: 'input', label: '加载提示', required: false, defaultValue: '热榜加载中...' },
+        { key: 'emptyText', type: 'input', label: '空数据提示', required: false, defaultValue: '暂无数据' },
+        { key: 'errorText', type: 'input', label: '失败提示', required: false, defaultValue: '热榜数据加载失败，请稍后重试' },
+        { key: 'retryText', type: 'input', label: '重试按钮文案', required: false, defaultValue: '重新加载' },
+        { key: 'refreshText', type: 'input', label: '刷新按钮文案', required: false, defaultValue: '刷新热榜' },
+        { key: 'refreshingText', type: 'input', label: '刷新中按钮文案', required: false, defaultValue: '刷新中...' },
+        { key: 'platformLinkText', type: 'input', label: '平台外链文案', required: false, defaultValue: '访问平台' },
       ],
       platformFields: [
         { key: 'platformTitle', type: 'input', label: '平台标题', required: true, remark: '需与第三方接口 title 参数一致' },

@@ -428,6 +428,16 @@ export const getDailyHotDisplayConfig = async (refresh = false): Promise<DailyHo
     displayDesktop: true,
     displayMobile: true,
     displayOpenInNewTab: false,
+    componentSubtitle: '聚合全平台热点，实时更新',
+    pageEyebrow: '全网热点速览',
+    pageDescription: '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。',
+    loadingText: '热榜加载中...',
+    emptyText: '暂无数据',
+    errorText: '热榜数据加载失败，请稍后重试',
+    retryText: '重新加载',
+    refreshText: '刷新热榜',
+    refreshingText: '刷新中...',
+    platformLinkText: '访问平台',
     updatedAt: 0,
   };
 

@@ -62,5 +62,15 @@ export interface DailyHotDisplayConfig {
   displayDesktop: boolean;
   displayMobile: boolean;
   displayOpenInNewTab: boolean;
+  componentSubtitle?: string;
+  pageEyebrow?: string;
+  pageDescription?: string;
+  loadingText?: string;
+  emptyText?: string;
+  errorText?: string;
+  retryText?: string;
+  refreshText?: string;
+  refreshingText?: string;
+  platformLinkText?: string;
   updatedAt: number;
 }

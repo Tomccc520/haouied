@@ -178,6 +178,19 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
     const label = String(displayConfig?.displayLabel || '').trim();
     return label || '每日热榜';
   }, [displayConfig?.displayLabel]);
+  const pageEyebrow = String(displayConfig?.pageEyebrow || '全网热点速览').trim() || '全网热点速览';
+  const pageDescription = String(
+    displayConfig?.pageDescription
+      || '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
+  ).trim() || '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。';
+  const loadingText = String(displayConfig?.loadingText || '热榜加载中...').trim() || '热榜加载中...';
+  const emptyText = String(displayConfig?.emptyText || '暂无数据').trim() || '暂无数据';
+  const errorText = String(displayConfig?.errorText || '热榜数据加载失败，请稍后重试').trim()
+    || '热榜数据加载失败，请稍后重试';
+  const retryText = String(displayConfig?.retryText || '重新加载').trim() || '重新加载';
+  const refreshText = String(displayConfig?.refreshText || '刷新热榜').trim() || '刷新热榜';
+  const refreshingText = String(displayConfig?.refreshingText || '刷新中...').trim() || '刷新中...';
+  const platformLinkText = String(displayConfig?.platformLinkText || '访问平台').trim() || '访问平台';
 
   const openInNewTab = displayConfig?.displayOpenInNewTab === true;
   const linkTarget = openInNewTab ? '_blank' : undefined;
@@ -235,7 +248,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
         setPlatforms([]);
         setSections([]);
         setLastUpdated('');
-        setError('热榜页当前已在后台关闭展示，可在“网站详情页配置”里重新开启。');
+        setError('热榜页当前已在后台关闭展示，可在“每日热榜配置中心”里重新开启。');
         return;
       }
 
@@ -322,7 +335,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
 
       setSections(nextSections);
       if (nextSections.every((section) => section.items.length === 0)) {
-        setError('热榜源暂时无数据（或接口限流），可稍后刷新重试。');
+        setError(emptyText);
       }
 
       setLastUpdated(
@@ -333,13 +346,13 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
       );
     } catch (fetchError) {
       console.error('加载每日热榜页面失败:', fetchError);
-      setError('热榜数据加载失败，请稍后重试');
+      setError(errorText);
       setSections([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [emptyText, errorText]);
 
   /**
    * 初始化加载每日热榜页面
@@ -373,10 +386,10 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
       <div className="daily-hot-page__container">
         <header className="daily-hot-page__hero">
           <div className="daily-hot-page__hero-content">
-            <div className="daily-hot-page__eyebrow">全网热点速览</div>
+            <div className="daily-hot-page__eyebrow">{pageEyebrow}</div>
             <h1 className="daily-hot-page__title">{pageTitle}</h1>
             <p className="daily-hot-page__desc">
-              保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。
+              {pageDescription}
             </p>
             <div className="daily-hot-page__meta">
               <span className="daily-hot-page__meta-chip">平台数 {sectionPlatforms.length}</span>
@@ -391,7 +404,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
             onClick={() => fetchPageData(true)}
             disabled={refreshing}
           >
-            {refreshing ? '刷新中...' : '刷新热榜'}
+            {refreshing ? refreshingText : refreshText}
           </button>
         </header>
 
@@ -402,7 +415,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
         )}
 
         {loading ? (
-          <div className="daily-hot-page__state">热榜加载中...</div>
+          <div className="daily-hot-page__state">{loadingText}</div>
         ) : error ? (
           <div className="daily-hot-page__state daily-hot-page__state--error">
             <div className="daily-hot-page__error-title">{isPageDisabled ? '页面已关闭' : '加载失败'}</div>
@@ -413,7 +426,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
                 className="daily-hot-page__retry"
                 onClick={() => fetchPageData(true)}
               >
-                重新加载
+                {retryText}
               </button>
             )}
           </div>
@@ -456,7 +469,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
                       rel={linkRel}
                       className="daily-hot-page__platform-source-link"
                     >
-                      访问平台
+                      {platformLinkText}
                     </a>
                   )}
                 </header>
@@ -493,7 +506,7 @@ const DailyHotPage: React.FC<DailyHotPageProps> = ({ embedded = false }) => {
                     ))}
                   </ol>
                 ) : (
-                  <div className="daily-hot-page__empty">该平台暂时没有可展示数据，稍后刷新试试。</div>
+                  <div className="daily-hot-page__empty">{emptyText}</div>
                 )}
               </article>
             ))}
