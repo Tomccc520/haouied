@@ -316,6 +316,36 @@
                                             留空时将自动使用「AI 助手管理 -> 导入配置」中“批量导入文章”的默认模型与提示词。
                                         </div>
                                         <el-form-item
+                                            label="提示词预设"
+                                            label-width="88px"
+                                            class="mb-3"
+                                        >
+                                            <div class="flex w-full gap-2">
+                                                <el-select
+                                                    v-model="selectedBatchAiArticlePresetId"
+                                                    class="flex-1"
+                                                    placeholder="选择文章生成预设模板"
+                                                    clearable
+                                                    filterable
+                                                    :loading="batchAiArticlePresetLoading"
+                                                    :disabled="batchWechatImportLoading"
+                                                >
+                                                    <el-option
+                                                        v-for="item in batchAiArticlePresetOptions"
+                                                        :key="item.id"
+                                                        :label="item.description ? `${item.name} · ${item.description}` : item.name"
+                                                        :value="item.id"
+                                                    />
+                                                </el-select>
+                                                <el-button
+                                                    :disabled="!selectedBatchAiArticlePresetId || batchWechatImportLoading"
+                                                    @click="handleApplyBatchAiArticlePreset"
+                                                >
+                                                    应用预设
+                                                </el-button>
+                                            </div>
+                                        </el-form-item>
+                                        <el-form-item
                                             label="模型覆盖"
                                             label-width="88px"
                                             class="mb-3"
@@ -736,6 +766,7 @@ import {
     articleTagAll,
     articleTopicAll
 } from '@/api/article'
+import { uiedAiImportTemplatePresetsGet } from '@/api/uied'
 import { getAuthorUserOptions } from '@/api/consumer'
 import { useDictOptions } from '@/hooks/useDictOptions'
 import { usePaging } from '@/hooks/usePaging'
@@ -781,6 +812,16 @@ interface BatchWechatImportResultRow {
     reason?: string
 }
 
+interface ImportTemplatePresetItem {
+    id: string
+    name: string
+    description: string
+    model: string
+    promptTemplate: string
+    enabled: boolean
+    sort: number
+}
+
 type BatchEditStatusValue = 0 | 1
 
 const queryParams = reactive({
@@ -799,6 +840,10 @@ const batchWechatImportLoading = ref(false)
 const batchWechatImportAuthorKeyword = ref('')
 const batchWechatImportAuthorLoading = ref(false)
 const batchWechatImportAuthorOptions = ref<AuthorOptionItem[]>([])
+const batchAiArticlePresetLoading = ref(false)
+const batchAiArticlePresetLoaded = ref(false)
+const batchAiArticlePresetOptions = ref<ImportTemplatePresetItem[]>([])
+const selectedBatchAiArticlePresetId = ref('')
 const batchWechatImportResult = ref<{
     created: number
     failed: number
@@ -891,11 +936,14 @@ const batchArticleImportLoadingText = computed(() =>
  */
 watch(
     () => batchWechatImportForm.mode,
-    () => {
+    async () => {
         batchWechatImportResult.value = null
         if (batchWechatImportForm.mode !== 'aiGenerate') {
             batchAiGenerateAdvancedPanels.value = []
+            selectedBatchAiArticlePresetId.value = ''
+            return
         }
+        await loadBatchAiArticlePresets()
     }
 )
 const batchEditDialogVisible = ref(false)
@@ -1208,6 +1256,7 @@ const openBatchWechatImportDialog = () => {
     batchWechatImportDialogVisible.value = true
     batchWechatImportResult.value = null
     batchAiGenerateAdvancedPanels.value = []
+    selectedBatchAiArticlePresetId.value = ''
     batchWechatImportForm.mode = 'wechatImport'
     batchWechatImportForm.cid = ''
     batchWechatImportForm.author = ''
@@ -1218,6 +1267,64 @@ const openBatchWechatImportDialog = () => {
     batchWechatImportForm.status = 'draft'
     batchWechatImportForm.aiEnabled = false
     fetchBatchImportAuthorOptions('')
+}
+
+/**
+ * 规范化“文章导入模板库”预设列表，只保留启用项并统一字段。
+ */
+const normalizeBatchAiArticlePresetList = (payload: any): ImportTemplatePresetItem[] => {
+    const source = Array.isArray(payload?.article) ? payload.article : []
+    return source
+        .map((item: any, index: number) => ({
+            id: String(item?.id || `article_preset_${index + 1}`).trim(),
+            name: String(item?.name || `模板 ${index + 1}`).trim(),
+            description: String(item?.description || '').trim(),
+            model: String(item?.model || '').trim(),
+            promptTemplate: String(item?.promptTemplate || '').trim(),
+            enabled: item?.enabled !== false,
+            sort: Number.isFinite(Number(item?.sort)) ? Number(item?.sort) : (index + 1) * 10
+        }))
+        .filter((item) => item.enabled !== false && item.promptTemplate)
+        .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+}
+
+/**
+ * 加载“文章导入模板库”预设，复用 AI 助手管理中的统一模板配置。
+ */
+const loadBatchAiArticlePresets = async (force = false) => {
+    if (batchAiArticlePresetLoading.value) return
+    if (!force && batchAiArticlePresetLoaded.value) return
+    batchAiArticlePresetLoading.value = true
+    try {
+        const res: any = await uiedAiImportTemplatePresetsGet()
+        batchAiArticlePresetOptions.value = normalizeBatchAiArticlePresetList(res?.data || res || {})
+        batchAiArticlePresetLoaded.value = true
+    } catch (error: any) {
+        batchAiArticlePresetOptions.value = []
+        batchAiArticlePresetLoaded.value = false
+        feedback.msgWarning(error?.msg || error?.message || '获取文章生成模板库失败')
+    } finally {
+        batchAiArticlePresetLoading.value = false
+    }
+}
+
+/**
+ * 应用“文章导入模板库”预设到当前批量 AI 生成表单。
+ */
+const handleApplyBatchAiArticlePreset = () => {
+    const presetId = String(selectedBatchAiArticlePresetId.value || '').trim()
+    if (!presetId) {
+        feedback.msgWarning('请先选择提示词预设')
+        return
+    }
+    const matched = batchAiArticlePresetOptions.value.find((item) => item.id === presetId)
+    if (!matched) {
+        feedback.msgWarning('未找到对应预设，请重新选择')
+        return
+    }
+    batchWechatImportForm.aiModel = String(matched.model || '').trim()
+    batchWechatImportForm.aiPromptTemplate = String(matched.promptTemplate || '').trim()
+    feedback.msgSuccess(`已应用预设：${matched.name}`)
 }
 
 /**

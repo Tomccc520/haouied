@@ -68,6 +68,7 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', scope: 'backend', text: '【文章管理】批量导入弹窗新增“处理方式”下拉切换：支持在“公众号链接导入”与“批量AI生成文章”之间直接切换，沿用现有栏目、作者、状态、标签与专题配置，降低后台运营批量产文门槛' },
       { type: 'feature', scope: 'fullstack', text: '【AI文章生成】新增 `POST /api/article/import/ai/batch` 接口：支持每行一个文章选题逐篇调用默认 AI 模型生成标题、导语、摘要与 HTML 正文，并直接入库返回新增/失败统计与逐条结果明细' },
       { type: 'improve', scope: 'backend', text: '【AI文章生成】批量生成模式补充“高级AI配置（可选）”折叠区：支持临时覆盖模型与提示词模板，留空时自动回退到「AI 助手管理 -> 导入配置」默认值，兼顾运营灵活性与日常简洁操作' },
+      { type: 'improve', scope: 'backend', text: '【AI文章生成】批量生成模式新增“提示词预设”下拉：直接复用「AI 助手管理」里维护的文章导入模板库，一键带入模型与提示词，不再额外维护本地硬编码模板' },
       { type: 'improve', scope: 'frontend', text: '【安装向导】重构 /install 为“授权校验 -> 数据库测试 -> 初始化安装”三步工作台，步骤切换不再跳转锚点，视觉重心统一回归安装流程，适配正式售卖版首次部署体验' },
       { type: 'fix', scope: 'frontend', text: '【外观配置字体】修复后台“外观配置 -> 主字体”保存后前台无变化的问题：前台根路由补齐公开外观配置全局应用，主字体、主题色等变量会在进入站点时同步写入 :root，全站标题/导航/正文统一跟随后台设置生效' },
       { type: 'fix', scope: 'frontend', text: '【左侧菜单跟随】动态频道页侧栏恢复桌面端吸顶跟随（CSS sticky），滚动时保持可见且不再脱离主内容区' },
