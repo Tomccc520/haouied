@@ -1691,6 +1691,10 @@ class ArticleService extends Service {
     const tagIds = this.normalizeBatchImportArticleTagIds(payload.tagIds);
     const aiModelOverride = String(payload.aiModel || '').trim();
     const aiPromptTemplateOverride = String(payload.aiPromptTemplate || '').trim();
+    const aiTemplateName = String(payload.aiTemplateName || '').trim();
+    const aiTemplateId = String(payload.aiTemplateId || '').trim();
+    const templateNameForResult = aiTemplateName
+      || (aiTemplateId ? '已选预设模板' : (aiPromptTemplateOverride ? '自定义提示词' : '默认模板'));
 
     if (!Number.isInteger(cid) || cid <= 0) {
       throw new Error('请选择文章栏目');
@@ -1739,12 +1743,16 @@ class ArticleService extends Service {
           url: topic,
           articleId,
           title: finalTitle,
+          templateName: templateNameForResult,
+          modelName: String(generatedArticle?.model || '').trim(),
           reason: generatedArticle?.model ? `生成成功（模型：${generatedArticle.model}）` : '生成成功',
         });
       } catch (error) {
         rows.push({
           status: 'failed',
           url: topic,
+          templateName: templateNameForResult,
+          modelName: aiModelOverride || '',
           reason: String(error?.message || 'AI 生成失败').trim(),
         });
       }

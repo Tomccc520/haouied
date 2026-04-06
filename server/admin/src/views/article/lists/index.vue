@@ -410,6 +410,14 @@
                         <el-table-column label="标题" min-width="180" show-overflow-tooltip>
                             <template #default="{ row }">{{ row.title || '-' }}</template>
                         </el-table-column>
+                        <el-table-column
+                            v-if="batchWechatImportForm.mode === 'aiGenerate'"
+                            label="模板/模型"
+                            min-width="220"
+                            show-overflow-tooltip
+                        >
+                            <template #default="{ row }">{{ formatBatchAiMetaText(row) }}</template>
+                        </el-table-column>
                         <el-table-column label="说明" min-width="240" show-overflow-tooltip>
                             <template #default="{ row }">{{ row.reason || '-' }}</template>
                         </el-table-column>
@@ -810,6 +818,8 @@ interface BatchWechatImportResultRow {
     articleId?: number
     title?: string
     reason?: string
+    templateName?: string
+    modelName?: string
 }
 
 interface ImportTemplatePresetItem {
@@ -1340,8 +1350,22 @@ const normalizeBatchWechatImportRows = (rows: any): BatchWechatImportResultRow[]
                 ? Number(item?.articleId)
                 : undefined,
         title: String(item?.title || '').trim(),
-        reason: String(item?.reason || '').trim()
+        reason: String(item?.reason || '').trim(),
+        templateName: String(item?.templateName || '').trim(),
+        modelName: String(item?.modelName || item?.aiModelUsed || '').trim()
     }))
+}
+
+/**
+ * 格式化批量 AI 结果中的“模板/模型”展示文本。
+ */
+const formatBatchAiMetaText = (row: BatchWechatImportResultRow) => {
+    const templateName = String(row?.templateName || '').trim()
+    const modelName = String(row?.modelName || '').trim()
+    if (templateName && modelName) return `${templateName} / ${modelName}`
+    if (templateName) return `${templateName} / -`
+    if (modelName) return `- / ${modelName}`
+    return '-'
 }
 
 /**
@@ -1352,6 +1376,9 @@ const handleBatchWechatImportSubmit = async () => {
     const author = String(batchWechatImportForm.author || '').trim()
     const urlsText = String(batchWechatImportForm.urlsText || '').trim()
     const topicsText = String(batchWechatImportForm.topicsText || '').trim()
+    const matchedAiPreset = batchAiArticlePresetOptions.value.find(
+        (item) => item.id === String(selectedBatchAiArticlePresetId.value || '').trim()
+    )
     if (!Number.isInteger(cid) || cid <= 0) {
         feedback.msgWarning('请选择文章栏目')
         return
@@ -1377,7 +1404,9 @@ const handleBatchWechatImportSubmit = async () => {
                 topics: topicsText,
                 status: batchWechatImportForm.status,
                 aiModel: String(batchWechatImportForm.aiModel || '').trim(),
-                aiPromptTemplate: String(batchWechatImportForm.aiPromptTemplate || '').trim()
+                aiPromptTemplate: String(batchWechatImportForm.aiPromptTemplate || '').trim(),
+                aiTemplateId: String(selectedBatchAiArticlePresetId.value || '').trim(),
+                aiTemplateName: String(matchedAiPreset?.name || '').trim()
             })
             : await articleImportWechatBatch({
                 cid,
