@@ -942,6 +942,23 @@ class ArticleController extends baseController {
       this.result({ data: {}, message: err.message || '批量导入失败', code: 300 });
     }
   }
+
+  /**
+   * 批量 AI 生成文章（按选题逐篇生成并入库）
+   */
+  async generateAiBatch() {
+    const { ctx } = this;
+    try {
+      const body = ctx.request.body || {};
+      const data = await ctx.service.article.generateAiBatch(body);
+      this.result({
+        data,
+        message: `生成完成：新增 ${Number(data?.created || 0)} 条，失败 ${Number(data?.failed || 0)} 条`,
+      });
+    } catch (err) {
+      this.result({ data: {}, message: err.message || '批量AI生成失败', code: 300 });
+    }
+  }
 }
 
 module.exports = ArticleController;

@@ -1305,6 +1305,165 @@ class ArticleService extends Service {
   }
 
   /**
+   * 解析“批量AI生成文章”输入选题（每行一个，自动去重）
+   */
+  normalizeAiBatchGenerateTopics(rawValue = '') {
+    const topics = String(rawValue || '')
+      .split(/[\n\r]+/g)
+      .map(item => String(item || '').replace(/^[•·\-\d.\s]+/, '').trim())
+      .filter(Boolean);
+    const uniqueTopics = [];
+    const seen = new Set();
+    for (const topic of topics) {
+      if (seen.has(topic)) continue;
+      seen.add(topic);
+      uniqueTopics.push(topic.slice(0, 120));
+      if (uniqueTopics.length >= 50) break;
+    }
+    return uniqueTopics;
+  }
+
+  /**
+   * 构建“批量AI生成文章”提示词
+   * 可用占位符：{topic}
+   */
+  buildAiBatchGeneratePrompt(topic = '', promptTemplate = '') {
+    const defaultTemplate = `请围绕以下选题生成一篇可直接发布的中文文章，并直接返回 JSON，不要输出解释文字、不要输出 Markdown 代码块。
+
+选题：{topic}
+
+返回 JSON 结构如下（必须是有效 JSON）：
+{
+  "title": "文章标题（18-32字）",
+  "intro": "文章导语（50-120字）",
+  "summary": "文章摘要（80-160字）",
+  "content": "<p>可直接发布的 HTML 正文</p>"
+}
+
+要求：
+1. 文章结构清晰，适合设计、产品、AI工具、互联网运营类内容站发布；
+2. content 必须返回 HTML，至少包含 3 个小节，可使用 h2/h3、p、ul、li、blockquote；
+3. 不编造明确的统计数据、价格、下载量、发布日期等高风险事实；
+4. 内容长度建议 800-1800 字；
+5. 标题、导语、摘要、正文彼此一致，不要返回空字段。`;
+    const template = String(promptTemplate || '').trim() || defaultTemplate;
+    return template.replace(/\{topic\}/g, String(topic || '').trim());
+  }
+
+  /**
+   * 从 AI 返回文本中提取 JSON 片段
+   */
+  extractJsonTextFromAiContent(content = '') {
+    const raw = String(content || '').trim();
+    if (!raw) return '';
+    const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fencedMatch && String(fencedMatch[1] || '').trim()) {
+      return String(fencedMatch[1] || '').trim();
+    }
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      return raw;
+    }
+    const objectMatch = raw.match(/\{[\s\S]*\}/);
+    if (objectMatch && String(objectMatch[0] || '').trim()) {
+      return String(objectMatch[0] || '').trim();
+    }
+    return '';
+  }
+
+  /**
+   * 解析 AI 生成的文章结构，兼容 JSON / 纯 HTML 两种返回
+   */
+  parseAiGeneratedArticlePayload(content = '', topic = '') {
+    const raw = String(content || '').trim();
+    if (!raw) {
+      throw new Error('AI 返回内容为空');
+    }
+    const jsonText = this.extractJsonTextFromAiContent(raw);
+    if (jsonText) {
+      const parsed = JSON.parse(jsonText);
+      const parsedContent = String(parsed?.content || '').trim()
+        .replace(/^```html?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      if (!parsedContent) {
+        throw new Error('AI 生成正文为空');
+      }
+      return {
+        title: String(parsed?.title || '').trim() || String(topic || '').trim(),
+        intro: String(parsed?.intro || '').trim(),
+        summary: String(parsed?.summary || '').trim(),
+        content: parsedContent,
+        image: String(parsed?.image || '').trim(),
+      };
+    }
+    if (/<(?:p|div|section|article|h2|h3|ul|ol|li|blockquote)\b/i.test(raw)) {
+      return {
+        title: String(topic || '').trim(),
+        intro: '',
+        summary: '',
+        content: raw.replace(/^```html?\s*/i, '').replace(/\s*```$/i, '').trim(),
+        image: '',
+      };
+    }
+    throw new Error('AI 返回结果无法解析为文章结构');
+  }
+
+  /**
+   * 基于单个选题生成文章内容
+   */
+  async generateArticleByAiTopic(topic = '', options = {}) {
+    const { ctx } = this;
+    const safeTopic = String(topic || '').trim();
+    if (!safeTopic) {
+      throw new Error('文章选题不能为空');
+    }
+    const aiService = ctx.service.uied.aiConfig;
+    const config = await aiService.getDefault();
+    if (!config) {
+      throw new Error('没有可用的 AI 配置，请先在 AI 助手管理中启用默认模型');
+    }
+
+    let modelOverride = String(options?.modelOverride || '').trim();
+    if (!modelOverride) {
+      try {
+        const importConfig = await aiService.getImportConfig();
+        modelOverride = String(importConfig?.articleBatchImport?.model || '').trim();
+      } catch (error) {
+        ctx.logger.warn(`[article.generateArticleByAiTopic] 读取文章导入AI模型失败: ${error?.message || error}`);
+      }
+    }
+
+    const requestUrl = aiService.resolveChatApiUrl(config.provider, config.apiUrl);
+    const requestModel = aiService.resolveChatModel(config.provider, modelOverride || config.model);
+    const prompt = this.buildAiBatchGeneratePrompt(
+      safeTopic,
+      String(options?.promptTemplateOverride || '').trim()
+    );
+    const response = await aiService.requestChatCompletions({
+      url: requestUrl,
+      apiKey: config.apiKey,
+      data: aiService.buildChatRequestData(config, {
+        model: requestModel,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.85,
+        max_tokens: 2600,
+      }),
+      timeout: 90000,
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`AI 请求失败（HTTP ${response.status || 500}）`);
+    }
+
+    const rawContent = String(response?.data?.choices?.[0]?.message?.content || '').trim();
+    const parsed = this.parseAiGeneratedArticlePayload(rawContent, safeTopic);
+    return {
+      ...parsed,
+      model: requestModel,
+    };
+  }
+
+  /**
    * 构建“批量导入文章 AI 润色”提示词。
    * 可用占位符：{title} {intro} {content} {author} {sourceUrl}
    */
@@ -1505,6 +1664,88 @@ class ArticleService extends Service {
           status: 'failed',
           url: articleUrl,
           reason: String(error?.message || '导入失败').trim(),
+        });
+      }
+    }
+
+    const created = rows.filter(item => item.status === 'created').length;
+    const failed = rows.filter(item => item.status === 'failed').length;
+    return {
+      total: rows.length,
+      created,
+      failed,
+      rows,
+    };
+  }
+
+  /**
+   * 批量 AI 生成文章（按选题逐篇生成并入库）
+   */
+  async generateAiBatch(payload = {}) {
+    const topics = this.normalizeAiBatchGenerateTopics(payload.topics);
+    const cid = Number.parseInt(String(payload.cid || 0), 10);
+    const author = String(payload.author || '').trim();
+    const isShow = this.normalizeBatchImportArticleStatus(payload.status);
+    const topicId = Number.parseInt(String(payload.topicId || 0), 10);
+    const normalizedTopicId = Number.isInteger(topicId) && topicId > 0 ? topicId : 0;
+    const tagIds = this.normalizeBatchImportArticleTagIds(payload.tagIds);
+    const aiModelOverride = String(payload.aiModel || '').trim();
+    const aiPromptTemplateOverride = String(payload.aiPromptTemplate || '').trim();
+
+    if (!Number.isInteger(cid) || cid <= 0) {
+      throw new Error('请选择文章栏目');
+    }
+    if (!author) {
+      throw new Error('请选择作者');
+    }
+    if (!topics.length) {
+      throw new Error('请至少输入一个文章选题');
+    }
+
+    const rows = [];
+    for (const topic of topics) {
+      try {
+        const generatedArticle = await this.generateArticleByAiTopic(topic, {
+          modelOverride: aiModelOverride || undefined,
+          promptTemplateOverride: aiPromptTemplateOverride || undefined,
+        });
+        const finalContent = String(generatedArticle?.content || '').trim();
+        if (!finalContent) {
+          throw new Error('AI 生成正文为空');
+        }
+        const finalTitle = String(generatedArticle?.title || '').trim() || topic;
+        const finalIntro = String(generatedArticle?.intro || '').trim()
+          || this.stripHtmlTags(finalContent).slice(0, 120);
+        const finalSummary = String(generatedArticle?.summary || '').trim()
+          || String(finalIntro || '').slice(0, 200);
+        const finalImage = String(generatedArticle?.image || '').trim()
+          || this.extractFirstImageFromContent(finalContent);
+        const articleId = await this.add({
+          cid,
+          title: finalTitle,
+          intro: finalIntro,
+          summary: finalSummary,
+          image: finalImage,
+          content: finalContent,
+          author,
+          tagIds,
+          topicId: normalizedTopicId,
+          isShow,
+          visit: 0,
+          sort: 0,
+        });
+        rows.push({
+          status: 'created',
+          url: topic,
+          articleId,
+          title: finalTitle,
+          reason: generatedArticle?.model ? `生成成功（模型：${generatedArticle.model}）` : '生成成功',
+        });
+      } catch (error) {
+        rows.push({
+          status: 'failed',
+          url: topic,
+          reason: String(error?.message || 'AI 生成失败').trim(),
         });
       }
     }

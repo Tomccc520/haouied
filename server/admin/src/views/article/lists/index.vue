@@ -198,16 +198,26 @@
 
             <el-dialog
                 v-model="batchWechatImportDialogVisible"
-                title="批量导入公众号文章"
+                :title="batchArticleImportDialogTitle"
                 width="860px"
                 :close-on-click-modal="!batchWechatImportLoading"
                 destroy-on-close
             >
                 <div
                     v-loading="batchWechatImportLoading"
-                    element-loading-text="正在批量导入文章，请稍候..."
+                    :element-loading-text="batchArticleImportLoadingText"
                 >
                     <el-form :model="batchWechatImportForm" label-width="120px">
+                        <el-form-item label="处理方式" required>
+                            <el-select
+                                v-model="batchWechatImportForm.mode"
+                                style="width: 100%"
+                                :disabled="batchWechatImportLoading"
+                            >
+                                <el-option label="公众号链接导入" value="wechatImport" />
+                                <el-option label="批量AI生成文章" value="aiGenerate" />
+                            </el-select>
+                        </el-form-item>
                         <el-form-item label="文章栏目" required>
                             <el-select
                                 v-model="batchWechatImportForm.cid"
@@ -251,12 +261,12 @@
                                 </el-option>
                             </el-select>
                         </el-form-item>
-                        <el-form-item label="公众号链接" required>
+                        <el-form-item :label="batchArticleImportTextareaLabel" required>
                             <el-input
-                                v-model="batchWechatImportForm.urlsText"
+                                v-model="batchArticleImportTextareaValue"
                                 type="textarea"
                                 :rows="8"
-                                placeholder="每行一个公众号链接（https://mp.weixin.qq.com/...)"
+                                :placeholder="batchArticleImportTextareaPlaceholder"
                                 :disabled="batchWechatImportLoading"
                             />
                         </el-form-item>
@@ -269,7 +279,10 @@
                                 <el-radio-button label="published">发布</el-radio-button>
                             </el-radio-group>
                         </el-form-item>
-                        <el-form-item label="导入选项">
+                        <el-form-item
+                            v-if="batchWechatImportForm.mode === 'wechatImport'"
+                            label="导入选项"
+                        >
                             <el-checkbox
                                 v-model="batchWechatImportForm.aiEnabled"
                                 :disabled="batchWechatImportLoading"
@@ -283,6 +296,14 @@
                                 模型与提示词请在「AI 助手管理 -> 导入配置」中统一设置。
                             </div>
                         </el-form-item>
+                        <el-form-item
+                            v-else
+                            label="生成说明"
+                        >
+                            <div class="text-xs text-gray-500 leading-6">
+                                每行输入一个文章选题、标题方向或关键词，系统会逐篇调用默认 AI 模型生成完整文章并直接入库。
+                            </div>
+                        </el-form-item>
                     </el-form>
 
                     <el-alert
@@ -290,7 +311,7 @@
                         class="mt-2"
                         type="info"
                         :closable="false"
-                        :title="`导入结果：新增 ${batchWechatImportResult.created} 条，失败 ${batchWechatImportResult.failed} 条`"
+                        :title="`${batchArticleImportResultLabel}：新增 ${batchWechatImportResult.created} 条，失败 ${batchWechatImportResult.failed} 条`"
                     />
                     <el-table
                         v-if="batchWechatImportResult && batchWechatImportResult.rows.length > 0"
@@ -307,7 +328,7 @@
                                 </el-tag>
                             </template>
                         </el-table-column>
-                        <el-table-column label="链接" min-width="260" show-overflow-tooltip>
+                        <el-table-column :label="batchArticleImportSourceLabel" min-width="260" show-overflow-tooltip>
                             <template #default="{ row }">{{ row.url || '-' }}</template>
                         </el-table-column>
                         <el-table-column label="文章ID" width="96">
@@ -331,7 +352,7 @@
                         :disabled="batchWechatImportLoading"
                         @click="handleBatchWechatImportSubmit"
                     >
-                        开始导入
+                        {{ batchArticleImportActionText }}
                     </el-button>
                 </template>
             </el-dialog>
@@ -667,6 +688,7 @@ import {
     articleStatus,
     articleFrontAudit,
     articleImportWechatBatch,
+    articleGenerateAiBatch,
     articleCateAll,
     articleTagAll,
     articleTopicAll
@@ -740,12 +762,93 @@ const batchWechatImportResult = ref<{
     rows: BatchWechatImportResultRow[]
 } | null>(null)
 const batchWechatImportForm = reactive({
+    mode: 'wechatImport' as 'wechatImport' | 'aiGenerate',
     cid: '' as number | string,
     author: '',
     urlsText: '',
+    topicsText: '',
     status: 'draft',
     aiEnabled: false
 })
+
+/**
+ * 批量处理弹窗标题
+ */
+const batchArticleImportDialogTitle = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate' ? '批量AI生成文章' : '批量导入公众号文章'
+)
+
+/**
+ * 批量处理主输入框标签
+ */
+const batchArticleImportTextareaLabel = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate' ? '文章选题' : '公众号链接'
+)
+
+/**
+ * 批量处理主输入框占位文案
+ */
+const batchArticleImportTextareaPlaceholder = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate'
+        ? '每行一个文章选题、标题方向或关键词，例如：\\nAI设计工具推荐\\nFigma插件清单\\n设计师如何用DeepSeek提效'
+        : '每行一个公众号链接（https://mp.weixin.qq.com/...)'
+)
+
+/**
+ * 批量处理主输入框值（根据模式切换到不同字段）
+ */
+const batchArticleImportTextareaValue = computed({
+    get: () => (batchWechatImportForm.mode === 'aiGenerate'
+        ? batchWechatImportForm.topicsText
+        : batchWechatImportForm.urlsText),
+    set: (value: string) => {
+        if (batchWechatImportForm.mode === 'aiGenerate') {
+            batchWechatImportForm.topicsText = value
+            return
+        }
+        batchWechatImportForm.urlsText = value
+    }
+})
+
+/**
+ * 批量处理结果总览文案
+ */
+const batchArticleImportResultLabel = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate' ? '生成结果' : '导入结果'
+)
+
+/**
+ * 批量处理明细首列标题
+ */
+const batchArticleImportSourceLabel = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate' ? '选题' : '链接'
+)
+
+/**
+ * 批量处理确认按钮文案
+ */
+const batchArticleImportActionText = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate' ? '开始生成' : '开始导入'
+)
+
+/**
+ * 批量处理执行中的加载文案
+ */
+const batchArticleImportLoadingText = computed(() =>
+    batchWechatImportForm.mode === 'aiGenerate'
+        ? '正在批量生成文章，请稍候...'
+        : '正在批量导入文章，请稍候...'
+)
+
+/**
+ * 处理模式切换时清理上一次结果，避免不同模式间残留误导。
+ */
+watch(
+    () => batchWechatImportForm.mode,
+    () => {
+        batchWechatImportResult.value = null
+    }
+)
 const batchEditDialogVisible = ref(false)
 const batchEditLoading = ref(false)
 const batchEditForm = reactive({
@@ -1055,9 +1158,11 @@ const handlePurge = async (id: number) => {
 const openBatchWechatImportDialog = () => {
     batchWechatImportDialogVisible.value = true
     batchWechatImportResult.value = null
+    batchWechatImportForm.mode = 'wechatImport'
     batchWechatImportForm.cid = ''
     batchWechatImportForm.author = ''
     batchWechatImportForm.urlsText = ''
+    batchWechatImportForm.topicsText = ''
     batchWechatImportForm.status = 'draft'
     batchWechatImportForm.aiEnabled = false
     fetchBatchImportAuthorOptions('')
@@ -1087,6 +1192,7 @@ const handleBatchWechatImportSubmit = async () => {
     const cid = Number(batchWechatImportForm.cid || 0)
     const author = String(batchWechatImportForm.author || '').trim()
     const urlsText = String(batchWechatImportForm.urlsText || '').trim()
+    const topicsText = String(batchWechatImportForm.topicsText || '').trim()
     if (!Number.isInteger(cid) || cid <= 0) {
         feedback.msgWarning('请选择文章栏目')
         return
@@ -1095,19 +1201,30 @@ const handleBatchWechatImportSubmit = async () => {
         feedback.msgWarning('请选择作者')
         return
     }
-    if (!urlsText) {
+    if (batchWechatImportForm.mode === 'wechatImport' && !urlsText) {
         feedback.msgWarning('请至少输入一个公众号链接')
+        return
+    }
+    if (batchWechatImportForm.mode === 'aiGenerate' && !topicsText) {
+        feedback.msgWarning('请至少输入一个文章选题')
         return
     }
     batchWechatImportLoading.value = true
     try {
-        const result: any = await articleImportWechatBatch({
-            cid,
-            author,
-            urls: urlsText,
-            status: batchWechatImportForm.status,
-            aiEnabled: batchWechatImportForm.aiEnabled === true
-        })
+        const result: any = batchWechatImportForm.mode === 'aiGenerate'
+            ? await articleGenerateAiBatch({
+                cid,
+                author,
+                topics: topicsText,
+                status: batchWechatImportForm.status
+            })
+            : await articleImportWechatBatch({
+                cid,
+                author,
+                urls: urlsText,
+                status: batchWechatImportForm.status,
+                aiEnabled: batchWechatImportForm.aiEnabled === true
+            })
         const normalizedRows = normalizeBatchWechatImportRows(result?.rows || result?.data?.rows || [])
         batchWechatImportResult.value = {
             created: Number(result?.created || result?.data?.created || 0),
@@ -1115,11 +1232,13 @@ const handleBatchWechatImportSubmit = async () => {
             rows: normalizedRows
         }
         feedback.msgSuccess(
-            `导入完成：新增 ${batchWechatImportResult.value.created} 条，失败 ${batchWechatImportResult.value.failed} 条`
+            `${batchWechatImportForm.mode === 'aiGenerate' ? '生成' : '导入'}完成：新增 ${batchWechatImportResult.value.created} 条，失败 ${batchWechatImportResult.value.failed} 条`
         )
         resetPage()
     } catch (error: any) {
-        feedback.msgError(error?.message || '批量导入文章失败')
+        feedback.msgError(
+            error?.message || (batchWechatImportForm.mode === 'aiGenerate' ? '批量AI生成文章失败' : '批量导入文章失败')
+        )
     } finally {
         batchWechatImportLoading.value = false
     }

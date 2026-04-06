@@ -229,6 +229,9 @@ module.exports = options => {
       'article:purge': [ 'article:del' ],
       // 内容管理：批量编辑与回收站策略复用文章编辑/删除权限
       'article:batch:edit': [ 'article:edit' ],
+      'article:import:wechat': [ 'article:add', 'article:edit', 'article:add/edit' ],
+      'article:import:wechat:batch': [ 'article:add', 'article:edit', 'article:add/edit' ],
+      'article:import:ai:batch': [ 'article:add', 'article:edit', 'article:add/edit' ],
       'article:recycle:policy:config': [ 'article:list', 'article:edit' ],
       'article:recycle:policy:save': [ 'article:edit' ],
       'article:recycle:policy:cleanup': [ 'article:del', 'article:edit' ],

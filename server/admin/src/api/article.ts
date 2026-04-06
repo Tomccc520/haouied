@@ -229,6 +229,31 @@ export function articleImportWechatBatch(params: {
     )
 }
 
+/**
+ * 批量 AI 生成文章并直接入库
+ */
+export function articleGenerateAiBatch(params: {
+    cid: number | string
+    author: string
+    topics: string
+    status?: 'draft' | 'published' | 'active' | string
+    tagIds?: Array<number | string> | string
+    topicId?: number | string
+    aiModel?: string
+    aiPromptTemplate?: string
+}) {
+    return request.post(
+        {
+            url: '/article/import/ai/batch',
+            params,
+            timeout: 8 * 60 * 1000
+        },
+        {
+            ignoreCancelToken: true
+        }
+    )
+}
+
 export function articleVisitIncr(params: { id: number }) {
     return request.post({ url: '/article/visit/incr', params })
 }

@@ -267,4 +267,5 @@ module.exports = app => {
   router.all('/api/article/comment/manage/mute/del', controller.article.commentManageMuteDel);
   router.all('/api/article/import/wechat', controller.article.importWechat);
   router.all('/api/article/import/wechat/batch', controller.article.importWechatBatch);
+  router.all('/api/article/import/ai/batch', controller.article.generateAiBatch);
 };
