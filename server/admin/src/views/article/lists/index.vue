@@ -300,8 +300,51 @@
                             v-else
                             label="生成说明"
                         >
-                            <div class="text-xs text-gray-500 leading-6">
-                                每行输入一个文章选题、标题方向或关键词，系统会逐篇调用默认 AI 模型生成完整文章并直接入库。
+                            <div class="w-full">
+                                <div class="text-xs text-gray-500 leading-6">
+                                    每行输入一个文章选题、标题方向或关键词，系统会逐篇调用默认 AI 模型生成完整文章并直接入库。
+                                </div>
+                                <el-collapse
+                                    v-model="batchAiGenerateAdvancedPanels"
+                                    class="mt-3"
+                                >
+                                    <el-collapse-item
+                                        title="高级AI配置（可选）"
+                                        name="advanced"
+                                    >
+                                        <div class="text-xs text-gray-500 leading-6 mb-3">
+                                            留空时将自动使用「AI 助手管理 -> 导入配置」中“批量导入文章”的默认模型与提示词。
+                                        </div>
+                                        <el-form-item
+                                            label="模型覆盖"
+                                            label-width="88px"
+                                            class="mb-3"
+                                        >
+                                            <el-input
+                                                v-model="batchWechatImportForm.aiModel"
+                                                placeholder="可选，例如：deepseek-chat / kimi-k2 / doubao-seed"
+                                                :disabled="batchWechatImportLoading"
+                                                clearable
+                                            />
+                                        </el-form-item>
+                                        <el-form-item
+                                            label="提示词模板"
+                                            label-width="88px"
+                                            class="mb-0"
+                                        >
+                                            <el-input
+                                                v-model="batchWechatImportForm.aiPromptTemplate"
+                                                type="textarea"
+                                                :rows="6"
+                                                :disabled="batchWechatImportLoading"
+                                                placeholder="可选，支持占位符 {topic}。留空时使用系统默认提示词模板。"
+                                            />
+                                            <div class="text-xs text-gray-500 mt-2 leading-6">
+                                                适合在专题运营时临时覆盖默认提示词，例如指定文章语气、受众人群、段落结构或 SEO 输出要求。
+                                            </div>
+                                        </el-form-item>
+                                    </el-collapse-item>
+                                </el-collapse>
                             </div>
                         </el-form-item>
                     </el-form>
@@ -767,9 +810,12 @@ const batchWechatImportForm = reactive({
     author: '',
     urlsText: '',
     topicsText: '',
+    aiModel: '',
+    aiPromptTemplate: '',
     status: 'draft',
     aiEnabled: false
 })
+const batchAiGenerateAdvancedPanels = ref<string[]>([])
 
 /**
  * 批量处理弹窗标题
@@ -847,6 +893,9 @@ watch(
     () => batchWechatImportForm.mode,
     () => {
         batchWechatImportResult.value = null
+        if (batchWechatImportForm.mode !== 'aiGenerate') {
+            batchAiGenerateAdvancedPanels.value = []
+        }
     }
 )
 const batchEditDialogVisible = ref(false)
@@ -1158,11 +1207,14 @@ const handlePurge = async (id: number) => {
 const openBatchWechatImportDialog = () => {
     batchWechatImportDialogVisible.value = true
     batchWechatImportResult.value = null
+    batchAiGenerateAdvancedPanels.value = []
     batchWechatImportForm.mode = 'wechatImport'
     batchWechatImportForm.cid = ''
     batchWechatImportForm.author = ''
     batchWechatImportForm.urlsText = ''
     batchWechatImportForm.topicsText = ''
+    batchWechatImportForm.aiModel = ''
+    batchWechatImportForm.aiPromptTemplate = ''
     batchWechatImportForm.status = 'draft'
     batchWechatImportForm.aiEnabled = false
     fetchBatchImportAuthorOptions('')
@@ -1216,7 +1268,9 @@ const handleBatchWechatImportSubmit = async () => {
                 cid,
                 author,
                 topics: topicsText,
-                status: batchWechatImportForm.status
+                status: batchWechatImportForm.status,
+                aiModel: String(batchWechatImportForm.aiModel || '').trim(),
+                aiPromptTemplate: String(batchWechatImportForm.aiPromptTemplate || '').trim()
             })
             : await articleImportWechatBatch({
                 cid,
