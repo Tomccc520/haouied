@@ -71,6 +71,10 @@ module.exports = app => {
   router.all('/api/common/album/cateDel', controller.common.album.cateDel);
   router.all('/api/common/album/albumList', controller.common.album.albumList);
   router.all('/api/common/album/albumRename', controller.common.album.albumRename);
+  router.all('/api/common/album/albumMetaUpdate', controller.common.album.albumMetaUpdate);
+  router.all('/api/common/album/albumUsageDetail', controller.common.album.albumUsageDetail);
+  router.all('/api/common/album/albumRecompress', controller.common.album.albumRecompress);
+  router.all('/api/common/album/syncLocalUploads', controller.common.album.syncLocalUploads);
   router.all('/api/common/album/albumDel', controller.common.album.albumDel);
   router.all('/api/common/album/albumAdd', controller.common.album.albumAdd);
   router.all('/api/common/album/albumMove', controller.common.album.albumMove);

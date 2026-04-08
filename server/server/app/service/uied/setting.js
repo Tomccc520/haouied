@@ -1178,6 +1178,49 @@ class SettingService extends Service {
   }
 
   /**
+   * 获取素材中心图片压缩配置默认值。
+   */
+  getDefaultMaterialUploadConfig() {
+    return {
+      enabled: false,
+      applyOnLocalUpload: true,
+      applyOnRemoteTransfer: true,
+      minSizeKb: 200,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      jpegQuality: 82,
+      pngCompressionLevel: 9,
+      remoteNamePattern: '%random%-%date%',
+    };
+  }
+
+  /**
+   * 规范化素材中心图片压缩配置，避免异常参数导致上传失败。
+   */
+  normalizeMaterialUploadConfig(config = {}) {
+    const defaults = this.getDefaultMaterialUploadConfig();
+    const source = config && typeof config === 'object' ? config : {};
+    const clampInt = (value, min, max, fallback) => {
+      const parsed = Number.parseInt(String(value ?? ''), 10);
+      if (!Number.isFinite(parsed)) return fallback;
+      return Math.min(max, Math.max(min, parsed));
+    };
+    return {
+      enabled: source.enabled === true,
+      applyOnLocalUpload: source.applyOnLocalUpload !== false,
+      applyOnRemoteTransfer: source.applyOnRemoteTransfer !== false,
+      minSizeKb: clampInt(source.minSizeKb, 0, 51200, defaults.minSizeKb),
+      maxWidth: clampInt(source.maxWidth, 0, 8192, defaults.maxWidth),
+      maxHeight: clampInt(source.maxHeight, 0, 8192, defaults.maxHeight),
+      jpegQuality: clampInt(source.jpegQuality, 40, 100, defaults.jpegQuality),
+      pngCompressionLevel: clampInt(source.pngCompressionLevel, 0, 9, defaults.pngCompressionLevel),
+      remoteNamePattern: String(source.remoteNamePattern || defaults.remoteNamePattern)
+        .trim()
+        .slice(0, 120) || defaults.remoteNamePattern,
+    };
+  }
+
+  /**
    * 获取品牌与默认内容配置默认值。
    */
   getDefaultBrandConfig() {
@@ -2348,8 +2391,15 @@ class SettingService extends Service {
     if (!setting) return null;
 
     try {
-      return JSON.parse(setting.value);
+      const parsed = JSON.parse(setting.value);
+      if (key === 'materialUploadConfig') {
+        return this.normalizeMaterialUploadConfig(parsed || {});
+      }
+      return parsed;
     } catch (error) {
+      if (key === 'materialUploadConfig') {
+        return this.getDefaultMaterialUploadConfig();
+      }
       return setting.value;
     }
   }
@@ -2414,6 +2464,8 @@ class SettingService extends Service {
         value = this.normalizeMcpPageConfig(rawValue);
       } else if (key === 'figmaPageConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeFigmaPageConfig(rawValue);
+      } else if (key === 'materialUploadConfig' && rawValue && typeof rawValue === 'object') {
+        value = this.normalizeMaterialUploadConfig(rawValue);
       }
       const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 

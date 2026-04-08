@@ -22,6 +22,7 @@
         "egg-socket.io": "^4.1.6",
         "egg-validate": "^2.0.2",
         "egg-view-nunjucks": "^2.3.0",
+        "jimp": "^0.22.12",
         "jsonwebtoken": "^8.5.1",
         "md5": "^2.3.0",
         "mkdirp": "^1.0.4",

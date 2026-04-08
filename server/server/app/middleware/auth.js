@@ -287,6 +287,14 @@ module.exports = options => {
       // 内容管理：外链图片转存复用文章编辑权限
       'common:upload:image:transfer': [ 'article:edit', 'article:add', 'common:upload:image' ],
       'common:upload:image:transfer-content': [ 'article:edit', 'article:add', 'common:upload:image' ],
+      // 素材中心：元数据保存复用素材重命名权限，兼容历史角色
+      'common:album:albumMetaUpdate': [ 'common:album:albumRename' ],
+      // 素材中心：引用详情复用素材列表权限
+      'common:album:albumUsageDetail': [ 'common:album:albumList' ],
+      // 素材中心：重压缩复用素材重命名权限
+      'common:album:albumRecompress': [ 'common:album:albumRename' ],
+      // 素材中心：本地图片同步入库复用素材新增/列表权限
+      'common:album:syncLocalUploads': [ 'common:album:albumAdd', 'common:album:albumList' ],
       // 商业版：授权中心接口复用站点设置权限
       'uied:license:info': [ 'uied:setting:get' ],
       'uied:license:verify': [ 'uied:setting:get' ],

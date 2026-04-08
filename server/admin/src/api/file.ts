@@ -39,6 +39,48 @@ export function fileRename(params: { id: number; name: string }) {
 }
 
 /**
+ * 保存素材元数据
+ */
+export function fileMetaUpdate(params: {
+    id: number
+    alt?: string
+    title?: string
+    caption?: string
+    description?: string
+    mimeType?: string
+    width?: number
+    height?: number
+}) {
+    return request.post({ url: '/common/album/albumMetaUpdate', params })
+}
+
+/**
+ * 查询素材引用明细
+ */
+export function fileUsageDetail(params: { id: number }) {
+    return request.get({ url: '/common/album/albumUsageDetail', params })
+}
+
+/**
+ * 执行素材重压缩（支持单图/批量）
+ */
+export function fileRecompress(params: { id?: number; ids?: number[] }) {
+    return request.post({ url: '/common/album/albumRecompress', params })
+}
+
+/**
+ * 同步本地 uploads/image 历史文件到素材库
+ */
+export function fileSyncLocalUploads(params?: {
+    cid?: number
+    limit?: number
+    restoreDeleted?: boolean
+    scanRoot?: 'uploads' | 'public'
+}) {
+    return request.post({ url: '/common/album/syncLocalUploads', params: params || {} })
+}
+
+/**
  * 批量转存远程图片到素材库
  */
 export function transferRemoteImages(params: { urls: string[]; cid?: number }) {

@@ -105,6 +105,101 @@ class CommonAblumController extends baseController {
     }
   }
 
+  /**
+   * 更新素材元数据（替代文本、标题、说明、描述等）
+   */
+  async albumMetaUpdate() {
+    const { ctx } = this;
+
+    try {
+      const payload = ctx.request.body || {};
+      await ctx.service.album.albumMetaUpdate(payload);
+      this.result({
+        data: {},
+      });
+    } catch (err) {
+      ctx.logger.error(`CommonAblumController.albumMetaUpdate error: ${err}`);
+      this.result({
+        code: 500,
+        message: err.message || '保存素材元数据失败',
+        data: {},
+      });
+    }
+  }
+
+  /**
+   * 查询素材引用明细（文章/网址）。
+   */
+  async albumUsageDetail() {
+    const { ctx } = this;
+
+    try {
+      const source = ctx.request.method === 'GET' ? (ctx.query || {}) : (ctx.request.body || {});
+      const id = Number(source.id || 0);
+      const data = await ctx.service.album.albumUsageDetail(id);
+      this.result({
+        data,
+      });
+    } catch (err) {
+      ctx.logger.error(`CommonAblumController.albumUsageDetail error: ${err}`);
+      this.result({
+        code: 500,
+        message: err.message || '查询素材引用失败',
+        data: {},
+      });
+    }
+  }
+
+  /**
+   * 对素材执行重压缩（支持单图/批量）。
+   */
+  async albumRecompress() {
+    const { ctx } = this;
+
+    try {
+      const body = ctx.request.body || {};
+      const ids = Array.isArray(body.ids) ? body.ids : [ body.id ];
+      const data = await ctx.service.album.albumRecompress(ids);
+      this.result({
+        data,
+      });
+    } catch (err) {
+      ctx.logger.error(`CommonAblumController.albumRecompress error: ${err}`);
+      this.result({
+        code: 500,
+        message: err.message || '素材压缩失败',
+        data: {},
+      });
+    }
+  }
+
+  /**
+   * 同步本地 uploads/image 历史文件到素材库。
+   */
+  async syncLocalUploads() {
+    const { ctx } = this;
+
+    try {
+      const body = ctx.request.body || {};
+      const data = await ctx.service.album.syncLocalUploads({
+        cid: body.cid,
+        limit: body.limit,
+        restoreDeleted: body.restoreDeleted,
+        scanRoot: body.scanRoot,
+      });
+      this.result({
+        data,
+      });
+    } catch (err) {
+      ctx.logger.error(`CommonAblumController.syncLocalUploads error: ${err}`);
+      this.result({
+        code: 500,
+        message: err.message || '同步本地图片失败',
+        data: {},
+      });
+    }
+  }
+
   async albumMove() {
     const { ctx } = this;
     const { request } = ctx;
@@ -156,8 +251,11 @@ class CommonAblumController extends baseController {
       });
     } catch (err) {
       ctx.logger.error(`CommonAblumController.albumDel error: ${err}`);
-      ctx.body = 'Internal Server Error';
-      ctx.status = 500;
+      this.result({
+        code: 500,
+        message: err.message || '删除素材失败',
+        data: {},
+      });
     }
   }
 

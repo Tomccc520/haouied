@@ -27,15 +27,15 @@ export function useCate(type: number) {
         const data = await fileCateLists({
             type
         })
+        /**
+         * 固定注入“全部素材”入口，便于运营快速回到全量视图。
+         */
+        const allLabel = type === 10 ? '全部图片' : type === 20 ? '全部视频' : '全部素材'
         const item: any[] = [
-            // {
-            //     name: '全部',
-            //     id: ''
-            // },
-            // {
-            //     name: '未分组',
-            //     id: 0
-            // }
+            {
+                name: allLabel,
+                id: ''
+            }
         ]
         cateLists.value = data
         cateLists.value.unshift(...item)
