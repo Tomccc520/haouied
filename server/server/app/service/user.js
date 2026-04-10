@@ -177,6 +177,33 @@ class UserService extends Service {
   }
 
   /**
+   * 组装 la_user 查询字段（按实际表结构动态裁剪，避免历史库缺列报错）
+   * @param {object} options 配置项
+   * @param {boolean} options.includePassword 是否包含密码字段
+   * @param {boolean} options.includeMobile 是否包含手机号字段
+   * @param {boolean} options.includeEmail 是否包含邮箱字段
+   * @return {Promise<string[]>} 可安全查询的字段列表
+   */
+  async buildUserSelectAttributes(options = {}) {
+    const {
+      includePassword = false,
+      includeMobile = true,
+      includeEmail = true,
+    } = options || {};
+    const attrs = [ 'id' ];
+    if (includePassword && await this.hasUserColumn([ 'password' ])) {
+      attrs.push('password');
+    }
+    if (includeMobile && await this.hasUserColumn([ 'mobile' ])) {
+      attrs.push('mobile');
+    }
+    if (includeEmail && await this.hasUserColumn([ 'email' ])) {
+      attrs.push('email');
+    }
+    return attrs;
+  }
+
+  /**
    * 读取指定数据表字段集合（兼容不同客户库结构）
    * @param {string} tableName 数据表名
    * @return {Promise<Set<string>>} 字段集合
@@ -3120,7 +3147,10 @@ class UserService extends Service {
 
     const user = await ctx.model.User.findOne({
       where: { id: uid, isDelete: 0 },
-      attributes: [ 'id', 'email' ],
+      attributes: await this.buildUserSelectAttributes({
+        includeMobile: false,
+        includeEmail: true,
+      }),
     });
     if (!user) throw new Error('用户不存在');
     const userEmail = String(user.email || '').trim();
@@ -3288,7 +3318,10 @@ class UserService extends Service {
 
     const user = await ctx.model.User.findOne({
       where: { id: uid, isDelete: 0 },
-      attributes: [ 'id', 'email' ],
+      attributes: await this.buildUserSelectAttributes({
+        includeMobile: false,
+        includeEmail: true,
+      }),
     });
     if (!user) throw new Error('用户不存在');
     const userEmail = String(user.email || '').trim();
@@ -5728,7 +5761,10 @@ class UserService extends Service {
     const { ctx } = this;
     const user = await ctx.model.User.findOne({
       where: { id: Number(userId || 0), isDelete: 0 },
-      attributes: [ 'id', 'mobile', 'email' ],
+      attributes: await this.buildUserSelectAttributes({
+        includeMobile: true,
+        includeEmail: true,
+      }),
     });
     if (!user) {
       throw new Error('用户不存在');
@@ -5758,7 +5794,10 @@ class UserService extends Service {
     }
     const user = await ctx.model.User.findOne({
       where: { id: Number(userId || 0), isDelete: 0 },
-      attributes: [ 'id', 'mobile', 'email' ],
+      attributes: await this.buildUserSelectAttributes({
+        includeMobile: true,
+        includeEmail: true,
+      }),
     });
     if (!user) {
       throw new Error('用户不存在');
@@ -5797,7 +5836,11 @@ class UserService extends Service {
     }
     const user = await ctx.model.User.findOne({
       where: { id: Number(userId || 0), isDelete: 0 },
-      attributes: [ 'id', 'password', 'mobile', 'email' ],
+      attributes: await this.buildUserSelectAttributes({
+        includePassword: true,
+        includeMobile: true,
+        includeEmail: true,
+      }),
     });
     if (!user) {
       throw new Error('用户不存在');
@@ -5843,7 +5886,11 @@ class UserService extends Service {
     }
     const user = await ctx.model.User.findOne({
       where: { id: Number(userId || 0), isDelete: 0 },
-      attributes: [ 'id', 'password', 'mobile', 'email' ],
+      attributes: await this.buildUserSelectAttributes({
+        includePassword: true,
+        includeMobile: true,
+        includeEmail: true,
+      }),
     });
     if (!user) {
       throw new Error('用户不存在');
