@@ -53,6 +53,15 @@ coverage/
 # 开发工具脚本
 add_copyright.py
 
+# 本地 AI/IDE 工具目录（仅本机使用，不入库）
+.agents/
+.claude/
+.codebuddy/
+.playwright-cli/
+.trae/
+.windsurf/
+skills-lock.json
+
 # 模块安装临时目录
 server/.module_backup/
 server/.module_report/
