@@ -61,6 +61,22 @@ const repoIconMap = {
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.1.2',
+    date: '2026-04-09',
+    title: '正式版1.1.2：账号体系补齐 QQ 登录/绑定链路',
+    changes: [
+      { type: 'feature', scope: 'fullstack', text: '【第三方登录】新增 QQ 互联网页登录能力：后端 social provider 新增 `qqWeb`，支持 state 签发、授权回调、openid 拉取、账号自动创建与登录态签发，前端登录弹窗支持一键发起 QQ 登录' },
+      { type: 'feature', scope: 'backend', text: '【认证配置】站点认证配置新增 `qqLogin`（启用、AppID、AppKey、固定回调路径），后台“用户认证”页新增 QQ 配置项并提供回调地址预览，公开配置接口同步返回脱敏字段供前端读取' },
+      { type: 'improve', scope: 'frontend', text: '【账号安全】个人中心“第三方账号”升级为微信+QQ双卡片：支持查看绑定状态、脱敏标识、绑定时间，并可分别执行绑定/解绑操作；社交回调页提示文案改为按平台动态展示' },
+      { type: 'fix', scope: 'backend', text: '【授权回调白名单】新增 `/api/auth/qq/callback` 免登录放行与路由注册，避免 QQ 授权回调被后台 token 中间件拦截' },
+      { type: 'feature', scope: 'fullstack', text: '【个人中心投放闭环】新增“我的投放”页签：可查看投稿审核状态、支付状态、投放方向与 Banner 位信息，支持待支付订单“继续支付 + 刷新支付状态”闭环操作' },
+      { type: 'improve', scope: 'backend', text: '【订单支付回流】用户中心订单列表/详情补充 `payUrl` 字段透传，待支付订单可直接拉起支付页，避免“支付中断后无法在个人中心继续支付”' },
+      { type: 'improve', scope: 'frontend', text: '【个人中心闭环增强】“我的投放”新增快捷工具栏：支持一键刷新投放状态、跳转提交页、跳转订单页与官网客服入口，提升运营投放闭环效率' },
+      { type: 'improve', scope: 'frontend', text: '【订单闭环增强】“我的订单”新增手动刷新状态入口，并在列表/详情补充支付渠道展示（支付宝/微信/余额），降低用户支付后核对成本' },
+      { type: 'improve', scope: 'frontend', text: '【提交页闭环】提交成功卡片新增“查看我的投放/查看我的订单”快捷入口，用户可从提交结果页直接回流个人中心持续跟进审核与支付进度' },
+    ],
+  },
+  {
     version: '1.1.1',
     date: '2026-04-05',
     title: '正式版1.1.1：售卖版交付体验增强与前台联动修复',

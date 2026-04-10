@@ -21,13 +21,18 @@ import {
   getFrontendOrigin,
   isSocialAuthPopupPayload,
   openCenteredPopup,
+  resolvePreferredQqProvider,
+  resolveSocialProviderLabel,
   resolvePreferredWechatProvider,
 } from '../../utils/socialAuth';
 import './Profile.css';
 
-type ActiveTab = 'profile' | 'licenses' | 'collections' | 'likes' | 'comments' | 'messages' | 'orders' | 'loginLogs' | 'security';
+type ActiveTab = 'profile' | 'licenses' | 'collections' | 'likes' | 'comments' | 'messages' | 'orders' | 'submissions' | 'loginLogs' | 'security';
 
 interface ProfileWechatAuthConfig {
+  qqLogin?: {
+    enabled?: boolean;
+  };
   wechatWebsiteLogin?: {
     enabled?: boolean;
   };
@@ -195,6 +200,7 @@ const resolveProfileActiveTab = (searchText: string): ActiveTab => {
     'comments',
     'messages',
     'orders',
+    'submissions',
     'loginLogs',
     'security',
   ];
@@ -335,6 +341,8 @@ const ProfilePage: React.FC = () => {
         );
       case 'orders':
         return <OrdersList />;
+      case 'submissions':
+        return <SubmissionList />;
       case 'loginLogs':
         return <LoginLogsList />;
       case 'security':
@@ -437,6 +445,18 @@ const ProfilePage: React.FC = () => {
                 <path d="M16 10a4 4 0 0 1-8 0"></path>
               </svg>
               我的订单
+            </div>
+            <div
+              className={`menu-item ${activeTab === 'submissions' ? 'active' : ''}`}
+              onClick={() => handleChangeTab('submissions')}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16v16H4z"></path>
+                <path d="M7 8h10"></path>
+                <path d="M7 12h10"></path>
+                <path d="M7 16h6"></path>
+              </svg>
+              我的投放
             </div>
             <div 
               className={`menu-item ${activeTab === 'licenses' ? 'active' : ''}`}
@@ -981,9 +1001,362 @@ const LoginLogsList: React.FC = () => {
   );
 };
 
+// 子组件：投稿/投放记录
+const SubmissionList: React.FC = () => {
+  type SubmissionFilterType = 'all' | 'pending' | 'approved' | 'rejected';
+  type SubmissionPayFilterType = 'all' | 'created' | 'paid' | 'free' | 'closed';
+
+  const navigate = useNavigate();
+  const [list, setList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [moduleEnabled, setModuleEnabled] = useState(true);
+  const [moduleMessage, setModuleMessage] = useState('');
+  const [statusFilter, setStatusFilter] = useState<SubmissionFilterType>('all');
+  const [payFilter, setPayFilter] = useState<SubmissionPayFilterType>('all');
+  const [actionKey, setActionKey] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const commercialSupportUrl = 'https://fsuied.com/products/10';
+
+  /**
+   * 拉取用户投稿/投放记录并同步模块可用状态
+   */
+  const loadSubmissions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await userService.getSubmissionList({
+        page: 1,
+        pageSize: 30,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        payStatus: payFilter === 'all' ? undefined : payFilter,
+      });
+      setList(Array.isArray(res?.lists) ? res.lists : []);
+      setModuleEnabled(res?.moduleEnabled !== false);
+      setModuleMessage(String(res?.moduleMessage || ''));
+    } catch (_error) {
+      setList([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [payFilter, statusFilter]);
+
+  useEffect(() => {
+    loadSubmissions().catch(() => {});
+  }, [loadSubmissions]);
+
+  /**
+   * 统一投稿审核状态文案与样式码
+   */
+  const resolveSubmissionStatus = (item: any) => {
+    const value = String(item?.status || '').trim().toLowerCase();
+    if (value === 'approved') {
+      return { label: '已通过', tone: 1 };
+    }
+    if (value === 'rejected') {
+      return { label: '已拒绝', tone: 2 };
+    }
+    return { label: '待审核', tone: 0 };
+  };
+
+  /**
+   * 统一支付状态文案与样式码
+   */
+  const resolveSubmissionPayStatus = (item: any) => {
+    const value = String(item?.payStatus || '').trim().toLowerCase();
+    if (!value) return { label: '未创建支付', tone: 2 };
+    if (value === 'paid') return { label: '已支付', tone: 1 };
+    if (value === 'free') return { label: '免支付', tone: 1 };
+    if (value === 'created') return { label: '待支付', tone: 0 };
+    if (value === 'closed') return { label: '已关闭', tone: 2 };
+    return { label: value, tone: 2 };
+  };
+
+  /**
+   * 统一投放单支付渠道文案
+   */
+  const resolvePayChannelLabel = (value: any) => {
+    const channel = String(value || '').trim().toLowerCase();
+    if (channel === 'alipay') return '支付宝';
+    if (channel === 'wechat') return '微信支付';
+    if (channel === 'balance') return '余额支付';
+    return channel ? `其他(${channel})` : '-';
+  };
+
+  /**
+   * 判断当前投放单是否允许继续支付
+   */
+  const canContinuePay = (item: any) => {
+    return item?.canContinuePay === true
+      || (String(item?.payStatus || '').trim().toLowerCase() === 'created' && Boolean(String(item?.payUrl || '').trim()));
+  };
+
+  /**
+   * 打开待支付订单链接
+   */
+  const handleContinuePay = (item: any) => {
+    const payUrl = String(item?.payUrl || '').trim();
+    if (!payUrl) {
+      setActionMessage('当前记录暂无支付链接，请联系客服处理');
+      return;
+    }
+    window.open(payUrl, '_blank', 'noopener,noreferrer');
+    setActionMessage('已打开支付页面，完成付款后可点击“刷新支付状态”');
+  };
+
+  /**
+   * 跳转到提交页继续创建投放
+   */
+  const handleGoSubmit = () => {
+    navigate('/submit');
+  };
+
+  /**
+   * 切换到个人中心订单页，便于核对支付状态
+   */
+  const handleGoOrders = () => {
+    navigate('/profile?tab=orders');
+  };
+
+  /**
+   * 打开官网售卖与客服页面
+   */
+  const handleContactSupport = () => {
+    window.open(commercialSupportUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  /**
+   * 局部更新某条投稿记录的支付状态字段
+   */
+  const patchSubmissionPayStatus = (orderNo: string, patch: Record<string, any>) => {
+    const normalizedOrderNo = String(orderNo || '').trim();
+    if (!normalizedOrderNo) return;
+    setList(prev => prev.map(item => {
+      if (String(item?.payOrderNo || '').trim() !== normalizedOrderNo) return item;
+      const next = {
+        ...item,
+        ...patch,
+      };
+      next.canContinuePay = String(next?.payStatus || '').trim().toLowerCase() === 'created'
+        && Boolean(String(next?.payUrl || '').trim());
+      return next;
+    }));
+  };
+
+  /**
+   * 主动刷新单条投放支付状态（后端会触发补单轮询）
+   */
+  const handleRefreshPayStatus = async (item: any) => {
+    const orderNo = String(item?.payOrderNo || '').trim();
+    if (!orderNo) {
+      setActionMessage('当前记录暂无支付订单号');
+      return;
+    }
+    setActionKey(`refresh-${orderNo}`);
+    setActionMessage('');
+    try {
+      const data = await userService.getSubmissionPayStatus(orderNo);
+      patchSubmissionPayStatus(orderNo, {
+        payStatus: String(data?.status || ''),
+        payUrl: String(data?.payUrl || ''),
+        payTime: Number(data?.payTime || 0),
+      });
+      setActionMessage('支付状态已刷新');
+    } catch (error: any) {
+      setActionMessage(error?.message || '刷新失败，请稍后重试');
+    } finally {
+      setActionKey('');
+    }
+  };
+
+  /**
+   * 读取投放附加信息里的 Banner 位配置
+   */
+  const resolveBannerPositions = (serviceMeta: any): string[] => {
+    if (!serviceMeta || typeof serviceMeta !== 'object' || !Array.isArray(serviceMeta.bannerPositions)) {
+      return [];
+    }
+    return serviceMeta.bannerPositions.map((item: any) => String(item || '').trim()).filter(Boolean);
+  };
+
+  if (loading) return <div>加载中...</div>;
+
+  return (
+    <div>
+      <div className="content-header">
+        <h2 className="content-title">我的投放</h2>
+      </div>
+      {actionMessage && (
+        <div className={`profile-action-message ${actionMessage.includes('失败') ? 'is-error' : 'is-success'}`}>
+          {actionMessage}
+        </div>
+      )}
+      {!moduleEnabled && (
+        <div className="empty-state">
+          <span className="empty-icon">提示</span>
+          {moduleMessage || '当前站点暂未启用投稿投放服务'}
+        </div>
+      )}
+      {moduleEnabled && (
+        <>
+          <div className="profile-toolbar">
+            <button type="button" className="action-btn" disabled={loading} onClick={() => loadSubmissions()}>
+              刷新投放状态
+            </button>
+            <button type="button" className="action-btn" onClick={handleGoSubmit}>
+              去提交投放
+            </button>
+            <button type="button" className="action-btn" onClick={handleGoOrders}>
+              查看我的订单
+            </button>
+            <button type="button" className="action-btn" onClick={handleContactSupport}>
+              官网客服
+            </button>
+          </div>
+          <div className="profile-type-tabs" role="tablist" aria-label="投放筛选">
+            <button
+              type="button"
+              className={`profile-type-tab ${statusFilter === 'all' ? 'is-active' : ''}`}
+              onClick={() => setStatusFilter('all')}
+            >
+              全部审核
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${statusFilter === 'pending' ? 'is-active' : ''}`}
+              onClick={() => setStatusFilter('pending')}
+            >
+              待审核
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${statusFilter === 'approved' ? 'is-active' : ''}`}
+              onClick={() => setStatusFilter('approved')}
+            >
+              已通过
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${statusFilter === 'rejected' ? 'is-active' : ''}`}
+              onClick={() => setStatusFilter('rejected')}
+            >
+              已拒绝
+            </button>
+          </div>
+          <div className="profile-type-tabs profile-type-tabs--sub" role="tablist" aria-label="支付筛选">
+            <button
+              type="button"
+              className={`profile-type-tab ${payFilter === 'all' ? 'is-active' : ''}`}
+              onClick={() => setPayFilter('all')}
+            >
+              全部支付
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${payFilter === 'created' ? 'is-active' : ''}`}
+              onClick={() => setPayFilter('created')}
+            >
+              待支付
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${payFilter === 'paid' ? 'is-active' : ''}`}
+              onClick={() => setPayFilter('paid')}
+            >
+              已支付
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${payFilter === 'free' ? 'is-active' : ''}`}
+              onClick={() => setPayFilter('free')}
+            >
+              免支付
+            </button>
+            <button
+              type="button"
+              className={`profile-type-tab ${payFilter === 'closed' ? 'is-active' : ''}`}
+              onClick={() => setPayFilter('closed')}
+            >
+              已关闭
+            </button>
+          </div>
+          {moduleMessage && (
+            <div className="profile-note-box">{moduleMessage}</div>
+          )}
+          {list.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-icon">投放</span>
+              暂无投放记录
+            </div>
+          ) : (
+            <div className="collections-list">
+              {list.map(item => {
+                const reviewState = resolveSubmissionStatus(item);
+                const payState = resolveSubmissionPayStatus(item);
+                const bannerPositions = resolveBannerPositions(item?.serviceMeta);
+                return (
+                  <div key={`submission-${item.id}`} className="list-item list-item--rich">
+                    <div className="item-main">
+                      <div className="item-head">
+                        <div className="item-title">{item.name || item.url || `投稿#${item.id}`}</div>
+                        <span className={`status-badge status-${reviewState.tone}`}>{reviewState.label}</span>
+                        <span className={`status-badge status-${payState.tone}`}>{payState.label}</span>
+                      </div>
+                      <div className="item-meta">
+                        <span>编号：#{Number(item.id || 0)}</span>
+                        <span>类型：{String(item.serviceType || 'submission')}</span>
+                        <span>提交时间：{formatUserDate(item.createdAt, '-')}</span>
+                      </div>
+                      <div className="item-meta" style={{ marginTop: 6 }}>
+                        <span>网址：{String(item.url || '-')}</span>
+                      </div>
+                      {String(item.rejectReason || '').trim() && (
+                        <div className="item-meta" style={{ marginTop: 6, color: '#ef4444' }}>
+                          <span>驳回原因：{String(item.rejectReason)}</span>
+                        </div>
+                      )}
+                      {(item?.serviceMeta?.plan || bannerPositions.length > 0) && (
+                        <div className="item-meta" style={{ marginTop: 6 }}>
+                          {item?.serviceMeta?.plan && <span>投放方向：{String(item.serviceMeta.plan)}</span>}
+                          {bannerPositions.length > 0 && <span>Banner位：{bannerPositions.join('、')}</span>}
+                        </div>
+                      )}
+                      <div className="item-meta" style={{ marginTop: 8 }}>
+                        {String(item.payOrderNo || '').trim() && <span>支付单号：{String(item.payOrderNo)}</span>}
+                        {String(item.payOrderNo || '').trim() && <span>支付渠道：{resolvePayChannelLabel(item.payChannel)}</span>}
+                        {Number(item.payAmount || 0) > 0 && <span>金额：¥{Number(item.payAmount || 0).toFixed(2)}</span>}
+                        {Number(item.payTime || 0) > 0 && <span>支付时间：{formatUserDate(item.payTime, '-')}</span>}
+                        {canContinuePay(item) && (
+                          <span
+                            className="inline-action inline-action--primary"
+                            onClick={() => handleContinuePay(item)}
+                          >
+                            继续支付
+                          </span>
+                        )}
+                        {String(item.payOrderNo || '').trim() && (
+                          <span
+                            className="inline-action inline-action--primary"
+                            onClick={() => actionKey ? null : handleRefreshPayStatus(item)}
+                          >
+                            {actionKey === `refresh-${item.payOrderNo}` ? '刷新中...' : '刷新支付状态'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 // 子组件：订单列表
 const OrdersList: React.FC = () => {
   type OrderFilterType = 'all' | 'pending' | 'paid' | 'afterSale' | 'cancelled';
+  const navigate = useNavigate();
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [moduleEnabled, setModuleEnabled] = useState(true);
@@ -1006,6 +1379,7 @@ const OrdersList: React.FC = () => {
     reason: '',
   });
   const [orderActionKey, setOrderActionKey] = useState('');
+  const commercialSupportUrl = 'https://fsuied.com/products/10';
 
   /**
    * 拉取订单列表，并同步订单模块开关状态
@@ -1137,10 +1511,31 @@ const OrdersList: React.FC = () => {
   };
 
   /**
+   * 统一订单支付渠道文案
+   */
+  const resolvePayChannelLabel = (source: any) => {
+    const channel = String(pickValue(source, [ 'payChannel', 'pay_channel' ], '')).trim().toLowerCase();
+    if (channel === 'alipay') return '支付宝';
+    if (channel === 'wechat') return '微信支付';
+    if (channel === 'balance') return '余额支付';
+    if (channel) return `其他(${channel})`;
+    return '-';
+  };
+
+  /**
    * 判断订单是否允许取消
    */
   const canCancelOrder = (source: any) => {
     return resolveOrderStatus(source).normalizedStatus === 0;
+  };
+
+  /**
+   * 判断订单是否允许继续支付
+   */
+  const canContinuePay = (source: any) => {
+    const orderState = resolveOrderStatus(source);
+    const payUrl = String(pickValue(source, [ 'payUrl', 'pay_url' ], '')).trim();
+    return orderState.normalizedStatus === 0 && Boolean(payUrl);
   };
 
   /**
@@ -1227,6 +1622,42 @@ const OrdersList: React.FC = () => {
     } finally {
       setOrderActionKey('');
     }
+  };
+
+  /**
+   * 继续支付待支付订单
+   */
+  const handleContinuePay = (order: any) => {
+    const payUrl = String(pickValue(order, [ 'payUrl', 'pay_url' ], '')).trim();
+    if (!payUrl) {
+      setDetailMessage('当前订单暂未生成支付链接，请联系客服处理');
+      return;
+    }
+    window.open(payUrl, '_blank', 'noopener,noreferrer');
+    setDetailMessage('已打开支付页面，请完成付款后刷新订单状态');
+  };
+
+  /**
+   * 主动刷新订单列表状态
+   */
+  const handleRefreshOrders = async () => {
+    setDetailMessage('');
+    await loadOrders();
+    setDetailMessage('订单状态已刷新');
+  };
+
+  /**
+   * 跳转到提交页继续创建投放
+   */
+  const handleGoSubmit = () => {
+    navigate('/submit');
+  };
+
+  /**
+   * 打开官网售卖与客服页面
+   */
+  const handleContactSupport = () => {
+    window.open(commercialSupportUrl, '_blank', 'noopener,noreferrer');
   };
 
   /**
@@ -1462,6 +1893,19 @@ const OrdersList: React.FC = () => {
           </button>
         </div>
       )}
+      {moduleEnabled && (
+        <div className="profile-toolbar">
+          <button type="button" className="action-btn" disabled={loading} onClick={handleRefreshOrders}>
+            刷新订单状态
+          </button>
+          <button type="button" className="action-btn" onClick={handleGoSubmit}>
+            去提交投放
+          </button>
+          <button type="button" className="action-btn" onClick={handleContactSupport}>
+            官网客服
+          </button>
+        </div>
+      )}
       {moduleEnabled && list.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon">订单</span>
@@ -1486,6 +1930,7 @@ const OrdersList: React.FC = () => {
                   <div className="item-meta">
                     <span>{pickValue(item, [ 'productName', 'goodsName', 'goods_name' ], '商品')}</span>
                     <span>¥{pickValue(item, [ 'amount', 'orderAmount', 'order_amount' ], 0)}</span>
+                    <span>支付渠道 {resolvePayChannelLabel(item)}</span>
                     {refundState.value > 0 && <span>售后：{refundState.label}</span>}
                   </div>
                   <div className="item-meta">
@@ -1501,6 +1946,15 @@ const OrdersList: React.FC = () => {
                     >
                       查看详情
                     </button>
+                    {canContinuePay(item) && (
+                      <button
+                        type="button"
+                        className="save-btn"
+                        onClick={() => handleContinuePay(item)}
+                      >
+                        继续支付
+                      </button>
+                    )}
                     {canCancelOrder(item) && (
                       <button
                         type="button"
@@ -1551,6 +2005,15 @@ const OrdersList: React.FC = () => {
                 )}
                 {canCancelOrder(selectedOrder) && (
                   <div className="profile-toolbar">
+                    {canContinuePay(selectedOrder) && (
+                      <button
+                        type="button"
+                        className="save-btn"
+                        onClick={() => handleContinuePay(selectedOrder)}
+                      >
+                        继续支付
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="action-btn action-btn--danger"
@@ -1583,6 +2046,10 @@ const OrdersList: React.FC = () => {
                   <div className="order-detail-item">
                     <span className="label">支付金额</span>
                     <span>¥{pickValue(selectedOrder, [ 'amount', 'price' ], '0.00')}</span>
+                  </div>
+                  <div className="order-detail-item">
+                    <span className="label">支付渠道</span>
+                    <span>{resolvePayChannelLabel(selectedOrder)}</span>
                   </div>
                   <div className="order-detail-item">
                     <span className="label">下单时间</span>
@@ -3084,7 +3551,7 @@ const SecuritySettings: React.FC<{
     code: '',
     password: '',
   });
-  const [socialBindings, setSocialBindings] = useState<SocialBindingsResponse>({
+  const buildEmptySocialBindings = (): SocialBindingsResponse => ({
     wechat: {
       provider: 'wechat',
       channel: '',
@@ -3093,6 +3560,17 @@ const SecuritySettings: React.FC<{
       bindTime: 0,
       bindTimeText: '',
     },
+    qq: {
+      provider: 'qq',
+      channel: '',
+      bound: false,
+      openid: '',
+      bindTime: 0,
+      bindTimeText: '',
+    },
+  });
+  const [socialBindings, setSocialBindings] = useState<SocialBindingsResponse>({
+    ...buildEmptySocialBindings(),
   });
   const [socialActionLoading, setSocialActionLoading] = useState(false);
   const [twoFactorSending, setTwoFactorSending] = useState(false);
@@ -3126,26 +3604,8 @@ const SecuritySettings: React.FC<{
         : [];
       setSessions(nextSessions);
       setSocialBindings(socialRes.status === 'fulfilled'
-        ? (socialRes.value || {
-          wechat: {
-            provider: 'wechat',
-            channel: '',
-            bound: false,
-            openid: '',
-            bindTime: 0,
-            bindTimeText: '',
-          },
-        })
-        : {
-          wechat: {
-            provider: 'wechat',
-            channel: '',
-            bound: false,
-            openid: '',
-            bindTime: 0,
-            bindTimeText: '',
-          },
-        });
+        ? ({ ...buildEmptySocialBindings(), ...(socialRes.value || {}) })
+        : buildEmptySocialBindings());
     } finally {
       setLoadingSessions(false);
     }
@@ -3158,7 +3618,8 @@ const SecuritySettings: React.FC<{
   useEffect(() => {
     const bindResult = consumeSocialBindResult();
     if (!bindResult) return;
-    setMessage(bindResult.message || (bindResult.success ? '微信绑定成功' : '微信绑定失败'));
+    const providerLabel = resolveSocialProviderLabel(bindResult.provider || '');
+    setMessage(bindResult.message || (bindResult.success ? `${providerLabel}绑定成功` : `${providerLabel}绑定失败`));
     loadSecurityData().catch(() => {});
   }, [loadSecurityData]);
 
@@ -3172,7 +3633,8 @@ const SecuritySettings: React.FC<{
       socialPopupRef.current?.close();
       socialPopupRef.current = null;
       setSocialActionLoading(false);
-      setMessage(event.data.message || (event.data.success ? '微信绑定成功' : '微信绑定失败'));
+      const providerLabel = resolveSocialProviderLabel(event.data.provider);
+      setMessage(event.data.message || (event.data.success ? `${providerLabel}绑定成功` : `${providerLabel}绑定失败`));
       if (event.data.success) {
         loadSecurityData().catch(() => {});
       }
@@ -3190,7 +3652,7 @@ const SecuritySettings: React.FC<{
       if (socialPopupRef.current && socialPopupRef.current.closed) {
         socialPopupRef.current = null;
         setSocialActionLoading(false);
-        setMessage(prev => prev || '微信授权窗口已关闭，请重新发起绑定');
+        setMessage(prev => prev || '授权窗口已关闭，请重新发起绑定');
       }
     }, 400);
     return () => {
@@ -3378,12 +3840,15 @@ const SecuritySettings: React.FC<{
   };
 
   /**
-   * 发起微信绑定流程，PC 端使用弹窗，微信内直接整页跳转授权
+   * 发起第三方绑定流程（支持微信与QQ）
    */
-  const handleWechatBind = async () => {
-    const provider = resolvePreferredWechatProvider(authConfig);
+  const startSocialBind = async (
+    provider: 'wechatWebsite' | 'wechatOfficialAccount' | 'qqWeb' | '',
+    popupTitle: string,
+    unavailableMessage: string
+  ) => {
     if (!provider) {
-      setMessage('管理员暂未开启微信登录配置，暂时无法绑定微信');
+      setMessage(unavailableMessage);
       return;
     }
     setSocialActionLoading(true);
@@ -3396,13 +3861,13 @@ const SecuritySettings: React.FC<{
       });
       const authUrl = String(result?.authUrl || '').trim();
       if (!authUrl) {
-        throw new Error('微信绑定授权地址生成失败');
+        throw new Error('绑定授权地址生成失败');
       }
       if (provider === 'wechatOfficialAccount') {
         window.location.href = authUrl;
         return;
       }
-      const popup = openCenteredPopup(authUrl, '绑定微信', 540, 720);
+      const popup = openCenteredPopup(authUrl, popupTitle, 540, 720);
       if (!popup) {
         window.location.href = authUrl;
         return;
@@ -3411,23 +3876,48 @@ const SecuritySettings: React.FC<{
       popup.focus?.();
     } catch (error: any) {
       setSocialActionLoading(false);
-      setMessage(error?.message || '微信绑定启动失败，请稍后重试');
+      setMessage(error?.message || '绑定启动失败，请稍后重试');
     }
   };
 
   /**
-   * 解绑当前已绑定微信
+   * 发起微信绑定流程，PC 端使用弹窗，微信内直接整页跳转授权
    */
-  const handleWechatUnbind = async () => {
-    if (!window.confirm('确认解绑当前微信账号吗？解绑后将无法继续使用微信登录。')) return;
+  const handleWechatBind = async () => {
+    const provider = resolvePreferredWechatProvider(authConfig);
+    await startSocialBind(
+      provider,
+      '绑定微信',
+      '管理员暂未开启微信登录配置，暂时无法绑定微信'
+    );
+  };
+
+  /**
+   * 发起 QQ 绑定流程
+   */
+  const handleQqBind = async () => {
+    const provider = resolvePreferredQqProvider(authConfig);
+    await startSocialBind(
+      provider,
+      '绑定QQ',
+      '管理员暂未开启QQ登录配置，暂时无法绑定QQ'
+    );
+  };
+
+  /**
+   * 解绑当前已绑定第三方账号
+   */
+  const handleSocialUnbind = async (provider: 'wechat' | 'qq') => {
+    const providerLabel = resolveSocialProviderLabel(provider);
+    if (!window.confirm(`确认解绑当前${providerLabel}账号吗？解绑后将无法继续使用${providerLabel}登录。`)) return;
     setSocialActionLoading(true);
     setMessage('');
     try {
-      await userService.unbindSocialAccount('wechat');
-      setMessage('微信已解绑');
+      await userService.unbindSocialAccount(provider);
+      setMessage(`${providerLabel}已解绑`);
       await loadSecurityData();
     } catch (error: any) {
-      setMessage(error?.message || '微信解绑失败，请稍后重试');
+      setMessage(error?.message || `${providerLabel}解绑失败，请稍后重试`);
     } finally {
       setSocialActionLoading(false);
     }
@@ -3435,12 +3925,18 @@ const SecuritySettings: React.FC<{
 
   const wechatAvailableProvider = resolvePreferredWechatProvider(authConfig);
   const wechatBindEnabled = Boolean(wechatAvailableProvider);
+  const qqAvailableProvider = resolvePreferredQqProvider(authConfig);
+  const qqBindEnabled = Boolean(qqAvailableProvider);
   const wechatBinding = socialBindings.wechat;
+  const qqBinding = socialBindings.qq;
 
   return (
     <div>
       <div className="content-header">
         <h2 className="content-title">账号安全</h2>
+      </div>
+      <div className="profile-note-box">
+        建议先绑定邮箱，再绑定微信/QQ，最后开启 2FA；后续登录、授权审核与支付通知都会更稳定。
       </div>
       <div className="security-section">
         <h3 className="security-section__title">修改密码</h3>
@@ -3542,54 +4038,106 @@ const SecuritySettings: React.FC<{
 
       <div className="security-section">
         <h3 className="security-section__title">第三方账号</h3>
-        <div className="security-social-card">
-          <div className="security-social-card__header">
-            <div>
-              <div className="security-social-card__title">微信账号</div>
-              <div className="security-social-card__meta">
-                {wechatBinding.bound
-                  ? `已绑定${wechatBinding.channel ? ` · ${wechatBinding.channel}` : ''}${wechatBinding.openid ? ` · ${wechatBinding.openid}` : ''}`
-                  : '未绑定微信账号'}
-              </div>
-              {wechatBinding.bound && wechatBinding.bindTimeText && (
-                <div className="security-social-card__submeta">
-                  绑定时间：{wechatBinding.bindTimeText}
+        <div className="security-social-grid">
+          <div className="security-social-card">
+            <div className="security-social-card__header">
+              <div>
+                <div className="security-social-card__title">微信账号</div>
+                <div className="security-social-card__meta">
+                  {wechatBinding.bound
+                    ? `已绑定${wechatBinding.channel ? ` · ${wechatBinding.channel}` : ''}${wechatBinding.openid ? ` · ${wechatBinding.openid}` : ''}`
+                    : '未绑定微信账号'}
                 </div>
+                {wechatBinding.bound && wechatBinding.bindTimeText && (
+                  <div className="security-social-card__submeta">
+                    绑定时间：{wechatBinding.bindTimeText}
+                  </div>
+                )}
+              </div>
+              <span className={`status-badge ${wechatBinding.bound ? 'status-1' : 'status-0'}`}>
+                {wechatBinding.bound ? '已绑定' : '未绑定'}
+              </span>
+            </div>
+            <div className="security-social-card__tip">
+              PC 端使用微信开放平台扫码授权，微信内访问时会自动切换到公众号网页授权。
+            </div>
+            <div className="security-action-row">
+              {wechatBinding.bound ? (
+                <button
+                  type="button"
+                  className="action-btn"
+                  disabled={socialActionLoading}
+                  onClick={() => handleSocialUnbind('wechat')}
+                >
+                  {socialActionLoading ? '处理中...' : '解绑微信'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="save-btn"
+                  disabled={socialActionLoading || !wechatBindEnabled}
+                  onClick={handleWechatBind}
+                >
+                  {socialActionLoading ? '处理中...' : '绑定微信'}
+                </button>
               )}
             </div>
-            <span className={`status-badge ${wechatBinding.bound ? 'status-1' : 'status-0'}`}>
-              {wechatBinding.bound ? '已绑定' : '未绑定'}
-            </span>
-          </div>
-          <div className="security-social-card__tip">
-            PC 端使用微信开放平台扫码授权，微信内访问时会自动切换到公众号网页授权。
-          </div>
-          <div className="security-action-row">
-            {wechatBinding.bound ? (
-              <button
-                type="button"
-                className="action-btn"
-                disabled={socialActionLoading}
-                onClick={handleWechatUnbind}
-              >
-                {socialActionLoading ? '处理中...' : '解绑微信'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="save-btn"
-                disabled={socialActionLoading || !wechatBindEnabled}
-                onClick={handleWechatBind}
-              >
-                {socialActionLoading ? '正在打开微信授权...' : '绑定微信'}
-              </button>
+            {!wechatBindEnabled && (
+              <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
+                当前站点暂未开启微信登录配置，请先到后台完成微信开放平台或公众号参数配置。
+              </div>
             )}
           </div>
-          {!wechatBindEnabled && (
-            <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
-              当前站点暂未开启微信登录配置，请先到后台完成微信开放平台或公众号参数配置。
+
+          <div className="security-social-card">
+            <div className="security-social-card__header">
+              <div>
+                <div className="security-social-card__title">QQ账号</div>
+                <div className="security-social-card__meta">
+                  {qqBinding.bound
+                    ? `已绑定${qqBinding.channel ? ` · ${qqBinding.channel}` : ''}${qqBinding.openid ? ` · ${qqBinding.openid}` : ''}`
+                    : '未绑定QQ账号'}
+                </div>
+                {qqBinding.bound && qqBinding.bindTimeText && (
+                  <div className="security-social-card__submeta">
+                    绑定时间：{qqBinding.bindTimeText}
+                  </div>
+                )}
+              </div>
+              <span className={`status-badge ${qqBinding.bound ? 'status-1' : 'status-0'}`}>
+                {qqBinding.bound ? '已绑定' : '未绑定'}
+              </span>
             </div>
-          )}
+            <div className="security-social-card__tip">
+              QQ 绑定通过 QQ互联网页应用授权完成，适合 PC 端快速登录与账号关联。
+            </div>
+            <div className="security-action-row">
+              {qqBinding.bound ? (
+                <button
+                  type="button"
+                  className="action-btn"
+                  disabled={socialActionLoading}
+                  onClick={() => handleSocialUnbind('qq')}
+                >
+                  {socialActionLoading ? '处理中...' : '解绑QQ'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="save-btn"
+                  disabled={socialActionLoading || !qqBindEnabled}
+                  onClick={handleQqBind}
+                >
+                  {socialActionLoading ? '处理中...' : '绑定QQ'}
+                </button>
+              )}
+            </div>
+            {!qqBindEnabled && (
+              <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
+                当前站点暂未开启QQ登录配置，请先到后台完成QQ互联参数配置。
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

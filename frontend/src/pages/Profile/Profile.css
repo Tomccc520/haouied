@@ -212,6 +212,19 @@
   margin-bottom: 18px;
 }
 
+.profile-type-tabs--sub {
+  margin-left: 10px;
+}
+
+.profile-note-box {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-medium);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .profile-type-tab {
   border: none;
   background: transparent;
@@ -872,6 +885,11 @@
   gap: 10px;
 }
 
+.security-social-grid {
+  display: grid;
+  gap: 10px;
+}
+
 .security-social-card {
   display: grid;
   gap: 10px;
@@ -1028,6 +1046,10 @@
     width: 100%;
     overflow-x: auto;
     margin-bottom: 14px;
+  }
+
+  .profile-type-tabs--sub {
+    margin-left: 0;
   }
 
   .list-item--rich {
