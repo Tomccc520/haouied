@@ -199,6 +199,7 @@ const rsa = {
     'auth:social:state', // GET/POST /api/auth/social/state
     'auth:wechat:open-platform:callback', // GET /api/auth/wechat/open-platform/callback
     'auth:wechat:official-account:login:callback', // GET /api/auth/wechat/official-account/login/callback
+    'auth:qq:callback', // GET /api/auth/qq/callback
     'daily-hot', // GET /api/daily-hot
     'daily-hot:platforms', // GET /api/daily-hot/platforms
     'daily-new:config', // GET /api/daily-new/config
@@ -284,6 +285,8 @@ const rsa = {
     'user:avatar:upload', // 前台用户头像上传
     'user:license:bind', // 前台用户授权绑定
     'user:license:change:domain', // 前台用户修改授权域名
+    'user:submission:list', // 前台用户投稿/投放列表
+    'user:submission:pay-status', // 前台用户投稿支付状态
     'ai:chat:completions:editor', // AI 编辑器生成
   ],
 

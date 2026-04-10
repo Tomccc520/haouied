@@ -1283,7 +1283,7 @@ const openBatchWechatImportDialog = () => {
  * 规范化“文章导入模板库”预设列表，只保留启用项并统一字段。
  */
 const normalizeBatchAiArticlePresetList = (payload: any): ImportTemplatePresetItem[] => {
-    const source = Array.isArray(payload?.article) ? payload.article : []
+    const source: Array<Record<string, any>> = Array.isArray(payload?.article) ? payload.article : []
     return source
         .map((item: any, index: number) => ({
             id: String(item?.id || `article_preset_${index + 1}`).trim(),
@@ -1294,8 +1294,8 @@ const normalizeBatchAiArticlePresetList = (payload: any): ImportTemplatePresetIt
             enabled: item?.enabled !== false,
             sort: Number.isFinite(Number(item?.sort)) ? Number(item?.sort) : (index + 1) * 10
         }))
-        .filter((item) => item.enabled !== false && item.promptTemplate)
-        .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+        .filter((item: ImportTemplatePresetItem) => item.enabled !== false && item.promptTemplate)
+        .sort((a: ImportTemplatePresetItem, b: ImportTemplatePresetItem) => Number(a.sort || 0) - Number(b.sort || 0))
 }
 
 /**

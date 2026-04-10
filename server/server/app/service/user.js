@@ -91,10 +91,12 @@ const SOCIAL_AUTH_STATE_VERSION = 1;
 const SOCIAL_AUTH_PROVIDER_MAP = {
   wechatWebsite: 4,
   wechatOfficialAccount: 2,
+  qqWeb: 8,
 };
 const SOCIAL_AUTH_PROVIDER_LABEL_MAP = {
   wechatWebsite: '微信开放平台',
   wechatOfficialAccount: '微信公众号',
+  qqWeb: 'QQ互联',
 };
 
 class UserService extends Service {
@@ -1060,6 +1062,9 @@ class UserService extends Service {
    */
   normalizeSocialAuthProviderKey(provider) {
     const key = String(provider || '').trim().toLowerCase();
+    if ([ 'qq', 'qqweb', 'qq_web', 'qq-web', 'qqconnect', 'qq_connect', 'qq-connect' ].includes(key)) {
+      return 'qqWeb';
+    }
     if ([ 'wechat', 'wechatpc', 'wechat_pc', 'wechat-pc', 'wechatwebsite', 'wechat_website', 'wechat-website', 'website', 'open-platform', 'open_platform' ].includes(key)) {
       return 'wechatWebsite';
     }
@@ -1086,7 +1091,7 @@ class UserService extends Service {
    */
   getSocialAuthProviderLabel(provider) {
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
-    return SOCIAL_AUTH_PROVIDER_LABEL_MAP[providerKey] || '微信登录';
+    return SOCIAL_AUTH_PROVIDER_LABEL_MAP[providerKey] || '第三方登录';
   }
 
   /**
@@ -1107,8 +1112,14 @@ class UserService extends Service {
    */
   normalizeSocialBindingProviderKey(provider) {
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (providerKey === 'qqWeb') {
+      return 'qq';
+    }
     if ([ 'wechatWebsite', 'wechatOfficialAccount' ].includes(providerKey)) {
       return 'wechat';
+    }
+    if (String(provider || '').trim().toLowerCase() === 'qq') {
+      return 'qq';
     }
     if (String(provider || '').trim().toLowerCase() === 'wechat') {
       return 'wechat';
@@ -1123,6 +1134,9 @@ class UserService extends Service {
    */
   resolveSocialBindingClientCodes(provider) {
     const bindingProvider = this.normalizeSocialBindingProviderKey(provider);
+    if (bindingProvider === 'qq') {
+      return [ SOCIAL_AUTH_PROVIDER_MAP.qqWeb ];
+    }
     if (bindingProvider === 'wechat') {
       return [ SOCIAL_AUTH_PROVIDER_MAP.wechatWebsite, SOCIAL_AUTH_PROVIDER_MAP.wechatOfficialAccount ];
     }
@@ -1290,6 +1304,9 @@ class UserService extends Service {
   buildSocialCallbackPath(provider) {
     const { ctx } = this;
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (providerKey === 'qqWeb') {
+      return ctx.service.uied.setting.getQqOauthCallbackPath();
+    }
     if (providerKey === 'wechatWebsite') {
       return ctx.service.uied.setting.getWechatOpenPlatformCallbackPath();
     }
@@ -1357,11 +1374,11 @@ class UserService extends Service {
   }
 
   /**
-   * 获取指定微信平台配置
+   * 获取指定第三方平台配置
    * @param {string} provider 平台标识
    * @return {Promise<object>} 平台配置
    */
-  async getWechatSocialProviderConfig(provider) {
+  async getSocialProviderConfig(provider) {
     const { ctx } = this;
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
     if (!providerKey) {
@@ -1370,18 +1387,35 @@ class UserService extends Service {
     const authConfig = ctx.service.uied.setting.normalizeAuthConfig(
       await ctx.service.uied.setting.getAuthConfig()
     );
-    const providerConfig = providerKey === 'wechatWebsite'
-      ? (authConfig.wechatWebsiteLogin || {})
-      : (authConfig.wechatOfficialAccountLogin || {});
+    let providerConfig = {};
+    if (providerKey === 'wechatWebsite') {
+      providerConfig = authConfig.wechatWebsiteLogin || {};
+    } else if (providerKey === 'wechatOfficialAccount') {
+      providerConfig = authConfig.wechatOfficialAccountLogin || {};
+    } else if (providerKey === 'qqWeb') {
+      providerConfig = authConfig.qqLogin || {};
+    }
     if (!providerConfig.enabled) {
       throw new Error(`${this.getSocialAuthProviderLabel(providerKey)}未开启`);
     }
-    if (!String(providerConfig.appId || '').trim() || !String(providerConfig.appSecret || '').trim()) {
+    const appId = String(providerConfig.appId || '').trim();
+    const appSecret = String(providerConfig.appSecret || '').trim();
+    const appKey = String(providerConfig.appKey || '').trim();
+    if (providerKey === 'qqWeb') {
+      if (!appId || !appKey) {
+        throw new Error('QQ互联参数不完整');
+      }
+      return {
+        appId,
+        appKey,
+      };
+    }
+    if (!appId || !appSecret) {
       throw new Error(`${this.getSocialAuthProviderLabel(providerKey)}参数不完整`);
     }
     return {
-      appId: String(providerConfig.appId || '').trim(),
-      appSecret: String(providerConfig.appSecret || '').trim(),
+      appId,
+      appSecret,
     };
   }
 
@@ -1428,6 +1462,27 @@ class UserService extends Service {
   }
 
   /**
+   * 生成 QQ 互联网页应用授权地址
+   * @param {string} appId QQ AppID
+   * @param {string} state 状态串
+   * @return {string} 授权地址
+   */
+  buildQqAuthorizeUrl(appId, state) {
+    const safeAppId = String(appId || '').trim();
+    const safeState = String(state || '').trim();
+    const redirectUri = this.buildSocialCallbackUrl('qqWeb');
+    if (!safeAppId || !safeState || !redirectUri) return '';
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: safeAppId,
+      redirect_uri: redirectUri,
+      state: safeState,
+      scope: 'get_user_info',
+    });
+    return `https://graph.qq.com/oauth2.0/authorize?${params.toString()}`;
+  }
+
+  /**
    * 生成第三方登录授权地址
    * @param {string} provider 平台标识
    * @param {string} state 状态串
@@ -1435,7 +1490,10 @@ class UserService extends Service {
    */
   async buildSocialAuthorizeUrl(provider, state) {
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
-    const config = await this.getWechatSocialProviderConfig(providerKey);
+    const config = await this.getSocialProviderConfig(providerKey);
+    if (providerKey === 'qqWeb') {
+      return this.buildQqAuthorizeUrl(config.appId, state);
+    }
     if (providerKey === 'wechatWebsite') {
       return this.buildWechatWebsiteAuthorizeUrl(config.appId, state);
     }
@@ -1459,7 +1517,7 @@ class UserService extends Service {
     if (mode === SOCIAL_AUTH_MODE_LOGIN) {
       await this.assertFrontLoginEnabled();
     }
-    await this.getWechatSocialProviderConfig(providerKey);
+    await this.getSocialProviderConfig(providerKey);
     const bindUserId = mode === SOCIAL_AUTH_MODE_BIND ? Number(options.userId || 0) : 0;
     if (mode === SOCIAL_AUTH_MODE_BIND && bindUserId <= 0) {
       throw new Error('绑定用户信息无效，请刷新后重试');
@@ -1670,7 +1728,7 @@ class UserService extends Service {
   async fetchWechatSocialProfile(provider, code) {
     const { ctx } = this;
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
-    const config = await this.getWechatSocialProviderConfig(providerKey);
+    const config = await this.getSocialProviderConfig(providerKey);
     const safeCode = String(code || '').trim();
     if (!safeCode) {
       throw new Error('授权码不能为空');
@@ -1721,6 +1779,126 @@ class UserService extends Service {
         user: userData,
       },
     };
+  }
+
+  /**
+   * 解析 QQ 回调包裹文本（callback(xxx);）
+   * @param {string} payload 原始响应文本
+   * @return {object|null} 解析结果
+   */
+  parseQqWrappedPayload(payload = '') {
+    const text = String(payload || '').trim();
+    if (!text) return null;
+    const callbackMatch = text.match(/callback\s*\(\s*(.*)\s*\)\s*;?$/i);
+    const raw = callbackMatch ? String(callbackMatch[1] || '').trim() : text;
+    if (!raw) return null;
+    if (raw.startsWith('{') || raw.startsWith('[')) {
+      try {
+        return JSON.parse(raw);
+      } catch (_error) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 调用 QQ 接口换取第三方资料
+   * @param {string} code 授权码
+   * @return {Promise<object>} 第三方资料
+   */
+  async fetchQqSocialProfile(code) {
+    const { ctx } = this;
+    const config = await this.getSocialProviderConfig('qqWeb');
+    const safeCode = String(code || '').trim();
+    if (!safeCode) {
+      throw new Error('授权码不能为空');
+    }
+    const redirectUri = this.buildSocialCallbackUrl('qqWeb');
+    if (!redirectUri) {
+      throw new Error('QQ登录回调地址无效');
+    }
+
+    const tokenQuery = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: String(config.appId || '').trim(),
+      client_secret: String(config.appKey || '').trim(),
+      code: safeCode,
+      redirect_uri: redirectUri,
+      fmt: 'json',
+    });
+    const tokenUrl = `https://graph.qq.com/oauth2.0/token?${tokenQuery.toString()}`;
+    const tokenResponse = await ctx.curl(tokenUrl, {
+      method: 'GET',
+      dataType: 'json',
+      timeout: 5000,
+    });
+    const tokenData = tokenResponse?.data || {};
+    const accessToken = String(tokenData.access_token || '').trim();
+    if (!accessToken) {
+      throw new Error(String(tokenData?.error_description || tokenData?.msg || 'QQ授权失败'));
+    }
+
+    const meQuery = new URLSearchParams({
+      access_token: accessToken,
+      fmt: 'json',
+    });
+    const meUrl = `https://graph.qq.com/oauth2.0/me?${meQuery.toString()}`;
+    const meResponse = await ctx.curl(meUrl, {
+      method: 'GET',
+      dataType: 'json',
+      timeout: 5000,
+    });
+    const meData = meResponse?.data || {};
+    const openid = String(meData.openid || '').trim();
+    if (!openid) {
+      throw new Error(String(meData?.msg || '获取QQ用户标识失败'));
+    }
+
+    const userQuery = new URLSearchParams({
+      access_token: accessToken,
+      oauth_consumer_key: String(config.appId || '').trim(),
+      openid,
+      fmt: 'json',
+    });
+    const userUrl = `https://graph.qq.com/user/get_user_info?${userQuery.toString()}`;
+    const userResponse = await ctx.curl(userUrl, {
+      method: 'GET',
+      dataType: 'json',
+      timeout: 5000,
+    });
+    const userData = userResponse?.data || {};
+    if (Number(userData?.ret || 0) !== 0) {
+      throw new Error(String(userData?.msg || '获取QQ用户信息失败'));
+    }
+    const avatar = String(
+      userData.figureurl_qq_2 || userData.figureurl_2 || userData.figureurl_1 || ''
+    ).trim();
+    return {
+      openid,
+      unionid: '',
+      nickname: String(userData.nickname || '').trim(),
+      avatar,
+      raw: {
+        token: tokenData,
+        me: meData,
+        user: userData,
+      },
+    };
+  }
+
+  /**
+   * 根据平台统一拉取第三方资料
+   * @param {string} provider 平台标识
+   * @param {string} code 授权码
+   * @return {Promise<object>} 第三方资料
+   */
+  async fetchSocialProfile(provider, code) {
+    const providerKey = this.normalizeSocialAuthProviderKey(provider);
+    if (providerKey === 'qqWeb') {
+      return await this.fetchQqSocialProfile(code);
+    }
+    return await this.fetchWechatSocialProfile(providerKey, code);
   }
 
   /**
@@ -1779,6 +1957,7 @@ class UserService extends Service {
     const prefixMap = {
       wechatWebsite: 'wxpc',
       wechatOfficialAccount: 'wxoa',
+      qqWeb: 'qq',
     };
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
     const prefix = prefixMap[providerKey] || 'user';
@@ -1921,17 +2100,23 @@ class UserService extends Service {
     if (!uid) throw new Error('用户不存在');
     const ready = await this.ensureUserAuthTable();
     if (!ready) throw new Error('第三方登录服务初始化失败');
+    const wechatClients = this.resolveSocialBindingClientCodes('wechat');
+    const qqClients = this.resolveSocialBindingClientCodes('qq');
+    const allClients = Array.from(new Set([ ...wechatClients, ...qqClients ]));
     const rows = await ctx.model.UserAuth.findAll({
       where: {
         userId: uid,
         client: {
-          [Op.in]: this.resolveSocialBindingClientCodes('wechat'),
+          [Op.in]: allClients,
         },
       },
       order: [[ 'updateTime', 'DESC' ], [ 'id', 'DESC' ]],
     });
-    const latestWechat = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-    const updateTime = Number(latestWechat?.updateTime || latestWechat?.createTime || 0);
+    const list = Array.isArray(rows) ? rows : [];
+    const latestWechat = list.find(item => wechatClients.includes(Number(item?.client || 0))) || null;
+    const latestQq = list.find(item => qqClients.includes(Number(item?.client || 0))) || null;
+    const wechatUpdateTime = Number(latestWechat?.updateTime || latestWechat?.createTime || 0);
+    const qqUpdateTime = Number(latestQq?.updateTime || latestQq?.createTime || 0);
     return {
       wechat: {
         provider: this.resolveSocialBindingViewProvider(
@@ -1944,8 +2129,16 @@ class UserService extends Service {
           : '开放平台',
         bound: Boolean(latestWechat),
         openid: this.maskSocialOpenid(latestWechat?.openid || ''),
-        bindTime: updateTime,
-        bindTimeText: updateTime ? moment.unix(updateTime).format('YYYY-MM-DD HH:mm:ss') : '',
+        bindTime: wechatUpdateTime,
+        bindTimeText: wechatUpdateTime ? moment.unix(wechatUpdateTime).format('YYYY-MM-DD HH:mm:ss') : '',
+      },
+      qq: {
+        provider: 'qq',
+        channel: 'QQ互联',
+        bound: Boolean(latestQq),
+        openid: this.maskSocialOpenid(latestQq?.openid || ''),
+        bindTime: qqUpdateTime,
+        bindTimeText: qqUpdateTime ? moment.unix(qqUpdateTime).format('YYYY-MM-DD HH:mm:ss') : '',
       },
     };
   }
@@ -1971,10 +2164,11 @@ class UserService extends Service {
     const providerKey = this.normalizeSocialAuthProviderKey(provider);
     const bindingProvider = this.resolveSocialBindingViewProvider(providerKey);
     if (!bindingProvider) throw new Error('暂不支持该平台绑定');
+    const providerLabel = bindingProvider === 'qq' ? 'QQ' : '微信';
 
     const openid = String(profile.openid || '').trim();
     const unionid = String(profile.unionid || '').trim();
-    if (!openid) throw new Error('微信账号标识无效');
+    if (!openid) throw new Error(`${providerLabel}账号标识无效`);
 
     const client = this.getSocialAuthClientCode(providerKey);
     const providerClients = this.resolveSocialBindingClientCodes(bindingProvider);
@@ -1987,7 +2181,7 @@ class UserService extends Service {
       attributes: [ 'id', 'userId' ],
     });
     if (existsByOpenid && Number(existsByOpenid.userId || 0) !== uid) {
-      throw new Error('该微信账号已绑定到其他账号');
+      throw new Error(`该${providerLabel}账号已绑定到其他账号`);
     }
 
     if (unionid) {
@@ -2000,7 +2194,7 @@ class UserService extends Service {
         order: [[ 'id', 'ASC' ]],
       });
       if (existsByUnionid && Number(existsByUnionid.userId || 0) !== uid) {
-        throw new Error('该微信账号已绑定到其他账号');
+        throw new Error(`该${providerLabel}账号已绑定到其他账号`);
       }
     }
 
@@ -2046,6 +2240,7 @@ class UserService extends Service {
     if (!uid) throw new Error('用户不存在');
     const bindingProvider = this.normalizeSocialBindingProviderKey(provider);
     if (!bindingProvider) throw new Error('解绑类型错误');
+    const providerLabel = bindingProvider === 'qq' ? 'QQ' : '微信';
     const clients = this.resolveSocialBindingClientCodes(bindingProvider);
     const deleted = await ctx.model.UserAuth.destroy({
       where: {
@@ -2054,7 +2249,7 @@ class UserService extends Service {
       },
     });
     if (!Number(deleted || 0)) {
-      throw new Error('当前账号未绑定微信');
+      throw new Error(`当前账号未绑定${providerLabel}`);
     }
   }
 
@@ -2167,7 +2362,7 @@ class UserService extends Service {
     }
 
     try {
-      const profile = await this.fetchWechatSocialProfile(providerKey, code);
+      const profile = await this.fetchSocialProfile(providerKey, code);
       if (isBindMode) {
         const bindUserId = Number(stateContext.userId || 0);
         if (!bindUserId) {
@@ -2460,6 +2655,7 @@ class UserService extends Service {
    */
   async login(params) {
     const { ctx } = this;
+    await this.assertFrontLoginEnabled();
     const username = String(params.username || params.account || '').trim();
     const password = String(params.password || '').trim();
     if (!username || !password) {
@@ -2663,6 +2859,39 @@ class UserService extends Service {
   /**
    * 用户中心订单列表
    */
+  resolveOrderPayChannel(order = {}) {
+    const channelText = String(
+      order.payChannel
+      || order.pay_channel
+      || order.channel
+      || order.payType
+      || order.pay_type
+      || ''
+    ).trim().toLowerCase();
+    if ([ 'alipay', 'ali_pay', 'ali' ].includes(channelText)) return 'alipay';
+    if ([ 'wechat', 'wechatpay', 'wx', 'weixin' ].includes(channelText)) return 'wechat';
+    if ([ 'balance', 'wallet' ].includes(channelText)) return 'balance';
+    const payWay = Number(order.payWay || order.pay_way || order.payway || 0);
+    if (payWay === 1) return 'alipay';
+    if (payWay === 2) return 'wechat';
+    if (payWay === 3) return 'balance';
+    return channelText || '';
+  }
+
+  /**
+   * 统一转换支付渠道中文文案（前端也有兜底，此处用于接口直出）。
+   */
+  resolveOrderPayChannelText(order = {}) {
+    const channel = this.resolveOrderPayChannel(order);
+    if (channel === 'alipay') return '支付宝';
+    if (channel === 'wechat') return '微信支付';
+    if (channel === 'balance') return '余额支付';
+    return channel ? `其他(${channel})` : '';
+  }
+
+  /**
+   * 用户中心订单列表
+   */
   async orderList(userId, params) {
     const { ctx } = this;
     if (!this.hasModel('Order')) {
@@ -2748,6 +2977,9 @@ class UserService extends Service {
         payStatus: Number(order.payStatus || 0),
         orderStatus: Number(order.orderStatus || 0),
         refundStatus: Number(order.refundStatus ?? order.refund_status ?? 0),
+        payChannel: this.resolveOrderPayChannel(order),
+        payChannelText: this.resolveOrderPayChannelText(order),
+        payUrl: String(order.payUrl || order.pay_url || '').trim(),
         createTime: order.createTime,
       };
     });
@@ -2786,9 +3018,12 @@ class UserService extends Service {
     data.amount = Number(order.price || 0).toFixed(2);
     data.originalAmount = Number(order.originPrice || 0).toFixed(2);
     data.couponAmount = Number(order.couponAmount || 0).toFixed(2);
+    data.payUrl = String(order.payUrl || order.pay_url || data.payUrl || '').trim();
     data.payStatus = Number(order.payStatus ?? data.payStatus ?? 0);
     data.orderStatus = Number(order.orderStatus ?? data.orderStatus ?? 0);
     data.status = data.orderStatus === 2 ? 2 : (data.payStatus === 1 ? 1 : 0);
+    data.payChannel = this.resolveOrderPayChannel(order);
+    data.payChannelText = this.resolveOrderPayChannelText(order);
     data.refundStatus = Number(data.refundStatus ?? data.refund_status ?? order.refundStatus ?? order.refund_status ?? 0);
     /**
      * 兼容订单详情页展示“授权码/下载记录”：缺失时返回空数组，避免前端兜底报错。
@@ -2818,6 +3053,283 @@ class UserService extends Service {
       data.downloadRecords = snapshot.downloadRecords;
     }
     return data;
+  }
+
+  /**
+   * 构建“投稿属于当前用户”的 SQL 条件（优先 user_id，兼容邮箱兜底）。
+   * @param {Set<string>} columns 投稿表字段集合
+   * @param {{ tableAlias?: string, userId?: number, userEmail?: string }} options 归属条件参数
+   * @return {{ valid:boolean, clause:string, replacements:any[], matchedByUserId:boolean, matchedByEmail:boolean }}
+   */
+  buildSubmissionOwnershipWhereClause(columns, options = {}) {
+    const alias = String(options.tableAlias || '').trim();
+    const prefix = alias ? `${alias}.` : '';
+    const uid = Number(options.userId || 0);
+    const email = String(options.userEmail || '').trim();
+    const conditions = [];
+    const replacements = [];
+
+    if (uid > 0 && columns.has('submitter_user_id')) {
+      conditions.push(`${prefix}submitter_user_id = ?`);
+      replacements.push(uid);
+    }
+    if (email && columns.has('submitter_email')) {
+      conditions.push(`${prefix}submitter_email = ?`);
+      replacements.push(email);
+    }
+
+    return {
+      valid: conditions.length > 0,
+      clause: conditions.length > 0 ? `(${conditions.join(' OR ')})` : '',
+      replacements,
+      matchedByUserId: conditions.some(item => item.includes('submitter_user_id')),
+      matchedByEmail: conditions.some(item => item.includes('submitter_email')),
+    };
+  }
+
+  /**
+   * 用户中心投稿/投放记录列表（闭环：投稿记录 + 支付订单状态）。
+   * @param {number} userId 用户ID
+   * @param {{pageNo?:number,pageSize?:number,status?:string,payStatus?:string}} params 查询参数
+   * @return {Promise<{lists:any[],total:number,pageNo:number,pageSize:number,moduleEnabled:boolean,moduleMessage:string}>}
+   */
+  async userSubmissionList(userId, params = {}) {
+    const { app, ctx } = this;
+    const uid = Number(userId || 0);
+    if (!uid) throw new Error('用户不存在');
+
+    const pageNo = Math.max(1, Number(params.pageNo || 1));
+    const pageSize = Math.max(1, Math.min(100, Number(params.pageSize || 10)));
+    const offset = (pageNo - 1) * pageSize;
+    const status = String(params.status || '').trim();
+    const payStatus = String(params.payStatus || '').trim();
+
+    const submissionTable = 'uied_website_submission';
+    const payOrderTable = 'uied_submission_pay_order';
+    const submissionColumns = await this.getTableColumns(submissionTable);
+    if (!submissionColumns.size) {
+      return {
+        lists: [],
+        total: 0,
+        pageNo,
+        pageSize,
+        moduleEnabled: false,
+        moduleMessage: '投稿服务未启用，请联系站点管理员',
+      };
+    }
+
+    const user = await ctx.model.User.findOne({
+      where: { id: uid, isDelete: 0 },
+      attributes: [ 'id', 'email' ],
+    });
+    if (!user) throw new Error('用户不存在');
+    const userEmail = String(user.email || '').trim();
+    const ownership = this.buildSubmissionOwnershipWhereClause(submissionColumns, {
+      userId: uid,
+      userEmail,
+    });
+    if (!ownership.valid) {
+      return {
+        lists: [],
+        total: 0,
+        pageNo,
+        pageSize,
+        moduleEnabled: false,
+        moduleMessage: '请先在账号安全中绑定邮箱后再查看投稿/投放记录',
+      };
+    }
+
+    const whereSqlList = [ ownership.clause ];
+    const whereReplacements = [ ...ownership.replacements ];
+    if (submissionColumns.has('is_delete')) {
+      whereSqlList.push('is_delete = 0');
+    }
+    if (status) {
+      whereSqlList.push('status = ?');
+      whereReplacements.push(status);
+    }
+    const whereSql = whereSqlList.join(' AND ');
+
+    const [ countRow ] = await app.model.query(
+      `SELECT COUNT(*) AS total
+       FROM ${submissionTable}
+       WHERE ${whereSql}`,
+      {
+        replacements: whereReplacements,
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const selectFields = [ 'id', 'name', 'description', 'url', 'status' ];
+    if (submissionColumns.has('service_type')) selectFields.push('service_type');
+    if (submissionColumns.has('service_meta')) selectFields.push('service_meta');
+    if (submissionColumns.has('reject_reason')) selectFields.push('reject_reason');
+    if (submissionColumns.has('reviewed_at')) selectFields.push('reviewed_at');
+    if (submissionColumns.has('submitter_email')) selectFields.push('submitter_email');
+    selectFields.push('create_time', 'update_time');
+
+    const rows = await app.model.query(
+      `SELECT ${selectFields.join(', ')}
+       FROM ${submissionTable}
+       WHERE ${whereSql}
+       ORDER BY create_time DESC, id DESC
+       LIMIT ? OFFSET ?`,
+      {
+        replacements: [ ...whereReplacements, pageSize, offset ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const submissionIds = (Array.isArray(rows) ? rows : [])
+      .map(item => Number(item?.id || 0))
+      .filter(Boolean);
+
+    const payOrderMap = new Map();
+    const payOrderColumns = await this.getTableColumns(payOrderTable);
+    if (payOrderColumns.size && submissionIds.length > 0) {
+      const payRows = await app.model.query(
+        `SELECT submission_id, order_no, pay_channel, amount, status, pay_url, pay_time, expire_time, update_time
+         FROM ${payOrderTable}
+         WHERE submission_id IN (?)
+         ORDER BY id DESC`,
+        {
+          replacements: [ submissionIds ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      (Array.isArray(payRows) ? payRows : []).forEach(item => {
+        const sid = Number(item?.submission_id || 0);
+        if (!sid || payOrderMap.has(sid)) return;
+        payOrderMap.set(sid, {
+          payOrderNo: String(item?.order_no || ''),
+          payChannel: String(item?.pay_channel || ''),
+          payAmount: Number(item?.amount || 0),
+          payStatus: String(item?.status || ''),
+          payUrl: String(item?.pay_url || ''),
+          payTime: Number(item?.pay_time || 0),
+          expireTime: Number(item?.expire_time || 0),
+          payUpdateTime: Number(item?.update_time || 0),
+        });
+      });
+    }
+
+    let lists = (Array.isArray(rows) ? rows : []).map(item => {
+      const serviceMeta = (() => {
+        if (!submissionColumns.has('service_meta')) return null;
+        return safeJsonParse(item?.service_meta, null);
+      })();
+      const payOrder = payOrderMap.get(Number(item?.id || 0)) || {
+        payOrderNo: '',
+        payChannel: '',
+        payAmount: 0,
+        payStatus: '',
+        payUrl: '',
+        payTime: 0,
+        expireTime: 0,
+        payUpdateTime: 0,
+      };
+      const normalizedPayStatus = String(payOrder.payStatus || '').trim();
+      return {
+        id: Number(item?.id || 0),
+        name: String(item?.name || ''),
+        description: String(item?.description || ''),
+        url: String(item?.url || ''),
+        status: String(item?.status || ''),
+        rejectReason: String(item?.reject_reason || ''),
+        serviceType: submissionColumns.has('service_type')
+          ? String(item?.service_type || 'submission')
+          : 'submission',
+        serviceMeta,
+        submitterEmail: String(item?.submitter_email || ''),
+        createdAt: Number(item?.create_time || 0),
+        reviewedAt: Number(item?.reviewed_at || 0),
+        updateTime: Number(item?.update_time || 0),
+        ...payOrder,
+        canContinuePay: normalizedPayStatus === 'created' && Boolean(String(payOrder.payUrl || '').trim()),
+      };
+    });
+
+    if (payStatus) {
+      lists = lists.filter(item => String(item?.payStatus || '') === payStatus);
+    }
+
+    return {
+      lists,
+      total: Number(countRow?.total || 0),
+      pageNo,
+      pageSize,
+      moduleEnabled: true,
+      moduleMessage: ownership.matchedByUserId
+        ? ''
+        : '当前记录按邮箱归档匹配，建议后续补齐 submitter_user_id 字段以提升精确度',
+    };
+  }
+
+  /**
+   * 查询当前用户名下投稿支付状态（支持补单轮询）。
+   * @param {number} userId 用户ID
+   * @param {string} orderNo 支付订单号
+   * @return {Promise<object>} 支付状态
+   */
+  async userSubmissionPayStatus(userId, orderNo) {
+    const { app, ctx } = this;
+    const uid = Number(userId || 0);
+    if (!uid) throw new Error('用户不存在');
+    const normalizedOrderNo = String(orderNo || '').trim();
+    if (!normalizedOrderNo) throw new Error('缺少订单号');
+
+    const submissionTable = 'uied_website_submission';
+    const payOrderTable = 'uied_submission_pay_order';
+    const submissionColumns = await this.getTableColumns(submissionTable);
+    const payOrderColumns = await this.getTableColumns(payOrderTable);
+    if (!submissionColumns.size || !payOrderColumns.size) {
+      throw new Error('投稿支付服务未启用');
+    }
+
+    const user = await ctx.model.User.findOne({
+      where: { id: uid, isDelete: 0 },
+      attributes: [ 'id', 'email' ],
+    });
+    if (!user) throw new Error('用户不存在');
+    const userEmail = String(user.email || '').trim();
+    const ownership = this.buildSubmissionOwnershipWhereClause(submissionColumns, {
+      tableAlias: 's',
+      userId: uid,
+      userEmail,
+    });
+    if (!ownership.valid) {
+      throw new Error('请先绑定邮箱后再查询投稿支付状态');
+    }
+
+    const whereParts = [ 'p.order_no = ?', ownership.clause ];
+    const replacements = [ normalizedOrderNo, ...ownership.replacements ];
+    if (submissionColumns.has('is_delete')) {
+      whereParts.push('s.is_delete = 0');
+    }
+
+    const [ ownRow ] = await app.model.query(
+      `SELECT p.order_no, p.submission_id
+       FROM ${payOrderTable} p
+       INNER JOIN ${submissionTable} s ON s.id = p.submission_id
+       WHERE ${whereParts.join(' AND ')}
+       LIMIT 1`,
+      {
+        replacements,
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (!ownRow) {
+      throw new Error('订单不存在或无权限查看');
+    }
+
+    const statusData = await ctx.service.uied.submission.getPayOrderStatus(normalizedOrderNo, {
+      reconcileIfPending: true,
+    });
+    if (!statusData) {
+      throw new Error('订单不存在');
+    }
+    return statusData;
   }
 
   /**
@@ -5401,6 +5913,7 @@ class UserService extends Service {
    */
   async sendLoginTwoFactorCode(params = {}) {
     const { ctx } = this;
+    await this.assertFrontLoginEnabled();
     const challengeToken = String(params.challengeToken || '').trim();
     if (!challengeToken) {
       throw new Error('挑战令牌不能为空');
@@ -5423,6 +5936,7 @@ class UserService extends Service {
    */
   async verifyLoginTwoFactor(params = {}) {
     const { ctx } = this;
+    await this.assertFrontLoginEnabled();
     const challengeToken = String(params.challengeToken || '').trim();
     const code = String(params.code || '').trim();
     if (!challengeToken || !code) {

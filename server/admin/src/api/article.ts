@@ -241,6 +241,8 @@ export function articleGenerateAiBatch(params: {
     topicId?: number | string
     aiModel?: string
     aiPromptTemplate?: string
+    aiTemplateId?: string
+    aiTemplateName?: string
 }) {
     return request.post(
         {
