@@ -31,6 +31,45 @@ let seoPublicConfigCache: SeoPublicConfig | null = null;
 let seoPublicConfigPromise: Promise<SeoPublicConfig> | null = null;
 
 /**
+ * 获取当前运行时站点 origin，统一去掉末尾斜杠。
+ */
+const getRuntimeOrigin = (): string => {
+  if (typeof window !== 'undefined') {
+    return String(window.location?.origin || '').trim().replace(/\/+$/, '');
+  }
+  const envOrigin = String(process.env.REACT_APP_SITE_ORIGIN || '').trim();
+  if (!envOrigin) return '';
+  try {
+    const url = new URL(envOrigin);
+    return `${url.protocol}//${url.host}`;
+  } catch (_error) {
+    return envOrigin.replace(/\/+$/, '');
+  }
+};
+
+/**
+ * 将相对路径转为当前站点绝对 URL，绝对地址直接透传。
+ */
+const toRuntimeAbsoluteUrl = (rawValue: string, fallback: string): string => {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return fallback;
+  if (/^(data:|blob:)/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const origin = getRuntimeOrigin();
+  if (raw.startsWith('//')) {
+    if (typeof window !== 'undefined') {
+      return `${window.location.protocol}${raw}`;
+    }
+    return `https:${raw}`;
+  }
+  if (!origin) {
+    return raw.startsWith('/') ? raw : `/${raw}`;
+  }
+  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
+  return `${origin}${normalizedPath}`;
+};
+
+/**
  * 获取公开 SEO 配置，并使用模块级缓存避免页面切换时重复请求。
  */
 const fetchSeoPublicConfig = async (): Promise<SeoPublicConfig> => {
@@ -67,7 +106,7 @@ const SEO: React.FC<SEOProps> = ({
   title,
   description,
   keywords,
-  image = 'https://hao.uied.cn/og-image.jpg',
+  image,
   url,
   type = 'website',
   noindex = false,
@@ -119,36 +158,27 @@ const SEO: React.FC<SEOProps> = ({
   })();
   const resolvedDescription = String(description || defaultDescription).trim() || defaultDescription;
   const resolvedKeywords = String(keywords || defaultKeywords).trim() || defaultKeywords;
+  const defaultShareImage = (() => {
+    const origin = getRuntimeOrigin();
+    return origin ? `${origin}/og-image.jpg` : '/og-image.jpg';
+  })();
+  const resolvedImage = toRuntimeAbsoluteUrl(String(image || defaultShareImage), defaultShareImage);
   const defaultCanonicalUrl = (() => {
-    if (typeof window === 'undefined') {
-      return 'https://hao.uied.cn/';
-    }
-    return `${window.location.origin}${window.location.pathname}`;
+    const origin = getRuntimeOrigin();
+    if (!origin) return '/';
+    const path = typeof window === 'undefined'
+      ? '/'
+      : String(window.location?.pathname || '/');
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
   })();
   const resolvedUrl = (() => {
     if (!url) return defaultCanonicalUrl;
-    const raw = String(url).trim();
-    if (!raw) return defaultCanonicalUrl;
-    if (/^https?:\/\//i.test(raw)) return raw;
-    if (typeof window === 'undefined') return `https://hao.uied.cn${raw.startsWith('/') ? raw : `/${raw}`}`;
-    try {
-      return new URL(raw, window.location.origin).toString();
-    } catch (_error) {
-      return defaultCanonicalUrl;
-    }
+    return toRuntimeAbsoluteUrl(String(url), defaultCanonicalUrl);
   })();
   const canonicalHref = (() => {
     if (canonical === undefined) return defaultCanonicalUrl;
     if (canonical === false) return false;
-    const raw = String(canonical || '').trim();
-    if (!raw) return defaultCanonicalUrl;
-    if (/^https?:\/\//i.test(raw)) return raw;
-    if (typeof window === 'undefined') return `https://hao.uied.cn${raw.startsWith('/') ? raw : `/${raw}`}`;
-    try {
-      return new URL(raw, window.location.origin).toString();
-    } catch (_error) {
-      return defaultCanonicalUrl;
-    }
+    return toRuntimeAbsoluteUrl(String(canonical || ''), defaultCanonicalUrl);
   })();
 
   useEffect(() => {
@@ -181,7 +211,7 @@ const SEO: React.FC<SEOProps> = ({
     updateMetaTag('og:type', type, 'property');
     updateMetaTag('og:title', fullTitle, 'property');
     updateMetaTag('og:description', resolvedDescription, 'property');
-    updateMetaTag('og:image', image, 'property');
+    updateMetaTag('og:image', resolvedImage, 'property');
     updateMetaTag('og:url', resolvedUrl, 'property');
     updateMetaTag('og:site_name', siteName, 'property');
 
@@ -189,7 +219,7 @@ const SEO: React.FC<SEOProps> = ({
     updateMetaTag('twitter:card', 'summary_large_image');
     updateMetaTag('twitter:title', fullTitle);
     updateMetaTag('twitter:description', resolvedDescription);
-    updateMetaTag('twitter:image', image);
+    updateMetaTag('twitter:image', resolvedImage);
     updateMetaTag('twitter:url', resolvedUrl);
 
     // 更新 canonical 链接（支持按页面关闭 canonical）
@@ -246,7 +276,7 @@ const SEO: React.FC<SEOProps> = ({
     fullTitle,
     resolvedDescription,
     resolvedKeywords,
-    image,
+    resolvedImage,
     resolvedUrl,
     type,
     noindex,

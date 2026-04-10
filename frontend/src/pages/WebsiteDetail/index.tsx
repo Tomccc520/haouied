@@ -171,6 +171,25 @@ const normalizePreviewSnapshotPayload = (payload: WebsitePreviewSnapshotData | n
   };
 };
 
+/**
+ * 获取当前站点 origin（协议 + 域名 + 端口），统一去除末尾斜杠。
+ */
+const getCurrentSiteOrigin = (): string => {
+  if (typeof window === 'undefined') return '';
+  return String(window.location?.origin || '').trim().replace(/\/+$/, '');
+};
+
+/**
+ * 将站内路径转换为当前域名下的绝对地址，供 canonical 与结构化数据复用。
+ */
+const buildSiteAbsoluteUrl = (path: string): string => {
+  const normalizedPath = String(path || '/').startsWith('/')
+    ? String(path || '/')
+    : `/${String(path || '')}`;
+  const origin = getCurrentSiteOrigin();
+  return origin ? `${origin}${normalizedPath}` : normalizedPath;
+};
+
 interface DetailPageConfig {
   pageStylePreset?: 'showcase' | 'compact' | 'enterprise';
   layoutWidthMode?: 'contained' | 'wide' | 'fluid';
@@ -1280,8 +1299,9 @@ const WebsiteDetailPage: React.FC = () => {
     });
   })();
   const seoLongTailKeywords = parseConfigStringList(detailPageConfig.seoLongTailKeywords).slice(0, 18);
-  const detailCanonicalUrl = `https://hao.uied.cn/website/${website.slug || website.id}`;
+  const detailCanonicalUrl = buildSiteAbsoluteUrl(`/website/${website.slug || website.id}`);
   const detailSchemaBlocks = (() => {
+    if (isPreviewMode) return [];
     if (detailPageConfig.seoSchemaEnabled === false) return [];
     const blocks: Array<Record<string, unknown>> = [
       {
@@ -1300,21 +1320,21 @@ const WebsiteDetailPage: React.FC = () => {
               '@type': 'ListItem',
               position: 1,
               name: '首页',
-              item: 'https://hao.uied.cn/',
+              item: buildSiteAbsoluteUrl('/'),
             },
             {
               '@type': 'ListItem',
               position: 2,
               name: website.category.parent?.name || website.category.name,
               item: website.category.parent
-                ? `https://hao.uied.cn/category/${website.category.parent.slug || website.category.parent.id}`
-                : `https://hao.uied.cn/category/${website.category.slug || website.category.id}`,
+                ? buildSiteAbsoluteUrl(`/category/${website.category.parent.slug || website.category.parent.id}`)
+                : buildSiteAbsoluteUrl(`/category/${website.category.slug || website.category.id}`),
             },
             {
               '@type': 'ListItem',
               position: 3,
               name: website.category.name,
-              item: `https://hao.uied.cn/category/${website.category.slug || website.category.id}`,
+              item: buildSiteAbsoluteUrl(`/category/${website.category.slug || website.category.id}`),
             },
             {
               '@type': 'ListItem',

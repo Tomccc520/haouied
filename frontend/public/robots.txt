@@ -6,4 +6,5 @@ Allow: /
 Allow: /search
 
 # Sitemap
-Sitemap: https://hao.uied.cn/sitemap.xml
+Sitemap: /sitemap.xml
+Sitemap: /sitemap-advanced.xml

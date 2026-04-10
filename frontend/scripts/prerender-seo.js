@@ -13,11 +13,68 @@
 'use strict'
 
 const fs = require('fs/promises')
+const fsSync = require('fs')
 const path = require('path')
 
 const PROJECT_ROOT = path.resolve(__dirname, '..')
 const BUILD_DIR = path.join(PROJECT_ROOT, 'build')
 const INDEX_HTML_PATH = path.join(BUILD_DIR, 'index.html')
+
+/**
+ * 解析 .env 文本内容（简化版）。
+ * @param {string} text 文件内容
+ * @returns {Record<string, string>} 键值映射
+ */
+function parseDotenvText(text) {
+  const lines = String(text || '').split(/\r?\n/)
+  const output = {}
+  lines.forEach(line => {
+    const trimmed = String(line || '').trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    const index = trimmed.indexOf('=')
+    if (index <= 0) return
+    const key = trimmed.slice(0, index).trim()
+    if (!key) return
+    let value = trimmed.slice(index + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"'))
+      || (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    output[key] = value
+  })
+  return output
+}
+
+/**
+ * 预渲染脚本主动加载构建环境变量，避免 node 脚本漏读 .env.production。
+ */
+function loadBuildEnv() {
+  const envFiles = [
+    '.env.production.local',
+    '.env.production',
+    '.env.local',
+    '.env',
+  ]
+  envFiles.forEach(fileName => {
+    const filePath = path.join(PROJECT_ROOT, fileName)
+    if (!fsSync.existsSync(filePath)) return
+    try {
+      const content = fsSync.readFileSync(filePath, 'utf8')
+      const parsed = parseDotenvText(content)
+      Object.keys(parsed).forEach(key => {
+        if (process.env[key] === undefined || process.env[key] === '') {
+          process.env[key] = parsed[key]
+        }
+      })
+    } catch (error) {
+      console.warn(`[seo-prerender] 加载环境文件失败 ${fileName}: ${error.message || error}`)
+    }
+  })
+}
+
+loadBuildEnv()
 
 /**
  * 将输入地址规范化为 origin（协议+域名+端口）。
@@ -50,12 +107,12 @@ function deriveOriginFromFrontendApiEnv() {
 
 const DEFAULT_SITE_ORIGIN = normalizeOrigin(
   process.env.SEO_SITE_ORIGIN,
-  deriveOriginFromFrontendApiEnv() || 'https://hao.uied.cn'
-) || 'https://hao.uied.cn'
+  process.env.REACT_APP_SITE_ORIGIN || deriveOriginFromFrontendApiEnv() || 'http://127.0.0.1:3003'
+) || 'http://127.0.0.1:3003'
 
 const DEFAULT_API_ORIGIN = normalizeOrigin(
   process.env.SEO_API_ORIGIN,
-  deriveOriginFromFrontendApiEnv() || DEFAULT_SITE_ORIGIN
+  deriveOriginFromFrontendApiEnv() || 'http://127.0.0.1:8002'
 ) || DEFAULT_SITE_ORIGIN
 
 /**
@@ -89,6 +146,8 @@ function parsePositiveInt(value, fallback, min = 1, max = 50000) {
 
 const INCLUDE_WEBSITE_DETAILS = parseBoolean(process.env.SEO_INCLUDE_WEBSITE_DETAILS, true)
 const WEBSITE_LIMIT = parsePositiveInt(process.env.SEO_WEBSITE_LIMIT, 5000, 1, 50000)
+const STRICT_ENV_REQUIRED = parseBoolean(process.env.SEO_STRICT_ENV, true)
+const ALLOW_MANIFEST_FALLBACK = parseBoolean(process.env.SEO_ALLOW_FALLBACK_MANIFEST, false)
 const FALLBACK_SITE_SEO = {
   siteName: 'UIED AI工具导航',
   siteTitle: 'UIED AI工具导航 - 精选AI工具与资源平台',
@@ -245,11 +304,21 @@ function upsertWebsiteJsonLd(html, seo) {
   try {
     const json = JSON.parse(match[1])
     if (json && typeof json === 'object' && String(json['@type'] || '').toLowerCase() === 'website') {
+      let siteOrigin = String(seo.url || '').trim()
+      try {
+        const parsedOrigin = new URL(siteOrigin)
+        siteOrigin = `${parsedOrigin.protocol}//${parsedOrigin.host}`
+      } catch (_error) {
+        siteOrigin = siteOrigin.replace(/\/+$/, '')
+      }
       json.name = seo.siteName
       json.description = seo.siteDescription
       json.url = seo.url
       if (json.potentialAction && typeof json.potentialAction === 'object') {
-        json.potentialAction.target = `${seo.url}/search?q={search_term_string}`
+        json.potentialAction.target = `${siteOrigin || seo.url}/search?q={search_term_string}`
+      }
+      if (json.publisher && typeof json.publisher === 'object' && siteOrigin) {
+        json.publisher.url = siteOrigin
       }
       const node = `<script type="application/ld+json">\n${JSON.stringify(json, null, 2)}\n</script>`
       return html.replace(pattern, node)
@@ -366,7 +435,7 @@ async function fetchSiteSeo(apiOrigin) {
 }
 
 /**
- * 拉取后端 SEO 清单；失败时回退为 site-info，再失败才回退默认首页清单。
+ * 拉取后端 SEO 清单；默认失败即中断，必要时可通过环境变量开启降级。
  * @param {string} apiOrigin API 域名
  * @param {string} siteOrigin 站点域名
  * @returns {Promise<{siteSeo: object, routes: object[]}>} 清单结果
@@ -385,11 +454,16 @@ async function loadSeoManifest(apiOrigin, siteOrigin) {
       return { siteSeo, routes: normalizedRoutes }
     }
 
-    // 清单为空时至少使用后台站点 SEO 生成首页，避免回退到硬编码文案
-    console.warn('[seo-prerender] 清单为空，降级为 site-info 首页 SEO')
+    if (!ALLOW_MANIFEST_FALLBACK) {
+      throw new Error('清单为空：请检查 /api/seo/prerender-manifest 返回数据，或设置 SEO_ALLOW_FALLBACK_MANIFEST=1 允许降级')
+    }
+    console.warn('[seo-prerender] 清单为空，已按 SEO_ALLOW_FALLBACK_MANIFEST=1 降级为 site-info 首页 SEO')
     return { siteSeo, routes }
   } catch (error) {
-    console.warn(`[seo-prerender] 拉取清单失败，尝试 site-info：${error.message || error}`)
+    if (!ALLOW_MANIFEST_FALLBACK) {
+      throw new Error(`[seo-prerender] 拉取清单失败：${error.message || error}`)
+    }
+    console.warn(`[seo-prerender] 拉取清单失败，按 SEO_ALLOW_FALLBACK_MANIFEST=1 尝试 site-info：${error.message || error}`)
     try {
       const siteSeo = await fetchSiteSeo(apiOrigin)
       return {
@@ -404,7 +478,7 @@ async function loadSeoManifest(apiOrigin, siteOrigin) {
         ],
       }
     } catch (siteError) {
-      console.warn(`[seo-prerender] site-info 也失败，降级为默认首页：${siteError.message || siteError}`)
+      console.warn(`[seo-prerender] site-info 也失败，按 SEO_ALLOW_FALLBACK_MANIFEST=1 降级为默认首页：${siteError.message || siteError}`)
       return {
         siteSeo: { ...FALLBACK_SITE_SEO },
         routes: [
@@ -459,9 +533,15 @@ function buildSitemapXml(siteOrigin, routes) {
  * 执行预渲染流程。
  */
 async function run() {
+  if (STRICT_ENV_REQUIRED) {
+    if (!/^https?:\/\//i.test(DEFAULT_SITE_ORIGIN) || !/^https?:\/\//i.test(DEFAULT_API_ORIGIN)) {
+      throw new Error('SEO 预渲染地址必须是 http(s) 绝对地址，请检查 SEO_SITE_ORIGIN / SEO_API_ORIGIN 配置')
+    }
+  }
   const indexHtml = await fs.readFile(INDEX_HTML_PATH, 'utf8')
   console.log(`[seo-prerender] siteOrigin=${DEFAULT_SITE_ORIGIN}`)
   console.log(`[seo-prerender] apiOrigin=${DEFAULT_API_ORIGIN}`)
+  console.log(`[seo-prerender] strictEnv=${STRICT_ENV_REQUIRED ? 'on' : 'off'}, allowFallback=${ALLOW_MANIFEST_FALLBACK ? 'on' : 'off'}`)
   const { siteSeo, routes } = await loadSeoManifest(DEFAULT_API_ORIGIN, DEFAULT_SITE_ORIGIN)
 
   const normalizedRoutes = []

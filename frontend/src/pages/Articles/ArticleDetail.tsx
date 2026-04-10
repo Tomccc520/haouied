@@ -549,6 +549,13 @@ const ArticleDetail: React.FC = () => {
   const detailSidebarLinkTarget = detailSidebarLinksNewWindow ? '_blank' : undefined;
   const detailSidebarLinkRel = detailSidebarLinksNewWindow ? 'noopener noreferrer' : undefined;
   /**
+   * 文章详情统一 canonical 到 /article/:slug，避免 /articles/:slug 重复收录。
+   */
+  const canonicalArticleSlug = String(article?.slug || slug || '').trim();
+  const canonicalArticlePath = canonicalArticleSlug
+    ? `/article/${canonicalArticleSlug}`
+    : '/articles';
+  /**
    * 预处理正文：为 h2/h3 注入稳定锚点，并生成文章目录。
    */
   const { normalizedContentHtml, articleToc } = useMemo(() => {
@@ -1068,6 +1075,8 @@ const ArticleDetail: React.FC = () => {
         description={article.seoDescription || article.excerpt}
         keywords={article.tags.map(t => t.name).join(',')}
         image={article.coverImage}
+        url={canonicalArticlePath}
+        canonical={canonicalArticlePath}
         type="article"
       />
 

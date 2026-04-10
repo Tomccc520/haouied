@@ -1630,9 +1630,15 @@ class FrontendService extends Service {
   async buildSeoPrerenderManifest(options = {}) {
     const { app, ctx } = this;
     const now = Math.floor(Date.now() / 1000);
-    const siteOrigin = String(options.siteOrigin || process.env.UIED_SITE_ORIGIN || 'https://hao.uied.cn')
-      .trim()
-      .replace(/\/+$/, '') || 'https://hao.uied.cn';
+    const normalizeOriginText = (value) => String(value || '').trim().replace(/\/+$/, '');
+    const requestOrigin = normalizeOriginText(ctx?.request?.origin || '');
+    const siteOrigin = normalizeOriginText(
+      options.siteOrigin
+      || process.env.UIED_SITE_ORIGIN
+      || process.env.SEO_SITE_ORIGIN
+      || requestOrigin
+      || 'http://127.0.0.1:3003'
+    ) || 'http://127.0.0.1:3003';
     const includeWebsiteDetails = this.parseBoolean(options.includeWebsiteDetails, true);
     const rawWebsiteLimit = Number.parseInt(String(options.websiteLimit || 5000), 10);
     const websiteLimit = Number.isInteger(rawWebsiteLimit) && rawWebsiteLimit > 0

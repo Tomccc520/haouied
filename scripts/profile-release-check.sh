@@ -153,6 +153,16 @@ run_frontend_build() {
   fi
   run_step "步骤 3/4：前端构建校验"
   cd "$ROOT_DIR/frontend"
+  local backend_origin="${BASE_URL%/}"
+  backend_origin="${backend_origin%/api}"
+  local frontend_origin="${FRONTEND_BASE_URL%/}"
+  if [[ -z "$frontend_origin" ]]; then
+    frontend_origin="http://127.0.0.1:3003"
+  fi
+  REACT_APP_API_URL="${backend_origin}/api" \
+  SEO_API_ORIGIN="$backend_origin" \
+  SEO_SITE_ORIGIN="$frontend_origin" \
+  SEO_STRICT_ENV="1" \
   npm run build
 }
 

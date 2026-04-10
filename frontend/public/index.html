@@ -67,20 +67,57 @@
         };
       }
 
+      function updateWebsiteJsonLd(siteOrigin, seo) {
+        var scripts = document.head.querySelectorAll('script[type="application/ld+json"]');
+        if (!scripts || !scripts.length) return;
+        var origin = String(siteOrigin || '').trim();
+        if (!origin) return;
+        for (var i = 0; i < scripts.length; i += 1) {
+          var node = scripts[i];
+          if (!node || !node.textContent) continue;
+          try {
+            var data = JSON.parse(node.textContent);
+            if (!data || String(data['@type'] || '').toLowerCase() !== 'website') continue;
+            data.name = seo.siteName;
+            data.description = seo.siteDescription;
+            data.url = origin;
+            if (data.potentialAction && typeof data.potentialAction === 'object') {
+              data.potentialAction.target = origin + '/search?q={search_term_string}';
+            }
+            if (data.publisher && typeof data.publisher === 'object') {
+              data.publisher.url = origin;
+            }
+            node.textContent = JSON.stringify(data, null, 2);
+          } catch (error) {
+            // JSON-LD 解析失败时忽略，避免影响页面渲染
+          }
+        }
+      }
+
       function applySeo(seo) {
         var resolved = normalizeSeo(seo);
-        var currentUrl = window.location.origin + window.location.pathname;
+        var pathname = String(window.location.pathname || '/');
+        var siteOrigin = String(window.location.origin || '').replace(/\/+$/, '');
+        var homeUrl = siteOrigin + '/';
+        var isHomeRoute = pathname === '/' || pathname === '/home';
+        upsertMeta('property', 'og:site_name', resolved.siteName);
+        updateWebsiteJsonLd(siteOrigin, resolved);
+
+        /**
+         * 非首页不在启动脚本中写 title/description/canonical，
+         * 避免与页面级 SEO 组件发生覆盖竞态。
+         */
+        if (!isHomeRoute) return;
         document.title = resolved.siteTitle;
         upsertMeta('name', 'description', resolved.siteDescription);
         upsertMeta('name', 'keywords', resolved.siteKeywords);
         upsertMeta('property', 'og:title', resolved.siteTitle);
         upsertMeta('property', 'og:description', resolved.siteDescription);
-        upsertMeta('property', 'og:site_name', resolved.siteName);
-        upsertMeta('property', 'og:url', currentUrl);
+        upsertMeta('property', 'og:url', homeUrl);
         upsertMeta('name', 'twitter:title', resolved.siteTitle);
         upsertMeta('name', 'twitter:description', resolved.siteDescription);
-        upsertMeta('name', 'twitter:url', currentUrl);
-        upsertCanonical(currentUrl);
+        upsertMeta('name', 'twitter:url', homeUrl);
+        upsertCanonical(homeUrl);
       }
 
       function applyWebmasterVerification(config) {
@@ -137,20 +174,20 @@
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://hao.uied.cn/" />
+    <meta property="og:url" content="/" />
     <meta property="og:title" content="UIED AI工具导航 - 精选AI工具与资源平台" />
     <meta property="og:description" content="UIED AI导航汇集全球优质AI工具与资源，帮助设计师、开发者与创作者高效发现并使用 AI 工具。" />
-    <meta property="og:image" content="https://hao.uied.cn/og-image.jpg" />
+    <meta property="og:image" content="%PUBLIC_URL%/og-image.jpg" />
     <meta property="og:site_name" content="UIED AI工具导航" />
     <meta property="og:locale" content="zh_CN" />
     
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://hao.uied.cn/" />
+    <meta name="twitter:url" content="/" />
     <meta name="twitter:title" content="UIED AI工具导航 - 精选AI工具与资源平台" />
     <meta name="twitter:description" content="UIED AI导航汇集全球优质AI工具与资源，帮助设计师、开发者与创作者高效发现并使用 AI 工具。" />
-    <meta name="twitter:image" content="https://hao.uied.cn/og-image.jpg" />
-    <link rel="canonical" href="https://hao.uied.cn/" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/og-image.jpg" />
+    <link rel="canonical" href="/" />
     
     <!-- 其他 SEO 标签 -->
     <meta name="format-detection" content="telephone=no" />
@@ -168,7 +205,7 @@
     <!-- DNS 预解析 -->
     <link rel="dns-prefetch" href="//fonts.googleapis.com">
     <link rel="dns-prefetch" href="//fonts.gstatic.com">
-    <link rel="dns-prefetch" href="//www.uied.cn">
+    <link rel="dns-prefetch" href="//fsuied.com">
     
     <!-- Google Fonts - Lexend -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -182,16 +219,16 @@
       "@type": "WebSite",
       "name": "UIED AI工具导航",
       "description": "UIED AI导航汇集全球优质AI工具与资源，帮助设计师、开发者与创作者高效发现并使用 AI 工具。",
-      "url": "https://hao.uied.cn",
+      "url": "/",
       "potentialAction": {
         "@type": "SearchAction",
-        "target": "https://hao.uied.cn/search?q={search_term_string}",
+        "target": "/search?q={search_term_string}",
         "query-input": "required name=search_term_string"
       },
       "publisher": {
         "@type": "Organization",
         "name": "UIED技术团队",
-        "url": "https://www.uied.cn"
+        "url": "/"
       }
     }
     </script>

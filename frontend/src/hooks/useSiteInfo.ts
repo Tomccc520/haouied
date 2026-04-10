@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import api from '../services/api';
 import SiteContext, { 
   DEFAULT_SITE_INFO,
@@ -41,9 +41,10 @@ export interface SiteInfo {
 export const useSiteInfo = () => {
   // 尝试使用Context
   const context = useContext(SiteContext);
+  const shouldUseStandalone = context === undefined;
   
   // 始终调用standalone hook以遵守React Hooks规则
-  const standaloneResult = useSiteInfoStandalone();
+  const standaloneResult = useSiteInfoStandalone(shouldUseStandalone);
   
   // 如果在SiteProvider内部，使用Context数据
   if (context !== undefined) {
@@ -64,12 +65,13 @@ export const useSiteInfo = () => {
  * 独立的站点信息Hook（不依赖Context）
  * 用于向后兼容
  */
-const useSiteInfoStandalone = () => {
-  const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+const useSiteInfoStandalone = (enabled: boolean) => {
+  const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(enabled ? null : DEFAULT_SITE_INFO);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchSiteInfo = async () => {
+  const fetchSiteInfo = useCallback(async () => {
+    if (!enabled) return;
     try {
       setLoading(true);
       const response = await api.get('/site-info', {
@@ -85,19 +87,21 @@ const useSiteInfoStandalone = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     fetchSiteInfo();
     
     // 每30秒刷新一次站点信息
     const interval = setInterval(fetchSiteInfo, 30000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [enabled, fetchSiteInfo]);
 
   // 提供手动刷新方法
   const refresh = () => {
+    if (!enabled) return;
     fetchSiteInfo();
   };
 
