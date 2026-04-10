@@ -17,6 +17,7 @@ const AUTH_CONFIG_SETTING_KEY = 'authConfig';
 const WECHAT_OPEN_PLATFORM_CALLBACK_PATH = '/api/auth/wechat/open-platform/callback';
 const WECHAT_OFFICIAL_ACCOUNT_OAUTH_CALLBACK_PATH = '/api/auth/wechat/official-account/login/callback';
 const WECHAT_OFFICIAL_ACCOUNT_EVENT_CALLBACK_PATH = '/api/auth/wechat/official-account/event';
+const QQ_OAUTH_CALLBACK_PATH = '/api/auth/qq/callback';
 
 class SettingService extends Service {
   /**
@@ -56,6 +57,11 @@ class SettingService extends Service {
         enabled: false,
         appId: '',
         appSecret: '',
+      },
+      qqLogin: {
+        enabled: false,
+        appId: '',
+        appKey: '',
       },
       wechatOfficialAccountLogin: {
         enabled: false,
@@ -100,6 +106,10 @@ class SettingService extends Service {
       ...defaults.wechatWebsiteLogin,
       ...(this.isPlainObject(config?.wechatWebsiteLogin) ? config.wechatWebsiteLogin : {}),
     };
+    const mergedQqLogin = {
+      ...defaults.qqLogin,
+      ...(this.isPlainObject(config?.qqLogin) ? config.qqLogin : {}),
+    };
     const mergedOfficialAccountLogin = {
       ...defaults.wechatOfficialAccountLogin,
       ...(this.isPlainObject(config?.wechatOfficialAccountLogin)
@@ -123,6 +133,11 @@ class SettingService extends Service {
         enabled: mergedWebsiteLogin.enabled === true,
         appId: String(mergedWebsiteLogin.appId || '').trim().slice(0, 120),
         appSecret: String(mergedWebsiteLogin.appSecret || '').trim().slice(0, 255),
+      },
+      qqLogin: {
+        enabled: mergedQqLogin.enabled === true,
+        appId: String(mergedQqLogin.appId || '').trim().slice(0, 120),
+        appKey: String(mergedQqLogin.appKey || '').trim().slice(0, 255),
       },
       wechatOfficialAccountLogin: {
         enabled: mergedOfficialAccountLogin.enabled === true,
@@ -161,6 +176,11 @@ class SettingService extends Service {
         enabled: normalized.wechatWebsiteLogin.enabled === true,
         appId: String(normalized.wechatWebsiteLogin.appId || '').trim(),
         callbackPath: WECHAT_OPEN_PLATFORM_CALLBACK_PATH,
+      },
+      qqLogin: {
+        enabled: normalized.qqLogin.enabled === true,
+        appId: String(normalized.qqLogin.appId || '').trim(),
+        callbackPath: QQ_OAUTH_CALLBACK_PATH,
       },
       wechatOfficialAccountLogin: {
         enabled: normalized.wechatOfficialAccountLogin.enabled === true,
@@ -217,6 +237,13 @@ class SettingService extends Service {
    */
   getWechatOpenPlatformCallbackPath() {
     return WECHAT_OPEN_PLATFORM_CALLBACK_PATH;
+  }
+
+  /**
+   * 获取 QQ 互联网页应用回调固定路径。
+   */
+  getQqOauthCallbackPath() {
+    return QQ_OAUTH_CALLBACK_PATH;
   }
 
   /**
@@ -1858,6 +1885,8 @@ class SettingService extends Service {
         notifyUrl: '',
         tradeType: 'MWEB',
         sceneName: 'UIED支付中心',
+        mockModeEnabled: false,
+        mockReturnPath: '/submit',
       },
     };
   }
@@ -1868,6 +1897,14 @@ class SettingService extends Service {
   normalizePaymentConfig(config = {}) {
     const defaults = this.getDefaultPaymentConfig();
     const source = this.isPlainObject(config) ? config : {};
+    const normalizeReturnPath = (value, fallback = '/submit') => {
+      const text = String(value || '').trim();
+      if (!text) return fallback;
+      if (text.startsWith('http://') || text.startsWith('https://')) {
+        return text;
+      }
+      return text.startsWith('/') ? text : `/${text}`;
+    };
     const merged = {
       ...defaults,
       ...source,
@@ -1906,6 +1943,11 @@ class SettingService extends Service {
         notifyUrl: String(merged.wechat.notifyUrl || '').trim(),
         tradeType: 'MWEB',
         sceneName: String(merged.wechat.sceneName || defaults.wechat.sceneName).trim() || defaults.wechat.sceneName,
+        mockModeEnabled: merged.wechat.mockModeEnabled === true,
+        mockReturnPath: normalizeReturnPath(
+          merged.wechat.mockReturnPath,
+          defaults.wechat.mockReturnPath
+        ),
       },
     };
   }

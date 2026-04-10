@@ -160,6 +160,13 @@ class UserController extends BaseController {
   }
 
   /**
+   * QQ 互联网页应用回调
+   */
+  async socialQqCallback() {
+    await this.handleSocialCallbackByProvider('qqWeb');
+  }
+
+  /**
    * 登录二次验证：重新发送验证码
    */
   async loginTwoFactorSend() {
@@ -557,6 +564,36 @@ class UserController extends BaseController {
       const userId = await ctx.service.user.getUserId();
       const params = Object.keys(ctx.request.body || {}).length ? (ctx.request.body || {}) : (ctx.request.query || {});
       const data = await ctx.service.user.orderList(userId, params);
+      this.result({ data });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 用户中心投稿/投放记录列表
+   */
+  async submissionList() {
+    const { ctx } = this;
+    try {
+      const userId = await ctx.service.user.getUserId();
+      const params = Object.keys(ctx.request.body || {}).length ? (ctx.request.body || {}) : (ctx.request.query || {});
+      const data = await ctx.service.user.userSubmissionList(userId, params);
+      this.result({ data });
+    } catch (e) {
+      this.result({ data: '', message: e.message, code: 1001 });
+    }
+  }
+
+  /**
+   * 用户中心刷新投稿支付状态
+   */
+  async submissionPayStatus() {
+    const { ctx } = this;
+    try {
+      const userId = await ctx.service.user.getUserId();
+      const params = Object.keys(ctx.request.body || {}).length ? (ctx.request.body || {}) : (ctx.request.query || {});
+      const data = await ctx.service.user.userSubmissionPayStatus(userId, params.orderNo);
       this.result({ data });
     } catch (e) {
       this.result({ data: '', message: e.message, code: 1001 });

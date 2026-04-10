@@ -403,6 +403,12 @@ export interface WechatWebsiteLoginPublicConfig {
   callbackPath: string;
 }
 
+export interface QqLoginPublicConfig {
+  enabled: boolean;
+  appId: string;
+  callbackPath: string;
+}
+
 export interface WechatOfficialAccountLoginPublicConfig {
   enabled: boolean;
   appId: string;
@@ -421,6 +427,7 @@ export interface AuthConfig {
   login_close_message: string;
   user_center_close_message: string;
   wechatWebsiteLogin: WechatWebsiteLoginPublicConfig;
+  qqLogin: QqLoginPublicConfig;
   wechatOfficialAccountLogin: WechatOfficialAccountLoginPublicConfig;
 }
 
@@ -849,6 +856,11 @@ export const DEFAULT_AUTH_CONFIG: AuthConfig = {
     enabled: false,
     appId: '',
     callbackPath: '/api/auth/wechat/open-platform/callback',
+  },
+  qqLogin: {
+    enabled: false,
+    appId: '',
+    callbackPath: '/api/auth/qq/callback',
   },
   wechatOfficialAccountLogin: {
     enabled: false,
@@ -1714,6 +1726,17 @@ export const publicSettingService = {
             rawAuthConfig?.wechatWebsiteLogin?.callbackPath
               || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath
           ).trim() || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath,
+        },
+        qqLogin: {
+          enabled: rawAuthConfig?.qqLogin?.enabled === true,
+          appId: String(
+            rawAuthConfig?.qqLogin?.appId
+              || DEFAULT_AUTH_CONFIG.qqLogin.appId
+          ).trim(),
+          callbackPath: String(
+            rawAuthConfig?.qqLogin?.callbackPath
+              || DEFAULT_AUTH_CONFIG.qqLogin.callbackPath
+          ).trim() || DEFAULT_AUTH_CONFIG.qqLogin.callbackPath,
         },
         wechatOfficialAccountLogin: {
           enabled: rawAuthConfig?.wechatOfficialAccountLogin?.enabled === true,

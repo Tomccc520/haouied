@@ -272,6 +272,11 @@
   margin-top: 18px;
 }
 
+.auth-social-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .auth-social-divider {
   position: relative;
   text-align: center;
@@ -319,6 +324,11 @@
   background: #f0fdf4;
 }
 
+.auth-social-btn--qq:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
 .auth-social-btn:disabled {
   cursor: not-allowed;
   opacity: 0.7;
@@ -335,4 +345,8 @@
   color: #fff;
   font-size: 13px;
   font-weight: 700;
+}
+
+.auth-social-btn--qq .auth-social-btn__icon {
+  background: #2563eb;
 }

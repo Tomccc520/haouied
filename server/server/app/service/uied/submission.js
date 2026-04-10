@@ -37,7 +37,35 @@ class SubmissionService extends Service {
       return set;
     } catch (error) {
       this.ctx.logger.warn('[submission] 读取投稿表字段失败，使用最小字段集兜底:', error.message);
-      return new Set([ 'id', 'name', 'description', 'url', 'status', 'submitter_name', 'submitter_email', 'submitter_ip', 'create_time', 'update_time' ]);
+      return new Set([ 'id', 'name', 'description', 'url', 'status', 'submitter_user_id', 'submitter_name', 'submitter_email', 'submitter_ip', 'create_time', 'update_time' ]);
+    }
+  }
+
+  /**
+   * 兼容历史库：补齐 submitter_user_id 字段，确保登录用户可稳定关联投稿记录。
+   */
+  async ensureSubmitterUserIdColumn() {
+    if (this._submitterUserIdColumnReady) return;
+    const { app } = this;
+    try {
+      const columns = await app.model.query('SHOW COLUMNS FROM uied_website_submission', {
+        type: app.Sequelize.QueryTypes.SELECT,
+      });
+      const columnSet = new Set((Array.isArray(columns) ? columns : []).map(item => String(item.Field || '').toLowerCase()));
+      if (!columnSet.has('submitter_user_id')) {
+        await app.model.query(
+          `ALTER TABLE uied_website_submission
+           ADD COLUMN submitter_user_id int unsigned NOT NULL DEFAULT 0 COMMENT '提交用户ID（登录态）' AFTER submitter_ip,
+           ADD INDEX idx_submitter_user_id (submitter_user_id)`,
+          { type: app.Sequelize.QueryTypes.RAW }
+        );
+      }
+      app.__uiedSubmissionColumnSet = null;
+      app.__uiedSubmissionColumnSetAt = 0;
+      this._submitterUserIdColumnReady = true;
+    } catch (error) {
+      this.ctx.logger.warn('[submission] 补齐 submitter_user_id 字段失败，继续按邮箱兜底匹配:', error.message);
+      this._submitterUserIdColumnReady = true;
     }
   }
 
@@ -328,6 +356,53 @@ class SubmissionService extends Service {
   }
 
   /**
+   * 判断是否为非生产环境（本地/测试环境）。
+   */
+  isNonProductionEnv() {
+    const env = String(this.app?.config?.env || process.env.NODE_ENV || '').trim().toLowerCase();
+    return env !== 'prod' && env !== 'production';
+  }
+
+  /**
+   * 判断微信支付是否启用本地联调模拟模式。
+   */
+  isWechatMockModeEnabled(wechatConfig = {}) {
+    return this.isNonProductionEnv() && wechatConfig?.mockModeEnabled === true;
+  }
+
+  /**
+   * 规范化模拟支付回跳地址，仅允许站内路径或明确 URL。
+   */
+  normalizeWechatMockReturnPath(rawPath = '', fallbackPath = '/submit') {
+    const fallback = String(fallbackPath || '/submit').trim() || '/submit';
+    const text = String(rawPath || '').trim();
+    if (!text) return fallback;
+    if (text.startsWith('http://') || text.startsWith('https://')) return text;
+    if (text.startsWith('//')) return fallback;
+    return text.startsWith('/') ? text : `/${text}`;
+  }
+
+  /**
+   * 构建微信模拟支付地址（用于本地联调闭环）。
+   */
+  buildWechatMockPayUrl(orderData = {}, wechatConfig = {}) {
+    const orderNo = String(orderData?.orderNo || '').trim();
+    if (!orderNo) {
+      throw new Error('模拟支付缺少订单号');
+    }
+    const requestOrigin = String(this.ctx.get('origin') || '').trim();
+    const baseOrigin = requestOrigin || 'http://127.0.0.1:3003';
+    const returnPath = this.normalizeWechatMockReturnPath(
+      wechatConfig?.mockReturnPath,
+      '/submit'
+    );
+    const mockUrl = new URL('/api/submissions/pay/mock/wechat', baseOrigin);
+    mockUrl.searchParams.set('orderNo', orderNo);
+    mockUrl.searchParams.set('redirect', returnPath);
+    return mockUrl.toString();
+  }
+
+  /**
    * 创建支付宝官方跳转地址（Page Pay）
    */
   buildAlipayPayUrl(orderData = {}, paymentConfig = {}) {
@@ -376,6 +451,16 @@ class SubmissionService extends Service {
    */
   async buildWechatPayUrl(orderData = {}, paymentConfig = {}) {
     const { app } = this;
+    if (this.isWechatMockModeEnabled(paymentConfig)) {
+      const payUrl = this.buildWechatMockPayUrl(orderData, paymentConfig);
+      return {
+        payUrl,
+        rawResponse: {
+          mode: 'mock',
+          message: 'wechat-mock-enabled',
+        },
+      };
+    }
     const appId = String(paymentConfig?.appId || '').trim();
     const mchId = String(paymentConfig?.mchId || '').trim();
     const apiKey = String(paymentConfig?.apiKey || '').trim();
@@ -1343,6 +1428,7 @@ class SubmissionService extends Service {
    */
   async submit(data) {
     const { app } = this;
+    await this.ensureSubmitterUserIdColumn();
     const now = Math.floor(Date.now() / 1000);
     const serviceType = this.normalizeServiceType(data.serviceType);
     const serviceMeta = this.normalizeServiceMeta(data.serviceMeta);
@@ -1390,6 +1476,9 @@ class SubmissionService extends Service {
       update_time: now,
     };
 
+    if (columns.has('submitter_user_id')) {
+      insertPayload.submitter_user_id = Math.max(0, Number(data.submitterUserId || 0));
+    }
     if (columns.has('icon_url')) insertPayload.icon_url = data.iconUrl || null;
     if (columns.has('category_id')) insertPayload.category_id = data.categoryId || null;
     if (columns.has('tags')) insertPayload.tags = data.tags || null;

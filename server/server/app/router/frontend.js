@@ -197,6 +197,8 @@ module.exports = app => {
   post('/api/submissions/pay/create', controller.uied.submission.createPayOrder);
   // GET /api/submissions/pay/status - 查询投稿支付订单状态
   get('/api/submissions/pay/status', controller.uied.submission.payOrderStatus);
+  // GET /api/submissions/pay/mock/wechat - 微信模拟支付（本地联调）
+  get('/api/submissions/pay/mock/wechat', controller.uied.submission.payMockWechat);
   // POST /api/submissions/pay/notify/alipay - 支付宝支付回调（原始文本响应）
   router.post('/api/submissions/pay/notify/alipay', controller.uied.submission.payNotifyAlipay);
   // POST /api/submissions/pay/notify/wechat - 微信支付回调（原始 XML 响应）

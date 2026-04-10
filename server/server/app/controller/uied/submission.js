@@ -39,6 +39,19 @@ class SubmissionController extends baseController {
   }
 
   /**
+   * 尝试读取当前登录用户ID（未登录返回 0，不中断匿名投稿流程）。
+   */
+  async resolveOptionalUserId() {
+    const { ctx } = this;
+    try {
+      const userId = await ctx.service.user.getUserId();
+      return Number(userId || 0);
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  /**
    * 检查 URL 是否已存在（前端用户）
    */
   async checkUrl() {
@@ -69,6 +82,7 @@ class SubmissionController extends baseController {
 
       // 获取提交者 IP
       data.submitterIp = ctx.ip || ctx.request.ip;
+      data.submitterUserId = await this.resolveOptionalUserId();
 
       const result = await ctx.service.uied.submission.submit(data);
       this.result({ data: result, message: '提交成功，等待审核' });
@@ -92,6 +106,7 @@ class SubmissionController extends baseController {
         return this.result({ code: 400, message: '网站名称和URL为必填项' });
       }
       data.submitterIp = ctx.ip || ctx.request.ip;
+      data.submitterUserId = await this.resolveOptionalUserId();
       const result = await ctx.service.uied.submission.createPayOrder(data);
       this.result({ data: result, message: result?.message || '支付订单创建成功' });
     } catch (error) {
@@ -118,6 +133,122 @@ class SubmissionController extends baseController {
     } catch (error) {
       ctx.logger.error('查询投稿支付订单状态失败:', error);
       this.result({ code: 500, message: error.message || '查询失败' });
+    }
+  }
+
+  /**
+   * 规范化模拟支付回跳路径，仅允许站内路径，避免开放重定向。
+   */
+  normalizeMockRedirectPath(rawPath = '', fallbackPath = '/submit') {
+    const { ctx } = this;
+    const normalizePath = value => {
+      const text = String(value || '').trim();
+      if (!text) return '/submit';
+      if (text.startsWith('//')) return '/submit';
+      if (!text.startsWith('/')) return `/${text}`;
+      return text;
+    };
+    const fallback = normalizePath(fallbackPath || '/submit');
+    const input = String(rawPath || '').trim();
+    if (!input) return fallback;
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      try {
+        const parsed = new URL(input);
+        const requestOrigin = String(ctx.get('origin') || '').trim();
+        if (requestOrigin && parsed.origin !== requestOrigin) {
+          return fallback;
+        }
+        return normalizePath(`${parsed.pathname || '/'}${parsed.search || ''}${parsed.hash || ''}`);
+      } catch (error) {
+        return fallback;
+      }
+    }
+    return normalizePath(input);
+  }
+
+  /**
+   * 为回跳路径追加查询参数（保留原查询串）。
+   */
+  appendQueryToPath(pathname = '/', query = {}) {
+    const input = String(pathname || '/').trim() || '/';
+    const safePath = input.startsWith('/') ? input : `/${input}`;
+    const [ pathPart, hashPart = '' ] = safePath.split('#');
+    const [ basePath = '/', searchPart = '' ] = pathPart.split('?');
+    const params = new URLSearchParams(searchPart || '');
+    Object.keys(query || {}).forEach(key => {
+      const value = query[key];
+      if (value === undefined || value === null || value === '') return;
+      params.set(key, String(value));
+    });
+    const nextSearch = params.toString();
+    const nextHash = hashPart ? `#${hashPart}` : '';
+    return `${basePath}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`;
+  }
+
+  /**
+   * 微信模拟支付回调（本地联调使用，点击后直接将订单置为已支付并回跳页面）。
+   */
+  async payMockWechat() {
+    const { ctx } = this;
+    try {
+      const orderNo = String(ctx.query.orderNo || '').trim();
+      if (!orderNo) {
+        ctx.status = 400;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'missing orderNo';
+        return;
+      }
+
+      const paymentConfig = await ctx.service.uied.submission.getPaymentConfig();
+      const wechatConfig = paymentConfig?.wechat || {};
+      const mockEnabled = paymentConfig?.enabled === true
+        && paymentConfig?.allowWechat !== false
+        && wechatConfig?.enabled === true
+        && ctx.service.uied.submission.isWechatMockModeEnabled(wechatConfig);
+      if (!mockEnabled) {
+        ctx.status = 403;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'wechat mock pay disabled';
+        return;
+      }
+
+      const order = await ctx.service.uied.submission.getPayOrderStatus(orderNo);
+      if (!order) {
+        ctx.status = 404;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'order not found';
+        return;
+      }
+      if (String(order.payChannel || '').trim().toLowerCase() !== 'wechat') {
+        ctx.status = 400;
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'order channel mismatch';
+        return;
+      }
+
+      const mockTransactionId = `MOCK${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      await ctx.service.uied.submission.markPayOrderPaid(orderNo, mockTransactionId, {
+        mode: 'mock',
+        source: 'pay_mock_wechat',
+        operator: 'local_debug',
+      });
+
+      const redirectPath = this.normalizeMockRedirectPath(
+        ctx.query.redirect,
+        wechatConfig?.mockReturnPath || '/submit'
+      );
+      const redirectUrl = this.appendQueryToPath(redirectPath, {
+        payResult: 'success',
+        payChannel: 'wechat',
+        orderNo,
+        mock: '1',
+      });
+      ctx.redirect(redirectUrl);
+    } catch (error) {
+      ctx.logger.error('微信模拟支付处理失败:', error);
+      ctx.status = 500;
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = 'wechat mock pay failed';
     }
   }
 

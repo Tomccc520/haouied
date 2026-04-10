@@ -192,6 +192,11 @@ interface AuthConfig {
     appId: string;
     callbackPath: string;
   };
+  qqLogin: {
+    enabled: boolean;
+    appId: string;
+    callbackPath: string;
+  };
   wechatOfficialAccountLogin: {
     enabled: boolean;
     appId: string;
@@ -380,6 +385,11 @@ const defaultAuthConfig: AuthConfig = {
     enabled: false,
     appId: '',
     callbackPath: '/api/auth/wechat/open-platform/callback',
+  },
+  qqLogin: {
+    enabled: false,
+    appId: '',
+    callbackPath: '/api/auth/qq/callback',
   },
   wechatOfficialAccountLogin: {
     enabled: false,
@@ -571,6 +581,16 @@ const normalizeAuthConfig = (config: unknown): AuthConfig => {
         mergedConfig?.wechatWebsiteLogin?.callbackPath
           || defaultAuthConfig.wechatWebsiteLogin.callbackPath
       ).trim() || defaultAuthConfig.wechatWebsiteLogin.callbackPath,
+    },
+    qqLogin: {
+      enabled: mergedConfig?.qqLogin?.enabled === true,
+      appId: String(
+        mergedConfig?.qqLogin?.appId || defaultAuthConfig.qqLogin.appId
+      ).trim(),
+      callbackPath: String(
+        mergedConfig?.qqLogin?.callbackPath
+          || defaultAuthConfig.qqLogin.callbackPath
+      ).trim() || defaultAuthConfig.qqLogin.callbackPath,
     },
     wechatOfficialAccountLogin: {
       enabled: mergedConfig?.wechatOfficialAccountLogin?.enabled === true,

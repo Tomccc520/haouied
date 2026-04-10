@@ -1990,7 +1990,7 @@
                     <div class="setting-header">
                         <h2 class="setting-title">用户认证与个人中心</h2>
                         <p class="setting-desc">
-                            统一管理前端登录、注册、个人中心开关，以及微信开放平台网站应用登录、微信公众号登录的对接参数。
+                            统一管理前端登录、注册、个人中心开关，以及微信开放平台、QQ互联、微信公众号登录的对接参数。
                         </p>
                     </div>
                     <el-form :model="authConfigData" label-width="160px" class="form-max-700">
@@ -2099,6 +2099,42 @@
                                 </a>
                                 。回调地址按当前 API 域名自动生成，无需手动填写。
                             </div>
+                        </el-form-item>
+                        <el-divider content-position="left">QQ 互联网页登录</el-divider>
+                        <el-form-item label="是否启用">
+                            <el-switch v-model="authConfigData.qqLogin.enabled" />
+                        </el-form-item>
+                        <el-form-item label="AppID">
+                            <el-input
+                                v-model="authConfigData.qqLogin.appId"
+                                maxlength="120"
+                                show-word-limit
+                                placeholder="请输入 QQ 互联 AppID"
+                            />
+                        </el-form-item>
+                        <el-form-item label="AppKey">
+                            <el-input
+                                v-model="authConfigData.qqLogin.appKey"
+                                type="password"
+                                show-password
+                                maxlength="255"
+                                show-word-limit
+                                placeholder="请输入 QQ 互联 AppKey"
+                            />
+                            <div class="form-tips">
+                                QQ 互联入口：
+                                <a
+                                    href="https://connect.qq.com/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    https://connect.qq.com/
+                                </a>
+                                。创建网页应用后将回调地址配置到“回调地址”，无需前台手工填写。
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="回调地址">
+                            <el-input :model-value="qqOauthCallbackPreview" readonly />
                         </el-form-item>
                         <el-divider content-position="left">微信公众号登录</el-divider>
                         <el-form-item label="是否启用">
@@ -2455,6 +2491,21 @@
                         </el-form-item>
                         <el-form-item label="场景名称">
                             <el-input v-model="paymentConfigData.wechatSceneName" />
+                        </el-form-item>
+                        <el-form-item label="本地联调模拟支付">
+                            <el-switch v-model="paymentConfigData.wechatMockModeEnabled" />
+                            <span class="form-tip">
+                                仅建议本地联调用。开启后点击微信支付会走模拟回调并将订单直接置为已支付。
+                            </span>
+                        </el-form-item>
+                        <el-form-item label="模拟支付回跳地址">
+                            <el-input
+                                v-model="paymentConfigData.wechatMockReturnPath"
+                                placeholder="/submit 或 /profile?tab=orders"
+                            />
+                            <span class="form-tip">
+                                支持站内路径或完整 URL，默认回跳到 /submit。
+                            </span>
                         </el-form-item>
 
                         <el-form-item>
@@ -3666,6 +3717,7 @@ const buildSearchConfigPayload = () => {
 // ==================== 用户认证 ====================
 const authConfigLoading = ref(false)
 const WECHAT_OPEN_PLATFORM_CALLBACK_PATH = '/api/auth/wechat/open-platform/callback'
+const QQ_OAUTH_CALLBACK_PATH = '/api/auth/qq/callback'
 const WECHAT_OFFICIAL_OAUTH_CALLBACK_PATH = '/api/auth/wechat/official-account/login/callback'
 const WECHAT_OFFICIAL_EVENT_CALLBACK_PATH = '/api/auth/wechat/official-account/event'
 const defaultAuthConfig = {
@@ -3679,6 +3731,11 @@ const defaultAuthConfig = {
         enabled: false,
         appId: '',
         appSecret: ''
+    },
+    qqLogin: {
+        enabled: false,
+        appId: '',
+        appKey: ''
     },
     wechatOfficialAccountLogin: {
         enabled: false,
@@ -3706,6 +3763,9 @@ const buildAuthConfigPreviewUrl = (path: string) => {
 
 const wechatOpenPlatformCallbackPreview = computed(() =>
     buildAuthConfigPreviewUrl(WECHAT_OPEN_PLATFORM_CALLBACK_PATH)
+)
+const qqOauthCallbackPreview = computed(() =>
+    buildAuthConfigPreviewUrl(QQ_OAUTH_CALLBACK_PATH)
 )
 const wechatOfficialOauthCallbackPreview = computed(() =>
     buildAuthConfigPreviewUrl(WECHAT_OFFICIAL_OAUTH_CALLBACK_PATH)
@@ -3747,6 +3807,10 @@ const normalizeAuthConfigData = (config: any) => {
         ...defaultAuthConfig.wechatWebsiteLogin,
         ...(config?.wechatWebsiteLogin || {})
     }
+    const qqLogin = {
+        ...defaultAuthConfig.qqLogin,
+        ...(config?.qqLogin || {})
+    }
     const officialAccountLogin = {
         ...defaultAuthConfig.wechatOfficialAccountLogin,
         ...(config?.wechatOfficialAccountLogin || {})
@@ -3770,6 +3834,11 @@ const normalizeAuthConfigData = (config: any) => {
             enabled: websiteLogin?.enabled === true,
             appId: String(websiteLogin?.appId || '').trim().slice(0, 120),
             appSecret: String(websiteLogin?.appSecret || '').trim().slice(0, 255)
+        },
+        qqLogin: {
+            enabled: qqLogin?.enabled === true,
+            appId: String(qqLogin?.appId || '').trim().slice(0, 120),
+            appKey: String(qqLogin?.appKey || '').trim().slice(0, 255)
         },
         wechatOfficialAccountLogin: {
             enabled: officialAccountLogin?.enabled === true,
@@ -3852,6 +3921,8 @@ const defaultPaymentConfigData = {
     wechatApiKey: '',
     wechatNotifyUrl: '',
     wechatSceneName: 'UIED支付中心',
+    wechatMockModeEnabled: false,
+    wechatMockReturnPath: '/submit',
 }
 const paymentConfigData = reactive({ ...defaultPaymentConfigData })
 
@@ -4044,6 +4115,10 @@ const normalizePaymentConfigData = (config: any) => {
         wechatApiKey: String(wechat?.apiKey || ''),
         wechatNotifyUrl: String(wechat?.notifyUrl || ''),
         wechatSceneName: String(wechat?.sceneName || defaultPaymentConfigData.wechatSceneName),
+        wechatMockModeEnabled: wechat?.mockModeEnabled === true,
+        wechatMockReturnPath: String(
+            wechat?.mockReturnPath || defaultPaymentConfigData.wechatMockReturnPath
+        ),
     }
 }
 
@@ -4074,6 +4149,8 @@ const buildPaymentConfigPayload = () => ({
         notifyUrl: String(paymentConfigData.wechatNotifyUrl || '').trim(),
         tradeType: 'MWEB',
         sceneName: String(paymentConfigData.wechatSceneName || '').trim(),
+        mockModeEnabled: paymentConfigData.wechatMockModeEnabled === true,
+        mockReturnPath: String(paymentConfigData.wechatMockReturnPath || '').trim(),
     },
 })
 

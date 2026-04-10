@@ -45,17 +45,18 @@ export interface LoginTwoFactorChallenge {
 
 export type LoginResponse = AuthResponse | LoginTwoFactorChallenge;
 
-export type SocialAuthProvider = 'wechatWebsite' | 'wechatOfficialAccount' | 'wechat';
+export type SocialAuthProvider = 'wechatWebsite' | 'wechatOfficialAccount' | 'qqWeb' | 'wechat' | 'qq';
+export type SocialAuthStartProvider = 'wechatWebsite' | 'wechatOfficialAccount' | 'qqWeb';
 
 export interface SocialAuthStartResponse {
-  provider: 'wechatWebsite' | 'wechatOfficialAccount';
+  provider: SocialAuthStartProvider;
   mode: 'login' | 'bind';
   state: string;
   authUrl: string;
 }
 
 export interface SocialBindingItem {
-  provider: 'wechat';
+  provider: 'wechat' | 'qq';
   channel: string;
   bound: boolean;
   openid: string;
@@ -65,6 +66,14 @@ export interface SocialBindingItem {
 
 export interface SocialBindingsResponse {
   wechat: SocialBindingItem;
+  qq: SocialBindingItem;
+}
+
+export interface UserSubmissionListParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  payStatus?: string;
 }
 
 // 登录参数
@@ -179,7 +188,7 @@ export const userService = {
    * 获取第三方登录授权地址
    */
   getSocialLoginState: async (params: {
-    provider: Exclude<SocialAuthProvider, 'wechat'>;
+    provider: SocialAuthStartProvider;
     origin: string;
     redirect?: string;
   }): Promise<SocialAuthStartResponse> => {
@@ -196,7 +205,7 @@ export const userService = {
    * 获取第三方绑定授权地址
    */
   getSocialBindState: async (params: {
-    provider: Exclude<SocialAuthProvider, 'wechat'>;
+    provider: SocialAuthStartProvider;
     origin: string;
     redirect?: string;
   }): Promise<SocialAuthStartResponse> => {
@@ -290,6 +299,33 @@ export const userService = {
    */
   getOrderDetail: async (id: number | string): Promise<any> => {
     const response = await api.post(`/user/order/detail/${id}`);
+    return unwrapApiResponse<any>(response.data, {});
+  },
+
+  /**
+   * 获取用户投稿/投放记录
+   */
+  getSubmissionList: async (params: UserSubmissionListParams = {}): Promise<any> => {
+    const response = await api.post('/user/submission/list', {
+      ...params,
+      pageNo: params.page ?? 1,
+      pageSize: params.pageSize ?? 10,
+    });
+    return unwrapApiResponse<any>(response.data, {
+      lists: [],
+      total: 0,
+      pageNo: 1,
+      pageSize: 10,
+      moduleEnabled: true,
+      moduleMessage: '',
+    });
+  },
+
+  /**
+   * 刷新投稿支付状态（会触发后端补单轮询）
+   */
+  getSubmissionPayStatus: async (orderNo: string): Promise<any> => {
+    const response = await api.post('/user/submission/pay-status', { orderNo });
     return unwrapApiResponse<any>(response.data, {});
   },
 
@@ -411,13 +447,21 @@ export const userService = {
         bindTime: 0,
         bindTimeText: '',
       },
+      qq: {
+        provider: 'qq',
+        channel: '',
+        bound: false,
+        openid: '',
+        bindTime: 0,
+        bindTimeText: '',
+      },
     });
   },
 
   /**
    * 解绑第三方账号
    */
-  unbindSocialAccount: async (provider: 'wechat'): Promise<void> => {
+  unbindSocialAccount: async (provider: 'wechat' | 'qq'): Promise<void> => {
     await api.post('/user/social/unbind', { provider });
   },
 

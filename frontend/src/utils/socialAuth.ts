@@ -5,7 +5,9 @@ export const SOCIAL_AUTH_MESSAGE_TYPE = 'uied-social-auth-result';
 export const SOCIAL_AUTH_BIND_RESULT_KEY = 'uied-social-bind-result';
 
 export type SocialAuthPopupAction = 'login' | 'bind';
+export type SocialAuthStartProvider = 'wechatWebsite' | 'wechatOfficialAccount' | 'qqWeb';
 export type WechatSocialProvider = 'wechatWebsite' | 'wechatOfficialAccount';
+export type QqSocialProvider = 'qqWeb';
 
 export interface SocialAuthPopupPayload {
   type: typeof SOCIAL_AUTH_MESSAGE_TYPE;
@@ -28,6 +30,9 @@ export interface WechatSocialAuthConfigLike {
     enabled?: boolean;
   };
   wechatOfficialAccountLogin?: {
+    enabled?: boolean;
+  };
+  qqLogin?: {
     enabled?: boolean;
   };
 }
@@ -59,6 +64,29 @@ export const resolvePreferredWechatProvider = (
     return 'wechatOfficialAccount';
   }
   return '';
+};
+
+/**
+ * 根据后台开关选择 QQ 登录提供方
+ */
+export const resolvePreferredQqProvider = (
+  authConfig?: WechatSocialAuthConfigLike | null
+): QqSocialProvider | '' => {
+  return authConfig?.qqLogin?.enabled === true ? 'qqWeb' : '';
+};
+
+/**
+ * 获取第三方平台展示文案
+ */
+export const resolveSocialProviderLabel = (provider: string): string => {
+  const key = String(provider || '').trim();
+  if ([ 'wechatWebsite', 'wechatOfficialAccount', 'wechat' ].includes(key)) {
+    return '微信';
+  }
+  if ([ 'qqWeb', 'qq' ].includes(key)) {
+    return 'QQ';
+  }
+  return '第三方';
 };
 
 /**
@@ -135,7 +163,7 @@ export const parseSocialAuthResultParams = (
 };
 
 /**
- * 持久化微信绑定结果，供整页回跳后个人中心读取
+ * 持久化第三方绑定结果，供整页回跳后个人中心读取
  */
 export const saveSocialBindResult = (payload: SocialAuthBindResultPayload) => {
   if (typeof window === 'undefined') return;
@@ -143,7 +171,7 @@ export const saveSocialBindResult = (payload: SocialAuthBindResultPayload) => {
 };
 
 /**
- * 读取并消费微信绑定结果
+ * 读取并消费第三方绑定结果
  */
 export const consumeSocialBindResult = (): SocialAuthBindResultPayload | null => {
   if (typeof window === 'undefined') return null;

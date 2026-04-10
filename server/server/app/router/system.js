@@ -152,6 +152,7 @@ module.exports = app => {
   router.all('/api/user/social/bind/state', controller.user.socialBindState);
   router.get('/api/auth/wechat/open-platform/callback', controller.user.socialWechatWebsiteCallback);
   router.get('/api/auth/wechat/official-account/login/callback', controller.user.socialWechatOfficialAccountCallback);
+  router.get('/api/auth/qq/callback', controller.user.socialQqCallback);
   router.all('/api/user/login/2fa/send', controller.user.loginTwoFactorSend);
   router.all('/api/user/login/2fa/verify', controller.user.loginTwoFactorVerify);
   router.all('/api/user/logout', controller.user.logout);
@@ -165,6 +166,8 @@ module.exports = app => {
   // 前台用户中心（概览）
   router.all('/api/user/index/stats', controller.user.indexStats);
   router.all('/api/user/order/list', controller.user.orderList);
+  router.all('/api/user/submission/list', controller.user.submissionList);
+  router.all('/api/user/submission/pay-status', controller.user.submissionPayStatus);
   router.all('/api/user/order/detail/:id', controller.user.orderDetail);
   router.all('/api/user/order/cancel/:id', controller.user.cancelOrder);
   router.all('/api/user/order/refund/:id', controller.user.refundOrder);
