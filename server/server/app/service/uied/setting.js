@@ -53,6 +53,17 @@ class SettingService extends Service {
       register_close_message: '注册功能暂时关闭',
       login_close_message: '系统维护中，暂时无法登录',
       user_center_close_message: '个人中心功能暂时关闭',
+      userCenterModules: {
+        profile: true,
+        messages: true,
+        orders: false,
+        submissions: true,
+        collections: true,
+        likes: true,
+        comments: true,
+        loginLogs: true,
+        security: true,
+      },
       wechatWebsiteLogin: {
         enabled: false,
         appId: '',
@@ -82,6 +93,30 @@ class SettingService extends Service {
    */
   normalizeAuthConfig(config = {}) {
     const defaults = this.getDefaultAuthConfig();
+    /**
+     * 规范化个人中心模块开关，保证前端拿到稳定布尔结构。
+     */
+    const normalizeUserCenterModules = modules => {
+      const source = this.isPlainObject(modules) ? modules : {};
+      const defaultsModules = this.isPlainObject(defaults.userCenterModules)
+        ? defaults.userCenterModules
+        : {};
+      const normalizedModules = {
+        profile: source.profile !== false && defaultsModules.profile !== false,
+        messages: source.messages !== false && defaultsModules.messages !== false,
+        orders: source.orders === true || defaultsModules.orders === true,
+        submissions: source.submissions !== false && defaultsModules.submissions !== false,
+        collections: source.collections !== false && defaultsModules.collections !== false,
+        likes: source.likes !== false && defaultsModules.likes !== false,
+        comments: source.comments !== false && defaultsModules.comments !== false,
+        loginLogs: source.loginLogs !== false && defaultsModules.loginLogs !== false,
+        security: source.security !== false && defaultsModules.security !== false,
+      };
+      if (!Object.values(normalizedModules).some(Boolean)) {
+        normalizedModules.profile = true;
+      }
+      return normalizedModules;
+    };
     /**
      * 规范化微信公众号域名校验文件名，仅允许 MP_verify_*.txt 格式。
      */
@@ -129,6 +164,7 @@ class SettingService extends Service {
       user_center_close_message: String(
         config?.user_center_close_message || defaults.user_center_close_message
       ).trim() || defaults.user_center_close_message,
+      userCenterModules: normalizeUserCenterModules(config?.userCenterModules),
       wechatWebsiteLogin: {
         enabled: mergedWebsiteLogin.enabled === true,
         appId: String(mergedWebsiteLogin.appId || '').trim().slice(0, 120),
@@ -172,6 +208,7 @@ class SettingService extends Service {
       register_close_message: normalized.register_close_message,
       login_close_message: normalized.login_close_message,
       user_center_close_message: normalized.user_center_close_message,
+      userCenterModules: { ...(normalized.userCenterModules || {}) },
       wechatWebsiteLogin: {
         enabled: normalized.wechatWebsiteLogin.enabled === true,
         appId: String(normalized.wechatWebsiteLogin.appId || '').trim(),
@@ -2424,6 +2461,9 @@ class SettingService extends Service {
    */
   async get(key) {
     const { app } = this;
+    if (key === 'brandConfig') {
+      return this.getDefaultBrandConfig();
+    }
 
     const [ setting ] = await app.model.query(
       'SELECT `key`, `value`, description FROM uied_site_setting WHERE `key` = ?',
@@ -2477,6 +2517,12 @@ class SettingService extends Service {
     const now = Math.floor(Date.now() / 1000);
 
     for (const [ key, rawValue ] of Object.entries(data)) {
+      /**
+       * 商业交付版品牌配置固定在源码中，不允许通过后台改写数据库。
+       */
+      if (key === 'brandConfig') {
+        continue;
+      }
       let value = rawValue;
       if (key === 'pageGlobalConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizePageGlobalConfig(rawValue);
@@ -2486,8 +2532,6 @@ class SettingService extends Service {
         value = this.normalizeExitModalConfig(rawValue);
       } else if (key === 'searchConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeSearchConfig(rawValue);
-      } else if (key === 'brandConfig' && rawValue && typeof rawValue === 'object') {
-        value = this.normalizeBrandConfig(rawValue);
       } else if (key === 'footerAboutConfig' && rawValue && typeof rawValue === 'object') {
         value = this.normalizeFooterAboutConfig(rawValue);
       } else if (key === 'paymentConfig' && rawValue && typeof rawValue === 'object') {
@@ -2680,7 +2724,7 @@ class SettingService extends Service {
     const websiteCompareConfig = await this.get('websiteCompareConfig');
     const mcpPageConfig = await this.get('mcpPageConfig');
     const figmaPageConfig = await this.get('figmaPageConfig');
-    const brandConfig = await this.get('brandConfig');
+    const brandConfig = this.getDefaultBrandConfig();
     const authConfig = await this.getPublicAuthConfig();
 
     // 默认配置

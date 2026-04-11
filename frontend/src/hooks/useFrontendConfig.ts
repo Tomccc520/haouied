@@ -187,6 +187,17 @@ interface AuthConfig {
   register_close_message: string;
   login_close_message: string;
   user_center_close_message: string;
+  userCenterModules: {
+    profile: boolean;
+    messages: boolean;
+    orders: boolean;
+    submissions: boolean;
+    collections: boolean;
+    likes: boolean;
+    comments: boolean;
+    loginLogs: boolean;
+    security: boolean;
+  };
   wechatWebsiteLogin: {
     enabled: boolean;
     appId: string;
@@ -381,6 +392,17 @@ const defaultAuthConfig: AuthConfig = {
   register_close_message: '注册功能暂时关闭',
   login_close_message: '系统维护中，暂时无法登录',
   user_center_close_message: '个人中心功能暂时关闭',
+  userCenterModules: {
+    profile: true,
+    messages: true,
+    orders: false,
+    submissions: true,
+    collections: true,
+    likes: true,
+    comments: true,
+    loginLogs: true,
+    security: true,
+  },
   wechatWebsiteLogin: {
     enabled: false,
     appId: '',
@@ -559,6 +581,30 @@ const normalizeHomepageConfig = (config: unknown): HomepageConfig => {
  */
 const normalizeAuthConfig = (config: unknown): AuthConfig => {
   const mergedConfig = { ...defaultAuthConfig, ...((config as Partial<AuthConfig>) || {}) };
+  /**
+   * 规范化个人中心模块开关，保证字段完整。
+   */
+  const normalizeUserCenterModules = (modules: unknown) => {
+    const source = (modules && typeof modules === 'object')
+      ? (modules as Partial<AuthConfig['userCenterModules']>)
+      : {};
+    const defaults = defaultAuthConfig.userCenterModules;
+    const normalizedModules = {
+      profile: source.profile !== false && defaults.profile !== false,
+      messages: source.messages !== false && defaults.messages !== false,
+      orders: source.orders === true || defaults.orders === true,
+      submissions: source.submissions !== false && defaults.submissions !== false,
+      collections: source.collections !== false && defaults.collections !== false,
+      likes: source.likes !== false && defaults.likes !== false,
+      comments: source.comments !== false && defaults.comments !== false,
+      loginLogs: source.loginLogs !== false && defaults.loginLogs !== false,
+      security: source.security !== false && defaults.security !== false,
+    };
+    if (!Object.values(normalizedModules).some(Boolean)) {
+      normalizedModules.profile = true;
+    }
+    return normalizedModules;
+  };
   return {
     enable_register: mergedConfig.enable_register === 0 ? 0 : 1,
     enable_login: mergedConfig.enable_login === 0 ? 0 : 1,
@@ -572,6 +618,9 @@ const normalizeAuthConfig = (config: unknown): AuthConfig => {
     user_center_close_message: String(
       mergedConfig.user_center_close_message || defaultAuthConfig.user_center_close_message
     ).trim() || defaultAuthConfig.user_center_close_message,
+    userCenterModules: normalizeUserCenterModules(
+      (mergedConfig as Partial<AuthConfig>).userCenterModules
+    ),
     wechatWebsiteLogin: {
       enabled: mergedConfig?.wechatWebsiteLogin?.enabled === true,
       appId: String(

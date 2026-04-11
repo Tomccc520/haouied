@@ -1045,6 +1045,10 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
+.security-tabs {
+  margin-bottom: 14px;
+}
+
 .security-section__title {
   margin: 0 0 10px;
   font-size: 15px;
@@ -1283,6 +1287,11 @@
   .security-2fa-box {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .security-tabs {
+    width: 100%;
+    overflow-x: auto;
   }
 
   .profile-summary-strip {

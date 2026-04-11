@@ -222,7 +222,7 @@
                 </el-tab-pane>
 
                 <!-- ==================== 品牌配置 ==================== -->
-                <el-tab-pane label="品牌配置" name="brandConfig">
+                <el-tab-pane v-if="false" label="品牌配置" name="brandConfig">
                     <div class="setting-header">
                         <h2 class="setting-title">品牌配置</h2>
                         <p class="setting-desc">
@@ -2062,6 +2062,37 @@
                                 placeholder="个人中心功能暂时关闭"
                             />
                         </el-form-item>
+                        <el-divider content-position="left">个人中心模块开关</el-divider>
+                        <el-form-item label="显示个人资料">
+                            <el-switch v-model="authConfigData.userCenterModules.profile" />
+                        </el-form-item>
+                        <el-form-item label="显示我的消息">
+                            <el-switch v-model="authConfigData.userCenterModules.messages" />
+                        </el-form-item>
+                        <el-form-item label="显示我的订单">
+                            <el-switch v-model="authConfigData.userCenterModules.orders" />
+                        </el-form-item>
+                        <el-form-item label="显示我的投放">
+                            <el-switch v-model="authConfigData.userCenterModules.submissions" />
+                        </el-form-item>
+                        <el-form-item label="显示我的收藏">
+                            <el-switch v-model="authConfigData.userCenterModules.collections" />
+                        </el-form-item>
+                        <el-form-item label="显示我的点赞">
+                            <el-switch v-model="authConfigData.userCenterModules.likes" />
+                        </el-form-item>
+                        <el-form-item label="显示我的评论">
+                            <el-switch v-model="authConfigData.userCenterModules.comments" />
+                        </el-form-item>
+                        <el-form-item label="显示登录日志">
+                            <el-switch v-model="authConfigData.userCenterModules.loginLogs" />
+                        </el-form-item>
+                        <el-form-item label="显示账号安全">
+                            <el-switch v-model="authConfigData.userCenterModules.security" />
+                            <div class="form-tips">
+                                仅控制个人中心前台展示入口，不影响后台接口权限与数据本身。
+                            </div>
+                        </el-form-item>
                         <el-divider content-position="left"
                             >微信开放平台网站应用 PC 扫码登录</el-divider
                         >
@@ -2756,7 +2787,6 @@ const saveAllLoading = ref(false)
 const lastSavedAt = ref<number | null>(null)
 const settingTabNameSet = new Set([
     'siteInfo',
-    'brandConfig',
     'appearance',
     'homepage',
     'pageConfig',
@@ -3727,6 +3757,17 @@ const defaultAuthConfig = {
     register_close_message: '注册功能暂时关闭',
     login_close_message: '系统维护中，暂时无法登录',
     user_center_close_message: '个人中心功能暂时关闭',
+    userCenterModules: {
+        profile: true,
+        messages: true,
+        orders: false,
+        submissions: true,
+        collections: true,
+        likes: true,
+        comments: true,
+        loginLogs: true,
+        security: true
+    },
     wechatWebsiteLogin: {
         enabled: false,
         appId: '',
@@ -3815,12 +3856,35 @@ const normalizeAuthConfigData = (config: any) => {
         ...defaultAuthConfig.wechatOfficialAccountLogin,
         ...(config?.wechatOfficialAccountLogin || {})
     }
+    /**
+     * 规范化个人中心模块开关，保证字段完整且均为布尔值。
+     */
+    const normalizeUserCenterModules = (modules: any) => {
+        const source = modules && typeof modules === 'object' ? modules : {}
+        const defaults = defaultAuthConfig.userCenterModules
+        const normalizedModules = {
+            profile: source.profile !== false && defaults.profile !== false,
+            messages: source.messages !== false && defaults.messages !== false,
+            orders: source.orders === true || defaults.orders === true,
+            submissions: source.submissions !== false && defaults.submissions !== false,
+            collections: source.collections !== false && defaults.collections !== false,
+            likes: source.likes !== false && defaults.likes !== false,
+            comments: source.comments !== false && defaults.comments !== false,
+            loginLogs: source.loginLogs !== false && defaults.loginLogs !== false,
+            security: source.security !== false && defaults.security !== false
+        }
+        if (!Object.values(normalizedModules).some(Boolean)) {
+            normalizedModules.profile = true
+        }
+        return normalizedModules
+    }
     return {
         ...defaultAuthConfig,
         ...config,
         enable_register: config?.enable_register === 0 ? 0 : 1,
         enable_login: config?.enable_login === 0 ? 0 : 1,
         enable_user_center: config?.enable_user_center === 0 ? 0 : 1,
+        userCenterModules: normalizeUserCenterModules(config?.userCenterModules),
         register_close_message:
             String(config?.register_close_message || '').trim() ||
             defaultAuthConfig.register_close_message,
@@ -4683,7 +4747,6 @@ const handleSaveAll = async () => {
         await Promise.all([
             uiedSaveSiteInfo(siteInfoData),
             uiedSettingSave({
-                brandConfig: normalizeBrandConfigData(cloneConfig(brandConfigData)),
                 appearanceConfig: appearanceData,
                 homepageConfig: normalizeHomepageConfigData(cloneConfig(homepageData)),
                 pageGlobalConfig: normalizePageConfigData(pageConfigData),

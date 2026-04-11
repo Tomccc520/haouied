@@ -4462,7 +4462,7 @@ class UserService extends Service {
       return;
     }
 
-    const cacheKey = `uied:personal:center:seeded:${uid}`;
+    const cacheKey = `uied:personal:center:seeded:v2:${uid}`;
     const seeded = await ctx.service.redis.get(cacheKey);
     if (seeded) {
       return;
@@ -6726,9 +6726,9 @@ class UserService extends Service {
     await this.ensureUiedCommentTableCompatibility();
 
     const displayName = String(nickname || user.nickname || user.username || `用户${uid}`).slice(0, 100);
-    const websiteIds = await this.getDemoWebsiteIds(2);
-    const legacyArticleIds = await this.getDemoLegacyArticleIds(2);
-    const uiedArticleIds = await this.getDemoUiedArticleIds(2);
+    const websiteIds = await this.getDemoWebsiteIds(6);
+    const legacyArticleIds = await this.getDemoLegacyArticleIds(6);
+    const uiedArticleIds = await this.getDemoUiedArticleIds(4);
 
     for (const websiteId of websiteIds) {
       try {
@@ -6848,19 +6848,41 @@ class UserService extends Service {
       }
     }
 
-    const messageExists = await ctx.model.UserMessage.findOne({
-      where: {
-        userId: uid,
-        type: 'system_notice',
-      },
-      attributes: [ 'id' ],
-    });
-    if (!messageExists) {
-      await ctx.model.UserMessage.create({
-        userId: uid,
+    /**
+     * 追加几条常用消息，便于前台“我的消息”验证不同文案长度的排版效果。
+     */
+    const demoMessages = [
+      {
         type: 'system_notice',
         title: '欢迎使用个人中心',
         content: '演示数据已初始化，你现在可以查看收藏、点赞、评论等模块。',
+      },
+      {
+        type: 'system_notice',
+        title: '本周内容更新提醒',
+        content: '你关注的分类本周新增多条高质量资源，建议进入“我的收藏”快速复盘。',
+      },
+      {
+        type: 'comment_notice',
+        title: '评论互动通知',
+        content: '你最近发布的评论收到了新的互动，欢迎继续完善观点。',
+      },
+    ];
+    for (const item of demoMessages) {
+      const messageExists = await ctx.model.UserMessage.findOne({
+        where: {
+          userId: uid,
+          type: item.type,
+          title: item.title,
+        },
+        attributes: [ 'id' ],
+      });
+      if (messageExists) continue;
+      await ctx.model.UserMessage.create({
+        userId: uid,
+        type: item.type,
+        title: item.title,
+        content: item.content,
         extra: '',
         isRead: 0,
         readTime: 0,

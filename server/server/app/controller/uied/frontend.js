@@ -1093,6 +1093,17 @@ class FrontendController extends Controller {
           register_close_message: '注册功能暂时关闭',
           login_close_message: '系统维护中，暂时无法登录',
           user_center_close_message: '个人中心功能暂时关闭',
+          userCenterModules: {
+            profile: true,
+            messages: true,
+            orders: false,
+            submissions: true,
+            collections: true,
+            likes: true,
+            comments: true,
+            loginLogs: true,
+            security: true,
+          },
           wechatWebsiteLogin: {
             enabled: false,
             appId: '',

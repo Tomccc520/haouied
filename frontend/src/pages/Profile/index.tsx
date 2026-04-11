@@ -5,7 +5,7 @@
  * @createDate 2026-02-27
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../../contexts/UserContext';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
@@ -28,6 +28,31 @@ import {
 import './Profile.css';
 
 type ActiveTab = 'profile' | 'collections' | 'likes' | 'comments' | 'messages' | 'orders' | 'submissions' | 'loginLogs' | 'security';
+type ProfileModuleKey = ActiveTab;
+
+interface ProfileUserCenterModules {
+  profile: boolean;
+  messages: boolean;
+  orders: boolean;
+  submissions: boolean;
+  collections: boolean;
+  likes: boolean;
+  comments: boolean;
+  loginLogs: boolean;
+  security: boolean;
+}
+
+const DEFAULT_PROFILE_USER_CENTER_MODULES: ProfileUserCenterModules = {
+  profile: true,
+  messages: true,
+  orders: false,
+  submissions: true,
+  collections: true,
+  likes: true,
+  comments: true,
+  loginLogs: true,
+  security: true,
+};
 
 interface ProfileWechatAuthConfig {
   qqLogin?: {
@@ -39,6 +64,7 @@ interface ProfileWechatAuthConfig {
   wechatOfficialAccountLogin?: {
     enabled?: boolean;
   };
+  userCenterModules?: Partial<ProfileUserCenterModules>;
 }
 
 /**
@@ -244,6 +270,59 @@ const PROFILE_SEGMENT_TAB_MAP: Record<string, ActiveTab> = {
 };
 
 /**
+ * 规范化个人中心模块开关
+ */
+const normalizeProfileUserCenterModules = (modules: unknown): ProfileUserCenterModules => {
+  const source = (modules && typeof modules === 'object')
+    ? (modules as Partial<ProfileUserCenterModules>)
+    : {};
+  const normalizedModules: ProfileUserCenterModules = {
+    profile: source.profile !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.profile !== false,
+    messages: source.messages !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.messages !== false,
+    orders: source.orders === true || DEFAULT_PROFILE_USER_CENTER_MODULES.orders === true,
+    submissions: source.submissions !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.submissions !== false,
+    collections: source.collections !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.collections !== false,
+    likes: source.likes !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.likes !== false,
+    comments: source.comments !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.comments !== false,
+    loginLogs: source.loginLogs !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.loginLogs !== false,
+    security: source.security !== false && DEFAULT_PROFILE_USER_CENTER_MODULES.security !== false,
+  };
+  if (!Object.values(normalizedModules).some(Boolean)) {
+    normalizedModules.profile = true;
+  }
+  return normalizedModules;
+};
+
+/**
+ * 获取当前可用的个人中心标签顺序
+ */
+const resolveEnabledProfileTabs = (modules: ProfileUserCenterModules): ActiveTab[] => {
+  const orderedTabs: ProfileModuleKey[] = [
+    'profile',
+    'messages',
+    'orders',
+    'submissions',
+    'collections',
+    'likes',
+    'comments',
+    'loginLogs',
+    'security',
+  ];
+  const enabledTabs = orderedTabs.filter(tab => modules[tab] === true);
+  return enabledTabs.length > 0 ? enabledTabs : [ 'profile' ];
+};
+
+/**
+ * 将目标 tab 收敛到当前允许访问的 tab
+ */
+const resolveAvailableProfileTab = (tab: ActiveTab, modules: ProfileUserCenterModules): ActiveTab => {
+  if (modules[tab] === true) {
+    return tab;
+  }
+  return resolveEnabledProfileTabs(modules)[0] || 'profile';
+};
+
+/**
  * 根据 tab 生成标准个人中心路径
  */
 const buildProfileTabPath = (tab: ActiveTab): string => {
@@ -275,7 +354,14 @@ const ProfilePage: React.FC = () => {
   const userCenterEnabled = frontendConfig?.authConfig?.enable_user_center !== 0;
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => resolveProfileActiveTab(location.pathname || '', location.search || ''));
+  const profileModules = useMemo(
+    () => normalizeProfileUserCenterModules(frontendConfig?.authConfig?.userCenterModules),
+    [frontendConfig?.authConfig?.userCenterModules]
+  );
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => resolveAvailableProfileTab(
+    resolveProfileActiveTab(location.pathname || '', location.search || ''),
+    profileModules
+  ));
   const [stats, setStats] = useState<{ orderCount?: number; licenseCount?: number; registerDays?: number }>({});
   const [contentStats, setContentStats] = useState<{
     websiteFavoriteTotal: number;
@@ -354,7 +440,10 @@ const ProfilePage: React.FC = () => {
   }, [isLoggedIn]);
 
   useEffect(() => {
-    const nextTab = resolveProfileActiveTab(location.pathname || '', location.search || '');
+    const nextTab = resolveAvailableProfileTab(
+      resolveProfileActiveTab(location.pathname || '', location.search || ''),
+      profileModules
+    );
     if (nextTab !== activeTab) {
       setActiveTab(nextTab);
     }
@@ -370,7 +459,7 @@ const ProfilePage: React.FC = () => {
     if (canonicalPath !== currentPath) {
       navigate(canonicalPath, { replace: true });
     }
-  }, [activeTab, location.pathname, location.search, navigate]);
+  }, [activeTab, location.pathname, location.search, navigate, profileModules]);
 
   if (frontendConfigLoading || loading || !user) {
     return <div className="loading-state">加载中...</div>;
@@ -384,8 +473,9 @@ const ProfilePage: React.FC = () => {
    * 切换个人中心标签，并同步最小化 URL 状态
    */
   const handleChangeTab = (nextTab: ActiveTab) => {
-    setActiveTab(nextTab);
-    const targetPath = buildProfileTabPath(nextTab);
+    const normalizedTab = resolveAvailableProfileTab(nextTab, profileModules);
+    setActiveTab(normalizedTab);
+    const targetPath = buildProfileTabPath(normalizedTab);
     if (`${location.pathname}${location.search}` !== targetPath) {
       navigate(targetPath, { replace: true });
     }
@@ -446,10 +536,12 @@ const ProfilePage: React.FC = () => {
               <span>最近登录 {formatUserDate(user.lastLoginTime, '未知')}</span>
             </div>
             <div className="user-card-stats">
-              <div className="user-card-stat">
-                <div className="user-card-stat__value">{Number(stats.orderCount || 0)}</div>
-                <div className="user-card-stat__label">订单</div>
-              </div>
+              {profileModules.orders && (
+                <div className="user-card-stat">
+                  <div className="user-card-stat__value">{Number(stats.orderCount || 0)}</div>
+                  <div className="user-card-stat__label">订单</div>
+                </div>
+              )}
               <div className="user-card-stat">
                 <div className="user-card-stat__value">{Number(stats.licenseCount || 0)}</div>
                 <div className="user-card-stat__label">授权</div>
@@ -482,95 +574,113 @@ const ProfilePage: React.FC = () => {
           </div>
           
           <div className="profile-menu">
-            <div 
-              className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('profile')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              个人资料
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'messages' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('messages')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              我的消息
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('orders')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <path d="M16 10a4 4 0 0 1-8 0"></path>
-              </svg>
-              我的订单
-            </div>
-            <div
-              className={`menu-item ${activeTab === 'submissions' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('submissions')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16v16H4z"></path>
-                <path d="M7 8h10"></path>
-                <path d="M7 12h10"></path>
-                <path d="M7 16h6"></path>
-              </svg>
-              我的投放
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'collections' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('collections')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-              我的收藏
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'likes' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('likes')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-              </svg>
-              我的点赞
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'comments' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('comments')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              我的评论
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'loginLogs' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('loginLogs')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 8v4l3 3"></path>
-                <circle cx="12" cy="12" r="9"></circle>
-              </svg>
-              登录日志
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'security' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('security')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              账号安全
-            </div>
+            {profileModules.profile && (
+              <div
+                className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('profile')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                个人资料
+              </div>
+            )}
+            {profileModules.messages && (
+              <div
+                className={`menu-item ${activeTab === 'messages' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('messages')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                我的消息
+              </div>
+            )}
+            {profileModules.orders && (
+              <div
+                className={`menu-item ${activeTab === 'orders' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('orders')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <path d="M16 10a4 4 0 0 1-8 0"></path>
+                </svg>
+                我的订单
+              </div>
+            )}
+            {profileModules.submissions && (
+              <div
+                className={`menu-item ${activeTab === 'submissions' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('submissions')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16v16H4z"></path>
+                  <path d="M7 8h10"></path>
+                  <path d="M7 12h10"></path>
+                  <path d="M7 16h6"></path>
+                </svg>
+                我的投放
+              </div>
+            )}
+            {profileModules.collections && (
+              <div
+                className={`menu-item ${activeTab === 'collections' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('collections')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+                我的收藏
+              </div>
+            )}
+            {profileModules.likes && (
+              <div
+                className={`menu-item ${activeTab === 'likes' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('likes')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+                我的点赞
+              </div>
+            )}
+            {profileModules.comments && (
+              <div
+                className={`menu-item ${activeTab === 'comments' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('comments')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                我的评论
+              </div>
+            )}
+            {profileModules.loginLogs && (
+              <div
+                className={`menu-item ${activeTab === 'loginLogs' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('loginLogs')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 8v4l3 3"></path>
+                  <circle cx="12" cy="12" r="9"></circle>
+                </svg>
+                登录日志
+              </div>
+            )}
+            {profileModules.security && (
+              <div
+                className={`menu-item ${activeTab === 'security' ? 'active' : ''}`}
+                onClick={() => handleChangeTab('security')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                账号安全
+              </div>
+            )}
           </div>
         </div>
 
@@ -3593,6 +3703,7 @@ const SecuritySettings: React.FC<{
   authConfig?: ProfileWechatAuthConfig;
   onUpdate: () => Promise<void> | void;
 }> = ({ user, authConfig, onUpdate }) => {
+  type SecurityPanelTab = 'account' | 'social' | 'session';
   const [formData, setFormData] = useState({
     oldPassword: '',
     newPassword: '',
@@ -3646,6 +3757,7 @@ const SecuritySettings: React.FC<{
   const [socialActionLoading, setSocialActionLoading] = useState(false);
   const [twoFactorSending, setTwoFactorSending] = useState(false);
   const [twoFactorSaving, setTwoFactorSaving] = useState(false);
+  const [securityTab, setSecurityTab] = useState<SecurityPanelTab>('account');
   const socialPopupRef = useRef<Window | null>(null);
 
   useEffect(() => {
@@ -4009,297 +4121,331 @@ const SecuritySettings: React.FC<{
       <div className="profile-note-box">
         建议先绑定邮箱，再绑定微信/QQ，最后开启 2FA；后续登录、授权审核与支付通知都会更稳定。
       </div>
-      <div className="security-section">
-        <h3 className="security-section__title">修改密码</h3>
-        <form className="profile-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>当前密码</label>
-            <input
-              type="password"
-              value={formData.oldPassword}
-              onChange={e => setFormData({ ...formData, oldPassword: e.target.value })}
-              placeholder="请输入当前密码"
-            />
-          </div>
-          <div className="form-group">
-            <label>新密码</label>
-            <input
-              type="password"
-              value={formData.newPassword}
-              onChange={e => setFormData({ ...formData, newPassword: e.target.value })}
-              placeholder="请输入新密码（至少6位）"
-            />
-          </div>
-          <div className="form-group">
-            <label>确认新密码</label>
-            <input
-              type="password"
-              value={formData.confirmPassword}
-              onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
-              placeholder="请再次输入新密码"
-            />
-          </div>
-          <button type="submit" className="save-btn" disabled={saving}>
-            {saving ? '处理中...' : '确认修改'}
-          </button>
-        </form>
+      <div className="profile-type-tabs security-tabs" role="tablist" aria-label="账号安全标签">
+        <button
+          type="button"
+          className={`profile-type-tab ${securityTab === 'account' ? 'is-active' : ''}`}
+          onClick={() => setSecurityTab('account')}
+        >
+          账号与密码
+        </button>
+        <button
+          type="button"
+          className={`profile-type-tab ${securityTab === 'social' ? 'is-active' : ''}`}
+          onClick={() => setSecurityTab('social')}
+        >
+          第三方绑定
+        </button>
+        <button
+          type="button"
+          className={`profile-type-tab ${securityTab === 'session' ? 'is-active' : ''}`}
+          onClick={() => setSecurityTab('session')}
+        >
+          设备与 2FA
+        </button>
       </div>
 
-      <div className="security-section">
-        <h3 className="security-section__title">绑定邮箱</h3>
-        <div className="security-bind-grid">
-          <input
-            type="text"
-            value={bindForm.emailAccount}
-            onChange={e => setBindForm(prev => ({ ...prev, emailAccount: e.target.value }))}
-            placeholder="请输入邮箱地址"
-          />
-          <div className="security-code-row">
-            <input
-              type="text"
-              value={bindForm.emailCode}
-              onChange={e => setBindForm(prev => ({ ...prev, emailCode: e.target.value }))}
-              placeholder="验证码"
-            />
-            <button type="button" className="action-btn" disabled={sendingType === 'email'} onClick={() => handleSendCode('email')}>
-              {sendingType === 'email' ? '发送中...' : '发送验证码'}
-            </button>
+      {securityTab === 'account' && (
+        <>
+          <div className="security-section">
+            <h3 className="security-section__title">修改密码</h3>
+            <form className="profile-form" onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label>当前密码</label>
+                <input
+                  type="password"
+                  value={formData.oldPassword}
+                  onChange={e => setFormData({ ...formData, oldPassword: e.target.value })}
+                  placeholder="请输入当前密码"
+                />
+              </div>
+              <div className="form-group">
+                <label>新密码</label>
+                <input
+                  type="password"
+                  value={formData.newPassword}
+                  onChange={e => setFormData({ ...formData, newPassword: e.target.value })}
+                  placeholder="请输入新密码（至少6位）"
+                />
+              </div>
+              <div className="form-group">
+                <label>确认新密码</label>
+                <input
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  placeholder="请再次输入新密码"
+                />
+              </div>
+              <button type="submit" className="save-btn" disabled={saving}>
+                {saving ? '处理中...' : '确认修改'}
+              </button>
+            </form>
           </div>
-          <div className="security-action-row">
-            <button type="button" className="save-btn" disabled={bindingType === 'email'} onClick={() => handleBindAccount('email')}>
-              {bindingType === 'email' ? '处理中...' : '绑定邮箱'}
-            </button>
-            <button type="button" className="action-btn" disabled={bindingType === 'email'} onClick={() => handleUnbindAccount('email')}>
-              解绑
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <div className="security-section">
-        <h3 className="security-section__title">绑定手机</h3>
-        <div className="security-bind-grid">
-          <input
-            type="text"
-            value={bindForm.mobileAccount}
-            onChange={e => setBindForm(prev => ({ ...prev, mobileAccount: e.target.value }))}
-            placeholder="请输入手机号"
-          />
-          <div className="security-code-row">
-            <input
-              type="text"
-              value={bindForm.mobileCode}
-              onChange={e => setBindForm(prev => ({ ...prev, mobileCode: e.target.value }))}
-              placeholder="验证码"
-            />
-            <button type="button" className="action-btn" disabled={sendingType === 'mobile'} onClick={() => handleSendCode('mobile')}>
-              {sendingType === 'mobile' ? '发送中...' : '发送验证码'}
-            </button>
+          <div className="security-section">
+            <h3 className="security-section__title">绑定邮箱</h3>
+            <div className="security-bind-grid">
+              <input
+                type="text"
+                value={bindForm.emailAccount}
+                onChange={e => setBindForm(prev => ({ ...prev, emailAccount: e.target.value }))}
+                placeholder="请输入邮箱地址"
+              />
+              <div className="security-code-row">
+                <input
+                  type="text"
+                  value={bindForm.emailCode}
+                  onChange={e => setBindForm(prev => ({ ...prev, emailCode: e.target.value }))}
+                  placeholder="验证码"
+                />
+                <button type="button" className="action-btn" disabled={sendingType === 'email'} onClick={() => handleSendCode('email')}>
+                  {sendingType === 'email' ? '发送中...' : '发送验证码'}
+                </button>
+              </div>
+              <div className="security-action-row">
+                <button type="button" className="save-btn" disabled={bindingType === 'email'} onClick={() => handleBindAccount('email')}>
+                  {bindingType === 'email' ? '处理中...' : '绑定邮箱'}
+                </button>
+                <button type="button" className="action-btn" disabled={bindingType === 'email'} onClick={() => handleUnbindAccount('email')}>
+                  解绑
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="security-action-row">
-            <button type="button" className="save-btn" disabled={bindingType === 'mobile'} onClick={() => handleBindAccount('mobile')}>
-              {bindingType === 'mobile' ? '处理中...' : '绑定手机'}
-            </button>
-            <button type="button" className="action-btn" disabled={bindingType === 'mobile'} onClick={() => handleUnbindAccount('mobile')}>
-              解绑
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <div className="security-section">
-        <h3 className="security-section__title">第三方账号</h3>
-        <div className="security-social-grid">
-          <div className="security-social-card">
-            <div className="security-social-card__header">
-              <div>
-                <div className="security-social-card__title">微信账号</div>
-                <div className="security-social-card__meta">
-                  {wechatBinding.bound
-                    ? `已绑定${wechatBinding.channel ? ` · ${wechatBinding.channel}` : ''}${wechatBinding.openid ? ` · ${wechatBinding.openid}` : ''}`
-                    : '未绑定微信账号'}
-                </div>
-                {wechatBinding.bound && wechatBinding.bindTimeText && (
-                  <div className="security-social-card__submeta">
-                    绑定时间：{wechatBinding.bindTimeText}
+          <div className="security-section">
+            <h3 className="security-section__title">绑定手机</h3>
+            <div className="security-bind-grid">
+              <input
+                type="text"
+                value={bindForm.mobileAccount}
+                onChange={e => setBindForm(prev => ({ ...prev, mobileAccount: e.target.value }))}
+                placeholder="请输入手机号"
+              />
+              <div className="security-code-row">
+                <input
+                  type="text"
+                  value={bindForm.mobileCode}
+                  onChange={e => setBindForm(prev => ({ ...prev, mobileCode: e.target.value }))}
+                  placeholder="验证码"
+                />
+                <button type="button" className="action-btn" disabled={sendingType === 'mobile'} onClick={() => handleSendCode('mobile')}>
+                  {sendingType === 'mobile' ? '发送中...' : '发送验证码'}
+                </button>
+              </div>
+              <div className="security-action-row">
+                <button type="button" className="save-btn" disabled={bindingType === 'mobile'} onClick={() => handleBindAccount('mobile')}>
+                  {bindingType === 'mobile' ? '处理中...' : '绑定手机'}
+                </button>
+                <button type="button" className="action-btn" disabled={bindingType === 'mobile'} onClick={() => handleUnbindAccount('mobile')}>
+                  解绑
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {securityTab === 'social' && (
+        <div className="security-section">
+          <h3 className="security-section__title">第三方账号</h3>
+          <div className="security-social-grid">
+            <div className="security-social-card">
+              <div className="security-social-card__header">
+                <div>
+                  <div className="security-social-card__title">微信账号</div>
+                  <div className="security-social-card__meta">
+                    {wechatBinding.bound
+                      ? `已绑定${wechatBinding.channel ? ` · ${wechatBinding.channel}` : ''}${wechatBinding.openid ? ` · ${wechatBinding.openid}` : ''}`
+                      : '未绑定微信账号'}
                   </div>
+                  {wechatBinding.bound && wechatBinding.bindTimeText && (
+                    <div className="security-social-card__submeta">
+                      绑定时间：{wechatBinding.bindTimeText}
+                    </div>
+                  )}
+                </div>
+                <span className={`status-badge ${wechatBinding.bound ? 'status-1' : 'status-0'}`}>
+                  {wechatBinding.bound ? '已绑定' : '未绑定'}
+                </span>
+              </div>
+              <div className="security-social-card__tip">
+                PC 端使用微信开放平台扫码授权，微信内访问时会自动切换到公众号网页授权。
+              </div>
+              <div className="security-action-row">
+                {wechatBinding.bound ? (
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={socialActionLoading}
+                    onClick={() => handleSocialUnbind('wechat')}
+                  >
+                    {socialActionLoading ? '处理中...' : '解绑微信'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="save-btn"
+                    disabled={socialActionLoading || !wechatBindEnabled}
+                    onClick={handleWechatBind}
+                  >
+                    {socialActionLoading ? '处理中...' : '绑定微信'}
+                  </button>
                 )}
               </div>
-              <span className={`status-badge ${wechatBinding.bound ? 'status-1' : 'status-0'}`}>
-                {wechatBinding.bound ? '已绑定' : '未绑定'}
-              </span>
-            </div>
-            <div className="security-social-card__tip">
-              PC 端使用微信开放平台扫码授权，微信内访问时会自动切换到公众号网页授权。
-            </div>
-            <div className="security-action-row">
-              {wechatBinding.bound ? (
-                <button
-                  type="button"
-                  className="action-btn"
-                  disabled={socialActionLoading}
-                  onClick={() => handleSocialUnbind('wechat')}
-                >
-                  {socialActionLoading ? '处理中...' : '解绑微信'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="save-btn"
-                  disabled={socialActionLoading || !wechatBindEnabled}
-                  onClick={handleWechatBind}
-                >
-                  {socialActionLoading ? '处理中...' : '绑定微信'}
-                </button>
+              {!wechatBindEnabled && (
+                <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
+                  当前站点暂未开启微信登录配置，请先到后台完成微信开放平台或公众号参数配置。
+                </div>
               )}
             </div>
-            {!wechatBindEnabled && (
-              <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
-                当前站点暂未开启微信登录配置，请先到后台完成微信开放平台或公众号参数配置。
+
+            <div className="security-social-card">
+              <div className="security-social-card__header">
+                <div>
+                  <div className="security-social-card__title">QQ账号</div>
+                  <div className="security-social-card__meta">
+                    {qqBinding.bound
+                      ? `已绑定${qqBinding.channel ? ` · ${qqBinding.channel}` : ''}${qqBinding.openid ? ` · ${qqBinding.openid}` : ''}`
+                      : '未绑定QQ账号'}
+                  </div>
+                  {qqBinding.bound && qqBinding.bindTimeText && (
+                    <div className="security-social-card__submeta">
+                      绑定时间：{qqBinding.bindTimeText}
+                    </div>
+                  )}
+                </div>
+                <span className={`status-badge ${qqBinding.bound ? 'status-1' : 'status-0'}`}>
+                  {qqBinding.bound ? '已绑定' : '未绑定'}
+                </span>
+              </div>
+              <div className="security-social-card__tip">
+                QQ 绑定通过 QQ互联网页应用授权完成，适合 PC 端快速登录与账号关联。
+              </div>
+              <div className="security-action-row">
+                {qqBinding.bound ? (
+                  <button
+                    type="button"
+                    className="action-btn"
+                    disabled={socialActionLoading}
+                    onClick={() => handleSocialUnbind('qq')}
+                  >
+                    {socialActionLoading ? '处理中...' : '解绑QQ'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="save-btn"
+                    disabled={socialActionLoading || !qqBindEnabled}
+                    onClick={handleQqBind}
+                  >
+                    {socialActionLoading ? '处理中...' : '绑定QQ'}
+                  </button>
+                )}
+              </div>
+              {!qqBindEnabled && (
+                <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
+                  当前站点暂未开启QQ登录配置，请先到后台完成QQ互联参数配置。
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {securityTab === 'session' && (
+        <>
+          <div className="security-section">
+            <h3 className="security-section__title">登录设备管理</h3>
+            {loadingSessions ? (
+              <div className="profile-inline-empty">设备记录加载中...</div>
+            ) : sessions.length === 0 ? (
+              <div className="profile-inline-empty">暂无登录设备记录</div>
+            ) : (
+              <div className="security-device-list">
+                {sessions.map(item => (
+                  <div className="security-device-item" key={`device-${item.sessionId || item.token}`}>
+                    <div className="title">
+                      {pickValue(item, [ 'device' ], '未知设备')}
+                      {Boolean(item.isCurrent) && <span style={{ marginLeft: 8, color: '#16a34a', fontSize: 12 }}>当前设备</span>}
+                    </div>
+                    <div className="meta">
+                      <span>IP：{pickValue(item, [ 'ip', 'ipAddress', 'ip_address' ], '-')}</span>
+                      <span>登录：{formatUserDate(pickValue(item, [ 'createTime', 'create_time', 'loginTime' ]))}</span>
+                      <span>活跃：{formatUserDate(pickValue(item, [ 'lastActiveTime' ]))}</span>
+                      <span>剩余：{Number(pickValue(item, [ 'expireInSeconds' ], 0))} 秒</span>
+                      <span>2FA：{Boolean(item.twoFactorVerified) ? '已验证' : '未验证'}</span>
+                    </div>
+                    {!Boolean(item.isCurrent) && (
+                      <div className="security-device-item__actions">
+                        <button type="button" className="action-btn" onClick={() => handleKickSession(String(item.token || ''))}>
+                          下线设备
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="security-social-card">
-            <div className="security-social-card__header">
-              <div>
-                <div className="security-social-card__title">QQ账号</div>
-                <div className="security-social-card__meta">
-                  {qqBinding.bound
-                    ? `已绑定${qqBinding.channel ? ` · ${qqBinding.channel}` : ''}${qqBinding.openid ? ` · ${qqBinding.openid}` : ''}`
-                    : '未绑定QQ账号'}
-                </div>
-                {qqBinding.bound && qqBinding.bindTimeText && (
-                  <div className="security-social-card__submeta">
-                    绑定时间：{qqBinding.bindTimeText}
-                  </div>
-                )}
+          <div className="security-section">
+            <h3 className="security-section__title">两步验证（2FA）</h3>
+            <div className="security-2fa-box" style={{ marginBottom: 12 }}>
+              <div className="security-2fa-box__text">
+                当前状态：{twoFactorState.enabled ? '已开启' : '未开启'}
+                {twoFactorState.enabled && twoFactorState.maskedAccount ? `（${twoFactorState.maskedAccount}）` : ''}
               </div>
-              <span className={`status-badge ${qqBinding.bound ? 'status-1' : 'status-0'}`}>
-                {qqBinding.bound ? '已绑定' : '未绑定'}
-              </span>
             </div>
-            <div className="security-social-card__tip">
-              QQ 绑定通过 QQ互联网页应用授权完成，适合 PC 端快速登录与账号关联。
-            </div>
-            <div className="security-action-row">
-              {qqBinding.bound ? (
-                <button
-                  type="button"
-                  className="action-btn"
-                  disabled={socialActionLoading}
-                  onClick={() => handleSocialUnbind('qq')}
-                >
-                  {socialActionLoading ? '处理中...' : '解绑QQ'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="save-btn"
-                  disabled={socialActionLoading || !qqBindEnabled}
-                  onClick={handleQqBind}
-                >
-                  {socialActionLoading ? '处理中...' : '绑定QQ'}
-                </button>
-              )}
-            </div>
-            {!qqBindEnabled && (
-              <div className="security-social-card__submeta" style={{ marginTop: 8 }}>
-                当前站点暂未开启QQ登录配置，请先到后台完成QQ互联参数配置。
+            {!twoFactorState.enabled && (
+              <div className="security-bind-grid" style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>验证方式</label>
+                <div className="security-action-row">
+                  <button
+                    type="button"
+                    className={`action-btn ${twoFactorForm.method === 'mobile' ? 'is-active' : ''}`}
+                    onClick={() => setTwoFactorForm(prev => ({ ...prev, method: 'mobile' }))}
+                  >
+                    手机验证码
+                  </button>
+                  <button
+                    type="button"
+                    className={`action-btn ${twoFactorForm.method === 'email' ? 'is-active' : ''}`}
+                    onClick={() => setTwoFactorForm(prev => ({ ...prev, method: 'email' }))}
+                  >
+                    邮箱验证码
+                  </button>
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      <div className="security-section">
-        <h3 className="security-section__title">登录设备管理</h3>
-        {loadingSessions ? (
-          <div className="profile-inline-empty">设备记录加载中...</div>
-        ) : sessions.length === 0 ? (
-          <div className="profile-inline-empty">暂无登录设备记录</div>
-        ) : (
-          <div className="security-device-list">
-            {sessions.map(item => (
-              <div className="security-device-item" key={`device-${item.sessionId || item.token}`}>
-                <div className="title">
-                  {pickValue(item, [ 'device' ], '未知设备')}
-                  {Boolean(item.isCurrent) && <span style={{ marginLeft: 8, color: '#16a34a', fontSize: 12 }}>当前设备</span>}
-                </div>
-                <div className="meta">
-                  <span>IP：{pickValue(item, [ 'ip', 'ipAddress', 'ip_address' ], '-')}</span>
-                  <span>登录：{formatUserDate(pickValue(item, [ 'createTime', 'create_time', 'loginTime' ]))}</span>
-                  <span>活跃：{formatUserDate(pickValue(item, [ 'lastActiveTime' ]))}</span>
-                  <span>剩余：{Number(pickValue(item, [ 'expireInSeconds' ], 0))} 秒</span>
-                  <span>2FA：{Boolean(item.twoFactorVerified) ? '已验证' : '未验证'}</span>
-                </div>
-                {!Boolean(item.isCurrent) && (
-                  <div className="security-device-item__actions">
-                    <button type="button" className="action-btn" onClick={() => handleKickSession(String(item.token || ''))}>
-                      下线设备
-                    </button>
-                  </div>
-                )}
+            <div className="security-bind-grid">
+              <div className="security-code-row">
+                <input
+                  type="text"
+                  value={twoFactorForm.code}
+                  onChange={e => setTwoFactorForm(prev => ({ ...prev, code: e.target.value }))}
+                  placeholder="输入 2FA 验证码"
+                />
+                <button type="button" className="action-btn" disabled={twoFactorSending} onClick={handleSendTwoFactorCode}>
+                  {twoFactorSending ? '发送中...' : '发送验证码'}
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="security-section">
-        <h3 className="security-section__title">两步验证（2FA）</h3>
-        <div className="security-2fa-box" style={{ marginBottom: 12 }}>
-          <div className="security-2fa-box__text">
-            当前状态：{twoFactorState.enabled ? '已开启' : '未开启'}
-            {twoFactorState.enabled && twoFactorState.maskedAccount ? `（${twoFactorState.maskedAccount}）` : ''}
-          </div>
-        </div>
-        {!twoFactorState.enabled && (
-          <div className="security-bind-grid" style={{ marginBottom: 10 }}>
-            <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>验证方式</label>
-            <div className="security-action-row">
-              <button
-                type="button"
-                className={`action-btn ${twoFactorForm.method === 'mobile' ? 'is-active' : ''}`}
-                onClick={() => setTwoFactorForm(prev => ({ ...prev, method: 'mobile' }))}
-              >
-                手机验证码
-              </button>
-              <button
-                type="button"
-                className={`action-btn ${twoFactorForm.method === 'email' ? 'is-active' : ''}`}
-                onClick={() => setTwoFactorForm(prev => ({ ...prev, method: 'email' }))}
-              >
-                邮箱验证码
-              </button>
+              <input
+                type="password"
+                value={twoFactorForm.password}
+                onChange={e => setTwoFactorForm(prev => ({ ...prev, password: e.target.value }))}
+                placeholder="输入当前密码确认操作"
+              />
+              <div className="security-action-row">
+                <button type="button" className="save-btn" disabled={twoFactorSaving} onClick={handleSubmitTwoFactor}>
+                  {twoFactorSaving ? '处理中...' : (twoFactorState.enabled ? '关闭 2FA' : '开启 2FA')}
+                </button>
+              </div>
             </div>
           </div>
-        )}
-        <div className="security-bind-grid">
-          <div className="security-code-row">
-            <input
-              type="text"
-              value={twoFactorForm.code}
-              onChange={e => setTwoFactorForm(prev => ({ ...prev, code: e.target.value }))}
-              placeholder="输入 2FA 验证码"
-            />
-            <button type="button" className="action-btn" disabled={twoFactorSending} onClick={handleSendTwoFactorCode}>
-              {twoFactorSending ? '发送中...' : '发送验证码'}
-            </button>
-          </div>
-          <input
-            type="password"
-            value={twoFactorForm.password}
-            onChange={e => setTwoFactorForm(prev => ({ ...prev, password: e.target.value }))}
-            placeholder="输入当前密码确认操作"
-          />
-          <div className="security-action-row">
-            <button type="button" className="save-btn" disabled={twoFactorSaving} onClick={handleSubmitTwoFactor}>
-              {twoFactorSaving ? '处理中...' : (twoFactorState.enabled ? '关闭 2FA' : '开启 2FA')}
-            </button>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
       {message && <div style={{ color: message.includes('失败') || message.includes('不一致') ? 'red' : 'green', marginTop: 12 }}>{message}</div>}
     </div>
   );
