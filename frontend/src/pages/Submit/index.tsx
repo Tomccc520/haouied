@@ -1442,11 +1442,11 @@ const SubmitPage: React.FC = () => {
                           <Icons.Plus />
                           <span>继续提交</span>
                         </button>
-                        <button className="btn-secondary" onClick={() => navigate('/profile?tab=submissions')}>
+                        <button className="btn-secondary" onClick={() => navigate('/profile/submissions')}>
                           <Icons.Megaphone />
                           <span>查看我的投放</span>
                         </button>
-                        <button className="btn-secondary" onClick={() => navigate('/profile?tab=orders')}>
+                        <button className="btn-secondary" onClick={() => navigate('/profile/orders')}>
                           <Icons.Submit />
                           <span>查看我的订单</span>
                         </button>

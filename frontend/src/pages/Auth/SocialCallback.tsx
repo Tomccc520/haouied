@@ -101,7 +101,7 @@ const SocialAuthCallbackPage: React.FC = () => {
         setStatusText(payload.message || (payload.success ? `${providerLabel}绑定成功，正在返回账号安全页...` : `${providerLabel}绑定失败，正在返回账号安全页...`));
         window.setTimeout(() => {
           if (!closed) {
-            navigate(payload.redirect || '/profile?tab=security', { replace: true });
+            navigate(payload.redirect || '/profile/security', { replace: true });
           }
         }, 480);
         return;

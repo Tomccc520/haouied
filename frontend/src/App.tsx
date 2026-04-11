@@ -151,6 +151,7 @@ const MainRouteTree: React.FC = () => {
 
             <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile/:tab" element={<ProfilePage />} />
             <Route path="/submit" element={<SubmitPage />} />
             <Route path="/changelog" element={<ChangelogPage />} />
             {/* 内容中心旧路由兼容：统一汇聚到 /p/hot 单页内切换 */}

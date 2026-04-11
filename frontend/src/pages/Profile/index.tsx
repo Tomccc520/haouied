@@ -27,7 +27,7 @@ import {
 } from '../../utils/socialAuth';
 import './Profile.css';
 
-type ActiveTab = 'profile' | 'licenses' | 'collections' | 'likes' | 'comments' | 'messages' | 'orders' | 'submissions' | 'loginLogs' | 'security';
+type ActiveTab = 'profile' | 'collections' | 'likes' | 'comments' | 'messages' | 'orders' | 'submissions' | 'loginLogs' | 'security';
 
 interface ProfileWechatAuthConfig {
   qqLogin?: {
@@ -87,6 +87,29 @@ const resolveArticleHref = (item: any) => {
     pickValue(item, [ 'articleId', 'article_id', 'id' ], pickValue(item?.article, [ 'id' ], 0))
   );
   return articleId > 0 ? `/article/${articleId}` : '/articles';
+};
+
+/**
+ * 解析网址互动卡片简介文案
+ */
+const resolveWebsiteDescription = (item: any) => {
+  return String(
+    pickValue(item, [ 'description', 'desc', 'intro', 'summary' ], '')
+  ).trim();
+};
+
+/**
+ * 解析文章互动卡片简介文案
+ */
+const resolveArticleDescription = (item: any) => {
+  const articlePayload = item?.article || {};
+  return String(
+    pickValue(
+      articlePayload,
+      [ 'intro', 'summary', 'description' ],
+      pickValue(item, [ 'intro', 'summary', 'description' ], '')
+    )
+  ).trim();
 };
 
 type InteractionTimeFilter = 'all' | '7d' | '30d';
@@ -188,23 +211,62 @@ const buildCommentThread = (list: any[]) => {
 };
 
 /**
- * 解析个人中心当前激活 Tab，兼容 /profile?tab=security 等回跳场景
+ * 个人中心 tab 与路径段映射（统一使用 /profile/:tab 结构）
  */
-const resolveProfileActiveTab = (searchText: string): ActiveTab => {
-  const tab = String(new URLSearchParams(searchText || '').get('tab') || '').trim();
-  const validTabs: ActiveTab[] = [
-    'profile',
-    'licenses',
-    'collections',
-    'likes',
-    'comments',
-    'messages',
-    'orders',
-    'submissions',
-    'loginLogs',
-    'security',
-  ];
-  return validTabs.includes(tab as ActiveTab) ? (tab as ActiveTab) : 'profile';
+const PROFILE_TAB_SEGMENT_MAP: Record<ActiveTab, string> = {
+  profile: '',
+  messages: 'messages',
+  orders: 'orders',
+  submissions: 'submissions',
+  collections: 'collections',
+  likes: 'likes',
+  comments: 'comments',
+  loginLogs: 'login-logs',
+  security: 'security',
+};
+
+/**
+ * 路径段反向映射（兼容历史写法）
+ */
+const PROFILE_SEGMENT_TAB_MAP: Record<string, ActiveTab> = {
+  '': 'profile',
+  messages: 'messages',
+  orders: 'orders',
+  submissions: 'submissions',
+  collections: 'collections',
+  likes: 'likes',
+  comments: 'comments',
+  security: 'security',
+  'login-logs': 'loginLogs',
+  loginlogs: 'loginLogs',
+  'login-logs-list': 'loginLogs',
+  licenses: 'orders',
+};
+
+/**
+ * 根据 tab 生成标准个人中心路径
+ */
+const buildProfileTabPath = (tab: ActiveTab): string => {
+  const segment = String(PROFILE_TAB_SEGMENT_MAP[tab] || '').trim();
+  return segment ? `/profile/${segment}` : '/profile';
+};
+
+/**
+ * 解析个人中心当前激活 Tab，兼容 /profile/:tab 与 /profile?tab=xxx
+ */
+const resolveProfileActiveTab = (pathnameText: string, searchText: string): ActiveTab => {
+  const pathname = String(pathnameText || '').trim().toLowerCase();
+  const pathSegment = pathname.startsWith('/profile/')
+    ? String(pathname.slice('/profile/'.length).split('/')[0] || '').trim()
+    : '';
+  if (pathSegment && PROFILE_SEGMENT_TAB_MAP[pathSegment]) {
+    return PROFILE_SEGMENT_TAB_MAP[pathSegment];
+  }
+  const queryTab = String(new URLSearchParams(searchText || '').get('tab') || '').trim().toLowerCase();
+  if (queryTab && PROFILE_SEGMENT_TAB_MAP[queryTab]) {
+    return PROFILE_SEGMENT_TAB_MAP[queryTab];
+  }
+  return 'profile';
 };
 
 const ProfilePage: React.FC = () => {
@@ -213,8 +275,7 @@ const ProfilePage: React.FC = () => {
   const userCenterEnabled = frontendConfig?.authConfig?.enable_user_center !== 0;
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => resolveProfileActiveTab(location.search || ''));
-  const [licenseFocusId, setLicenseFocusId] = useState(0);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => resolveProfileActiveTab(location.pathname || '', location.search || ''));
   const [stats, setStats] = useState<{ orderCount?: number; licenseCount?: number; registerDays?: number }>({});
   const [contentStats, setContentStats] = useState<{
     websiteFavoriteTotal: number;
@@ -293,11 +354,23 @@ const ProfilePage: React.FC = () => {
   }, [isLoggedIn]);
 
   useEffect(() => {
-    const nextTab = resolveProfileActiveTab(location.search || '');
+    const nextTab = resolveProfileActiveTab(location.pathname || '', location.search || '');
     if (nextTab !== activeTab) {
       setActiveTab(nextTab);
     }
-  }, [activeTab, location.search]);
+    const nextPath = buildProfileTabPath(nextTab);
+    const params = new URLSearchParams(location.search || '');
+    const hasLegacyTabQuery = params.has('tab');
+    if (hasLegacyTabQuery) {
+      params.delete('tab');
+    }
+    const preservedSearch = params.toString();
+    const canonicalPath = `${nextPath}${preservedSearch ? `?${preservedSearch}` : ''}`;
+    const currentPath = `${location.pathname}${location.search}`;
+    if (canonicalPath !== currentPath) {
+      navigate(canonicalPath, { replace: true });
+    }
+  }, [activeTab, location.pathname, location.search, navigate]);
 
   if (frontendConfigLoading || loading || !user) {
     return <div className="loading-state">加载中...</div>;
@@ -312,7 +385,7 @@ const ProfilePage: React.FC = () => {
    */
   const handleChangeTab = (nextTab: ActiveTab) => {
     setActiveTab(nextTab);
-    const targetPath = nextTab === 'profile' ? '/profile' : `/profile?tab=${nextTab}`;
+    const targetPath = buildProfileTabPath(nextTab);
     if (`${location.pathname}${location.search}` !== targetPath) {
       navigate(targetPath, { replace: true });
     }
@@ -322,8 +395,6 @@ const ProfilePage: React.FC = () => {
     switch (activeTab) {
       case 'profile':
         return <ProfileEdit user={user} onUpdate={refreshProfile} />;
-      case 'licenses':
-        return <LicensesList focusLicenseId={licenseFocusId} />;
       case 'collections':
         return <CollectionsList />;
       case 'likes':
@@ -332,12 +403,7 @@ const ProfilePage: React.FC = () => {
         return <CommentsList />;
       case 'messages':
         return (
-          <MessagesList
-            onOpenLicenses={(licenseId?: number) => {
-              setLicenseFocusId(Number(licenseId || 0));
-              handleChangeTab('licenses');
-            }}
-          />
+          <MessagesList />
         );
       case 'orders':
         return <OrdersList />;
@@ -457,17 +523,6 @@ const ProfilePage: React.FC = () => {
                 <path d="M7 16h6"></path>
               </svg>
               我的投放
-            </div>
-            <div 
-              className={`menu-item ${activeTab === 'licenses' ? 'active' : ''}`}
-              onClick={() => handleChangeTab('licenses')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 7h16v10H4z"></path>
-                <path d="M8 7V5h8v2"></path>
-                <path d="M8 12h8"></path>
-              </svg>
-              我的授权
             </div>
             <div 
               className={`menu-item ${activeTab === 'collections' ? 'active' : ''}`}
@@ -708,7 +763,7 @@ const ProfileEdit: React.FC<{ user: any; onUpdate: () => Promise<void> | void }>
 };
 
 // 子组件：消息列表
-const MessagesList: React.FC<{ onOpenLicenses: (licenseId?: number) => void }> = ({ onOpenLicenses }) => {
+const MessagesList: React.FC = () => {
   type MessageFilterType = 'all' | 'unread' | 'read';
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -829,22 +884,6 @@ const MessagesList: React.FC<{ onOpenLicenses: (licenseId?: number) => void }> =
     return true;
   });
 
-  /**
-   * 判断当前消息是否可以跳转到“我的授权”
-   */
-  const canOpenLicenseDetail = (item: any) => {
-    const type = String(item?.type || '').trim();
-    return type === 'license_domain_audit' || type === 'license_audit';
-  };
-
-  /**
-   * 从消息扩展字段中提取授权ID
-   */
-  const resolveMessageLicenseId = (item: any) => {
-    const extra = item?.extra && typeof item.extra === 'object' ? item.extra : {};
-    return Number(extra.licenseId || extra.license_id || 0);
-  };
-
   return (
     <div>
       <div className="content-header">
@@ -912,14 +951,6 @@ const MessagesList: React.FC<{ onOpenLicenses: (licenseId?: number) => void }> =
                       onClick={() => !actionLoading && handleRead(item.id)}
                     >
                       标记已读
-                    </span>
-                  )}
-                  {canOpenLicenseDetail(item) && (
-                    <span
-                      className="inline-action inline-action--primary"
-                      onClick={() => !actionLoading && onOpenLicenses(resolveMessageLicenseId(item) || undefined)}
-                    >
-                      查看授权
                     </span>
                   )}
                   <span
@@ -1113,7 +1144,7 @@ const SubmissionList: React.FC = () => {
    * 切换到个人中心订单页，便于核对支付状态
    */
   const handleGoOrders = () => {
-    navigate('/profile?tab=orders');
+    navigate('/profile/orders');
   };
 
   /**
@@ -1919,7 +1950,7 @@ const OrdersList: React.FC = () => {
             const normalizedStatus = statusValue === 2 ? 2 : (statusValue === 1 ? 1 : 0);
             const refundState = resolveRefundStatus(item);
             return (
-              <div key={item.id} className="list-item">
+              <div key={item.id} className="list-item list-item--rich">
                 <div className="item-main">
                   <div className="item-title">
                     {pickValue(item, [ 'orderNo', 'orderSn', 'order_sn' ], '-')}
@@ -2256,6 +2287,10 @@ const OrdersList: React.FC = () => {
 };
 
 // 子组件：授权列表
+/**
+ * 授权列表组件（前台入口已隐藏，保留实现便于后续恢复）
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const LicensesList: React.FC<{ focusLicenseId?: number }> = ({ focusLicenseId = 0 }) => {
   type LicenseFilterType = 'all' | 'valid' | 'pending' | 'expired';
   const [list, setList] = useState<any[]>([]);
@@ -2684,6 +2719,20 @@ const CollectionsList: React.FC = () => {
           {actionMessage}
         </div>
       )}
+      <div className="profile-summary-strip">
+        <div className="profile-summary-card">
+          <span className="profile-summary-card__label">收藏总数</span>
+          <span className="profile-summary-card__value">{totalCount}</span>
+        </div>
+        <div className="profile-summary-card">
+          <span className="profile-summary-card__label">网址收藏</span>
+          <span className="profile-summary-card__value">{filteredWebsiteList.length}/{websiteState.total}</span>
+        </div>
+        <div className="profile-summary-card">
+          <span className="profile-summary-card__label">文章收藏</span>
+          <span className="profile-summary-card__value">{filteredArticleList.length}/{articleState.total}</span>
+        </div>
+      </div>
       <div className="profile-type-tabs" role="tablist" aria-label="收藏时间筛选">
         <button
           type="button"
@@ -2746,6 +2795,7 @@ const CollectionsList: React.FC = () => {
                 <div className="collections-list">
                   {filteredWebsiteList.map(item => {
                     const websiteId = Number(pickValue(item, [ 'websiteId', 'website_id', 'id' ], 0));
+                    const websiteDescription = resolveWebsiteDescription(item);
                     return (
                       <div key={`website-fav-${websiteId || item.id}`} className="list-item list-item--rich">
                         <div className="item-main">
@@ -2756,6 +2806,7 @@ const CollectionsList: React.FC = () => {
                           <a href={`/website/${pickValue(item, [ 'slug' ], websiteId || '')}`} className="item-title">
                             {pickValue(item, [ 'name' ], '未知网站')}
                           </a>
+                          {websiteDescription && <p className="item-desc">{websiteDescription}</p>}
                           <div className="item-meta">
                             <span>收藏于 {formatUserDate(pickValue(item, [ 'favoriteTime', 'createTime' ]))}</span>
                             <span>点赞 {pickValue(item, [ 'likeCount' ], 0)}</span>
@@ -2802,6 +2853,7 @@ const CollectionsList: React.FC = () => {
                   {filteredArticleList.map(item => {
                     const articleId = Number(pickValue(item, [ 'articleId', 'article_id', 'id' ], pickValue(item?.article, [ 'id' ], 0)));
                     const recordId = Number(item?.id || 0);
+                    const articleDescription = resolveArticleDescription(item);
                     return (
                       <div key={`article-fav-${recordId || articleId}`} className="list-item list-item--rich">
                         <div className="item-main">
@@ -2811,6 +2863,7 @@ const CollectionsList: React.FC = () => {
                           <a href={resolveArticleHref(item)} className="item-title">
                             {resolveArticleTitle(item)}
                           </a>
+                          {articleDescription && <p className="item-desc">{articleDescription}</p>}
                           <div className="item-meta">
                             <span>收藏于 {formatUserDate(pickValue(item, [ 'collectTime', 'createTime', 'created_at' ]))}</span>
                             <span>点赞 {pickValue(item, [ 'likeCount' ], 0)}</span>
@@ -3000,6 +3053,20 @@ const LikesList: React.FC = () => {
           {actionMessage}
         </div>
       )}
+      <div className="profile-summary-strip">
+        <div className="profile-summary-card">
+          <span className="profile-summary-card__label">点赞总数</span>
+          <span className="profile-summary-card__value">{totalCount}</span>
+        </div>
+        <div className="profile-summary-card">
+          <span className="profile-summary-card__label">网址点赞</span>
+          <span className="profile-summary-card__value">{filteredWebsiteList.length}/{websiteState.total}</span>
+        </div>
+        <div className="profile-summary-card">
+          <span className="profile-summary-card__label">文章点赞</span>
+          <span className="profile-summary-card__value">{filteredArticleList.length}/{articleState.total}</span>
+        </div>
+      </div>
       <div className="profile-type-tabs" role="tablist" aria-label="点赞时间筛选">
         <button
           type="button"
@@ -3062,6 +3129,7 @@ const LikesList: React.FC = () => {
                 <div className="likes-list">
                   {filteredWebsiteList.map(item => {
                     const websiteId = Number(pickValue(item, [ 'websiteId', 'website_id', 'id' ], 0));
+                    const websiteDescription = resolveWebsiteDescription(item);
                     return (
                       <div key={`website-like-${websiteId || item.id}`} className="list-item list-item--rich">
                         <div className="item-main">
@@ -3072,6 +3140,7 @@ const LikesList: React.FC = () => {
                           <a href={`/website/${pickValue(item, [ 'slug' ], websiteId || '')}`} className="item-title">
                             {pickValue(item, [ 'name' ], '未知网站')}
                           </a>
+                          {websiteDescription && <p className="item-desc">{websiteDescription}</p>}
                           <div className="item-meta">
                             <span>点赞于 {formatUserDate(pickValue(item, [ 'likeTime', 'createTime' ]))}</span>
                             <span>点赞 {pickValue(item, [ 'likeCount' ], 0)}</span>
@@ -3118,6 +3187,7 @@ const LikesList: React.FC = () => {
                   {filteredArticleList.map(item => {
                     const articleId = Number(pickValue(item, [ 'articleId', 'article_id', 'id' ], pickValue(item?.article, [ 'id' ], 0)));
                     const recordId = Number(item?.id || 0);
+                    const articleDescription = resolveArticleDescription(item);
                     return (
                       <div key={`article-like-${recordId || articleId}`} className="list-item list-item--rich">
                         <div className="item-main">
@@ -3127,6 +3197,7 @@ const LikesList: React.FC = () => {
                           <a href={resolveArticleHref(item)} className="item-title">
                             {resolveArticleTitle(item)}
                           </a>
+                          {articleDescription && <p className="item-desc">{articleDescription}</p>}
                           <div className="item-meta">
                             <span>点赞于 {formatUserDate(pickValue(item, [ 'likeTime', 'createTime', 'created_at' ]))}</span>
                             <span>点赞 {pickValue(item, [ 'likeCount' ], 0)}</span>
@@ -3857,7 +3928,7 @@ const SecuritySettings: React.FC<{
       const result = await userService.getSocialBindState({
         provider,
         origin: getFrontendOrigin(),
-        redirect: '/profile?tab=security',
+        redirect: '/profile/security',
       });
       const authUrl = String(result?.authUrl || '').trim();
       if (!authUrl) {
