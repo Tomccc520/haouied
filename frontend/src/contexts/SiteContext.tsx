@@ -23,6 +23,8 @@ export interface SiteInfo {
   description: string;
   keywords: string;
   logo: string;
+  navbarLogoDisplayMode: 'icon_text' | 'text' | 'icon';
+  navbarLogoText: string;
   favicon: string;
   icp?: string;
   icpLink?: string;
@@ -42,7 +44,19 @@ export const DEFAULT_SITE_INFO: SiteInfo = {
   description: 'UIED AI导航汇集全球优质AI工具与资源，涵盖AI写作、AI绘画、AI视频、AI办公、AI设计、AI编程等多个领域，帮助设计师、开发者与创作者快速发现和使用高效的人工智能工具。',
   keywords: 'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具,AI写作,AI绘画,AI视频,AI办公,AI设计工具',
   logo: '/logo-3.svg',
+  navbarLogoDisplayMode: 'icon_text',
+  navbarLogoText: '',
   favicon: '/favicon.ico',
+};
+
+/**
+ * 规范化头部品牌展示模式，避免前端拿到非法值。
+ */
+const normalizeNavbarLogoDisplayMode = (
+  value: unknown
+): 'icon_text' | 'text' | 'icon' => {
+  const mode = String(value || '').trim().toLowerCase();
+  return mode === 'text' || mode === 'icon' ? mode : 'icon_text';
 };
 
 /**
@@ -88,6 +102,18 @@ export const normalizeSiteInfoPayload = (
       fallback.keywords
     ),
     logo: pickTextField(unwrapped, [ 'logo' ], fallback.logo),
+    navbarLogoDisplayMode: normalizeNavbarLogoDisplayMode(
+      pickTextField(
+        unwrapped,
+        [ 'navbarLogoDisplayMode', 'navbar_logo_display_mode' ],
+        fallback.navbarLogoDisplayMode
+      )
+    ),
+    navbarLogoText: pickTextField(
+      unwrapped,
+      [ 'navbarLogoText', 'navbar_logo_text' ],
+      fallback.navbarLogoText
+    ),
     favicon: pickTextField(unwrapped, [ 'favicon' ], fallback.favicon),
     icp: pickTextField(unwrapped, [ 'icp' ], ''),
     icpLink: pickTextField(unwrapped, [ 'icpLink', 'icp_link' ], ''),
@@ -270,6 +296,8 @@ export const mergeSiteInfoWithDefaults = (
     description: siteInfo.description || DEFAULT_SITE_INFO.description,
     keywords: siteInfo.keywords || DEFAULT_SITE_INFO.keywords,
     logo: siteInfo.logo || DEFAULT_SITE_INFO.logo,
+    navbarLogoDisplayMode: normalizeNavbarLogoDisplayMode(siteInfo.navbarLogoDisplayMode),
+    navbarLogoText: siteInfo.navbarLogoText || DEFAULT_SITE_INFO.navbarLogoText,
     favicon: siteInfo.favicon || DEFAULT_SITE_INFO.favicon,
     icp: siteInfo.icp,
     icpLink: siteInfo.icpLink,

@@ -2008,12 +2008,37 @@ class SettingService extends Service {
   getDefaultSubmissionServiceConfig() {
     return {
       enabled: true,
+      pageEyebrow: 'Website Submission',
       pageTitle: '提交网站',
       pageSubtitle: '提交收录统一付费，支持置顶推荐和 Banner 运营位增值加购',
       pageDescription: '提交后进入审核与收录流程，可按需叠加购买置顶推荐或 Banner 运营位，适合新品上线与运营推广。',
+      heroHighlights: [
+        '人工审核收录',
+        '支持置顶推荐与 Banner 加购',
+        '个人中心可追踪进度'
+      ],
       containerMaxWidth: 1280,
       pricingTitle: '收录与增值服务',
+      processTitle: '服务流程',
+      processDescription: '从提交资料、创建订单到人工审核上线，整条链路都可以按后台配置推进。',
+      processSteps: [
+        { title: '填写站点资料', description: '提交网址、分类、简介与基础联系方式。', sort: 10, enabled: true },
+        { title: '选择服务方案', description: '基础收录为必选，可按需叠加置顶推荐或 Banner 位。', sort: 20, enabled: true },
+        { title: '支付与审核', description: '系统按后台价格创建订单，支付成功后进入人工审核与排期。', sort: 30, enabled: true },
+        { title: '收录上线', description: '审核通过后正式上线展示，并可在个人中心查看记录。', sort: 40, enabled: true },
+      ],
+      submitNoticeTitle: '提交须知',
+      submitNotices: [
+        '请确保提交的网站内容合法合规，且能稳定访问。',
+        '基础收录服务与加购项统一在本页创建订单。',
+        '置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。',
+        '如果涉及排期或活动推广，请填写有效联系方式便于沟通。'
+      ],
       faqTitle: '常见问题',
+      closedTitle: '提交服务暂未开放',
+      closedDescription: '当前站点已暂停新的提交与收录申请，请稍后再试或联系运营团队。',
+      closedButtonText: '返回首页',
+      closedButtonUrl: '/',
       submitService: {
         enabled: true,
         key: 'submission',
@@ -2075,10 +2100,37 @@ class SettingService extends Service {
   normalizeSubmissionServiceConfig(config = {}) {
     const defaults = this.getDefaultSubmissionServiceConfig();
     const source = this.isPlainObject(config) ? config : {};
+    /**
+     * 规范化短文本，避免超长文案影响后台与前台布局。
+     */
+    const normalizeText = (value, fallback = '', max = 200) => {
+      const text = String(value || fallback || '').trim();
+      return (text || fallback || '').slice(0, max);
+    };
+    /**
+     * 规范化站内跳转链接，支持相对路径与外链。
+     */
+    const normalizeLink = (value, fallback = '/') => {
+      const text = String(value || '').trim();
+      if (!text) return fallback;
+      if (/^(https?:)?\/\//i.test(text)) return text;
+      return text.startsWith('/') ? text : `/${text}`;
+    };
     const normalizePrice = (value, fallback = 0) => {
       const num = Number(value);
       if (!Number.isFinite(num)) return Number(fallback || 0);
       return Math.max(0, Math.min(999999, Number(num.toFixed(2))));
+    };
+    /**
+     * 规范化多行短标签列表，供 Hero 高亮与提交须知复用。
+     */
+    const normalizeTextList = (value, fallback = [], max = 8, itemMax = 40) => {
+      const list = Array.isArray(value) ? value : fallback;
+      const normalized = list
+        .map(item => String(item || '').trim().slice(0, itemMax))
+        .filter(Boolean)
+        .slice(0, max);
+      return normalized.length > 0 ? normalized : fallback;
     };
     const normalizeFeatureList = (value, fallback = []) => {
       const list = Array.isArray(value) ? value : fallback;
@@ -2087,6 +2139,23 @@ class SettingService extends Service {
         .filter(Boolean)
         .slice(0, 12);
       return normalized.length > 0 ? normalized : fallback;
+    };
+    /**
+     * 规范化投稿流程步骤，确保标题、描述与排序字段稳定。
+     */
+    const normalizeProcessSteps = (value, fallback = []) => {
+      const rows = Array.isArray(value) ? value : fallback;
+      return rows
+        .map((item, index) => ({
+          title: normalizeText(item?.title, '', 40),
+          description: normalizeText(item?.description, '', 160),
+          sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+          enabled: item?.enabled !== false,
+        }))
+        .filter(item => item.title && item.description)
+        .sort((a, b) => a.sort - b.sort)
+        .map((item, index) => ({ ...item, sort: (index + 1) * 10 }))
+        .slice(0, 8);
     };
     const normalizeFaqItems = (value, fallback = []) => {
       const rows = Array.isArray(value) ? value : fallback;
@@ -2123,14 +2192,33 @@ class SettingService extends Service {
     };
     return {
       enabled: merged.enabled !== false,
+      pageEyebrow: normalizeText(merged.pageEyebrow, defaults.pageEyebrow, 40),
       pageTitle: String(merged.pageTitle || defaults.pageTitle).trim() || defaults.pageTitle,
       pageSubtitle: String(merged.pageSubtitle || defaults.pageSubtitle).trim() || defaults.pageSubtitle,
       pageDescription: String(merged.pageDescription || defaults.pageDescription).trim() || defaults.pageDescription,
+      heroHighlights: normalizeTextList(merged.heroHighlights, defaults.heroHighlights, 6, 32),
       containerMaxWidth: Number.isFinite(Number(merged.containerMaxWidth))
         ? Math.max(960, Math.min(1600, Number(merged.containerMaxWidth)))
         : defaults.containerMaxWidth,
       pricingTitle: String(merged.pricingTitle || defaults.pricingTitle).trim() || defaults.pricingTitle,
+      processTitle: normalizeText(merged.processTitle, defaults.processTitle, 40),
+      processDescription: normalizeText(
+        merged.processDescription,
+        defaults.processDescription,
+        220
+      ),
+      processSteps: normalizeProcessSteps(merged.processSteps, defaults.processSteps),
+      submitNoticeTitle: normalizeText(merged.submitNoticeTitle, defaults.submitNoticeTitle, 40),
+      submitNotices: normalizeTextList(merged.submitNotices, defaults.submitNotices, 10, 120),
       faqTitle: String(merged.faqTitle || defaults.faqTitle).trim() || defaults.faqTitle,
+      closedTitle: normalizeText(merged.closedTitle, defaults.closedTitle, 60),
+      closedDescription: normalizeText(
+        merged.closedDescription,
+        defaults.closedDescription,
+        220
+      ),
+      closedButtonText: normalizeText(merged.closedButtonText, defaults.closedButtonText, 24),
+      closedButtonUrl: normalizeLink(merged.closedButtonUrl, defaults.closedButtonUrl),
       submitService: {
         ...merged.submitService,
         enabled: merged.submitService.enabled !== false,
@@ -2181,12 +2269,23 @@ class SettingService extends Service {
     const payment = this.buildPublicPaymentConfig(paymentConfig);
     return {
       enabled: normalized.enabled,
+      pageEyebrow: normalized.pageEyebrow,
       pageTitle: normalized.pageTitle,
       pageSubtitle: normalized.pageSubtitle,
       pageDescription: normalized.pageDescription,
+      heroHighlights: normalized.heroHighlights,
       containerMaxWidth: normalized.containerMaxWidth,
       pricingTitle: normalized.pricingTitle,
+      processTitle: normalized.processTitle,
+      processDescription: normalized.processDescription,
+      processSteps: normalized.processSteps,
+      submitNoticeTitle: normalized.submitNoticeTitle,
+      submitNotices: normalized.submitNotices,
       faqTitle: normalized.faqTitle,
+      closedTitle: normalized.closedTitle,
+      closedDescription: normalized.closedDescription,
+      closedButtonText: normalized.closedButtonText,
+      closedButtonUrl: normalized.closedButtonUrl,
       submitService: normalized.submitService,
       topRecommendAddon: normalized.topRecommendAddon,
       bannerAddon: normalized.bannerAddon,
@@ -2512,9 +2611,10 @@ class SettingService extends Service {
   /**
    * 保存设置
    */
-  async save(data) {
+  async save(data, options = {}) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const transaction = options?.transaction;
 
     for (const [ key, rawValue ] of Object.entries(data)) {
       /**
@@ -2559,9 +2659,41 @@ class SettingService extends Service {
         `INSERT INTO uied_site_setting (\`key\`, \`value\`, create_time, update_time)
          VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE \`value\` = ?, update_time = ?`,
-        { replacements: [ key, valueStr, now, now, valueStr, now ], type: app.Sequelize.QueryTypes.INSERT }
+        {
+          replacements: [ key, valueStr, now, now, valueStr, now ],
+          type: app.Sequelize.QueryTypes.INSERT,
+          transaction,
+        }
       );
     }
+  }
+
+  /**
+   * 获取头部品牌展示配置默认值。
+   * @returns {{navbarLogoDisplayMode: string, navbarLogoText: string}} 默认配置
+   */
+  getDefaultHeaderBrandConfig() {
+    return {
+      navbarLogoDisplayMode: 'icon_text',
+      navbarLogoText: '',
+    };
+  }
+
+  /**
+   * 规范化头部品牌展示配置，兼容仅图标 / 仅文案 / 图标加文案三种模式。
+   * @param {Record<string, any>} config 原始配置
+   * @returns {{navbarLogoDisplayMode: string, navbarLogoText: string}} 规范化后的配置
+   */
+  normalizeHeaderBrandConfig(config = {}) {
+    const defaults = this.getDefaultHeaderBrandConfig();
+    const source = this.isPlainObject(config) ? config : {};
+    const displayMode = String(source.navbarLogoDisplayMode || '').trim().toLowerCase();
+    return {
+      navbarLogoDisplayMode: [ 'icon_text', 'text', 'icon' ].includes(displayMode)
+        ? displayMode
+        : defaults.navbarLogoDisplayMode,
+      navbarLogoText: String(source.navbarLogoText || '').trim().slice(0, 40),
+    };
   }
 
   /**
@@ -2569,15 +2701,15 @@ class SettingService extends Service {
    */
   async getSiteInfo() {
     const { app } = this;
+    const headerBrandConfig = this.normalizeHeaderBrandConfig(
+      await this.get('headerBrandConfig').catch(() => ({}))
+    );
 
     const [ info ] = await app.model.query(
       'SELECT * FROM uied_site_info LIMIT 1',
       { type: app.Sequelize.QueryTypes.SELECT }
     );
-
-    if (!info) return null;
-
-    return {
+    const baseInfo = info ? {
       id: info.id,
       siteName: info.site_name,
       siteTitle: info.site_title,
@@ -2589,6 +2721,23 @@ class SettingService extends Service {
       copyright: info.copyright,
       contactEmail: info.contact_email !== undefined ? info.contact_email : '',
       analyticsCode: info.analytics_code !== undefined ? info.analytics_code : '',
+    } : {
+      id: 0,
+      siteName: '',
+      siteTitle: '',
+      siteDescription: '',
+      siteKeywords: '',
+      logo: '',
+      favicon: '',
+      icp: '',
+      copyright: '',
+      contactEmail: '',
+      analyticsCode: '',
+    };
+
+    return {
+      ...baseInfo,
+      ...headerBrandConfig,
     };
   }
 
@@ -2599,104 +2748,122 @@ class SettingService extends Service {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const fieldMapping = await this.getSiteInfoFieldMapping();
+    const headerBrandConfig = this.normalizeHeaderBrandConfig(data);
+    const transaction = await app.model.transaction();
 
-    // 检查是否存在记录
-    const [ existing ] = await app.model.query(
-      'SELECT id FROM uied_site_info LIMIT 1',
-      { type: app.Sequelize.QueryTypes.SELECT }
-    );
-
-    if (existing) {
-      const updates = [
-        'site_name = ?',
-        'site_title = ?',
-      ];
-      const values = [
-        data.siteName || '',
-        data.siteTitle || '',
-      ];
-      if (fieldMapping.descriptionField) {
-        updates.push(`\`${fieldMapping.descriptionField}\` = ?`);
-        values.push(data.siteDescription || '');
-      }
-      if (fieldMapping.keywordsField) {
-        updates.push(`\`${fieldMapping.keywordsField}\` = ?`);
-        values.push(data.siteKeywords || '');
-      }
-      updates.push('logo = ?');
-      values.push(data.logo || '');
-      updates.push('favicon = ?');
-      values.push(data.favicon || '');
-      updates.push('icp = ?');
-      values.push(data.icp || '');
-      updates.push('copyright = ?');
-      values.push(data.copyright || '');
-      if (fieldMapping.contactEmailField) {
-        updates.push(`\`${fieldMapping.contactEmailField}\` = ?`);
-        values.push(data.contactEmail || '');
-      }
-      if (fieldMapping.analyticsCodeField) {
-        updates.push(`\`${fieldMapping.analyticsCodeField}\` = ?`);
-        values.push(data.analyticsCode || '');
-      }
-      updates.push('update_time = ?');
-      values.push(now);
-      values.push(existing.id);
-
-      await app.model.query(
-        `UPDATE uied_site_info SET ${updates.join(', ')} WHERE id = ?`,
-        {
-          replacements: values,
-          type: app.Sequelize.QueryTypes.UPDATE,
-        }
+    try {
+      // 检查是否存在记录
+      const [ existing ] = await app.model.query(
+        'SELECT id FROM uied_site_info LIMIT 1',
+        { type: app.Sequelize.QueryTypes.SELECT, transaction }
       );
-    } else {
-      const insertColumns = [
-        'site_name',
-        'site_title',
-      ];
-      const insertValues = [
-        data.siteName || '',
-        data.siteTitle || '',
-      ];
-      if (fieldMapping.descriptionField) {
-        insertColumns.push(`\`${fieldMapping.descriptionField}\``);
-        insertValues.push(data.siteDescription || '');
-      }
-      if (fieldMapping.keywordsField) {
-        insertColumns.push(`\`${fieldMapping.keywordsField}\``);
-        insertValues.push(data.siteKeywords || '');
-      }
-      insertColumns.push('logo');
-      insertValues.push(data.logo || '');
-      insertColumns.push('favicon');
-      insertValues.push(data.favicon || '');
-      insertColumns.push('icp');
-      insertValues.push(data.icp || '');
-      insertColumns.push('copyright');
-      insertValues.push(data.copyright || '');
-      if (fieldMapping.contactEmailField) {
-        insertColumns.push(`\`${fieldMapping.contactEmailField}\``);
-        insertValues.push(data.contactEmail || '');
-      }
-      if (fieldMapping.analyticsCodeField) {
-        insertColumns.push(`\`${fieldMapping.analyticsCodeField}\``);
-        insertValues.push(data.analyticsCode || '');
-      }
-      insertColumns.push('create_time');
-      insertValues.push(now);
-      insertColumns.push('update_time');
-      insertValues.push(now);
-      const placeholders = insertColumns.map(() => '?').join(', ');
 
-      await app.model.query(
-        `INSERT INTO uied_site_info (${insertColumns.join(', ')})
-         VALUES (${placeholders})`,
-        {
-          replacements: insertValues,
-          type: app.Sequelize.QueryTypes.INSERT,
+      if (existing) {
+        const updates = [
+          'site_name = ?',
+          'site_title = ?',
+        ];
+        const values = [
+          data.siteName || '',
+          data.siteTitle || '',
+        ];
+        if (fieldMapping.descriptionField) {
+          updates.push(`\`${fieldMapping.descriptionField}\` = ?`);
+          values.push(data.siteDescription || '');
         }
+        if (fieldMapping.keywordsField) {
+          updates.push(`\`${fieldMapping.keywordsField}\` = ?`);
+          values.push(data.siteKeywords || '');
+        }
+        updates.push('logo = ?');
+        values.push(data.logo || '');
+        updates.push('favicon = ?');
+        values.push(data.favicon || '');
+        updates.push('icp = ?');
+        values.push(data.icp || '');
+        updates.push('copyright = ?');
+        values.push(data.copyright || '');
+        if (fieldMapping.contactEmailField) {
+          updates.push(`\`${fieldMapping.contactEmailField}\` = ?`);
+          values.push(data.contactEmail || '');
+        }
+        if (fieldMapping.analyticsCodeField) {
+          updates.push(`\`${fieldMapping.analyticsCodeField}\` = ?`);
+          values.push(data.analyticsCode || '');
+        }
+        updates.push('update_time = ?');
+        values.push(now);
+        values.push(existing.id);
+
+        await app.model.query(
+          `UPDATE uied_site_info SET ${updates.join(', ')} WHERE id = ?`,
+          {
+            replacements: values,
+            type: app.Sequelize.QueryTypes.UPDATE,
+            transaction,
+          }
+        );
+      } else {
+        const insertColumns = [
+          'site_name',
+          'site_title',
+        ];
+        const insertValues = [
+          data.siteName || '',
+          data.siteTitle || '',
+        ];
+        if (fieldMapping.descriptionField) {
+          insertColumns.push(`\`${fieldMapping.descriptionField}\``);
+          insertValues.push(data.siteDescription || '');
+        }
+        if (fieldMapping.keywordsField) {
+          insertColumns.push(`\`${fieldMapping.keywordsField}\``);
+          insertValues.push(data.siteKeywords || '');
+        }
+        insertColumns.push('logo');
+        insertValues.push(data.logo || '');
+        insertColumns.push('favicon');
+        insertValues.push(data.favicon || '');
+        insertColumns.push('icp');
+        insertValues.push(data.icp || '');
+        insertColumns.push('copyright');
+        insertValues.push(data.copyright || '');
+        if (fieldMapping.contactEmailField) {
+          insertColumns.push(`\`${fieldMapping.contactEmailField}\``);
+          insertValues.push(data.contactEmail || '');
+        }
+        if (fieldMapping.analyticsCodeField) {
+          insertColumns.push(`\`${fieldMapping.analyticsCodeField}\``);
+          insertValues.push(data.analyticsCode || '');
+        }
+        insertColumns.push('create_time');
+        insertValues.push(now);
+        insertColumns.push('update_time');
+        insertValues.push(now);
+        const placeholders = insertColumns.map(() => '?').join(', ');
+
+        await app.model.query(
+          `INSERT INTO uied_site_info (${insertColumns.join(', ')})
+           VALUES (${placeholders})`,
+          {
+            replacements: insertValues,
+            type: app.Sequelize.QueryTypes.INSERT,
+            transaction,
+          }
+        );
+      }
+
+      await this.save(
+        {
+          headerBrandConfig,
+        },
+        { transaction }
       );
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
   }
 

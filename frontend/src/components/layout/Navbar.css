@@ -45,9 +45,49 @@
   gap: var(--spacing-4);
 }
 
+.navbar-logo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.navbar-logo-link:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
 .navbar-logo-img {
   height: 30px;
+  max-width: 140px;
+  width: auto;
+  object-fit: contain;
   cursor: pointer;
+}
+
+.navbar-logo-text {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  transition: color 0.2s ease;
+}
+
+.navbar-logo-link:hover .navbar-logo-text {
+  color: var(--primary-color);
 }
 
 /* 导航切换开关 */

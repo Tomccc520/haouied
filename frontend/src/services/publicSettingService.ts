@@ -31,12 +31,16 @@ import {
 // ==================== 类型定义 ====================
 
 // 站点信息
+export type NavbarLogoDisplayMode = 'icon_text' | 'text' | 'icon';
+
 export interface SiteInfo {
   siteName: string;
   siteTitle: string;
   siteDescription: string;
   siteKeywords: string;
   logo: string;
+  navbarLogoDisplayMode: NavbarLogoDisplayMode;
+  navbarLogoText: string;
   favicon: string;
   icp: string;
   copyright: string;
@@ -465,7 +469,7 @@ export interface PublicSettings {
 interface PublicSettingsPayload {
   authConfig?: Partial<AuthConfig>;
   brand?: Partial<BrandConfig>;
-  siteInfo?: SiteInfo;
+  siteInfo?: Partial<SiteInfo>;
   appearance?: AppearanceConfig;
   homepage?: HomepageConfig;
   pageGlobal?: PageGlobalConfig;
@@ -503,11 +507,44 @@ export const DEFAULT_SITE_INFO: SiteInfo = {
   siteDescription: 'UIED AI导航汇集全球优质AI工具与资源，涵盖AI写作、AI绘画、AI视频、AI办公、AI设计、AI编程等多个领域，帮助设计师、开发者与创作者快速发现和使用高效的人工智能工具。',
   siteKeywords: 'UIED,UIED AI导航,AI导航,AI工具,AI工具导航,人工智能工具,AI写作,AI绘画,AI视频,AI办公,AI设计工具',
   logo: '/logo-3.svg',
+  navbarLogoDisplayMode: 'icon_text',
+  navbarLogoText: '',
   favicon: '/favicon.ico',
   icp: '',
   copyright: '© 2026 UIED. All Rights Reserved.',
   contactEmail: '',
   analyticsCode: '',
+};
+
+/**
+ * 规范化头部品牌展示模式，确保前端只消费三种合法值。
+ */
+const normalizeNavbarLogoDisplayMode = (value: unknown): NavbarLogoDisplayMode => {
+  const mode = String(value || '').trim().toLowerCase();
+  return mode === 'text' || mode === 'icon' ? mode : 'icon_text';
+};
+
+/**
+ * 规范化站点信息配置，兼容新增的头部品牌展示字段。
+ */
+const normalizeSiteInfoConfig = (config: unknown): SiteInfo => {
+  const source = config && typeof config === 'object'
+    ? (config as Partial<SiteInfo>)
+    : {};
+  return {
+    siteName: String(source.siteName || DEFAULT_SITE_INFO.siteName).trim() || DEFAULT_SITE_INFO.siteName,
+    siteTitle: String(source.siteTitle || DEFAULT_SITE_INFO.siteTitle).trim() || DEFAULT_SITE_INFO.siteTitle,
+    siteDescription: String(source.siteDescription || DEFAULT_SITE_INFO.siteDescription).trim() || DEFAULT_SITE_INFO.siteDescription,
+    siteKeywords: String(source.siteKeywords || DEFAULT_SITE_INFO.siteKeywords).trim() || DEFAULT_SITE_INFO.siteKeywords,
+    logo: String(source.logo || DEFAULT_SITE_INFO.logo).trim() || DEFAULT_SITE_INFO.logo,
+    navbarLogoDisplayMode: normalizeNavbarLogoDisplayMode(source.navbarLogoDisplayMode),
+    navbarLogoText: String(source.navbarLogoText || '').trim().slice(0, 40),
+    favicon: String(source.favicon || DEFAULT_SITE_INFO.favicon).trim() || DEFAULT_SITE_INFO.favicon,
+    icp: String(source.icp || '').trim(),
+    copyright: String(source.copyright || DEFAULT_SITE_INFO.copyright).trim() || DEFAULT_SITE_INFO.copyright,
+    contactEmail: String(source.contactEmail || '').trim(),
+    analyticsCode: String(source.analyticsCode || '').trim(),
+  };
 };
 
 export const DEFAULT_APPEARANCE: AppearanceConfig = {
@@ -1812,7 +1849,7 @@ export const publicSettingService = {
       return {
         authConfig,
         brand: publicSettingService.normalizeBrandConfig(data.brand),
-        siteInfo: data.siteInfo || DEFAULT_SITE_INFO,
+        siteInfo: normalizeSiteInfoConfig(data.siteInfo),
         appearance: data.appearance || DEFAULT_APPEARANCE,
         homepage: publicSettingService.normalizeHomepageConfig(data.homepage),
         pageGlobal: publicSettingService.normalizePageGlobalConfig(data.pageGlobal),
@@ -1833,7 +1870,7 @@ export const publicSettingService = {
       return {
         authConfig: DEFAULT_AUTH_CONFIG,
         brand: DEFAULT_BRAND_CONFIG,
-        siteInfo: DEFAULT_SITE_INFO,
+        siteInfo: normalizeSiteInfoConfig(DEFAULT_SITE_INFO),
         appearance: DEFAULT_APPEARANCE,
         homepage: DEFAULT_HOMEPAGE,
         pageGlobal: DEFAULT_PAGE_GLOBAL,
@@ -1857,10 +1894,10 @@ export const publicSettingService = {
   getSiteInfo: async (): Promise<SiteInfo> => {
     try {
       const settings = await publicSettingService.getPublicSettings();
-      return settings.siteInfo || DEFAULT_SITE_INFO;
+      return normalizeSiteInfoConfig(settings.siteInfo || DEFAULT_SITE_INFO);
     } catch (error) {
       debugLog.error('获取站点信息失败，使用默认配置:', error);
-      return DEFAULT_SITE_INFO;
+      return normalizeSiteInfoConfig(DEFAULT_SITE_INFO);
     }
   },
 

@@ -33,10 +33,25 @@
     flex-shrink: 0;
   }
 
+  .navbar-logo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .navbar-logo-img {
     height: var(--spacing-8); /* 32px */
+    max-width: 120px;
     width: auto;
     flex-shrink: 0;
+  }
+
+  .navbar-logo-text {
+    max-width: 140px;
+    font-size: 14px;
+    font-weight: 700;
   }
 
   /* ===== 导航切换容器 - 修复错乱问题 ===== */

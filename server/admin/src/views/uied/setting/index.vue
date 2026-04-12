@@ -131,6 +131,42 @@
                             </div>
                         </el-form-item>
                         <el-form-item>
+                            <template #label>
+                                <span>头部品牌显示</span>
+                                <el-tooltip
+                                    content="控制头部菜单左侧品牌区显示图标、文案或两者同时显示"
+                                    placement="top"
+                                >
+                                    <el-icon class="label-tip-icon"><QuestionFilled /></el-icon>
+                                </el-tooltip>
+                            </template>
+                            <el-radio-group v-model="siteInfoData.navbarLogoDisplayMode">
+                                <el-radio-button label="icon_text">图标 + 文案</el-radio-button>
+                                <el-radio-button label="text">仅文案</el-radio-button>
+                                <el-radio-button label="icon">仅图标</el-radio-button>
+                            </el-radio-group>
+                            <div class="form-tip mt-8">
+                                建议同时准备图标与文案，后续切换展示模式会更灵活。
+                            </div>
+                        </el-form-item>
+                        <el-form-item>
+                            <template #label>
+                                <span>头部品牌文案</span>
+                                <el-tooltip
+                                    content="头部菜单左侧品牌文案，留空则默认使用站点名称"
+                                    placement="top"
+                                >
+                                    <el-icon class="label-tip-icon"><QuestionFilled /></el-icon>
+                                </el-tooltip>
+                            </template>
+                            <el-input
+                                v-model="siteInfoData.navbarLogoText"
+                                maxlength="40"
+                                show-word-limit
+                                placeholder="留空则默认使用站点名称"
+                            />
+                        </el-form-item>
+                        <el-form-item>
                             <template #label
                                 ><span>Favicon</span
                                 ><el-tooltip
@@ -2294,6 +2330,12 @@
                         <el-form-item label="开启投稿页">
                             <el-switch v-model="submissionServiceData.enabled" />
                         </el-form-item>
+                        <el-form-item label="眉标题">
+                            <el-input
+                                v-model="submissionServiceData.pageEyebrow"
+                                placeholder="如：Website Submission"
+                            />
+                        </el-form-item>
                         <el-form-item label="页面标题">
                             <el-input v-model="submissionServiceData.pageTitle" />
                         </el-form-item>
@@ -2316,8 +2358,60 @@
                             />
                             <span class="form-tip">px</span>
                         </el-form-item>
+                        <el-form-item label="Hero 高亮">
+                            <el-input
+                                v-model="submissionServiceData.heroHighlightsText"
+                                type="textarea"
+                                :rows="3"
+                                placeholder="每行一条，展示在前台头图高亮标签"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">关闭态</el-divider>
+                        <el-form-item label="关闭标题">
+                            <el-input v-model="submissionServiceData.closedTitle" />
+                        </el-form-item>
+                        <el-form-item label="关闭说明">
+                            <el-input
+                                v-model="submissionServiceData.closedDescription"
+                                type="textarea"
+                                :rows="2"
+                            />
+                        </el-form-item>
+                        <el-form-item label="关闭按钮文案">
+                            <el-input v-model="submissionServiceData.closedButtonText" />
+                        </el-form-item>
+                        <el-form-item label="关闭按钮链接">
+                            <el-input
+                                v-model="submissionServiceData.closedButtonUrl"
+                                placeholder="/ 或 https://fsuied.com/products/10"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">服务流程</el-divider>
+                        <el-form-item label="流程标题">
+                            <el-input v-model="submissionServiceData.processTitle" />
+                        </el-form-item>
+                        <el-form-item label="流程说明">
+                            <el-input
+                                v-model="submissionServiceData.processDescription"
+                                type="textarea"
+                                :rows="2"
+                            />
+                        </el-form-item>
+                        <el-form-item label="流程步骤">
+                            <el-input
+                                v-model="submissionServiceData.processStepsText"
+                                type="textarea"
+                                :rows="5"
+                                placeholder="每行一条，格式：标题|描述"
+                            />
+                        </el-form-item>
 
                         <el-divider content-position="left">基础提交收录</el-divider>
+                        <p class="section-desc">
+                            这里的价格就是前台展示价和实际下单价。填 0 表示该服务免费提交。
+                        </p>
                         <el-form-item label="开启服务">
                             <el-switch v-model="submissionServiceData.submitEnabled" />
                         </el-form-item>
@@ -2407,6 +2501,19 @@
                                 type="textarea"
                                 :rows="4"
                                 placeholder="每行一个权益"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">提交须知</el-divider>
+                        <el-form-item label="须知标题">
+                            <el-input v-model="submissionServiceData.submitNoticeTitle" />
+                        </el-form-item>
+                        <el-form-item label="须知内容">
+                            <el-input
+                                v-model="submissionServiceData.submitNoticeText"
+                                type="textarea"
+                                :rows="5"
+                                placeholder="每行一条"
                             />
                         </el-form-item>
 
@@ -2844,6 +2951,8 @@ const siteInfoData = reactive({
     siteDescription: '',
     siteKeywords: '',
     logo: '',
+    navbarLogoDisplayMode: 'icon_text',
+    navbarLogoText: '',
     favicon: '',
     icp: '',
     copyright: '',
@@ -3930,12 +4039,23 @@ const normalizeAuthConfigData = (config: any) => {
 const submissionServiceLoading = ref(false)
 const defaultSubmissionServiceData = {
     enabled: true,
+    pageEyebrow: 'Website Submission',
     pageTitle: '提交网站',
     pageSubtitle: '提交收录统一付费，支持置顶推荐和 Banner 运营位增值加购',
     pageDescription: '提交后进入审核与收录流程，可按需叠加购买置顶推荐或 Banner 运营位。',
+    heroHighlightsText: '人工审核收录\n支持置顶推荐与 Banner 加购\n个人中心可追踪进度',
     containerMaxWidth: 1280,
     pricingTitle: '收录与增值服务',
+    processTitle: '服务流程',
+    processDescription: '从提交资料、创建订单到人工审核上线，整条链路都可以按后台配置推进。',
+    processStepsText: '填写站点资料|提交网址、分类、简介与基础联系方式。\n选择服务方案|基础收录为必选，可按需叠加置顶推荐或 Banner 位。\n支付与审核|系统按后台价格创建订单，支付成功后进入人工审核与排期。\n收录上线|审核通过后正式上线展示，并可在个人中心查看记录。',
+    submitNoticeTitle: '提交须知',
+    submitNoticeText: '请确保提交的网站内容合法合规，且能稳定访问。\n基础收录服务与加购项统一在本页创建订单。\n置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。\n如果涉及排期或活动推广，请填写有效联系方式便于沟通。',
     faqTitle: '常见问题',
+    closedTitle: '提交服务暂未开放',
+    closedDescription: '当前站点已暂停新的提交与收录申请，请稍后再试或联系运营团队。',
+    closedButtonText: '返回首页',
+    closedButtonUrl: '/',
     submitEnabled: true,
     submitLabel: '付费提交收录',
     submitBadge: '基础服务',
@@ -4000,6 +4120,37 @@ const parseLines = (value: unknown): string[] =>
         .filter(Boolean)
 
 /**
+ * 投稿流程文本解析为结构化数据，格式：标题|描述
+ */
+const parseSubmissionProcessText = (
+    value: unknown
+): Array<{ title: string; description: string; sort: number; enabled: boolean }> =>
+    String(value || '')
+        .split('\n')
+        .map((line, index) => {
+            const [title = '', description = ''] = String(line || '').split('|')
+            const safeTitle = String(title || '').trim()
+            const safeDescription = String(description || '').trim()
+            if (!safeTitle || !safeDescription) return null
+            return {
+                title: safeTitle,
+                description: safeDescription,
+                sort: (index + 1) * 10,
+                enabled: true,
+            }
+        })
+        .filter(
+            (
+                item
+            ): item is {
+                title: string
+                description: string
+                sort: number
+                enabled: boolean
+            } => Boolean(item)
+        )
+
+/**
  * FAQ 文本解析为结构化数据，格式：问题|答案
  */
 const parseFaqText = (value: unknown): Array<{ question: string; answer: string; sort: number; enabled: boolean }> =>
@@ -4036,6 +4187,22 @@ const formatFaqText = (items: any[]): string => {
 }
 
 /**
+ * 将投稿流程结构化数据格式化为可编辑文本
+ */
+const formatSubmissionProcessText = (items: any[]): string => {
+    if (!Array.isArray(items)) return ''
+    return items
+        .map((item) => {
+            const title = String(item?.title || '').trim()
+            const description = String(item?.description || '').trim()
+            if (!title || !description) return ''
+            return `${title}|${description}`
+        })
+        .filter(Boolean)
+        .join('\n')
+}
+
+/**
  * 规范化投稿与支付配置（后台表单视图）
  */
 const normalizeSubmissionServiceData = (config: any) => {
@@ -4055,14 +4222,41 @@ const normalizeSubmissionServiceData = (config: any) => {
     return {
         ...defaultSubmissionServiceData,
         ...source,
+        pageEyebrow: String(source?.pageEyebrow || defaultSubmissionServiceData.pageEyebrow),
         pageTitle: String(source?.pageTitle || defaultSubmissionServiceData.pageTitle),
         pageSubtitle: String(source?.pageSubtitle || defaultSubmissionServiceData.pageSubtitle),
         pageDescription: String(source?.pageDescription || defaultSubmissionServiceData.pageDescription),
+        heroHighlightsText: Array.isArray(source?.heroHighlights)
+            ? source.heroHighlights.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+            : defaultSubmissionServiceData.heroHighlightsText,
         containerMaxWidth: Number.isFinite(Number(source?.containerMaxWidth))
             ? Number(source.containerMaxWidth)
             : defaultSubmissionServiceData.containerMaxWidth,
         pricingTitle: String(source?.pricingTitle || defaultSubmissionServiceData.pricingTitle),
+        processTitle: String(source?.processTitle || defaultSubmissionServiceData.processTitle),
+        processDescription: String(
+            source?.processDescription || defaultSubmissionServiceData.processDescription
+        ),
+        processStepsText: Array.isArray(source?.processSteps)
+            ? formatSubmissionProcessText(source.processSteps)
+            : defaultSubmissionServiceData.processStepsText,
+        submitNoticeTitle: String(
+            source?.submitNoticeTitle || defaultSubmissionServiceData.submitNoticeTitle
+        ),
+        submitNoticeText: Array.isArray(source?.submitNotices)
+            ? source.submitNotices.map((item: any) => String(item || '').trim()).filter(Boolean).join('\n')
+            : defaultSubmissionServiceData.submitNoticeText,
         faqTitle: String(source?.faqTitle || defaultSubmissionServiceData.faqTitle),
+        closedTitle: String(source?.closedTitle || defaultSubmissionServiceData.closedTitle),
+        closedDescription: String(
+            source?.closedDescription || defaultSubmissionServiceData.closedDescription
+        ),
+        closedButtonText: String(
+            source?.closedButtonText || defaultSubmissionServiceData.closedButtonText
+        ),
+        closedButtonUrl: String(
+            source?.closedButtonUrl || defaultSubmissionServiceData.closedButtonUrl
+        ),
         submitEnabled: submitService?.enabled !== false,
         submitLabel: String(submitService?.label || defaultSubmissionServiceData.submitLabel),
         submitBadge: String(submitService?.badge || defaultSubmissionServiceData.submitBadge),
@@ -4097,7 +4291,9 @@ const normalizeSubmissionServiceData = (config: any) => {
             : defaultSubmissionServiceData.bannerOriginalPrice,
         bannerCtaText: String(bannerAddon?.ctaText || defaultSubmissionServiceData.bannerCtaText),
         bannerFeaturesText: bannerFeaturesText || defaultSubmissionServiceData.bannerFeaturesText,
-        faqText: formatFaqText(source?.faqItems || defaultSubmissionServiceData.faqText),
+        faqText: Array.isArray(source?.faqItems)
+            ? formatFaqText(source.faqItems)
+            : defaultSubmissionServiceData.faqText,
     }
 }
 
@@ -4106,12 +4302,23 @@ const normalizeSubmissionServiceData = (config: any) => {
  */
 const buildSubmissionServicePayload = () => ({
     enabled: submissionServiceData.enabled !== false,
+    pageEyebrow: String(submissionServiceData.pageEyebrow || '').trim(),
     pageTitle: String(submissionServiceData.pageTitle || '').trim(),
     pageSubtitle: String(submissionServiceData.pageSubtitle || '').trim(),
     pageDescription: String(submissionServiceData.pageDescription || '').trim(),
+    heroHighlights: parseLines(submissionServiceData.heroHighlightsText),
     containerMaxWidth: Number(submissionServiceData.containerMaxWidth || 1200),
     pricingTitle: String(submissionServiceData.pricingTitle || '').trim(),
+    processTitle: String(submissionServiceData.processTitle || '').trim(),
+    processDescription: String(submissionServiceData.processDescription || '').trim(),
+    processSteps: parseSubmissionProcessText(submissionServiceData.processStepsText),
+    submitNoticeTitle: String(submissionServiceData.submitNoticeTitle || '').trim(),
+    submitNotices: parseLines(submissionServiceData.submitNoticeText),
     faqTitle: String(submissionServiceData.faqTitle || '').trim(),
+    closedTitle: String(submissionServiceData.closedTitle || '').trim(),
+    closedDescription: String(submissionServiceData.closedDescription || '').trim(),
+    closedButtonText: String(submissionServiceData.closedButtonText || '').trim(),
+    closedButtonUrl: String(submissionServiceData.closedButtonUrl || '').trim(),
     submitService: {
         enabled: submissionServiceData.submitEnabled !== false,
         key: 'submission',

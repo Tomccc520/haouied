@@ -332,7 +332,9 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
             '文章配置',
             '详情页配置',
             '注册登录',
-            '备份恢复',
+            '配置导入导出',
+            '配置迁移',
+            'setting-backup',
             '升级中心',
             'upgrade-center',
             '/system-setting',
@@ -441,7 +443,7 @@ const MENU_FINE_GROUP_RULES: Record<string, MenuFineGroupDefinition[]> = {
         { key: 'detail', label: '详情配置', icon: 'el-icon-View', keywords: ['网站详情页配置', '详情页配置', 'detail-page', 'detail'], order: 30 },
         { key: 'auth', label: '认证配置', icon: 'el-icon-UserFilled', keywords: ['注册登录配置', 'auth-config', '登录配置', 'register', 'login'], order: 40 },
         { key: 'seo', label: 'SEO中心', icon: 'el-icon-Compass', keywords: ['seo中心', 'seo', 'sitemap', 'robots', '重定向'], order: 50 },
-        { key: 'backup', label: '备份恢复', icon: 'el-icon-RefreshRight', keywords: ['备份恢复', 'backup', 'restore'], order: 60 },
+        { key: 'backup', label: '配置导入导出', icon: 'el-icon-RefreshRight', keywords: ['配置导入导出', '配置迁移', 'setting-backup', 'backup', 'restore'], order: 60 },
         { key: 'upgrade', label: '升级中心', icon: 'el-icon-UploadFilled', keywords: ['升级中心', 'upgrade-center', '版本升级'], order: 70 }
     ],
     mcp: [
@@ -544,6 +546,7 @@ const MENU_SECOND_LEVEL_ICON_ALIAS: Record<string, string> = {
     系统设置: 'el-icon-Setting',
     内容中心配置: 'el-icon-DataAnalysis',
     备份恢复: 'el-icon-RefreshRight',
+    配置导入导出: 'el-icon-RefreshRight',
     授权中心: 'el-icon-Key',
     许可证中心: 'el-icon-Key',
     交付初始化: 'el-icon-Suitcase',
@@ -613,6 +616,7 @@ const MENU_SECOND_LEVEL_ORDER_ALIAS: Record<string, number> = {
     'settings:注册登录配置': 40,
     'settings:AI配置': 50,
     'settings:备份恢复': 60,
+    'settings:配置导入导出': 60,
     'settings:升级中心': 70,
 
     'operation:热门推荐': 10,

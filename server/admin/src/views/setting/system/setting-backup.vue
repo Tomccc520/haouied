@@ -11,9 +11,9 @@
         <el-card class="!border-none" shadow="never">
             <div class="setting-backup-header">
                 <div>
-                    <h2 class="setting-backup-title">设置备份</h2>
+                    <h2 class="setting-backup-title">配置导入导出</h2>
                     <p class="setting-backup-desc">
-                        导出/导入后台配置快照，适用于环境迁移、灰度回滚与运维备份。
+                        这里仅处理后台配置快照，适用于站点迁移、环境同步和配置回滚，不包含数据库、上传文件和源码目录。
                     </p>
                 </div>
                 <div class="setting-backup-actions">
@@ -22,10 +22,10 @@
                         :loading="exportLoading"
                         @click="handleExportSettingBackup"
                     >
-                        导出备份
+                        导出配置快照
                     </el-button>
                     <el-button :loading="importLoading" @click="handleTriggerImportSettingBackup">
-                        导入备份
+                        导入配置快照
                     </el-button>
                 </div>
                 <input
@@ -40,19 +40,27 @@
 
         <el-card class="!border-none mt-4" shadow="never">
             <el-alert
+                type="info"
+                show-icon
+                :closable="false"
+                title="本页不是服务器全量备份。数据库、素材目录和部署代码请使用升级中心自动备份或服务器侧备份脚本。"
+            />
+
+            <el-alert
+                class="mt-4"
                 type="warning"
                 show-icon
                 :closable="false"
-                title="导入会覆盖备份中的同名配置（含站点信息与登录配置），建议先导出现网备份再执行导入。"
+                title="导入会覆盖快照中的同名配置（含站点信息与登录配置），建议先导出现网配置快照再执行导入。"
             />
 
             <div class="setting-backup-meta">
                 <div class="setting-backup-meta__row">
-                    <span class="label">最近导出：</span>
+                    <span class="label">最近导出快照：</span>
                     <span>{{ lastExportAtText }}</span>
                 </div>
                 <div class="setting-backup-meta__row">
-                    <span class="label">最近导入：</span>
+                    <span class="label">最近导入快照：</span>
                     <span>{{ lastImportAtText }}</span>
                 </div>
                 <div class="setting-backup-meta__row" v-if="lastImportSummary">
@@ -89,7 +97,7 @@ const lastImportAtText = computed(() =>
 )
 
 /**
- * 生成设置备份文件名
+ * 生成配置快照文件名
  */
 const buildSettingBackupFilename = () => {
     const now = new Date()
@@ -97,7 +105,7 @@ const buildSettingBackupFilename = () => {
     const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(
         now.getHours()
     )}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-    return `uied_setting_backup_${stamp}.json`
+    return `uied_setting_snapshot_${stamp}.json`
 }
 
 /**
@@ -124,7 +132,7 @@ const isUserCancelError = (error: any) => {
 }
 
 /**
- * 导出后台设置备份
+ * 导出后台配置快照
  */
 const handleExportSettingBackup = async () => {
     exportLoading.value = true
@@ -133,17 +141,17 @@ const handleExportSettingBackup = async () => {
         const content = JSON.stringify(backup || {}, null, 2)
         downloadJsonFile(buildSettingBackupFilename(), content)
         lastExportAt.value = Date.now()
-        feedback.msgSuccess('设置备份导出成功')
+        feedback.msgSuccess('配置快照导出成功')
     } catch (error) {
-        console.error('导出设置备份失败:', error)
-        feedback.msgError('导出设置备份失败')
+        console.error('导出配置快照失败:', error)
+        feedback.msgError('导出配置快照失败')
     } finally {
         exportLoading.value = false
     }
 }
 
 /**
- * 触发本地备份文件选择
+ * 触发本地配置快照文件选择
  */
 const handleTriggerImportSettingBackup = () => {
     if (importLoading.value) return
@@ -151,25 +159,25 @@ const handleTriggerImportSettingBackup = () => {
 }
 
 /**
- * 解析本地 JSON 备份文件
+ * 解析本地 JSON 配置快照文件
  */
 const parseBackupFile = async (file: File) => {
     const raw = await file.text()
-    if (!raw.trim()) throw new Error('备份文件为空')
+    if (!raw.trim()) throw new Error('配置快照文件为空')
     let parsed: any = null
     try {
         parsed = JSON.parse(raw)
     } catch (error) {
-        throw new Error('备份文件不是有效 JSON')
+        throw new Error('配置快照文件不是有效 JSON')
     }
     if (!parsed || typeof parsed !== 'object') {
-        throw new Error('备份文件格式错误')
+        throw new Error('配置快照文件格式错误')
     }
     return parsed
 }
 
 /**
- * 处理备份文件导入
+ * 处理配置快照导入
  */
 const handleSettingBackupFileChange = async (event: Event) => {
     const input = event.target as HTMLInputElement
@@ -179,7 +187,9 @@ const handleSettingBackupFileChange = async (event: Event) => {
 
     try {
         const payload = await parseBackupFile(file)
-        await feedback.confirm('导入后将覆盖备份中同名配置（含站点信息/登录配置），是否继续导入？')
+        await feedback.confirm(
+            '导入后将覆盖快照中同名配置（含站点信息/登录配置），是否继续导入？'
+        )
         importLoading.value = true
         const result: any = await uiedSettingBackupImport({
             payload,
@@ -192,9 +202,9 @@ const handleSettingBackupFileChange = async (event: Event) => {
         feedback.msgSuccess(`导入成功：配置${count}项`)
     } catch (error) {
         if (!isUserCancelError(error)) {
-            console.error('导入设置备份失败:', error)
+            console.error('导入配置快照失败:', error)
             const message = error instanceof Error ? error.message : ''
-            feedback.msgError(message || '导入设置备份失败')
+            feedback.msgError(message || '导入配置快照失败')
         }
     } finally {
         importLoading.value = false

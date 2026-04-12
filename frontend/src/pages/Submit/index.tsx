@@ -109,14 +109,32 @@ interface SubmissionFaqItem {
   enabled?: boolean;
 }
 
+interface SubmissionProcessStep {
+  title?: string;
+  description?: string;
+  sort?: number;
+  enabled?: boolean;
+}
+
 interface SubmissionPublicConfig {
   enabled: boolean;
+  pageEyebrow: string;
   pageTitle: string;
   pageSubtitle: string;
   pageDescription: string;
+  heroHighlights: string[];
   containerMaxWidth: number;
   pricingTitle: string;
+  processTitle: string;
+  processDescription: string;
+  processSteps: SubmissionProcessStep[];
+  submitNoticeTitle: string;
+  submitNotices: string[];
   faqTitle: string;
+  closedTitle: string;
+  closedDescription: string;
+  closedButtonText: string;
+  closedButtonUrl: string;
   submitService: SubmissionServiceItemConfig;
   topRecommendAddon: SubmissionServiceItemConfig;
   bannerAddon: SubmissionServiceItemConfig;
@@ -189,12 +207,33 @@ const DEFAULT_BANNER_POSITION_OPTIONS: BannerPositionOption[] = [
 
 const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   enabled: true,
+  pageEyebrow: 'Website Submission',
   pageTitle: '提交网站',
   pageSubtitle: '提交后进入审核与收录流程，可按需加购置顶推荐与 Banner 运营位。',
   pageDescription: '基础提交为正式收录服务，运营加购项用于新品发布、首页曝光与短期活动冲刺。',
+  heroHighlights: [ '人工审核收录', '支持置顶推荐与 Banner 加购', '个人中心可追踪进度' ],
   containerMaxWidth: 1320,
   pricingTitle: '服务与加购',
+  processTitle: '服务流程',
+  processDescription: '从填写资料到支付审核再到正式上线，整条链路都可在后台跟踪。',
+  processSteps: [
+    { title: '填写资料', description: '提交网址、分类、简介与联系方式。', enabled: true, sort: 10 },
+    { title: '选择服务', description: '基础收录为必选，可按需加购置顶推荐或 Banner 位。', enabled: true, sort: 20 },
+    { title: '支付审核', description: '按后台价格创建订单，支付成功后进入人工审核排期。', enabled: true, sort: 30 },
+    { title: '正式上线', description: '审核通过后上架展示，并在个人中心可查看记录。', enabled: true, sort: 40 },
+  ],
+  submitNoticeTitle: '提交须知',
+  submitNotices: [
+    '请确保提交的网站内容合法、健康，且可正常访问。',
+    '基础提交收录与运营加购统一在本页完成，下单后由后台订单跟踪。',
+    'Banner 位和置顶推荐属于附加曝光，不替代审核标准。',
+    '提交后如需补充排期，请在联系方式里留下可联络方式。',
+  ],
   faqTitle: '常见问题',
+  closedTitle: '投稿服务暂未开放',
+  closedDescription: '请稍后再试，或联系站点运营团队获取开放时间。',
+  closedButtonText: '返回首页',
+  closedButtonUrl: '/',
   submitService: {
     enabled: true,
     key: 'submission',
@@ -245,6 +284,28 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
  */
 const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig => {
   const source = value && typeof value === 'object' ? (value as Record<string, any>) : {};
+  const normalizeTextList = (rows: unknown, fallback: string[], max = 8, itemMax = 40): string[] => {
+    const list = Array.isArray(rows) ? rows : fallback;
+    const normalized = list
+      .map((item: any) => String(item || '').trim().slice(0, itemMax))
+      .filter(Boolean)
+      .slice(0, max);
+    return normalized.length > 0 ? normalized : fallback;
+  };
+  const normalizeProcessSteps = (rows: unknown, fallback: SubmissionProcessStep[]): SubmissionProcessStep[] => {
+    const list = Array.isArray(rows) ? rows : fallback;
+    const normalized = list
+      .map((item: any, index: number) => ({
+        title: String(item?.title || '').trim().slice(0, 40),
+        description: String(item?.description || '').trim().slice(0, 180),
+        sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+        enabled: item?.enabled !== false,
+      }))
+      .filter((item) => item.enabled !== false && item.title && item.description)
+      .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0))
+      .slice(0, 8);
+    return normalized.length > 0 ? normalized : fallback;
+  };
   const submitService = {
     ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService,
     ...(source.submitService && typeof source.submitService === 'object'
@@ -269,14 +330,25 @@ const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig
     ...DEFAULT_SUBMISSION_PUBLIC_CONFIG,
     ...source,
     enabled: source.enabled !== false,
+    pageEyebrow: String(source.pageEyebrow || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageEyebrow).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageEyebrow,
     pageTitle: String(source.pageTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageTitle,
     pageSubtitle: String(source.pageSubtitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageSubtitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageSubtitle,
     pageDescription: String(source.pageDescription || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageDescription).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pageDescription,
+    heroHighlights: normalizeTextList(source.heroHighlights, DEFAULT_SUBMISSION_PUBLIC_CONFIG.heroHighlights, 6, 32),
     containerMaxWidth: Number.isFinite(Number(source.containerMaxWidth))
       ? Math.max(960, Math.min(1600, Number(source.containerMaxWidth)))
       : DEFAULT_SUBMISSION_PUBLIC_CONFIG.containerMaxWidth,
     pricingTitle: String(source.pricingTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pricingTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.pricingTitle,
+    processTitle: String(source.processTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.processTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.processTitle,
+    processDescription: String(source.processDescription || DEFAULT_SUBMISSION_PUBLIC_CONFIG.processDescription).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.processDescription,
+    processSteps: normalizeProcessSteps(source.processSteps, DEFAULT_SUBMISSION_PUBLIC_CONFIG.processSteps),
+    submitNoticeTitle: String(source.submitNoticeTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitNoticeTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitNoticeTitle,
+    submitNotices: normalizeTextList(source.submitNotices, DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitNotices, 10, 120),
     faqTitle: String(source.faqTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.faqTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.faqTitle,
+    closedTitle: String(source.closedTitle || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedTitle).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedTitle,
+    closedDescription: String(source.closedDescription || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedDescription).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedDescription,
+    closedButtonText: String(source.closedButtonText || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedButtonText).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedButtonText,
+    closedButtonUrl: String(source.closedButtonUrl || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedButtonUrl).trim() || DEFAULT_SUBMISSION_PUBLIC_CONFIG.closedButtonUrl,
     submitService,
     topRecommendAddon,
     bannerAddon,
@@ -728,6 +800,18 @@ const SubmitPage: React.FC = () => {
     () => (submissionConfig.faqItems || []).filter((item) => item && item.enabled !== false && item.question && item.answer),
     [submissionConfig.faqItems],
   );
+  const processSteps = useMemo(
+    () => (submissionConfig.processSteps || []).filter((item) => item && item.enabled !== false && item.title && item.description),
+    [submissionConfig.processSteps],
+  );
+  const submitNotices = useMemo(
+    () => (submissionConfig.submitNotices || []).map((item) => String(item || '').trim()).filter(Boolean),
+    [submissionConfig.submitNotices],
+  );
+  const heroHighlights = useMemo(
+    () => (submissionConfig.heroHighlights || []).map((item) => String(item || '').trim()).filter(Boolean),
+    [submissionConfig.heroHighlights],
+  );
 
   const selectedAddonOptions = useMemo(
     () => addonOptions.filter((item) => formData.selectedAddons.includes(item.key as AddonKey)),
@@ -769,6 +853,7 @@ const SubmitPage: React.FC = () => {
     () => submitService.price + selectedAddonOptions.reduce((sum, item) => sum + item.price, 0),
     [selectedAddonOptions, submitService.price],
   );
+  const isSubmissionClosed = !submissionConfig.enabled || !submitService.enabled;
 
   const shouldRequirePayment = totalPrice > 0;
 
@@ -793,6 +878,26 @@ const SubmitPage: React.FC = () => {
   const availablePayChannels = useMemo(
     () => paymentChannelOptions.filter((item) => item.enabled),
     [paymentChannelOptions],
+  );
+  const heroStats = useMemo(
+    () => [
+      {
+        label: '基础收录价',
+        value: formatPrice(submitService.price),
+        hint: submitService.title || '基础服务',
+      },
+      {
+        label: '可选加购',
+        value: addonOptions.length > 0 ? `${addonOptions.length} 项` : '未开启',
+        hint: addonOptions.length > 0 ? '置顶推荐 / Banner 位' : '当前仅基础收录',
+      },
+      {
+        label: '支付状态',
+        value: shouldRequirePayment ? (submissionConfig.payment.enabled ? '已开启' : '待配置') : '无需支付',
+        hint: submissionConfig.payment.enabled ? '按后台开启渠道展示' : '需到支付中心补齐参数',
+      },
+    ],
+    [addonOptions.length, shouldRequirePayment, submissionConfig.payment.enabled, submitService.price, submitService.title],
   );
 
   /**
@@ -946,6 +1051,19 @@ const SubmitPage: React.FC = () => {
     }
   }, [availablePayChannels, payChannel, shouldRequirePayment]);
 
+  useEffect(() => {
+    const allowedAddonKeys = new Set(addonOptions.map((item) => item.key as AddonKey));
+    setFormData((prev) => {
+      const nextAddons = prev.selectedAddons.filter((item) => allowedAddonKeys.has(item));
+      if (nextAddons.length === prev.selectedAddons.length) return prev;
+      return {
+        ...prev,
+        selectedAddons: nextAddons,
+        bannerPositions: nextAddons.includes('banner_slot') ? prev.bannerPositions : [],
+      };
+    });
+  }, [addonOptions]);
+
   /**
    * 保存草稿，避免用户关闭页面后内容丢失。
    */
@@ -978,6 +1096,10 @@ const SubmitPage: React.FC = () => {
       debugLog.error('清除草稿失败:', error);
     }
   }, []);
+  /**
+   * 判断当前链接是否为外部地址，便于关闭态按钮安全跳转。
+   */
+  const isExternalLink = useCallback((value: string): boolean => /^(https?:)?\/\//i.test(String(value || '').trim()), []);
 
   /**
    * 检查网址是否已存在，提交站点场景默认禁止重复收录。
@@ -1175,11 +1297,7 @@ const SubmitPage: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!submissionConfig.enabled) {
-      setSubmitResult({ success: false, message: '投稿服务暂未开放' });
-      return;
-    }
-    if (!submitService.enabled) {
+    if (isSubmissionClosed) {
       setSubmitResult({ success: false, message: '基础提交服务暂未开放' });
       return;
     }
@@ -1293,15 +1411,6 @@ const SubmitPage: React.FC = () => {
     openPayWindow(submitResult.payUrl);
   };
 
-  const stats = useMemo(
-    () => [
-      { label: '基础服务', value: formatPrice(submitService.price) },
-      { label: '可选加购', value: addonOptions.length ? `${addonOptions.length} 项` : '未开启' },
-      { label: '当前合计', value: formatPrice(totalPrice) },
-    ],
-    [addonOptions.length, submitService.price, totalPrice],
-  );
-
   return (
     <div className={`submit-page submit-page--layout-${layoutWidthMode}`}>
       <SEO
@@ -1312,44 +1421,78 @@ const SubmitPage: React.FC = () => {
 
       <div className="submit-page__hero" style={layoutStyle}>
         <div className="submit-page__hero-main">
-          <p className="submit-page__kicker">Content Submission</p>
+          <p className="submit-page__kicker">{submissionConfig.pageEyebrow || 'Website Submission'}</p>
           <h1>{submissionConfig.pageTitle || '提交网站'}</h1>
           <p className="submit-page__hero-desc">
             {submissionConfig.pageSubtitle || submissionConfig.pageDescription}
           </p>
-          <div className="submit-page__hero-actions">
+          {heroHighlights.length > 0 ? (
             <div className="submit-page__hero-tags">
-              <span>基础提交收录</span>
-              <span>置顶推荐加购</span>
-              <span>Banner 位加购</span>
+              {heroHighlights.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
             </div>
+          ) : null}
+          <div className="submit-page__hero-actions">
+            {isSubmissionClosed ? (
+              <a
+                className="submit-page__hero-primary"
+                href={submissionConfig.closedButtonUrl || '/'}
+                target={isExternalLink(submissionConfig.closedButtonUrl || '') ? '_blank' : undefined}
+                rel={isExternalLink(submissionConfig.closedButtonUrl || '') ? 'noopener noreferrer' : undefined}
+              >
+                {submissionConfig.closedButtonText || '返回首页'}
+              </a>
+            ) : (
+              <a className="submit-page__hero-primary" href="#submit-form">
+                开始填写
+              </a>
+            )}
             <Link className="submit-page__back-link" to="/">
               返回首页
             </Link>
           </div>
         </div>
 
-        <div className="submit-page__hero-stats">
-          {stats.map((item) => (
-            <div key={item.label} className="submit-page__stat">
-              <span className="submit-page__stat-label">{item.label}</span>
-              <strong>{item.value}</strong>
-            </div>
-          ))}
+        <div className="submit-page__hero-panel">
+          <div className="submit-page__hero-total">
+            <span className="submit-page__hero-total-label">{isSubmissionClosed ? '当前状态' : '当前组合价格'}</span>
+            <strong>{isSubmissionClosed ? '暂停开放' : formatPrice(totalPrice)}</strong>
+            <p>
+              {isSubmissionClosed
+                ? (submissionConfig.closedDescription || '当前暂不接受新的提交申请。')
+                : getAddonPlanLabel(formData.selectedAddons, addonOptions)}
+            </p>
+          </div>
+          <div className="submit-page__hero-stats">
+            {heroStats.map((item) => (
+              <div key={item.label} className="submit-page__stat">
+                <span className="submit-page__stat-label">{item.label}</span>
+                <strong>{item.value}</strong>
+                <p>{item.hint}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="submit-page__shell" style={layoutStyle}>
         {configLoading ? (
           <div className="submit-page__state">正在加载投稿配置...</div>
-        ) : !submissionConfig.enabled ? (
+        ) : isSubmissionClosed ? (
           <div className="submit-page__closed">
-            <h2>投稿服务暂未开放</h2>
-            <p>请稍后再试，或联系站点运营团队获取开放时间。</p>
-            <button className="btn-secondary" onClick={() => navigate('/')}>
+            <span className="submit-page__closed-badge">SERVICE CLOSED</span>
+            <h2>{submissionConfig.closedTitle || '投稿服务暂未开放'}</h2>
+            <p>{submissionConfig.closedDescription || '请稍后再试，或联系站点运营团队获取开放时间。'}</p>
+            <a
+              className="btn-primary"
+              href={submissionConfig.closedButtonUrl || '/'}
+              target={isExternalLink(submissionConfig.closedButtonUrl || '') ? '_blank' : undefined}
+              rel={isExternalLink(submissionConfig.closedButtonUrl || '') ? 'noopener noreferrer' : undefined}
+            >
               <Icons.Home />
-              <span>返回首页</span>
-            </button>
+              <span>{submissionConfig.closedButtonText || '返回首页'}</span>
+            </a>
           </div>
         ) : (
           <>
@@ -1357,7 +1500,7 @@ const SubmitPage: React.FC = () => {
               <section className="submit-service-card">
                 <div className="submit-block-header">
                   <h2>{submissionConfig.pricingTitle || '服务与加购'}</h2>
-                  <p>基础服务为正式收录入口，置顶推荐和 Banner 位作为附加曝光能力单独加购。</p>
+                  <p>{submissionConfig.pageDescription || '基础服务为正式收录入口，置顶推荐和 Banner 位作为附加曝光能力单独加购。'}</p>
                 </div>
 
                 <article className="submit-service-card__base">
@@ -1426,6 +1569,26 @@ const SubmitPage: React.FC = () => {
                 ) : null}
               </section>
 
+              {processSteps.length > 0 ? (
+                <section className="submit-process">
+                  <div className="submit-block-header">
+                    <h2>{submissionConfig.processTitle || '服务流程'}</h2>
+                    <p>{submissionConfig.processDescription}</p>
+                  </div>
+                  <div className="submit-process__grid">
+                    {processSteps.map((item, index) => (
+                      <article key={`${item.title}-${index}`} className="submit-process__item">
+                        <span className="submit-process__index">{String(index + 1).padStart(2, '0')}</span>
+                        <div>
+                          <h3>{item.title}</h3>
+                          <p>{item.description}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
               {submitResult ? (
                 <div className={`submit-result-card ${submitResult.success ? 'success' : 'error'}`}>
                   <div className="result-icon">
@@ -1471,7 +1634,7 @@ const SubmitPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <form className="submit-form" onSubmit={handleSubmit}>
+                <form id="submit-form" className="submit-form" onSubmit={handleSubmit}>
                   <div className="form-section">
                     <div className="section-title">
                       <span className="step-number">1</span>
@@ -1900,18 +2063,19 @@ const SubmitPage: React.FC = () => {
                 )}
               </section>
 
-              <section className="submit-tips">
-                <div className="tips-header">
-                  <Icons.Info />
-                  <h4>提交须知</h4>
-                </div>
-                <ul>
-                  <li>请确保提交的网站内容合法、健康，且可正常访问。</li>
-                  <li>基础提交收录与运营加购统一在本页完成，下单后由后台订单跟踪。</li>
-                  <li>Banner 位和置顶推荐属于附加曝光，不替代审核标准。</li>
-                  <li>提交后如需补充排期，请在联系方式里留下可联络方式。</li>
-                </ul>
-              </section>
+              {submitNotices.length > 0 ? (
+                <section className="submit-tips">
+                  <div className="tips-header">
+                    <Icons.Info />
+                    <h4>{submissionConfig.submitNoticeTitle || '提交须知'}</h4>
+                  </div>
+                  <ul>
+                    {submitNotices.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
             </aside>
           </>
         )}

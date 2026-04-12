@@ -16,6 +16,7 @@ import { usePages } from '../../hooks/usePages'; // 导入页面列表Hook
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import { useUser } from '../../contexts/UserContext'; // 导入用户Context
 import AuthModal from '../Auth/AuthModal'; // 导入认证弹窗
+import api from '../../services/api';
 import { unwrapApiList } from '../../utils/apiResponse';
 import { IconComponent } from '../../types/icon';
 import {
@@ -72,6 +73,8 @@ interface MenuItem {
  */
 interface NavbarConfig {
   logo: string;
+  logoDisplayMode: 'icon_text' | 'text' | 'icon';
+  logoText: string;
   menuItems: MenuItem[];
 }
 
@@ -548,12 +551,12 @@ const Navbar = () => {
      * 加载页头菜单配置并统一解包后端响应结构。
      */
     const initNavbarConfig = async () => {
+      const logoDisplayMode = siteInfo?.navbarLogoDisplayMode || 'icon_text';
+      const logoText = (siteInfo?.navbarLogoText || siteInfo?.siteName || 'UIED AI工具导航').trim();
       try {
-        // 从API获取导航菜单 - 使用环境变量配置的API地址
-        const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8002/api';
-        const response = await fetch(`${apiBaseUrl}/settings/nav-menus`);
-        const payload = await response.json();
-        const apiMenus = unwrapApiList<ApiNavMenu>(payload);
+        // 统一复用运行时 API 实例，避免生产环境回落到 localhost
+        const response = await api.get('/settings/nav-menus');
+        const apiMenus = unwrapApiList<ApiNavMenu>(response.data);
         
         // 转换API数据格式为组件需要的格式
         const menuItems: MenuItem[] = apiMenus
@@ -581,6 +584,8 @@ const Navbar = () => {
 
         const config: NavbarConfig = {
           logo: siteInfo?.logo || "/logo-3.svg",
+          logoDisplayMode,
+          logoText,
           menuItems
         };
         
@@ -589,6 +594,8 @@ const Navbar = () => {
         // 如果API失败，使用默认配置
         const defaultConfig: NavbarConfig = {
           logo: siteInfo?.logo || "/logo-3.svg",
+          logoDisplayMode,
+          logoText,
           menuItems: [
             { id: '1', text: '首页', link: '/', external: false, order: 1, visible: true },
             { id: '2', text: '快讯', link: 'https://uiedtool.com/tools/ai-news', external: true, order: 2, visible: true },
@@ -664,6 +671,9 @@ const Navbar = () => {
   }
 
   const visibleMenuItems = getVisibleMenuItems();
+  const resolvedLogoText = (navConfig.logoText || siteInfo?.siteName || 'UIED AI工具导航').trim();
+  const showLogoImage = navConfig.logoDisplayMode !== 'text' && Boolean(navConfig.logo);
+  const showLogoText = navConfig.logoDisplayMode !== 'icon' && Boolean(resolvedLogoText);
 
   return (
     <div 
@@ -672,12 +682,23 @@ const Navbar = () => {
       <div className="navbar-content">
         {/* 左侧Logo和导航切换 */}
         <div className="navbar-logo">
-          <img
-            src={navConfig.logo}
-            alt="UIED Logo"
-            className="navbar-logo-img"
-            onClick={() => navigate('/')} // 使用navigate代替直接修改location
-          />
+          <button
+            type="button"
+            className={`navbar-logo-link navbar-logo-link--${navConfig.logoDisplayMode}`}
+            onClick={() => navigate('/')}
+            aria-label={resolvedLogoText ? `返回${resolvedLogoText}` : '返回首页'}
+          >
+            {showLogoImage && (
+              <img
+                src={navConfig.logo}
+                alt={resolvedLogoText || 'UIED Logo'}
+                className="navbar-logo-img"
+              />
+            )}
+            {showLogoText && (
+              <span className="navbar-logo-text">{resolvedLogoText}</span>
+            )}
+          </button>
           
           {/* 导航切换区域 */}
           <div className="nav-switch-container">

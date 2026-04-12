@@ -22,6 +22,8 @@ export interface SiteInfo {
   description: string;
   keywords: string;
   logo: string;
+  navbarLogoDisplayMode: 'icon_text' | 'text' | 'icon';
+  navbarLogoText: string;
   favicon: string;
   icp?: string;
   icpLink?: string;
