@@ -42,8 +42,8 @@
                     </div>
                     <div class="flex leading-9 items-center">
                         <div class="w-20 flex-none">本版新增</div>
-                        <div class="flex items-center gap-2">
-                            <el-tag type="danger" effect="dark">NEW {{ adminUpdateCount }}</el-tag>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="workbench-update-pill">本版 {{ adminUpdateCount }} 项</span>
                             <el-button type="primary" plain size="small" @click="openAdminUpdateLog">
                                 查看更新记录
                             </el-button>
@@ -136,7 +136,7 @@
                         <div class="workbench-updates__item-head">
                             <div class="workbench-updates__item-title-row">
                                 <div class="workbench-updates__item-title">{{ item.title }}</div>
-                                <el-tag type="danger" effect="dark" size="small">NEW</el-tag>
+                                <span class="workbench-updates__item-badge">新</span>
                             </div>
                             <div class="workbench-updates__item-group">
                                 {{ getAdminUpdateGroupLabel(item.group) }}
@@ -424,6 +424,20 @@ getData()
 </script>
 
 <style lang="scss" scoped>
+.workbench-update-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.10);
+    border: 1px solid rgba(37, 99, 235, 0.14);
+}
+
 .workbench-updates {
     &__header {
         display: flex;
@@ -454,8 +468,8 @@ getData()
         display: flex;
         flex-direction: column;
         gap: 10px;
-        min-height: 172px;
-        padding: 16px;
+        min-height: 164px;
+        padding: 15px;
         border-radius: 14px;
         border: 1px solid rgba(15, 23, 42, 0.06);
         background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -471,13 +485,29 @@ getData()
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
     }
 
     &__item-title {
         font-size: 15px;
         font-weight: 600;
         color: #111827;
+    }
+
+    &__item-badge {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 6px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #1d4ed8;
+        background: rgba(37, 99, 235, 0.10);
+        border: 1px solid rgba(37, 99, 235, 0.14);
     }
 
     &__item-group {

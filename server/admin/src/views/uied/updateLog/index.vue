@@ -19,9 +19,7 @@
                     </p>
                 </div>
                 <div class="admin-update-log-page__hero-side">
-                    <el-tag type="danger" effect="dark" size="large">
-                        NEW {{ highlightCount }}
-                    </el-tag>
+                    <div class="admin-update-log-page__hero-badge">本版 {{ highlightCount }} 项</div>
                     <div class="admin-update-log-page__hero-tip">当前仅标记本版重点能力</div>
                 </div>
             </div>
@@ -54,7 +52,7 @@
                         <div class="admin-update-log-page__item-head">
                             <div class="admin-update-log-page__item-title-row">
                                 <h3 class="admin-update-log-page__item-title">{{ item.title }}</h3>
-                                <el-tag size="small" type="danger" effect="dark">NEW</el-tag>
+                                <span class="admin-update-log-page__item-badge">新</span>
                             </div>
                             <div class="admin-update-log-page__item-path">
                                 {{ buildDisplayPath(item.routePath, item.routeQuery) }}
@@ -180,6 +178,20 @@ const jumpToHighlight = (item: AdminUpdateHighlightItem) => {
         min-width: 160px;
     }
 
+    &__hero-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #1d4ed8;
+        background: rgba(37, 99, 235, 0.10);
+        border: 1px solid rgba(37, 99, 235, 0.14);
+    }
+
     &__hero-tip {
         font-size: 12px;
         color: #6b7280;
@@ -236,7 +248,7 @@ const jumpToHighlight = (item: AdminUpdateHighlightItem) => {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
     }
 
     &__item-title {
@@ -244,6 +256,22 @@ const jumpToHighlight = (item: AdminUpdateHighlightItem) => {
         font-size: 16px;
         font-weight: 600;
         color: #111827;
+    }
+
+    &__item-badge {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 6px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #1d4ed8;
+        background: rgba(37, 99, 235, 0.10);
+        border: 1px solid rgba(37, 99, 235, 0.14);
     }
 
     &__item-path {

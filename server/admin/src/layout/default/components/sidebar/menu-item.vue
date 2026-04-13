@@ -9,15 +9,13 @@
                     :name="routeMeta?.icon"
                 />
                 <span class="menu-item-title">{{ displayTitle }}</span>
-                <el-tag
+                <span
                     v-if="routeBadgeText"
                     class="menu-item-badge"
-                    size="small"
-                    effect="dark"
-                    type="danger"
+                    :class="`menu-item-badge--${routeBadgeMode}`"
                 >
                     {{ routeBadgeText }}
-                </el-tag>
+                </span>
             </el-menu-item>
         </app-link>
         <el-sub-menu
@@ -37,15 +35,13 @@
                     :name="routeMeta?.icon"
                 />
                 <span class="menu-item-title">{{ displayTitle }}</span>
-                <el-tag
+                <span
                     v-if="routeBadgeText"
                     class="menu-item-badge"
-                    size="small"
-                    effect="dark"
-                    type="danger"
+                    :class="`menu-item-badge--${routeBadgeMode}`"
                 >
                     {{ routeBadgeText }}
-                </el-tag>
+                </span>
             </template>
             <menu-item
                 v-for="item in visibleChildren"
@@ -233,9 +229,27 @@ const hasUpdateHighlight = (route: RouteRecordRaw, fullPath: string): boolean =>
 }
 
 /**
- * 当前菜单 NEW 标签文本：仅命中本版新增能力时展示。
+ * 当前菜单是否命中本版更新。
  */
-const routeBadgeText = computed(() => (hasUpdateHighlight(props.route, props.routePath) ? 'NEW' : ''))
+const hasRouteUpdateHighlight = computed(() => hasUpdateHighlight(props.route, props.routePath))
+
+/**
+ * 当前菜单标签模式：
+ * - 父级目录仅显示轻量圆点
+ * - 叶子菜单显示精简“新”标签
+ */
+const routeBadgeMode = computed(() => {
+    if (!hasRouteUpdateHighlight.value) return 'none'
+    return hasShowChild.value ? 'dot' : 'pill'
+})
+
+/**
+ * 当前菜单标签文案：仅叶子入口显示，避免侧边栏过度占位。
+ */
+const routeBadgeText = computed(() => {
+    if (!hasRouteUpdateHighlight.value) return ''
+    return hasShowChild.value ? '' : '新'
+})
 
 const queryStr = computed<string>(() => {
     const query = props.route.meta?.query as string
@@ -261,12 +275,31 @@ const queryStr = computed<string>(() => {
     }
     .menu-item-badge {
         margin-left: 8px;
-        border: none;
-        font-size: 10px;
-        line-height: 1;
-        padding: 4px 6px;
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         transform: translateY(-1px);
-        background: linear-gradient(135deg, #f97316, #ef4444);
+        &--pill {
+            min-width: 18px;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            line-height: 1;
+            font-weight: 600;
+            color: #1d4ed8;
+            background: rgba(37, 99, 235, 0.10);
+            border: 1px solid rgba(37, 99, 235, 0.14);
+        }
+        &--dot {
+            width: 8px;
+            height: 8px;
+            margin-right: 2px;
+            border-radius: 999px;
+            background: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
+        }
     }
     .menu-item-icon {
         margin-right: 10px;

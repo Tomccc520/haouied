@@ -11,7 +11,7 @@
                     <span class="menu-toolbar__count">{{ displayMenuCount }} 项</span>
                     <el-button class="menu-toolbar__updates" link type="primary" @click="openUpdateLog">
                         更新记录
-                        <el-tag class="menu-toolbar__badge" size="small" effect="dark" type="danger">
+                        <el-tag class="menu-toolbar__badge" size="small" effect="plain" type="info">
                             {{ updateHighlightCount }}
                         </el-tag>
                     </el-button>
@@ -1089,13 +1089,15 @@ const menuRenderKey = computed(() => {
             height: 20px;
             padding: 0;
             font-size: 12px;
+            color: var(--el-text-color-regular);
         }
         .menu-toolbar__badge {
             margin-left: 6px;
-            border: none;
             line-height: 1;
-            padding: 3px 6px;
-            background: linear-gradient(135deg, #f97316, #ef4444);
+            padding: 2px 6px;
+            color: #475569;
+            background: rgba(148, 163, 184, 0.12);
+            border-color: rgba(148, 163, 184, 0.18);
         }
         :deep(.el-input__wrapper) {
             border-radius: var(--admin-sidebar-item-radius);
@@ -1114,7 +1116,7 @@ const menuRenderKey = computed(() => {
         min-height: 100%;
     }
     :deep(.el-menu) {
-        padding: 8px;
+        padding: 2px;
     }
     :deep(.el-menu-item),
     :deep(.el-sub-menu__title) {
