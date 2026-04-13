@@ -163,6 +163,27 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         ]
     },
     /**
+     * 后台更新记录静态路由：
+     * 1. 用于当前版本新增能力统一说明
+     * 2. 支持从工作台与侧边栏工具栏快速跳转
+     */
+    {
+        path: '/uied/update-log',
+        component: LAYOUT,
+        children: [
+            {
+                path: '',
+                name: Symbol(),
+                component: () => import('@/views/uied/updateLog/index.vue'),
+                meta: {
+                    title: '后台更新记录',
+                    hidden: true,
+                    activeMenu: '/workbench'
+                }
+            }
+        ]
+    },
+    /**
      * 升级中心静态兜底路由：
      * 1. 确保未执行菜单补丁时仍可通过地址直接访问
      * 2. 便于本地与宝塔环境先联调升级流程

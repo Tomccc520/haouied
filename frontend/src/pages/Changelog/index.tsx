@@ -78,6 +78,7 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', scope: 'fullstack', text: '【投稿页重构】前台 `/submit` 重构为正式售卖版页面：头图信息区、价格摘要、服务流程、提交须知、关闭态与支付状态全部接入后台公开配置，基础价格同时驱动页面展示与实际下单金额' },
       { type: 'feature', scope: 'fullstack', text: '【头部品牌区】后台“站点信息”新增头部 Logo 展示模式与品牌文案配置：支持“图标 + 文案 / 仅文案 / 仅图标”三种模式，前台 Navbar 同步按配置渲染' },
       { type: 'improve', scope: 'backend', text: '【配置迁移】系统设置 `/setting/system/setting-backup` 文案与菜单统一改名为“配置导入导出”，明确该页面只处理配置快照，不再误导为数据库/文件/源码的全量备份恢复入口' },
+      { type: 'feature', scope: 'backend', text: '【后台引导】侧边栏为当前版本重点功能增加 `NEW` 标签，工作台首页新增“本版更新”模块，并补充“后台更新记录”页：可按分组查看本版新增能力并一键跳转到授权中心、升级中心、站点设置、投稿配置、AI 配置等入口' },
       { type: 'feature', scope: 'backend', text: '【文章管理】批量导入弹窗新增“处理方式”下拉切换：支持在“公众号链接导入”与“批量AI生成文章”之间直接切换，沿用现有栏目、作者、状态、标签与专题配置，降低后台运营批量产文门槛' },
       { type: 'feature', scope: 'fullstack', text: '【AI文章生成】新增 `POST /api/article/import/ai/batch` 接口：支持每行一个文章选题逐篇调用默认 AI 模型生成标题、导语、摘要与 HTML 正文，并直接入库返回新增/失败统计与逐条结果明细' },
       { type: 'improve', scope: 'backend', text: '【AI文章生成】批量生成模式补充“高级AI配置（可选）”折叠区：支持临时覆盖模型与提示词模板，留空时自动回退到「AI 助手管理 -> 导入配置」默认值，兼顾运营灵活性与日常简洁操作' },

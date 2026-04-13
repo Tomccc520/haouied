@@ -40,6 +40,15 @@
                             </a>
                         </div>
                     </div>
+                    <div class="flex leading-9 items-center">
+                        <div class="w-20 flex-none">本版新增</div>
+                        <div class="flex items-center gap-2">
+                            <el-tag type="danger" effect="dark">NEW {{ adminUpdateCount }}</el-tag>
+                            <el-button type="primary" plain size="small" @click="openAdminUpdateLog">
+                                查看更新记录
+                            </el-button>
+                        </div>
+                    </div>
                 </div>
             </el-card>
             <el-card class="!border-none mb-4 flex-1" shadow="never">
@@ -99,6 +108,46 @@
                             <img width="40" height="40" :src="item.image" />
                             <div class="mt-2">{{ item.name }}</div>
                         </router-link>
+                    </div>
+                </div>
+            </el-card>
+        </div>
+        <div class="mb-4">
+            <el-card class="workbench-updates !border-none" shadow="never">
+                <template #header>
+                    <div class="workbench-updates__header">
+                        <div>
+                            <div class="workbench-updates__title">本版更新</div>
+                            <div class="workbench-updates__subtitle">
+                                v{{ adminUpdateVersion }} 重点能力与快捷跳转
+                            </div>
+                        </div>
+                        <el-button type="primary" plain size="small" @click="openAdminUpdateLog">
+                            查看完整更新记录
+                        </el-button>
+                    </div>
+                </template>
+                <div class="workbench-updates__grid">
+                    <div
+                        v-for="item in adminUpdateHighlights"
+                        :key="item.id"
+                        class="workbench-updates__item"
+                    >
+                        <div class="workbench-updates__item-head">
+                            <div class="workbench-updates__item-title-row">
+                                <div class="workbench-updates__item-title">{{ item.title }}</div>
+                                <el-tag type="danger" effect="dark" size="small">NEW</el-tag>
+                            </div>
+                            <div class="workbench-updates__item-group">
+                                {{ getAdminUpdateGroupLabel(item.group) }}
+                            </div>
+                        </div>
+                        <div class="workbench-updates__item-desc">{{ item.description }}</div>
+                        <div class="workbench-updates__item-action">
+                            <el-button type="primary" link @click="jumpToAdminUpdate(item)">
+                                {{ item.actionText || '立即前往' }}
+                            </el-button>
+                        </div>
                     </div>
                 </div>
             </el-card>
@@ -166,10 +215,22 @@ import menu_generator from './image/menu_generator.png'
 import menu_file from './image/menu_file.png'
 import menu_auth from './image/menu_auth.png'
 import menu_web from './image/menu_web.png'
+import {
+    ADMIN_UPDATE_GROUP_LABELS,
+    ADMIN_UPDATE_HIGHLIGHTS,
+    ADMIN_UPDATE_HIGHLIGHT_COUNT,
+    CURRENT_ADMIN_UPDATE_VERSION,
+    type AdminUpdateHighlightItem
+} from '@/config/updateHighlights'
 
 const defaultChannelLinks = {
     docs: 'https://fsuied.com'
 }
+
+const router = useRouter()
+const adminUpdateCount = ADMIN_UPDATE_HIGHLIGHT_COUNT
+const adminUpdateVersion = CURRENT_ADMIN_UPDATE_VERSION
+const adminUpdateHighlights = ADMIN_UPDATE_HIGHLIGHTS.slice(0, 6)
 
 /**
  * 官方支持信息（工作台固定展示）
@@ -188,6 +249,32 @@ const frontendOfficialUrl = (import.meta.env.VITE_FRONTEND_URL || 'http://localh
     /\/$/,
     ''
 )
+
+/**
+ * 打开后台更新记录页：便于从工作台直接查看本版新增能力。
+ */
+const openAdminUpdateLog = () => {
+    router.push('/uied/update-log')
+}
+
+/**
+ * 获取后台更新项分组名称。
+ * @param group 更新项分组标识
+ */
+const getAdminUpdateGroupLabel = (group: AdminUpdateHighlightItem['group']) => {
+    return ADMIN_UPDATE_GROUP_LABELS[group] || '本版更新'
+}
+
+/**
+ * 从工作台直接跳转到指定新增功能页。
+ * @param item 后台更新项
+ */
+const jumpToAdminUpdate = (item: AdminUpdateHighlightItem) => {
+    router.push({
+        path: item.routePath,
+        query: item.routeQuery || {}
+    })
+}
 
 // 工作台展示数据
 const workbenchData: any = reactive({
@@ -336,4 +423,87 @@ const getData = async () => {
 getData()
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.workbench-updates {
+    &__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+
+    &__title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    &__subtitle {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    &__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 14px;
+    }
+
+    &__item {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 172px;
+        padding: 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    &__item-head {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    &__item-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    &__item-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    &__item-group {
+        font-size: 12px;
+        color: var(--el-color-primary);
+    }
+
+    &__item-desc {
+        flex: 1;
+        font-size: 13px;
+        line-height: 1.75;
+        color: #4b5563;
+    }
+
+    &__item-action {
+        display: flex;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .workbench-updates {
+        &__header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+}
+</style>

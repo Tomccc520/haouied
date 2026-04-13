@@ -7,7 +7,15 @@
         <div v-if="!isCollapsed" class="menu-toolbar">
             <div class="menu-toolbar__meta">
                 <span class="menu-toolbar__title">后台导航</span>
-                <span class="menu-toolbar__count">{{ displayMenuCount }} 项</span>
+                <div class="menu-toolbar__meta-actions">
+                    <span class="menu-toolbar__count">{{ displayMenuCount }} 项</span>
+                    <el-button class="menu-toolbar__updates" link type="primary" @click="openUpdateLog">
+                        更新记录
+                        <el-tag class="menu-toolbar__badge" size="small" effect="dark" type="danger">
+                            {{ updateHighlightCount }}
+                        </el-tag>
+                    </el-button>
+                </div>
             </div>
             <el-input
                 v-model.trim="menuKeyword"
@@ -49,6 +57,7 @@ import { getNormalPath } from '@/utils/util'
 import { isExternal } from '@/utils/validate'
 import MenuItem from './menu-item.vue'
 import type { RouteRecordRaw } from 'vue-router'
+import { ADMIN_UPDATE_HIGHLIGHT_COUNT } from '@/config/updateHighlights'
 
 const props = defineProps({
     routes: {
@@ -77,9 +86,11 @@ const props = defineProps({
 defineEmits(['select'])
 
 const route = useRoute()
+const router = useRouter()
 const menuKeyword = ref('')
 const activeMenu = computed<string>(() => route.meta?.activeMenu || route.path)
 const themeClass = computed(() => `theme-${props.theme}`)
+const updateHighlightCount = ADMIN_UPDATE_HIGHLIGHT_COUNT
 
 interface MenuCategoryDefinition {
     key: string
@@ -1009,6 +1020,13 @@ const clearMenuKeyword = () => {
 }
 
 /**
+ * 打开后台更新记录页：用于查看本版新增能力并快速跳转。
+ */
+const openUpdateLog = () => {
+    router.push('/uied/update-log')
+}
+
+/**
  * 顶部菜单数量统计。
  */
 const displayMenuCount = computed(() => countVisibleLeafMenus(displayRoutes.value))
@@ -1048,6 +1066,11 @@ const menuRenderKey = computed(() => {
             justify-content: space-between;
             margin-bottom: 8px;
         }
+        .menu-toolbar__meta-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
         .menu-toolbar__title {
             font-size: 12px;
             font-weight: 600;
@@ -1061,6 +1084,18 @@ const menuRenderKey = computed(() => {
             border-radius: 999px;
             background: var(--admin-sidebar-count-bg);
             color: var(--admin-sidebar-count-color);
+        }
+        .menu-toolbar__updates {
+            height: 20px;
+            padding: 0;
+            font-size: 12px;
+        }
+        .menu-toolbar__badge {
+            margin-left: 6px;
+            border: none;
+            line-height: 1;
+            padding: 3px 6px;
+            background: linear-gradient(135deg, #f97316, #ef4444);
         }
         :deep(.el-input__wrapper) {
             border-radius: var(--admin-sidebar-item-radius);

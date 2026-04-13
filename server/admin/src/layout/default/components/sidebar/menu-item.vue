@@ -8,9 +8,16 @@
                     v-if="routeMeta?.icon"
                     :name="routeMeta?.icon"
                 />
-                <template #title>
-                    <span>{{ displayTitle }}</span>
-                </template>
+                <span class="menu-item-title">{{ displayTitle }}</span>
+                <el-tag
+                    v-if="routeBadgeText"
+                    class="menu-item-badge"
+                    size="small"
+                    effect="dark"
+                    type="danger"
+                >
+                    {{ routeBadgeText }}
+                </el-tag>
             </el-menu-item>
         </app-link>
         <el-sub-menu
@@ -29,7 +36,16 @@
                     v-if="routeMeta?.icon"
                     :name="routeMeta?.icon"
                 />
-                <span>{{ displayTitle }}</span>
+                <span class="menu-item-title">{{ displayTitle }}</span>
+                <el-tag
+                    v-if="routeBadgeText"
+                    class="menu-item-badge"
+                    size="small"
+                    effect="dark"
+                    type="danger"
+                >
+                    {{ routeBadgeText }}
+                </el-tag>
             </template>
             <menu-item
                 v-for="item in visibleChildren"
@@ -48,6 +64,7 @@ import { getNormalPath, objectToQuery } from '@/utils/util'
 import { isExternal } from '@/utils/validate'
 import type { RouteRecordRaw } from 'vue-router'
 import { MenuEnum } from '@/enums/appEnums'
+import { isAdminUpdateRoutePath } from '@/config/updateHighlights'
 interface Props {
     route: RouteRecordRaw
     routePath: string
@@ -186,16 +203,40 @@ const displayTitle = computed(() => {
     return rawTitle
 })
 
-const resolvePath = (path: string) => {
+/**
+ * 解析菜单完整路径：兼容绝对路径、外链与多级子菜单递归场景。
+ * @param path 当前子节点路径
+ * @param basePath 父级完整路径
+ */
+const resolvePath = (path: string, basePath = props.routePath) => {
     if (isExternal(path)) {
         return path
     }
     if (String(path || '').startsWith('/')) {
         return getNormalPath(path)
     }
-    const newPath = getNormalPath(`${props.routePath}/${path}`)
+    const newPath = getNormalPath(`${basePath}/${path}`)
     return newPath
 }
+
+/**
+ * 递归判断当前菜单或其子菜单是否命中本版更新。
+ * @param route 当前菜单节点
+ * @param fullPath 当前菜单完整路径
+ */
+const hasUpdateHighlight = (route: RouteRecordRaw, fullPath: string): boolean => {
+    if (isAdminUpdateRoutePath(fullPath)) return true
+    const children: RouteRecordRaw[] = Array.isArray(route.children) ? route.children : []
+    return children
+        .filter((item) => !item.meta?.hidden)
+        .some((item) => hasUpdateHighlight(item, resolvePath(String(item.path || ''), fullPath)))
+}
+
+/**
+ * 当前菜单 NEW 标签文本：仅命中本版新增能力时展示。
+ */
+const routeBadgeText = computed(() => (hasUpdateHighlight(props.route, props.routePath) ? 'NEW' : ''))
+
 const queryStr = computed<string>(() => {
     const query = props.route.meta?.query as string
     try {
@@ -211,6 +252,22 @@ const queryStr = computed<string>(() => {
 <style lang="scss" scoped>
 .el-menu-item,
 .el-sub-menu__title {
+    .menu-item-title {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .menu-item-badge {
+        margin-left: 8px;
+        border: none;
+        font-size: 10px;
+        line-height: 1;
+        padding: 4px 6px;
+        transform: translateY(-1px);
+        background: linear-gradient(135deg, #f97316, #ef4444);
+    }
     .menu-item-icon {
         margin-right: 10px;
         width: var(--el-menu-icon-width);
@@ -241,5 +298,9 @@ const queryStr = computed<string>(() => {
 :deep(.menu-flyout-popper.el-menu--popup .el-menu-item),
 :deep(.menu-flyout-popper.el-menu--popup .el-sub-menu__title) {
     margin-left: 0;
+}
+
+:deep(.el-menu--collapse .menu-item-badge) {
+    display: none;
 }
 </style>
