@@ -62,7 +62,7 @@ const repoIconMap = {
 const localChangelogData: ChangelogRelease[] = [
   {
     version: '1.1.1',
-    date: '2026-04-13',
+    date: '2026-04-14',
     title: '正式版1.1.1：售卖版交付增强、账号体系补齐与投稿服务重构',
     changes: [
       { type: 'feature', scope: 'fullstack', text: '【第三方登录】新增 QQ 互联网页登录能力：后端 social provider 新增 `qqWeb`，支持 state 签发、授权回调、openid 拉取、账号自动创建与登录态签发，前端登录弹窗支持一键发起 QQ 登录' },
@@ -75,11 +75,16 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'improve', scope: 'frontend', text: '【订单闭环增强】“我的订单”新增手动刷新状态入口，并在列表/详情补充支付渠道展示（支付宝/微信/余额），降低用户支付后核对成本' },
       { type: 'improve', scope: 'frontend', text: '【提交页闭环】提交成功卡片新增“查看我的投放/查看我的订单”快捷入口，用户可从提交结果页直接回流个人中心持续跟进审核与支付进度' },
       { type: 'feature', scope: 'backend', text: '【投稿服务配置】后台“站点设置 -> 投稿服务”补齐正式售卖版配置：新增投稿页开关、Hero 高亮、关闭态文案与跳转、服务流程、提交须知，以及基础收录/置顶推荐/Banner 位价格统一配置' },
+      { type: 'feature', scope: 'fullstack', text: '【投稿模式】基础收录新增“网站收录 / 付费收录”后台模式切换：网站收录模式下基础服务直接提交，付费模式下才创建支付订单；前后端统一按同一套配置判断，避免切模式后仍残留旧支付逻辑' },
       { type: 'feature', scope: 'fullstack', text: '【投稿页重构】前台 `/submit` 重构为正式售卖版页面：头图信息区、价格摘要、服务流程、提交须知、关闭态与支付状态全部接入后台公开配置，基础价格同时驱动页面展示与实际下单金额' },
+      { type: 'improve', scope: 'frontend', text: '【投稿页拆分】前台投稿链路拆分为 `/submit`「网站收录」与 `/submit/services`「收录与增值服务」两条入口：基础收录回归轻量表单，商业曝光、置顶推荐与 Banner 投放独立沉淀到增值服务页' },
+      { type: 'improve', scope: 'frontend', text: '【网站收录页】继续压缩 `/submit` 页面信息层级：顶部去掉双标签与右侧统计面板，只保留主标题、简短说明、表单与精简收录说明，减少活动页感，更贴近正式交付表单页' },
       { type: 'feature', scope: 'fullstack', text: '【热门推荐投放时间】后台“热门推荐管理”新增开始/结束时间配置，列表可直接查看当前投放状态（投放中/未开始/已结束/已隐藏），前台仅展示当前时间窗口内生效的推荐内容，方便按广告周期运营' },
       { type: 'feature', scope: 'fullstack', text: '【头部品牌区】后台“站点信息”新增头部 Logo 展示模式与品牌文案配置：支持“图标 + 文案 / 仅文案 / 仅图标”三种模式，前台 Navbar 同步按配置渲染' },
       { type: 'improve', scope: 'backend', text: '【配置迁移】系统设置 `/setting/system/setting-backup` 文案与菜单统一改名为“配置导入导出”，明确该页面只处理配置快照，不再误导为数据库/文件/源码的全量备份恢复入口' },
       { type: 'feature', scope: 'backend', text: '【后台引导】侧边栏为当前版本重点功能增加 `NEW` 标签，工作台首页新增“本版更新”模块，并补充“后台更新记录”页：可按分组查看本版新增能力并一键跳转到授权中心、升级中心、站点设置、投稿配置、AI 配置等入口' },
+      { type: 'improve', scope: 'backend', text: '【后台新功能定位】`NEW` 标签改为“一级菜单 + 具体功能入口”双层提示，并支持在多 Tab 页面精确标记到具体配置项，避免只知道有新功能却找不到位置' },
+      { type: 'improve', scope: 'backend', text: '【网址图标编辑】网站编辑页图标区域升级为“图标 URL + 素材中心选择 + 自动获取图标”三合一，并增加统一小预览，和缩略图交互保持一致' },
       { type: 'fix', scope: 'backend', text: '【商业授权守卫】后台商业激活拦截范围扩展到 `system/setting/common/monitor/gen/user/article/channel/decorate/uied` 等核心接口，未激活实例仅保留登录态基础信息与授权中心必要能力，真正收口“未激活前后台不可用”链路' },
       { type: 'fix', scope: 'backend', text: '【升级与导入原子性】配置导入导出改为单事务执行，升级中心发起任务增加数据库命名锁，修复“导入半成功”和“重复升级任务并发创建”两类上线风险' },
       { type: 'fix', scope: 'frontend', text: '【资源链路清理】统一图片 URL 归一化逻辑，兼容历史 `localhost/127.0.0.1` 上传资源地址；页脚背景与文章默认封面改为站内内置样式/占位图，不再依赖外部 `img.uied.cn` 资源' },
@@ -279,7 +284,7 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-03-07',
     title: '正式版1.0.2：运营展示增强 + 网址草稿修复 + 后台菜单交互重构',
     changes: [
-      { type: 'feature', scope: 'fullstack', text: '【页脚配置】新增“关于区域”后台配置：footer-about-section 标题、桌面/移动文案、提交网站按钮、更新记录按钮均支持后台编辑并前台实时生效' },
+      { type: 'feature', scope: 'fullstack', text: '【页脚配置】新增“关于区域”后台配置：footer-about-section 标题、桌面/移动文案、网站收录按钮、更新记录按钮均支持后台编辑并前台实时生效' },
       { type: 'fix', scope: 'fullstack', text: '【社交媒体】修复“后台保存后前台页脚无变化”：统一后台分组/项目字段契约（displayType/type），前台 /api/social-media 接口加 no-cache 与可见项过滤' },
       { type: 'improve', scope: 'frontend', text: '【后台交互】重构“前端配置-社交媒体”页面骨架：分组管理/项目管理分栏更清晰，表格新增图标与状态可视化' },
       { type: 'feature', scope: 'frontend', text: '【后台能力】社交媒体编辑支持“图片 URL + 素材中心”双通道：分组图标、项目图标、二维码均可直接输入链接或从素材中心选择' },

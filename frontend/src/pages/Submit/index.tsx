@@ -10,7 +10,7 @@
 
 import React, { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { unwrapApiList, unwrapApiResponse } from '../../utils/apiResponse';
 import { debugLog } from '../../utils/debugHelper';
@@ -23,6 +23,7 @@ const STORAGE_KEY = 'submit_form_draft';
 type ServiceType = 'submission';
 type AddonKey = 'top_recommendation' | 'banner_slot';
 type PayChannel = 'alipay' | 'wechat';
+type SubmissionMode = 'free' | 'paid';
 
 interface Category {
   id: string;
@@ -94,6 +95,7 @@ interface PublicSettingsPayload {
 interface SubmissionServiceItemConfig {
   enabled?: boolean;
   key?: ServiceType | AddonKey;
+  mode?: SubmissionMode;
   label?: string;
   badge?: string;
   description?: string;
@@ -148,6 +150,7 @@ interface SubmissionPublicConfig {
 
 interface SubmitServiceOption {
   key: ServiceType | AddonKey;
+  mode: SubmissionMode;
   enabled: boolean;
   title: string;
   badge: string;
@@ -205,12 +208,18 @@ const DEFAULT_BANNER_POSITION_OPTIONS: BannerPositionOption[] = [
   { value: 'detail_sidebar', label: '详情侧栏（detail_sidebar）' },
 ];
 
+const DEFAULT_FREE_SUBMIT_SERVICE_TEXT = {
+  label: '免费提交收录',
+  description: '提交后进入人工审核、信息完善与正式收录流程，当前站点基础收录免费开放。',
+  ctaText: '免费提交',
+} as const;
+
 const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   enabled: true,
   pageEyebrow: 'Website Submission',
-  pageTitle: '提交网站',
-  pageSubtitle: '提交后进入审核与收录流程，可按需加购置顶推荐与 Banner 运营位。',
-  pageDescription: '基础提交为正式收录服务，运营加购项用于新品发布、首页曝光与短期活动冲刺。',
+  pageTitle: '网站收录',
+  pageSubtitle: '基础收录支持免费或付费模式切换，并可按需加购置顶推荐与 Banner 运营位。',
+  pageDescription: '提交后进入审核与收录流程，基础收录可由后台切换为免费或付费，加购项用于新品发布、首页曝光与短期活动冲刺。',
   heroHighlights: [ '人工审核收录', '支持置顶推荐与 Banner 加购', '个人中心可追踪进度' ],
   containerMaxWidth: 1320,
   pricingTitle: '服务与加购',
@@ -218,14 +227,14 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   processDescription: '从填写资料到支付审核再到正式上线，整条链路都可在后台跟踪。',
   processSteps: [
     { title: '填写资料', description: '提交网址、分类、简介与联系方式。', enabled: true, sort: 10 },
-    { title: '选择服务', description: '基础收录为必选，可按需加购置顶推荐或 Banner 位。', enabled: true, sort: 20 },
-    { title: '支付审核', description: '按后台价格创建订单，支付成功后进入人工审核排期。', enabled: true, sort: 30 },
+    { title: '选择服务', description: '基础收录可由后台配置为免费或付费，可按需加购置顶推荐或 Banner 位。', enabled: true, sort: 20 },
+    { title: '支付审核', description: '若当前为付费模式或勾选收费加购，系统会创建订单；完成后进入人工审核排期。', enabled: true, sort: 30 },
     { title: '正式上线', description: '审核通过后上架展示，并在个人中心可查看记录。', enabled: true, sort: 40 },
   ],
   submitNoticeTitle: '提交须知',
   submitNotices: [
     '请确保提交的网站内容合法、健康，且可正常访问。',
-    '基础提交收录与运营加购统一在本页完成，下单后由后台订单跟踪。',
+    '基础收录与运营加购统一在本页确认；若当前模式为付费，会自动创建订单。',
     'Banner 位和置顶推荐属于附加曝光，不替代审核标准。',
     '提交后如需补充排期，请在联系方式里留下可联络方式。',
   ],
@@ -237,6 +246,7 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   submitService: {
     enabled: true,
     key: 'submission',
+    mode: 'paid',
     label: '付费提交收录',
     badge: '基础服务',
     description: '站点提交后进入审核、补充、收录与站内搜索曝光流程。',
@@ -280,6 +290,57 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
 };
 
 /**
+ * 规范化基础投稿模式，仅允许免费 / 付费两种。
+ */
+const normalizeSubmissionMode = (value: unknown): SubmissionMode => (
+  String(value || '').trim().toLowerCase() === 'free' ? 'free' : 'paid'
+);
+
+/**
+ * 根据投稿模式补齐基础服务默认文案，避免只切模式时仍残留旧的付费默认词。
+ */
+const resolveSubmitServiceDisplayText = (
+  mode: SubmissionMode,
+  rawLabel: string,
+  rawDescription: string,
+  rawCtaText: string,
+): {
+  title: string;
+  description: string;
+  ctaText: string;
+} => {
+  const fallbackLabel = mode === 'free'
+    ? DEFAULT_FREE_SUBMIT_SERVICE_TEXT.label
+    : String(DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.label || '付费提交收录');
+  const fallbackDescription = mode === 'free'
+    ? DEFAULT_FREE_SUBMIT_SERVICE_TEXT.description
+    : String(DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.description || '站点提交后进入审核、补充、收录与站内搜索曝光流程。');
+  const fallbackCtaText = mode === 'free'
+    ? DEFAULT_FREE_SUBMIT_SERVICE_TEXT.ctaText
+    : String(DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.ctaText || '提交并支付');
+  const title = rawLabel
+    ? (mode === 'free' && rawLabel === DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.label
+      ? DEFAULT_FREE_SUBMIT_SERVICE_TEXT.label
+      : rawLabel)
+    : fallbackLabel;
+  const description = rawDescription
+    ? (mode === 'free' && rawDescription === DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.description
+      ? DEFAULT_FREE_SUBMIT_SERVICE_TEXT.description
+      : rawDescription)
+    : fallbackDescription;
+  const ctaText = rawCtaText
+    ? (mode === 'free' && rawCtaText === DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.ctaText
+      ? DEFAULT_FREE_SUBMIT_SERVICE_TEXT.ctaText
+      : rawCtaText)
+    : fallbackCtaText;
+  return {
+    title,
+    description,
+    ctaText,
+  };
+};
+
+/**
  * 规范化投稿公开配置，兼容旧字段并保证前端渲染稳定。
  */
 const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig => {
@@ -311,6 +372,13 @@ const normalizeSubmissionPublicConfig = (value: unknown): SubmissionPublicConfig
     ...(source.submitService && typeof source.submitService === 'object'
       ? source.submitService
       : (source.aiGrowthService && typeof source.aiGrowthService === 'object' ? source.aiGrowthService : {})),
+    mode: normalizeSubmissionMode(
+      source.submitService && typeof source.submitService === 'object'
+        ? source.submitService.mode
+        : (source.aiGrowthService && typeof source.aiGrowthService === 'object'
+          ? source.aiGrowthService.mode
+          : DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.mode)
+    ),
   };
   const topRecommendAddon = {
     ...DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon,
@@ -372,11 +440,15 @@ const formatPrice = (price: number): string => {
 /**
  * 生成订单摘要文案。
  */
-const getAddonPlanLabel = (selectedAddons: AddonKey[], options: SubmitServiceOption[]): string => {
+const getAddonPlanLabel = (
+  selectedAddons: AddonKey[],
+  options: SubmitServiceOption[],
+  baseLabel = '基础收录',
+): string => {
   const labels = options
     .filter((item) => selectedAddons.includes(item.key as AddonKey))
     .map((item) => item.title);
-  return labels.join(' + ') || '基础收录';
+  return labels.join(' + ') || baseLabel;
 };
 
 /**
@@ -718,6 +790,7 @@ const CategorySelect: React.FC<CategorySelectProps> = ({ categories, value, onCh
 
 const SubmitPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const layoutWidthMode = useDetailLayoutWidthMode();
   const [formData, setFormData] = useState<SubmitFormData>({ ...DEFAULT_FORM_DATA });
   const [categories, setCategories] = useState<Category[]>([]);
@@ -748,18 +821,26 @@ const SubmitPage: React.FC = () => {
 
   const submitService = useMemo<SubmitServiceOption>(() => {
     const source = submissionConfig.submitService || {};
+    const mode = normalizeSubmissionMode(source.mode);
+    const displayText = resolveSubmitServiceDisplayText(
+      mode,
+      String(source.label || '').trim(),
+      String(source.description || '').trim(),
+      String(source.ctaText || '').trim(),
+    );
     return {
       key: 'submission',
+      mode,
       enabled: source.enabled !== false,
-      title: String(source.label || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.label),
+      title: displayText.title,
       badge: String(source.badge || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.badge),
-      description: String(source.description || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.description),
+      description: displayText.description,
       highlights: Array.isArray(source.features) && source.features.length > 0
         ? source.features.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 6)
         : DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.features || [],
-      price: Math.max(0, Number(source.price || 0)),
-      originalPrice: Math.max(0, Number(source.originalPrice || 0)),
-      ctaText: String(source.ctaText || DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitService.ctaText),
+      price: mode === 'free' ? 0 : Math.max(0, Number(source.price || 0)),
+      originalPrice: mode === 'free' ? 0 : Math.max(0, Number(source.originalPrice || 0)),
+      ctaText: displayText.ctaText,
     };
   }, [submissionConfig.submitService]);
 
@@ -769,6 +850,7 @@ const SubmitPage: React.FC = () => {
     return [
       {
         key: 'top_recommendation' as AddonKey,
+        mode: 'paid' as SubmissionMode,
         enabled: topAddon.enabled !== false,
         title: String(topAddon.label || DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.label),
         badge: String(topAddon.badge || DEFAULT_SUBMISSION_PUBLIC_CONFIG.topRecommendAddon.badge),
@@ -782,6 +864,7 @@ const SubmitPage: React.FC = () => {
       },
       {
         key: 'banner_slot' as AddonKey,
+        mode: 'paid' as SubmissionMode,
         enabled: bannerAddon.enabled !== false,
         title: String(bannerAddon.label || DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.label),
         badge: String(bannerAddon.badge || DEFAULT_SUBMISSION_PUBLIC_CONFIG.bannerAddon.badge),
@@ -817,6 +900,10 @@ const SubmitPage: React.FC = () => {
     () => addonOptions.filter((item) => formData.selectedAddons.includes(item.key as AddonKey)),
     [addonOptions, formData.selectedAddons],
   );
+  const isFreeSubmitMode = submitService.mode === 'free';
+  const isServiceLanding = location.pathname.startsWith('/submit/services');
+  const useSimpleFreeFlow = !isServiceLanding;
+  const isFreeEntryUnavailable = useSimpleFreeFlow && !isFreeSubmitMode;
 
   const bannerPositionGroups = useMemo<BannerPositionGroup[]>(() => {
     const keyword = bannerPositionKeyword.trim().toLowerCase();
@@ -856,6 +943,117 @@ const SubmitPage: React.FC = () => {
   const isSubmissionClosed = !submissionConfig.enabled || !submitService.enabled;
 
   const shouldRequirePayment = totalPrice > 0;
+  const displayPageTitle = useMemo(() => {
+    const configuredTitle = String(submissionConfig.pageTitle || '').trim();
+    if (!configuredTitle || configuredTitle === '提交网站' || configuredTitle === '网站收录') {
+      return useSimpleFreeFlow ? '网站收录' : '收录与增值服务';
+    }
+    return configuredTitle;
+  }, [submissionConfig.pageTitle, useSimpleFreeFlow]);
+
+  /**
+   * 汇总当前模式下的核心文案与结构标题，统一驱动页面视觉表达。
+   */
+  const submitModePresentation = useMemo(() => {
+    if (useSimpleFreeFlow) {
+      return {
+        heroActionText: isFreeEntryUnavailable ? '查看收录与增值服务' : '进入网站收录',
+        pricingTitle: '网站收录说明',
+        pricingDescription: '网站收录页只保留基础投稿表单，填写网站资料后即可进入审核与收录流程。',
+        processTitle: '网站收录流程',
+        processDescription: '提交基础信息后进入人工审核，通过后将完成分类整理与正式收录。',
+        summaryEyebrow: '网站收录',
+        summaryTitle: '投稿检查',
+        summaryEmptyText: '当前页仅处理网站收录，不包含增值曝光服务。',
+        noticeTitle: '收录提醒',
+        operationSectionTitle: '补充信息（选填）',
+        overviewTitle: '网站收录标准',
+        overviewDescription: '这套模式更像编辑部收稿入口，先看站点质量与完整度，再决定是否正式收录。',
+        overviewItems: [
+          '提交基础资料后进入人工审核，符合定位的网站会完成分类与标签整理。',
+          '通过审核后，会以普通收录形式进入站点内容库。',
+          '如需置顶推荐或 Banner 曝光，请前往“收录与增值服务”页面。',
+        ],
+      };
+    }
+
+    return {
+      heroActionText: '进入投放表单',
+      pricingTitle: '商业投放方案',
+      pricingDescription: '这套模式面向付费投放与运营合作，基础收录作为商业提报入口，再组合置顶与 Banner 提升曝光。',
+      processTitle: '商业投放流程',
+      processDescription: '提交商业资料后统一创建订单，完成支付进入排期与审核，再按投放方案上线。',
+      summaryEyebrow: '商业投放',
+      summaryTitle: '投放预算',
+      summaryEmptyText: '当前仅包含基础商业收录，如需额外曝光可继续勾选置顶推荐或 Banner 位。',
+      noticeTitle: '投放提醒',
+      operationSectionTitle: '投放诉求（选填）',
+      overviewTitle: '商业投放权益',
+      overviewDescription: '这套模式更像运营投放单，强调预算、资源位与上线节奏，适合新品发布和品牌曝光。',
+      overviewItems: [
+        '基础收录会作为商业合作入口，提交后统一生成投放订单并进入处理流程。',
+        '置顶推荐与 Banner 资源位可组合购买，用于首页或频道页的额外曝光。',
+        '支付完成后进入排期与沟通阶段，适合新品上线、活动推广与集中曝光。',
+      ],
+    };
+  }, [isFreeEntryUnavailable, useSimpleFreeFlow]);
+
+  /**
+   * 汇总当前基础收录模式文案，便于在前台不同区域复用。
+   */
+  const submitModeSummary = useMemo(() => {
+    if (useSimpleFreeFlow) {
+      return {
+        title: isFreeEntryUnavailable ? '当前未开启网站收录' : '当前为网站收录页',
+        description: isFreeEntryUnavailable
+          ? '当前站点未开启网站收录入口，请改用“收录与增值服务”页面继续提交。'
+          : '当前无需支付，提交后会直接进入人工审核与基础收录流程。',
+      };
+    }
+    return {
+      title: '当前为收录与增值服务页',
+      description: shouldRequirePayment
+        ? '基础收录与已选加购会统一创建支付订单，完成付款后进入审核流程。'
+        : '当前配置无需支付，可直接提交。',
+    };
+  }, [isFreeEntryUnavailable, shouldRequirePayment, useSimpleFreeFlow]);
+
+  /**
+   * 当后台未自定义标题时，按当前模式输出更贴合的默认标题。
+   */
+  const displaySectionCopy = useMemo(() => ({
+    pricingTitle: submissionConfig.pricingTitle === DEFAULT_SUBMISSION_PUBLIC_CONFIG.pricingTitle
+      ? submitModePresentation.pricingTitle
+      : submissionConfig.pricingTitle,
+    processTitle: submissionConfig.processTitle === DEFAULT_SUBMISSION_PUBLIC_CONFIG.processTitle
+      ? submitModePresentation.processTitle
+      : submissionConfig.processTitle,
+    submitNoticeTitle: submissionConfig.submitNoticeTitle === DEFAULT_SUBMISSION_PUBLIC_CONFIG.submitNoticeTitle
+      ? submitModePresentation.noticeTitle
+      : submissionConfig.submitNoticeTitle,
+    operationSectionTitle: submitModePresentation.operationSectionTitle,
+  }), [submissionConfig.pricingTitle, submissionConfig.processTitle, submissionConfig.submitNoticeTitle, submitModePresentation]);
+  const heroTotalLabel = useMemo(() => {
+    if (isSubmissionClosed) return '当前状态';
+    if (useSimpleFreeFlow) return '网站收录入口';
+    if (shouldRequirePayment) return '当前待支付金额';
+    return '当前服务组合';
+  }, [isSubmissionClosed, shouldRequirePayment, useSimpleFreeFlow]);
+  const heroTotalValue = useMemo(() => {
+    if (isSubmissionClosed) return '暂停开放';
+    if (useSimpleFreeFlow) return isFreeEntryUnavailable ? '未开启' : '已开启';
+    if (shouldRequirePayment) return formatPrice(totalPrice);
+    return formatPrice(totalPrice);
+  }, [isFreeEntryUnavailable, isSubmissionClosed, shouldRequirePayment, totalPrice, useSimpleFreeFlow]);
+  const submitActionText = useMemo(() => {
+    if (useSimpleFreeFlow) return '提交收录申请';
+    if (shouldRequirePayment) {
+      return submitService.mode === 'free'
+        ? '提交并支付'
+        : (submitService.ctaText || '提交并支付');
+    }
+    return submitService.ctaText || (submitService.mode === 'free' ? '免费提交' : '提交并支付');
+  }, [shouldRequirePayment, submitService.ctaText, submitService.mode, useSimpleFreeFlow]);
 
   const paymentChannelOptions = useMemo<PayChannelOption[]>(
     () => [
@@ -879,26 +1077,45 @@ const SubmitPage: React.FC = () => {
     () => paymentChannelOptions.filter((item) => item.enabled),
     [paymentChannelOptions],
   );
-  const heroStats = useMemo(
-    () => [
+  const heroStats = useMemo(() => {
+    if (useSimpleFreeFlow) {
+      return [
+        {
+          label: '提交流程',
+          value: isFreeEntryUnavailable ? '已切换' : '免费',
+          hint: isFreeEntryUnavailable ? '当前免费通道未开放，可前往增值服务页继续提交' : '填写网址与站点信息后即可提交',
+        },
+        {
+          label: '必填重点',
+          value: '网址 + 名称',
+          hint: '补充描述、标签与联系方式越完整，越有利于审核',
+        },
+        {
+          label: '相关服务',
+          value: addonOptions.length > 0 ? `${addonOptions.length} 项` : '另页查看',
+          hint: '置顶推荐与 Banner 曝光已拆分到“收录与增值服务”页',
+        },
+      ];
+    }
+
+    return [
       {
-        label: '基础收录价',
+        label: '基础服务价',
         value: formatPrice(submitService.price),
         hint: submitService.title || '基础服务',
       },
       {
-        label: '可选加购',
+        label: '加购资源',
         value: addonOptions.length > 0 ? `${addonOptions.length} 项` : '未开启',
-        hint: addonOptions.length > 0 ? '置顶推荐 / Banner 位' : '当前仅基础收录',
+        hint: addonOptions.length > 0 ? '置顶推荐 / Banner 位组合投放' : '当前仅基础商业收录',
       },
       {
         label: '支付状态',
         value: shouldRequirePayment ? (submissionConfig.payment.enabled ? '已开启' : '待配置') : '无需支付',
-        hint: submissionConfig.payment.enabled ? '按后台开启渠道展示' : '需到支付中心补齐参数',
+        hint: submissionConfig.payment.enabled ? '完成支付后进入排期与审核' : '需到支付中心补齐参数',
       },
-    ],
-    [addonOptions.length, shouldRequirePayment, submissionConfig.payment.enabled, submitService.price, submitService.title],
-  );
+    ];
+  }, [addonOptions.length, isFreeEntryUnavailable, shouldRequirePayment, submissionConfig.payment.enabled, submitService.price, submitService.title, useSimpleFreeFlow]);
 
   /**
    * 统一提取 API 错误文案，兼容 message/msg/error 三种结构。
@@ -1063,6 +1280,21 @@ const SubmitPage: React.FC = () => {
       };
     });
   }, [addonOptions]);
+
+  /**
+   * 免费模式收口为简版投稿，自动清除草稿里残留的加购项和 Banner 位置。
+   */
+  useEffect(() => {
+    if (!useSimpleFreeFlow) return;
+    setFormData((prev) => {
+      if (prev.selectedAddons.length === 0 && prev.bannerPositions.length === 0) return prev;
+      return {
+        ...prev,
+        selectedAddons: [],
+        bannerPositions: [],
+      };
+    });
+  }, [useSimpleFreeFlow]);
 
   /**
    * 保存草稿，避免用户关闭页面后内容丢失。
@@ -1268,7 +1500,11 @@ const SubmitPage: React.FC = () => {
    * 构建提交/下单所需 payload，统一普通提交和支付订单入参。
    */
   const buildSubmitPayload = useCallback(() => {
-    const addonPlan = getAddonPlanLabel(formData.selectedAddons, addonOptions);
+    const addonPlan = getAddonPlanLabel(
+      formData.selectedAddons,
+      addonOptions,
+      useSimpleFreeFlow ? '网站收录' : '基础收录',
+    );
     return {
       serviceType: 'submission' as const,
       name: formData.name.trim(),
@@ -1281,7 +1517,7 @@ const SubmitPage: React.FC = () => {
       iconUrl: iconUrl || undefined,
       allowDuplicate: allowDuplicateSubmit,
       serviceMeta: {
-        plan: addonPlan || formData.promotionPlan || '基础收录',
+        plan: addonPlan || formData.promotionPlan || (useSimpleFreeFlow ? '网站收录' : '基础收录'),
         budget: formData.promotionBudget.trim(),
         target: formData.promotionTarget.trim(),
         contact: formData.promotionContact.trim(),
@@ -1289,7 +1525,7 @@ const SubmitPage: React.FC = () => {
         bannerPositions: formData.bannerPositions,
       },
     };
-  }, [addonOptions, allowDuplicateSubmit, formData, iconUrl]);
+  }, [addonOptions, allowDuplicateSubmit, formData, iconUrl, useSimpleFreeFlow]);
 
   /**
    * 提交动作：有价格走支付订单，无价格则直接提交。
@@ -1299,6 +1535,10 @@ const SubmitPage: React.FC = () => {
 
     if (isSubmissionClosed) {
       setSubmitResult({ success: false, message: '基础提交服务暂未开放' });
+      return;
+    }
+    if (isFreeEntryUnavailable) {
+      setSubmitResult({ success: false, message: '当前未开启网站收录，请前往“收录与增值服务”页面继续。' });
       return;
     }
     if (!formData.name.trim() || !formData.url.trim()) {
@@ -1412,21 +1652,32 @@ const SubmitPage: React.FC = () => {
   };
 
   return (
-    <div className={`submit-page submit-page--layout-${layoutWidthMode}`}>
+    <div className={`submit-page submit-page--layout-${layoutWidthMode} submit-page--mode-${useSimpleFreeFlow ? 'free' : 'paid'}`}>
       <SEO
-        title={submissionConfig.pageTitle || '提交网站'}
-        description={submissionConfig.pageDescription || '向UIED设计导航提交优质设计工具和资源网站。'}
-        keywords="提交网站,产品投稿,置顶推荐,Banner推广"
+        title={useSimpleFreeFlow
+          ? displayPageTitle
+          : `收录与增值服务 - ${displayPageTitle}`}
+        description={useSimpleFreeFlow
+          ? '向UIED设计导航提交优质网站，完善站点资料后进入人工审核与基础收录流程。'
+          : (submissionConfig.pageDescription || '收录与增值服务，支持置顶推荐、Banner 推广与商业投放。')}
+        keywords={useSimpleFreeFlow ? '网站收录,网站投稿,网址提交' : '网站收录,商业投放,置顶推荐,Banner推广'}
       />
 
-      <div className="submit-page__hero" style={layoutStyle}>
+      <div className={`submit-page__hero ${useSimpleFreeFlow ? 'submit-page__hero--simple' : 'submit-page__hero--detail'}`} style={layoutStyle}>
         <div className="submit-page__hero-main">
-          <p className="submit-page__kicker">{submissionConfig.pageEyebrow || 'Website Submission'}</p>
-          <h1>{submissionConfig.pageTitle || '提交网站'}</h1>
+          {!useSimpleFreeFlow ? (
+            <div className="submit-page__kicker-row">
+              <p className="submit-page__kicker">{submissionConfig.pageEyebrow || 'Website Submission'}</p>
+              <span className="submit-page__mode-badge">
+                收录与增值服务
+              </span>
+            </div>
+          ) : null}
+          <h1>{displayPageTitle}</h1>
           <p className="submit-page__hero-desc">
             {submissionConfig.pageSubtitle || submissionConfig.pageDescription}
           </p>
-          {heroHighlights.length > 0 ? (
+          {!useSimpleFreeFlow && heroHighlights.length > 0 ? (
             <div className="submit-page__hero-tags">
               {heroHighlights.map((item) => (
                 <span key={item}>{item}</span>
@@ -1443,40 +1694,57 @@ const SubmitPage: React.FC = () => {
               >
                 {submissionConfig.closedButtonText || '返回首页'}
               </a>
+            ) : useSimpleFreeFlow ? (
+              <>
+                <a className="submit-page__hero-primary" href={isFreeEntryUnavailable ? '/submit/services' : '#submit-form'}>
+                  {submitModePresentation.heroActionText}
+                </a>
+                <Link className="submit-page__back-link" to={isFreeEntryUnavailable ? '/' : '/submit/services'}>
+                  {isFreeEntryUnavailable ? '返回首页' : '收录与增值服务'}
+                </Link>
+              </>
             ) : (
-              <a className="submit-page__hero-primary" href="#submit-form">
-                开始填写
-              </a>
+              <>
+                <a className="submit-page__hero-primary" href="#submit-form">
+                  {submitModePresentation.heroActionText}
+                </a>
+                <Link className="submit-page__back-link" to="/submit">
+                  网站收录
+                </Link>
+              </>
             )}
-            <Link className="submit-page__back-link" to="/">
-              返回首页
-            </Link>
           </div>
         </div>
 
-        <div className="submit-page__hero-panel">
-          <div className="submit-page__hero-total">
-            <span className="submit-page__hero-total-label">{isSubmissionClosed ? '当前状态' : '当前组合价格'}</span>
-            <strong>{isSubmissionClosed ? '暂停开放' : formatPrice(totalPrice)}</strong>
-            <p>
-              {isSubmissionClosed
-                ? (submissionConfig.closedDescription || '当前暂不接受新的提交申请。')
-                : getAddonPlanLabel(formData.selectedAddons, addonOptions)}
-            </p>
+        {!useSimpleFreeFlow ? (
+          <div className="submit-page__hero-panel">
+            <div className="submit-page__hero-total">
+              <span className="submit-page__hero-total-label">{heroTotalLabel}</span>
+              <strong>{heroTotalValue}</strong>
+              <p>
+                {isSubmissionClosed
+                  ? (submissionConfig.closedDescription || '当前暂不接受新的提交申请。')
+                  : getAddonPlanLabel(
+                    formData.selectedAddons,
+                    addonOptions,
+                    useSimpleFreeFlow ? '免费提交' : '收录服务',
+                  )}
+              </p>
+            </div>
+            <div className="submit-page__hero-stats">
+              {heroStats.map((item) => (
+                <div key={item.label} className="submit-page__stat">
+                  <span className="submit-page__stat-label">{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <p>{item.hint}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="submit-page__hero-stats">
-            {heroStats.map((item) => (
-              <div key={item.label} className="submit-page__stat">
-                <span className="submit-page__stat-label">{item.label}</span>
-                <strong>{item.value}</strong>
-                <p>{item.hint}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        ) : null}
       </div>
 
-      <div className="submit-page__shell" style={layoutStyle}>
+      <div className={`submit-page__shell ${useSimpleFreeFlow ? 'submit-page__shell--simple' : ''}`} style={layoutStyle}>
         {configLoading ? (
           <div className="submit-page__state">正在加载投稿配置...</div>
         ) : isSubmissionClosed ? (
@@ -1496,11 +1764,44 @@ const SubmitPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="submit-page__main">
+            <div className={`submit-page__main ${useSimpleFreeFlow ? 'submit-page__main--simple' : ''}`}>
+              {isFreeEntryUnavailable ? (
+                <div className="submit-page__state submit-page__state--service-link">
+                  <strong>{submitModeSummary.title}</strong>
+                  <p>{submitModeSummary.description}</p>
+                  <div className="submit-page__state-actions">
+                    <Link className="btn-primary" to="/submit/services">
+                      <Icons.Megaphone />
+                      <span>前往收录与增值服务</span>
+                    </Link>
+                    <Link className="btn-secondary" to="/">
+                      <Icons.Home />
+                      <span>返回首页</span>
+                    </Link>
+                  </div>
+                </div>
+              ) : !useSimpleFreeFlow ? (
+                <section className={`submit-mode-overview submit-mode-overview--${submitService.mode}`}>
+                  <div className="submit-block-header">
+                    <h2>{submitModePresentation.overviewTitle}</h2>
+                    <p>{submitModePresentation.overviewDescription}</p>
+                  </div>
+                  <div className="submit-mode-overview__grid">
+                    {submitModePresentation.overviewItems.map((item, index) => (
+                      <article key={`${item}-${index}`} className="submit-mode-overview__item">
+                        <span className="submit-mode-overview__index">{String(index + 1).padStart(2, '0')}</span>
+                        <p>{item}</p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {!useSimpleFreeFlow ? (
               <section className="submit-service-card">
                 <div className="submit-block-header">
-                  <h2>{submissionConfig.pricingTitle || '服务与加购'}</h2>
-                  <p>{submissionConfig.pageDescription || '基础服务为正式收录入口，置顶推荐和 Banner 位作为附加曝光能力单独加购。'}</p>
+                  <h2>{displaySectionCopy.pricingTitle}</h2>
+                  <p>{submitModePresentation.pricingDescription}</p>
                 </div>
 
                 <article className="submit-service-card__base">
@@ -1509,11 +1810,17 @@ const SubmitPage: React.FC = () => {
                       <Icons.Submit />
                     </span>
                     <div>
-                      <div className="submit-service-card__eyebrow">{submitService.badge || '基础服务'}</div>
+                      <div className="submit-service-card__eyebrow">
+                        {submitService.badge || '基础服务'} · 收录与增值服务
+                      </div>
                       <h3>{submitService.title}</h3>
                     </div>
                   </div>
                   <p className="submit-service-card__desc">{submitService.description}</p>
+                  <div className={`submit-service-card__mode-note ${isFreeSubmitMode ? 'is-free' : 'is-paid'}`}>
+                    <strong>{submitModeSummary.title}</strong>
+                    <p>{submitModeSummary.description}</p>
+                  </div>
                   <div className="submit-service-card__price">
                     <strong>{formatPrice(submitService.price)}</strong>
                     {submitService.originalPrice > submitService.price ? (
@@ -1527,7 +1834,7 @@ const SubmitPage: React.FC = () => {
                   </ul>
                 </article>
 
-                {addonOptions.length > 0 ? (
+                {!useSimpleFreeFlow && addonOptions.length > 0 ? (
                   <div className="submit-addon-grid">
                     {addonOptions.map((addon) => {
                       const active = formData.selectedAddons.includes(addon.key as AddonKey);
@@ -1568,12 +1875,13 @@ const SubmitPage: React.FC = () => {
                   </div>
                 ) : null}
               </section>
+              ) : null}
 
-              {processSteps.length > 0 ? (
+              {!useSimpleFreeFlow && processSteps.length > 0 ? (
                 <section className="submit-process">
                   <div className="submit-block-header">
-                    <h2>{submissionConfig.processTitle || '服务流程'}</h2>
-                    <p>{submissionConfig.processDescription}</p>
+                    <h2>{displaySectionCopy.processTitle}</h2>
+                    <p>{submissionConfig.processDescription || submitModePresentation.processDescription}</p>
                   </div>
                   <div className="submit-process__grid">
                     {processSteps.map((item, index) => (
@@ -1589,7 +1897,7 @@ const SubmitPage: React.FC = () => {
                 </section>
               ) : null}
 
-              {submitResult ? (
+              {!isFreeEntryUnavailable ? (submitResult ? (
                 <div className={`submit-result-card ${submitResult.success ? 'success' : 'error'}`}>
                   <div className="result-icon">
                     {submitResult.success ? <Icons.Success /> : <Icons.Error />}
@@ -1795,157 +2103,212 @@ const SubmitPage: React.FC = () => {
                   <div className="form-section">
                     <div className="section-title">
                       <span className="step-number">3</span>
-                      <h3>运营需求（选填）</h3>
+                      <h3>{displaySectionCopy.operationSectionTitle}</h3>
                     </div>
 
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label htmlFor="promotionPlan">投放方向</label>
-                        <select
-                          id="promotionPlan"
-                          name="promotionPlan"
-                          value={formData.promotionPlan}
-                          onChange={handleChange}
-                        >
-                          <option value="standard">标准收录</option>
-                          <option value="launch">新品上线</option>
-                          <option value="campaign">活动推广</option>
-                          <option value="custom">定制沟通</option>
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label htmlFor="promotionBudget">预算说明</label>
-                        <input
-                          type="text"
-                          id="promotionBudget"
-                          name="promotionBudget"
-                          value={formData.promotionBudget}
-                          onChange={handleChange}
-                          placeholder="例如：2k-5k / 本期"
-                        />
-                      </div>
-                    </div>
-
-                    {formData.selectedAddons.includes('banner_slot') ? (
-                      <div className="form-group">
-                        <label>
-                          Banner 投放位置 <span className="required">*</span>
-                        </label>
-                        <div className="banner-position-toolbar">
-                          <div className="banner-position-search">
-                            <Icons.Search />
+                    {useSimpleFreeFlow ? (
+                      <>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label htmlFor="submitterName">您的称呼</label>
                             <input
                               type="text"
-                              value={bannerPositionKeyword}
-                              onChange={(event) => setBannerPositionKeyword(event.target.value)}
-                              placeholder="搜索投放位置..."
+                              id="submitterName"
+                              name="submitterName"
+                              value={formData.submitterName}
+                              onChange={handleChange}
+                              placeholder="可选"
                             />
-                            {bannerPositionKeyword ? (
-                              <button
-                                type="button"
-                                className="banner-position-search__clear"
-                                onClick={() => setBannerPositionKeyword('')}
-                              >
-                                <Icons.X />
-                              </button>
-                            ) : null}
                           </div>
-                          <div className="banner-position-actions">
-                            <button type="button" className="btn-text" onClick={handleSelectAllDetailBannerPositions}>
-                              选中全部详情位
-                            </button>
-                            <button type="button" className="btn-text danger" onClick={handleClearBannerPositions}>
-                              清空已选
-                            </button>
+                          <div className="form-group">
+                            <label htmlFor="submitterEmail">您的邮箱</label>
+                            <input
+                              type="email"
+                              id="submitterEmail"
+                              name="submitterEmail"
+                              value={formData.submitterEmail}
+                              onChange={handleChange}
+                              placeholder="可选，方便同步审核结果"
+                            />
                           </div>
                         </div>
-                        <div className="banner-position-picker">
-                          {bannerPositionGroups.length > 0 ? (
-                            bannerPositionGroups.map((group) => (
-                              <section key={group.key} className="banner-position-group">
-                                <div className="banner-position-group__title">{group.title}</div>
-                                <div className="banner-position-group__chips">
-                                  {group.items.map((item) => {
-                                    const active = formData.bannerPositions.includes(item.value);
-                                    return (
-                                      <button
-                                        key={item.value}
-                                        type="button"
-                                        className={`banner-position-chip ${active ? 'is-active' : ''}`}
-                                        onClick={() => handleBannerPositionToggle(item.value)}
-                                      >
-                                        {item.label}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </section>
-                            ))
-                          ) : (
-                            <div className="banner-position-empty">没有匹配的位置，请修改关键词。</div>
-                          )}
+
+                        <div className="form-group">
+                          <label htmlFor="promotionContact">联系方式</label>
+                          <input
+                            type="text"
+                            id="promotionContact"
+                            name="promotionContact"
+                            value={formData.promotionContact}
+                            onChange={handleChange}
+                            placeholder="微信 / 手机 / 邮箱，可选"
+                          />
                         </div>
-                        {bannerPositionLoading ? (
-                          <p className="form-hint checking">
-                            <span className="checking-dot" />
-                            正在同步广告位配置...
-                          </p>
-                        ) : (
-                          <p className="form-hint">位置来源于后台广告管理，可多选。</p>
-                        )}
-                      </div>
-                    ) : null}
 
-                    <div className="form-group">
-                      <label htmlFor="promotionTarget">运营备注</label>
-                      <textarea
-                        id="promotionTarget"
-                        name="promotionTarget"
-                        value={formData.promotionTarget}
-                        onChange={handleChange}
-                        placeholder="如：希望投放首页 Banner、分类频道、活动时间等"
-                        rows={3}
-                      />
-                    </div>
+                        <div className="form-group">
+                          <label htmlFor="promotionTarget">补充说明</label>
+                          <textarea
+                            id="promotionTarget"
+                            name="promotionTarget"
+                            value={formData.promotionTarget}
+                            onChange={handleChange}
+                            placeholder="可选，填写站点特色、补充信息或收录说明"
+                            rows={3}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label htmlFor="promotionPlan">投放方向</label>
+                            <select
+                              id="promotionPlan"
+                              name="promotionPlan"
+                              value={formData.promotionPlan}
+                              onChange={handleChange}
+                            >
+                              <option value="standard">标准收录</option>
+                              <option value="launch">新品上线</option>
+                              <option value="campaign">活动推广</option>
+                              <option value="custom">定制沟通</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label htmlFor="promotionBudget">预算说明</label>
+                            <input
+                              type="text"
+                              id="promotionBudget"
+                              name="promotionBudget"
+                              value={formData.promotionBudget}
+                              onChange={handleChange}
+                              placeholder="例如：2k-5k / 本期"
+                            />
+                          </div>
+                        </div>
 
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label htmlFor="submitterName">您的称呼</label>
-                        <input
-                          type="text"
-                          id="submitterName"
-                          name="submitterName"
-                          value={formData.submitterName}
-                          onChange={handleChange}
-                          placeholder="可选"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label htmlFor="submitterEmail">您的邮箱</label>
-                        <input
-                          type="email"
-                          id="submitterEmail"
-                          name="submitterEmail"
-                          value={formData.submitterEmail}
-                          onChange={handleChange}
-                          placeholder="可选，方便同步审核结果"
-                        />
-                      </div>
-                    </div>
+                        {formData.selectedAddons.includes('banner_slot') ? (
+                          <div className="form-group">
+                            <label>
+                              Banner 投放位置 <span className="required">*</span>
+                            </label>
+                            <div className="banner-position-toolbar">
+                              <div className="banner-position-search">
+                                <Icons.Search />
+                                <input
+                                  type="text"
+                                  value={bannerPositionKeyword}
+                                  onChange={(event) => setBannerPositionKeyword(event.target.value)}
+                                  placeholder="搜索投放位置..."
+                                />
+                                {bannerPositionKeyword ? (
+                                  <button
+                                    type="button"
+                                    className="banner-position-search__clear"
+                                    onClick={() => setBannerPositionKeyword('')}
+                                  >
+                                    <Icons.X />
+                                  </button>
+                                ) : null}
+                              </div>
+                              <div className="banner-position-actions">
+                                <button type="button" className="btn-text" onClick={handleSelectAllDetailBannerPositions}>
+                                  选中全部详情位
+                                </button>
+                                <button type="button" className="btn-text danger" onClick={handleClearBannerPositions}>
+                                  清空已选
+                                </button>
+                              </div>
+                            </div>
+                            <div className="banner-position-picker">
+                              {bannerPositionGroups.length > 0 ? (
+                                bannerPositionGroups.map((group) => (
+                                  <section key={group.key} className="banner-position-group">
+                                    <div className="banner-position-group__title">{group.title}</div>
+                                    <div className="banner-position-group__chips">
+                                      {group.items.map((item) => {
+                                        const active = formData.bannerPositions.includes(item.value);
+                                        return (
+                                          <button
+                                            key={item.value}
+                                            type="button"
+                                            className={`banner-position-chip ${active ? 'is-active' : ''}`}
+                                            onClick={() => handleBannerPositionToggle(item.value)}
+                                          >
+                                            {item.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </section>
+                                ))
+                              ) : (
+                                <div className="banner-position-empty">没有匹配的位置，请修改关键词。</div>
+                              )}
+                            </div>
+                            {bannerPositionLoading ? (
+                              <p className="form-hint checking">
+                                <span className="checking-dot" />
+                                正在同步广告位配置...
+                              </p>
+                            ) : (
+                              <p className="form-hint">位置来源于后台广告管理，可多选。</p>
+                            )}
+                          </div>
+                        ) : null}
 
-                    <div className="form-group">
-                      <label htmlFor="promotionContact">
-                        联系方式{formData.selectedAddons.length > 0 ? <span className="required">*</span> : null}
-                      </label>
-                      <input
-                        type="text"
-                        id="promotionContact"
-                        name="promotionContact"
-                        value={formData.promotionContact}
-                        onChange={handleChange}
-                        placeholder="微信 / 手机 / 邮箱"
-                      />
-                    </div>
+                        <div className="form-group">
+                          <label htmlFor="promotionTarget">运营备注</label>
+                          <textarea
+                            id="promotionTarget"
+                            name="promotionTarget"
+                            value={formData.promotionTarget}
+                            onChange={handleChange}
+                            placeholder="如：希望投放首页 Banner、分类频道、活动时间等"
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label htmlFor="submitterName">您的称呼</label>
+                            <input
+                              type="text"
+                              id="submitterName"
+                              name="submitterName"
+                              value={formData.submitterName}
+                              onChange={handleChange}
+                              placeholder="可选"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label htmlFor="submitterEmail">您的邮箱</label>
+                            <input
+                              type="email"
+                              id="submitterEmail"
+                              name="submitterEmail"
+                              value={formData.submitterEmail}
+                              onChange={handleChange}
+                              placeholder="可选，方便同步审核结果"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label htmlFor="promotionContact">
+                            联系方式{formData.selectedAddons.length > 0 ? <span className="required">*</span> : null}
+                          </label>
+                          <input
+                            type="text"
+                            id="promotionContact"
+                            name="promotionContact"
+                            value={formData.promotionContact}
+                            onChange={handleChange}
+                            placeholder="微信 / 手机 / 邮箱"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="form-actions">
@@ -1963,15 +2326,15 @@ const SubmitPage: React.FC = () => {
                       ) : (
                         <>
                           <Icons.Rocket />
-                          <span>{submitService.ctaText || '提交并支付'}</span>
+                          <span>{submitActionText}</span>
                         </>
                       )}
                     </button>
                   </div>
                 </form>
-              )}
+              )) : null}
 
-              {faqItems.length > 0 ? (
+              {!isFreeEntryUnavailable && !useSimpleFreeFlow && faqItems.length > 0 ? (
                 <section className="submit-faq">
                   <div className="submit-block-header">
                     <h2>{submissionConfig.faqTitle || '常见问题'}</h2>
@@ -1986,97 +2349,113 @@ const SubmitPage: React.FC = () => {
                   </div>
                 </section>
               ) : null}
-            </div>
 
-            <aside className="submit-page__aside">
-              <section className="submit-summary">
-                <div className="submit-summary__head">
-                  <span className="submit-summary__eyebrow">订单摘要</span>
-                  <h3>本次提交</h3>
-                </div>
-
-                <div className="submit-summary__line">
-                  <span>{submitService.title}</span>
-                  <strong>{formatPrice(submitService.price)}</strong>
-                </div>
-
-                {selectedAddonOptions.map((item) => (
-                  <div key={item.key} className="submit-summary__line is-addon">
-                    <span>{item.title}</span>
-                    <strong>{formatPrice(item.price)}</strong>
+              {!isFreeEntryUnavailable && useSimpleFreeFlow && submitNotices.length > 0 ? (
+                <section className="submit-compact-notes">
+                  <div className="submit-compact-notes__head">
+                    <h2>{displaySectionCopy.submitNoticeTitle || '网站收录说明'}</h2>
+                    <Link to="/submit/services">如需加急曝光，前往收录与增值服务</Link>
                   </div>
-                ))}
-
-                {formData.bannerPositions.length > 0 ? (
-                  <div className="submit-summary__line submit-summary__line--stack">
-                    <span>Banner 投放位</span>
-                    <div className="submit-summary__chips">
-                      {formData.bannerPositions.map((position) => (
-                        <span key={position}>{getBannerPositionLabel(position)}</span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedAddonOptions.length === 0 ? (
-                  <div className="submit-summary__empty">未选择运营加购，当前仅提交基础收录。</div>
-                ) : null}
-
-                <div className="submit-summary__total">
-                  <span>合计</span>
-                  <strong>{formatPrice(totalPrice)}</strong>
-                </div>
-
-                {shouldRequirePayment ? (
-                  <div className="submit-summary__payment">
-                    <div className="submit-summary__payment-title">支付方式</div>
-                    <div className="pay-channel-group">
-                      {paymentChannelOptions.map((channel) => (
-                        <label
-                          key={channel.value}
-                          className={`pay-channel-item pay-channel-item--${channel.value} ${payChannel === channel.value ? 'is-active' : ''} ${channel.enabled ? '' : 'is-disabled'}`}
-                        >
-                          <input
-                            type="radio"
-                            name="payChannel"
-                            value={channel.value}
-                            checked={payChannel === channel.value}
-                            disabled={!channel.enabled}
-                            onChange={() => setPayChannel(channel.value)}
-                          />
-                          <span className={`pay-channel-item__logo pay-channel-item__logo--${channel.value}`}>
-                            {channel.value === 'alipay' ? <Icons.Alipay /> : <Icons.WechatPay />}
-                          </span>
-                          <span className="pay-channel-item__meta">
-                            <span className="pay-channel-item__name">{channel.label}</span>
-                            <span className="pay-channel-item__desc">{channel.desc}</span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    {!submissionConfig.payment.enabled ? (
-                      <p className="form-hint">支付功能尚未开放，请联系管理员。</p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="submit-summary__free">当前配置无需支付，可直接提交。</div>
-                )}
-              </section>
-
-              {submitNotices.length > 0 ? (
-                <section className="submit-tips">
-                  <div className="tips-header">
-                    <Icons.Info />
-                    <h4>{submissionConfig.submitNoticeTitle || '提交须知'}</h4>
-                  </div>
-                  <ul>
+                  <ul className="submit-compact-notes__list">
                     {submitNotices.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
                 </section>
               ) : null}
-            </aside>
+            </div>
+
+            {!useSimpleFreeFlow ? (
+              <aside className="submit-page__aside">
+                <section className="submit-summary">
+                  <div className="submit-summary__head">
+                    <span className="submit-summary__eyebrow">{submitModePresentation.summaryEyebrow}</span>
+                    <h3>{submitModePresentation.summaryTitle}</h3>
+                  </div>
+
+                  <div className="submit-summary__line">
+                    <span>{submitService.title}</span>
+                    <strong>{formatPrice(submitService.price)}</strong>
+                  </div>
+
+                  {selectedAddonOptions.map((item) => (
+                    <div key={item.key} className="submit-summary__line is-addon">
+                      <span>{item.title}</span>
+                      <strong>{formatPrice(item.price)}</strong>
+                    </div>
+                  ))}
+
+                  {formData.bannerPositions.length > 0 ? (
+                    <div className="submit-summary__line submit-summary__line--stack">
+                      <span>Banner 投放位</span>
+                      <div className="submit-summary__chips">
+                        {formData.bannerPositions.map((position) => (
+                          <span key={position}>{getBannerPositionLabel(position)}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedAddonOptions.length === 0 ? (
+                    <div className="submit-summary__empty">{submitModePresentation.summaryEmptyText}</div>
+                  ) : null}
+
+                  <div className="submit-summary__total">
+                    <span>合计</span>
+                    <strong>{formatPrice(totalPrice)}</strong>
+                  </div>
+
+                  {shouldRequirePayment ? (
+                    <div className="submit-summary__payment">
+                      <div className="submit-summary__mode-tip">{submitModeSummary.description}</div>
+                      <div className="submit-summary__payment-title">支付方式</div>
+                      <div className="pay-channel-group">
+                        {paymentChannelOptions.map((channel) => (
+                          <label
+                            key={channel.value}
+                            className={`pay-channel-item pay-channel-item--${channel.value} ${payChannel === channel.value ? 'is-active' : ''} ${channel.enabled ? '' : 'is-disabled'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="payChannel"
+                              value={channel.value}
+                              checked={payChannel === channel.value}
+                              disabled={!channel.enabled}
+                              onChange={() => setPayChannel(channel.value)}
+                            />
+                            <span className={`pay-channel-item__logo pay-channel-item__logo--${channel.value}`}>
+                              {channel.value === 'alipay' ? <Icons.Alipay /> : <Icons.WechatPay />}
+                            </span>
+                            <span className="pay-channel-item__meta">
+                              <span className="pay-channel-item__name">{channel.label}</span>
+                              <span className="pay-channel-item__desc">{channel.desc}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      {!submissionConfig.payment.enabled ? (
+                        <p className="form-hint">支付功能尚未开放，请联系管理员。</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="submit-summary__free">{submitModeSummary.description}</div>
+                  )}
+                </section>
+                {submitNotices.length > 0 ? (
+                  <section className="submit-tips">
+                    <div className="tips-header">
+                      <Icons.Info />
+                      <h4>{displaySectionCopy.submitNoticeTitle}</h4>
+                    </div>
+                    <ul>
+                      {submitNotices.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </aside>
+            ) : null}
           </>
         )}
       </div>

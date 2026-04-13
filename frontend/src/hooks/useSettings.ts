@@ -88,7 +88,7 @@ export const useFooterAboutConfig = () => {
     aboutDescription: 'UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。',
     mobileDescription: 'UIED设计导航汇集优质设计工具与资源，为设计师提供一站式工具导航服务',
     showSubmitButton: true,
-    submitButtonText: '提交网站',
+    submitButtonText: '网站收录',
     submitButtonUrl: '/submit',
     submitButtonNewWindow: true,
     showChangelogButton: true,

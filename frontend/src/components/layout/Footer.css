@@ -113,7 +113,7 @@
   margin-bottom: var(--spacing-4) !important;
 }
 
-/* 提交网站和关注交流放在一行 */
+/* 网站收录、增值服务和关注交流放在同一操作区 */
 .footer-actions {
   display: flex;
   align-items: center;
@@ -692,7 +692,7 @@
   }
 }
 
-/* 提交网站按钮 */
+/* 网站收录按钮 */
 .submit-website-btn {
   display: inline-flex;
   align-items: center;
@@ -756,7 +756,7 @@
   flex-shrink: 0;
 }
 
-/* 提交网站按钮 - 主要按钮 */
+/* 网站收录按钮 - 主要按钮 */
 .footer-submit-btn {
   background: var(--primary-color, #0066ff);
   color: #fff;
@@ -767,6 +767,19 @@
   background: var(--primary-dark, #0052cc);
   border-color: var(--primary-dark, #0052cc);
   color: #fff;
+}
+
+/* 收录与增值服务按钮 - 中性强调按钮 */
+.footer-service-btn {
+  background: rgba(239, 246, 255, 0.92);
+  color: var(--primary-color, #0066ff);
+  border-color: rgba(37, 99, 235, 0.16);
+}
+
+.footer-service-btn:hover {
+  background: rgba(219, 234, 254, 0.92);
+  color: var(--primary-dark, #0052cc);
+  border-color: rgba(37, 99, 235, 0.28);
 }
 
 /* 更新记录按钮 - 次要按钮 */

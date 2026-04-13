@@ -71,7 +71,7 @@ export const ADMIN_UPDATE_HIGHLIGHTS: AdminUpdateHighlightItem[] = [
         version: CURRENT_ADMIN_UPDATE_VERSION,
         group: 'operation',
         title: '投稿服务配置',
-        description: '支持提交服务开关、价格、关闭态文案与流程说明统一后台配置。',
+        description: '支持基础收录免费 / 付费模式切换，并统一配置价格、关闭态文案与流程说明。',
         routePath: '/system-setting/base-config/setting',
         routeQuery: {
             tab: 'submissionService'

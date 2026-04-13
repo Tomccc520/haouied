@@ -235,19 +235,24 @@ const hasRouteUpdateHighlight = computed(() => hasUpdateHighlight(props.route, p
 
 /**
  * 当前菜单标签模式：
- * - 父级目录仅显示轻量圆点
- * - 叶子菜单显示精简“新”标签
+ * - 一级菜单显示轻量“新”标签，便于快速感知本版变化入口
+ * - 中间目录仅显示轻量圆点，避免层层重复占位
+ * - 叶子菜单显示精简“新”标签，定位到具体功能入口
  */
 const routeBadgeMode = computed(() => {
     if (!hasRouteUpdateHighlight.value) return 'none'
+    if (menuDepth.value === 1) return 'top'
     return hasShowChild.value ? 'dot' : 'pill'
 })
 
 /**
- * 当前菜单标签文案：仅叶子入口显示，避免侧边栏过度占位。
+ * 当前菜单标签文案：
+ * - 一级菜单与叶子入口显示“新”
+ * - 中间目录仅保留圆点提示
  */
 const routeBadgeText = computed(() => {
     if (!hasRouteUpdateHighlight.value) return ''
+    if (menuDepth.value === 1) return '新'
     return hasShowChild.value ? '' : '新'
 })
 
@@ -280,6 +285,19 @@ const queryStr = computed<string>(() => {
         align-items: center;
         justify-content: center;
         transform: translateY(-1px);
+        &--top {
+            min-width: 20px;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            line-height: 1;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: #2563eb;
+            background: rgba(239, 246, 255, 0.92);
+            border: 1px solid rgba(37, 99, 235, 0.14);
+        }
         &--pill {
             min-width: 18px;
             height: 18px;

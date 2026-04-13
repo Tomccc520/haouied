@@ -153,6 +153,7 @@ const MainRouteTree: React.FC = () => {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/profile/:tab" element={<ProfilePage />} />
             <Route path="/submit" element={<SubmitPage />} />
+            <Route path="/submit/services" element={<SubmitPage />} />
             <Route path="/changelog" element={<ChangelogPage />} />
             {/* 内容中心旧路由兼容：统一汇聚到 /p/hot 单页内切换 */}
             <Route path="/p/daily-hot" element={<LegacyContentHubRedirect tab="daily-hot" />} />

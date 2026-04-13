@@ -38,9 +38,18 @@
             </div>
             <el-tabs v-model="activeTab" tab-position="left" class="setting-tabs">
                 <!-- ==================== 站点信息 ==================== -->
-                <el-tab-pane label="站点信息" name="siteInfo">
+                <el-tab-pane name="siteInfo">
+                    <template #label>
+                        <span class="setting-tab-label">
+                            <span>站点信息</span>
+                            <span v-if="isUpdatedSettingTab('siteInfo')" class="setting-tab-label__badge">新</span>
+                        </span>
+                    </template>
                     <div class="setting-header">
-                        <h2 class="setting-title">站点信息</h2>
+                        <div class="setting-title-row">
+                            <h2 class="setting-title">站点信息</h2>
+                            <span v-if="isUpdatedSettingTab('siteInfo')" class="setting-title-badge">本版新增</span>
+                        </div>
                         <p class="setting-desc">
                             配置网站的基本信息，包括名称、SEO、备案等。修改后保存即可生效。
                         </p>
@@ -2318,11 +2327,20 @@
                 </el-tab-pane>
 
                 <!-- ==================== 投稿服务 ==================== -->
-                <el-tab-pane label="投稿服务" name="submissionService">
+                <el-tab-pane name="submissionService">
+                    <template #label>
+                        <span class="setting-tab-label">
+                            <span>投稿服务</span>
+                            <span v-if="isUpdatedSettingTab('submissionService')" class="setting-tab-label__badge">新</span>
+                        </span>
+                    </template>
                     <div class="setting-header">
-                        <h2 class="setting-title">投稿服务</h2>
+                        <div class="setting-title-row">
+                            <h2 class="setting-title">投稿服务</h2>
+                            <span v-if="isUpdatedSettingTab('submissionService')" class="setting-title-badge">本版新增</span>
+                        </div>
                         <p class="setting-desc">
-                            配置投稿页的基础收录服务、置顶/Banner 增值加购项与 FAQ 文案。
+                            配置投稿页的基础收录模式、收费规则、置顶/Banner 增值加购项与 FAQ 文案。
                         </p>
                     </div>
                     <el-form :model="submissionServiceData" label-width="140px" class="form-max-700">
@@ -2410,11 +2428,31 @@
 
                         <el-divider content-position="left">基础提交收录</el-divider>
                         <p class="section-desc">
-                            这里的价格就是前台展示价和实际下单价。填 0 表示该服务免费提交。
+                            这里可以直接切换“免费收录 / 付费收录”模式。免费模式下基础收录按 0 元展示并直接提交，
+                            置顶推荐与 Banner 加购仍可单独收费。
                         </p>
                         <el-form-item label="开启服务">
                             <el-switch v-model="submissionServiceData.submitEnabled" />
                         </el-form-item>
+                        <el-form-item label="投稿模式">
+                            <el-radio-group v-model="submissionServiceData.submitMode">
+                                <el-radio-button label="paid">付费收录</el-radio-button>
+                                <el-radio-button label="free">免费收录</el-radio-button>
+                            </el-radio-group>
+                            <div class="form-tip">
+                                免费模式不会清空原有价格，后续切回付费时可继续使用历史价格。
+                            </div>
+                        </el-form-item>
+                        <el-alert
+                            :title="submissionServiceData.submitMode === 'free' ? '当前为免费收录模式' : '当前为付费收录模式'"
+                            :description="submissionServiceData.submitMode === 'free'
+                                ? '前台基础收录会显示为免费提交；若勾选置顶推荐或 Banner 位，则仅对加购部分收费。'
+                                : '前台基础收录会按这里设置的价格创建支付订单；用户完成付款后才进入审核流程。'"
+                            :type="submissionServiceData.submitMode === 'free' ? 'success' : 'info'"
+                            :closable="false"
+                            show-icon
+                            class="submission-mode-alert"
+                        />
                         <el-form-item label="服务名称">
                             <el-input v-model="submissionServiceData.submitLabel" />
                         </el-form-item>
@@ -2425,10 +2463,25 @@
                             <el-input v-model="submissionServiceData.submitDescription" type="textarea" :rows="2" />
                         </el-form-item>
                         <el-form-item label="价格">
-                            <el-input-number v-model="submissionServiceData.submitPrice" :min="0" :max="999999" :step="1" />
+                            <el-input-number
+                                v-model="submissionServiceData.submitPrice"
+                                :min="0"
+                                :max="999999"
+                                :step="1"
+                                :disabled="submissionServiceData.submitMode === 'free'"
+                            />
+                            <span class="form-tip">
+                                {{ submissionServiceData.submitMode === 'free' ? '免费模式下按 0 元展示，当前价格仅保留作切回付费时使用。' : '这里的价格会直接作为前台展示价和实际下单价。' }}
+                            </span>
                         </el-form-item>
                         <el-form-item label="原价">
-                            <el-input-number v-model="submissionServiceData.submitOriginalPrice" :min="0" :max="999999" :step="1" />
+                            <el-input-number
+                                v-model="submissionServiceData.submitOriginalPrice"
+                                :min="0"
+                                :max="999999"
+                                :step="1"
+                                :disabled="submissionServiceData.submitMode === 'free'"
+                            />
                         </el-form-item>
                         <el-form-item label="按钮文案">
                             <el-input v-model="submissionServiceData.submitCtaText" />
@@ -2884,6 +2937,7 @@ import {
 import { QuestionFilled } from '@element-plus/icons-vue'
 import Draggable from 'vuedraggable'
 import { useRoute, useRouter } from 'vue-router'
+import { ADMIN_UPDATE_HIGHLIGHTS, normalizeAdminUpdateRoutePath } from '@/config/updateHighlights'
 import feedback from '@/utils/feedback'
 
 const route = useRoute()
@@ -2905,6 +2959,28 @@ const settingTabNameSet = new Set([
     'paymentConfig',
     'exitModal'
 ])
+const SETTING_PAGE_ROUTE_PATH = '/system-setting/base-config/setting'
+
+/**
+ * 当前版本在“站点设置”页内需要精确标记的 tab 集合。
+ * 只从统一更新配置中读取，避免在页面里写死重复逻辑。
+ */
+const settingUpdateTabSet = computed(() => {
+    const normalizedPath = normalizeAdminUpdateRoutePath(SETTING_PAGE_ROUTE_PATH)
+    return new Set(
+        ADMIN_UPDATE_HIGHLIGHTS.filter(
+            (item) => normalizeAdminUpdateRoutePath(item.routePath) === normalizedPath
+        )
+            .map((item) => String(item.routeQuery?.tab || '').trim())
+            .filter(Boolean)
+    )
+})
+
+/**
+ * 判断当前设置页 tab 是否属于本版新增能力。
+ * @param tabName 标签名
+ */
+const isUpdatedSettingTab = (tabName: string) => settingUpdateTabSet.value.has(String(tabName || '').trim())
 
 /**
  * 从路由 query 里解析目标标签，兼容旧入口跳转参数。
@@ -4041,22 +4117,23 @@ const defaultSubmissionServiceData = {
     enabled: true,
     pageEyebrow: 'Website Submission',
     pageTitle: '提交网站',
-    pageSubtitle: '提交收录统一付费，支持置顶推荐和 Banner 运营位增值加购',
-    pageDescription: '提交后进入审核与收录流程，可按需叠加购买置顶推荐或 Banner 运营位。',
+    pageSubtitle: '基础收录支持免费或付费模式切换，并可按需加购置顶推荐与 Banner 运营位。',
+    pageDescription: '提交后进入审核与收录流程，基础收录可由后台切换为免费或付费，加购项用于新品上线与运营推广。',
     heroHighlightsText: '人工审核收录\n支持置顶推荐与 Banner 加购\n个人中心可追踪进度',
     containerMaxWidth: 1280,
     pricingTitle: '收录与增值服务',
     processTitle: '服务流程',
     processDescription: '从提交资料、创建订单到人工审核上线，整条链路都可以按后台配置推进。',
-    processStepsText: '填写站点资料|提交网址、分类、简介与基础联系方式。\n选择服务方案|基础收录为必选，可按需叠加置顶推荐或 Banner 位。\n支付与审核|系统按后台价格创建订单，支付成功后进入人工审核与排期。\n收录上线|审核通过后正式上线展示，并可在个人中心查看记录。',
+    processStepsText: '填写站点资料|提交网址、分类、简介与基础联系方式。\n选择服务方案|基础收录可由后台配置为免费或付费，可按需叠加置顶推荐或 Banner 位。\n支付与审核|若当前为付费模式或勾选收费加购，系统会创建订单；完成后进入人工审核与排期。\n收录上线|审核通过后正式上线展示，并可在个人中心查看记录。',
     submitNoticeTitle: '提交须知',
-    submitNoticeText: '请确保提交的网站内容合法合规，且能稳定访问。\n基础收录服务与加购项统一在本页创建订单。\n置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。\n如果涉及排期或活动推广，请填写有效联系方式便于沟通。',
+    submitNoticeText: '请确保提交的网站内容合法合规，且能稳定访问。\n基础收录与加购项统一在本页确认；若当前模式为付费，会自动创建订单。\n置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。\n如果涉及排期或活动推广，请填写有效联系方式便于沟通。',
     faqTitle: '常见问题',
     closedTitle: '提交服务暂未开放',
     closedDescription: '当前站点已暂停新的提交与收录申请，请稍后再试或联系运营团队。',
     closedButtonText: '返回首页',
     closedButtonUrl: '/',
     submitEnabled: true,
+    submitMode: 'paid',
     submitLabel: '付费提交收录',
     submitBadge: '基础服务',
     submitDescription: '提交后进入人工审核、信息完善与正式收录流程，是所有投稿的基础服务。',
@@ -4258,6 +4335,9 @@ const normalizeSubmissionServiceData = (config: any) => {
             source?.closedButtonUrl || defaultSubmissionServiceData.closedButtonUrl
         ),
         submitEnabled: submitService?.enabled !== false,
+        submitMode: String(submitService?.mode || defaultSubmissionServiceData.submitMode) === 'free'
+            ? 'free'
+            : 'paid',
         submitLabel: String(submitService?.label || defaultSubmissionServiceData.submitLabel),
         submitBadge: String(submitService?.badge || defaultSubmissionServiceData.submitBadge),
         submitDescription: String(submitService?.description || defaultSubmissionServiceData.submitDescription),
@@ -4322,6 +4402,7 @@ const buildSubmissionServicePayload = () => ({
     submitService: {
         enabled: submissionServiceData.submitEnabled !== false,
         key: 'submission',
+        mode: String(submissionServiceData.submitMode || '').trim() === 'free' ? 'free' : 'paid',
         label: String(submissionServiceData.submitLabel || '').trim(),
         badge: String(submissionServiceData.submitBadge || '').trim(),
         description: String(submissionServiceData.submitDescription || '').trim(),
@@ -5082,6 +5163,9 @@ onMounted(() => {
     padding-left: 2px;
     line-height: 1.6;
 }
+.submission-mode-alert {
+    margin-bottom: 18px;
+}
 
 /* 新增：设置页面头部样式 */
 .setting-header {
@@ -5089,17 +5173,56 @@ onMounted(() => {
     padding-bottom: 16px;
     border-bottom: 1px solid #e4e7ed;
 }
+.setting-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
 .setting-title {
     font-size: 18px;
     font-weight: 600;
     color: #303133;
-    margin: 0 0 8px 0;
+    margin: 0;
+}
+.setting-title-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.14);
 }
 .setting-desc {
     font-size: 14px;
     color: #606266;
     margin: 0;
     line-height: 1.6;
+}
+.setting-tab-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.setting-tab-label__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.10);
+    border: 1px solid rgba(37, 99, 235, 0.12);
 }
 
 /* 优化：问号提示图标样式 */

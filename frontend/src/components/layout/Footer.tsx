@@ -49,6 +49,10 @@ const Footer: React.FC = () => {
   };
 
   const aboutWidgetTitle = resolveAboutWidgetTitle();
+  const submitButtonText = (() => {
+    const configuredText = normalizeText(footerAboutConfig.submitButtonText);
+    return configuredText === '' || configuredText === '提交网站' ? '网站收录' : configuredText;
+  })();
 
   /**
    * 根据按钮配置返回链接属性，统一处理新窗口打开行为。
@@ -169,9 +173,31 @@ const Footer: React.FC = () => {
                       >
                         <path d="M12 5v14M5 12h14" />
                       </svg>
-                      {footerAboutConfig.submitButtonText || '提交网站'}
+                      {submitButtonText}
                     </a>
                   )}
+                  <a
+                    href="/submit/services"
+                    {...getLinkAttrs(true)}
+                    className="footer-action-btn footer-service-btn"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 7h16" />
+                      <path d="M4 12h16" />
+                      <path d="M4 17h10" />
+                    </svg>
+                    收录与增值服务
+                  </a>
                   {footerAboutConfig.showChangelogButton && (
                     <a
                       href={footerAboutConfig.changelogButtonUrl || '/changelog'}

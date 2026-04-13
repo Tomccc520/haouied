@@ -2021,8 +2021,8 @@ class SettingService extends Service {
       enabled: true,
       pageEyebrow: 'Website Submission',
       pageTitle: '提交网站',
-      pageSubtitle: '提交收录统一付费，支持置顶推荐和 Banner 运营位增值加购',
-      pageDescription: '提交后进入审核与收录流程，可按需叠加购买置顶推荐或 Banner 运营位，适合新品上线与运营推广。',
+      pageSubtitle: '基础收录支持免费或付费模式切换，并可按需加购置顶推荐与 Banner 运营位。',
+      pageDescription: '提交后进入审核与收录流程，基础收录可由后台切换为免费或付费，加购项用于新品上线与运营推广。',
       heroHighlights: [
         '人工审核收录',
         '支持置顶推荐与 Banner 加购',
@@ -2034,14 +2034,14 @@ class SettingService extends Service {
       processDescription: '从提交资料、创建订单到人工审核上线，整条链路都可以按后台配置推进。',
       processSteps: [
         { title: '填写站点资料', description: '提交网址、分类、简介与基础联系方式。', sort: 10, enabled: true },
-        { title: '选择服务方案', description: '基础收录为必选，可按需叠加置顶推荐或 Banner 位。', sort: 20, enabled: true },
-        { title: '支付与审核', description: '系统按后台价格创建订单，支付成功后进入人工审核与排期。', sort: 30, enabled: true },
+        { title: '选择服务方案', description: '基础收录可由后台配置为免费或付费，可按需叠加置顶推荐或 Banner 位。', sort: 20, enabled: true },
+        { title: '支付与审核', description: '若当前为付费模式或勾选收费加购，系统会创建订单；完成后进入人工审核与排期。', sort: 30, enabled: true },
         { title: '收录上线', description: '审核通过后正式上线展示，并可在个人中心查看记录。', sort: 40, enabled: true },
       ],
       submitNoticeTitle: '提交须知',
       submitNotices: [
         '请确保提交的网站内容合法合规，且能稳定访问。',
-        '基础收录服务与加购项统一在本页创建订单。',
+        '基础收录与加购项统一在本页确认；若当前模式为付费，会自动创建订单。',
         '置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。',
         '如果涉及排期或活动推广，请填写有效联系方式便于沟通。'
       ],
@@ -2053,6 +2053,7 @@ class SettingService extends Service {
       submitService: {
         enabled: true,
         key: 'submission',
+        mode: 'paid',
         label: '付费提交收录',
         badge: '基础服务',
         description: '提交后进入人工审核、信息完善与正式收录流程，是所有投稿的基础服务。',
@@ -2131,6 +2132,13 @@ class SettingService extends Service {
       const num = Number(value);
       if (!Number.isFinite(num)) return Number(fallback || 0);
       return Math.max(0, Math.min(999999, Number(num.toFixed(2))));
+    };
+    /**
+     * 规范化基础投稿模式，仅允许免费 / 付费两种。
+     */
+    const normalizeSubmissionMode = (value, fallback = 'paid') => {
+      const text = String(value || fallback || '').trim().toLowerCase();
+      return text === 'free' ? 'free' : 'paid';
     };
     /**
      * 规范化多行短标签列表，供 Hero 高亮与提交须知复用。
@@ -2234,6 +2242,10 @@ class SettingService extends Service {
         ...merged.submitService,
         enabled: merged.submitService.enabled !== false,
         key: 'submission',
+        mode: normalizeSubmissionMode(
+          merged.submitService.mode,
+          defaults.submitService.mode
+        ),
         label: String(merged.submitService.label || defaults.submitService.label).trim() || defaults.submitService.label,
         badge: String(merged.submitService.badge || defaults.submitService.badge).trim(),
         description: String(merged.submitService.description || defaults.submitService.description).trim() || defaults.submitService.description,
@@ -2278,6 +2290,11 @@ class SettingService extends Service {
   buildPublicSubmissionServiceConfig(config = {}, paymentConfig = {}) {
     const normalized = this.normalizeSubmissionServiceConfig(config);
     const payment = this.buildPublicPaymentConfig(paymentConfig);
+    const publicSubmitService = {
+      ...normalized.submitService,
+      price: normalized.submitService.mode === 'free' ? 0 : normalized.submitService.price,
+      originalPrice: normalized.submitService.mode === 'free' ? 0 : normalized.submitService.originalPrice,
+    };
     return {
       enabled: normalized.enabled,
       pageEyebrow: normalized.pageEyebrow,
@@ -2297,11 +2314,11 @@ class SettingService extends Service {
       closedDescription: normalized.closedDescription,
       closedButtonText: normalized.closedButtonText,
       closedButtonUrl: normalized.closedButtonUrl,
-      submitService: normalized.submitService,
+      submitService: publicSubmitService,
       topRecommendAddon: normalized.topRecommendAddon,
       bannerAddon: normalized.bannerAddon,
       // 兼容旧前端字段
-      aiGrowthService: normalized.submitService,
+      aiGrowthService: publicSubmitService,
       paidBoostService: normalized.topRecommendAddon,
       faqItems: normalized.faqItems,
       payment,

@@ -196,7 +196,7 @@ const WebsiteSubmit: React.FC<WebsiteSubmitProps> = ({ isOpen, onClose }) => {
     <div className="website-submit-overlay" onClick={handleClose}>
       <div className="website-submit-modal" onClick={e => e.stopPropagation()}>
         <div className="website-submit-header">
-          <h2>📝 提交网站</h2>
+          <h2>📝 网站收录</h2>
           <button className="close-btn" onClick={handleClose}>×</button>
         </div>
 
@@ -338,7 +338,7 @@ const WebsiteSubmit: React.FC<WebsiteSubmitProps> = ({ isOpen, onClose }) => {
             <div className="form-actions">
               <button type="button" className="cancel-btn" onClick={handleClose}>取消</button>
               <button type="submit" className="submit-btn" disabled={loading}>
-                {loading ? '提交中...' : '🚀 提交网站'}
+                {loading ? '提交中...' : '🚀 提交收录'}
               </button>
             </div>
           </form>

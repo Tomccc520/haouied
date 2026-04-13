@@ -188,6 +188,48 @@ class SubmissionService extends Service {
   }
 
   /**
+   * 规范化基础收录模式，仅允许免费 / 付费两种。
+   */
+  normalizeSubmissionMode(mode = 'paid') {
+    return String(mode || '').trim().toLowerCase() === 'free' ? 'free' : 'paid';
+  }
+
+  /**
+   * 解析当前投稿配置下的收费明细，供直接提交与支付下单共用。
+   */
+  resolveSubmissionPricing(config = {}, addonKeys = []) {
+    const serviceConfig = config?.submitService || {};
+    const submissionMode = this.normalizeSubmissionMode(serviceConfig?.mode);
+    const normalizedAddonKeys = this.normalizeAddonKeys(addonKeys);
+    const enabledAddons = [
+      { key: 'top_recommendation', config: config?.topRecommendAddon || {} },
+      { key: 'banner_slot', config: config?.bannerAddon || {} },
+    ]
+      .filter(item => item.config?.enabled !== false)
+      .filter(item => normalizedAddonKeys.includes(item.key));
+    const basePrice = submissionMode === 'free'
+      ? 0
+      : Math.max(0, Number(serviceConfig?.price || 0));
+    const addonPrice = enabledAddons.reduce(
+      (sum, item) => sum + Math.max(0, Number(item.config?.price || 0)),
+      0
+    );
+    return {
+      submissionMode,
+      serviceConfig: {
+        ...serviceConfig,
+        mode: submissionMode,
+        price: basePrice,
+        originalPrice: submissionMode === 'free'
+          ? 0
+          : Math.max(0, Number(serviceConfig?.originalPrice || 0)),
+      },
+      enabledAddons,
+      amount: Number((basePrice + addonPrice).toFixed(2)),
+    };
+  }
+
+  /**
    * 规范化 Unix 时间戳，兼容秒/毫秒时间戳与日期字符串。
    */
   normalizeUnixTimestamp(value, fallback = 0) {
@@ -590,6 +632,7 @@ class SubmissionService extends Service {
       currency: 'CNY',
       baseService: {
         key: 'submission',
+        mode: this.normalizeSubmissionMode(serviceConfig?.mode),
         label: String(serviceConfig?.label || '付费提交收录'),
         price: Number(serviceConfig?.price || 0),
         originalPrice: Number(serviceConfig?.originalPrice || 0),
@@ -697,16 +740,9 @@ class SubmissionService extends Service {
     const addonKeys = this.normalizeAddonKeys(
       data?.serviceMeta?.addons || data?.addons || []
     );
-    const enabledAddons = [
-      { key: 'top_recommendation', config: config?.topRecommendAddon || {} },
-      { key: 'banner_slot', config: config?.bannerAddon || {} },
-    ]
-      .filter(item => item.config?.enabled !== false)
-      .filter(item => addonKeys.includes(item.key));
-    const amount = Math.max(
-      0,
-      Number(serviceConfig?.price || 0) + enabledAddons.reduce((sum, item) => sum + Number(item.config?.price || 0), 0)
-    );
+    const pricing = this.resolveSubmissionPricing(config, addonKeys);
+    const amount = pricing.amount;
+    const enabledAddons = pricing.enabledAddons;
     if (amount > 0 && paymentConfig?.enabled !== true) {
       throw new Error('支付功能未开启，请联系管理员');
     }
@@ -748,6 +784,7 @@ class SubmissionService extends Service {
       ...data,
       serviceType,
       serviceMeta: normalizedServiceMeta,
+      _allowPaidSubmissionInsert: amount > 0,
     };
     const submissionResult = await this.submit(submitPayload);
     const submissionId = Number(submissionResult?.id || 0);
@@ -762,15 +799,15 @@ class SubmissionService extends Service {
     const expireTime = now + Math.max(5, Math.min(180, expireMinutes)) * 60;
     const addonTitle = enabledAddons.map(item => String(item.config?.label || '')).filter(Boolean).join(' + ');
     const subject = addonTitle
-      ? `${String(serviceConfig?.label || '付费提交收录').trim()} + ${addonTitle}`
-      : (String(serviceConfig?.label || '付费提交收录').trim() || '付费提交收录');
+      ? `${String(pricing.serviceConfig?.label || '付费提交收录').trim()} + ${addonTitle}`
+      : (String(pricing.serviceConfig?.label || '付费提交收录').trim() || '付费提交收录');
     const body = String(data?.name || data?.url || '').trim().slice(0, 120);
 
     let payUrl = '';
     let rawResponse = null;
     let status = 'created';
     const priceSnapshot = this.buildPayOrderPriceSnapshot(
-      serviceConfig,
+      pricing.serviceConfig,
       enabledAddons,
       normalizedServiceMeta,
       amount
@@ -1434,6 +1471,18 @@ class SubmissionService extends Service {
     const serviceMeta = this.normalizeServiceMeta(data.serviceMeta);
     const addonKeys = this.normalizeAddonKeys(serviceMeta?.addons || data?.addons || []);
     const columns = await this.getSubmissionColumnSet();
+    const config = serviceType === 'submission'
+      ? await this.getSubmissionServiceConfig()
+      : null;
+    const pricing = serviceType === 'submission'
+      ? this.resolveSubmissionPricing(config, addonKeys)
+      : null;
+    if (serviceType === 'submission' && config?.enabled === false) {
+      throw new Error('投稿服务暂未开放');
+    }
+    if (serviceType === 'submission' && config?.submitService?.enabled === false) {
+      throw new Error('当前服务暂未开启');
+    }
 
     if (addonKeys.includes('banner_slot')) {
       if (!Array.isArray(serviceMeta?.bannerPositions) || serviceMeta.bannerPositions.length === 0) {
@@ -1460,6 +1509,14 @@ class SubmissionService extends Service {
       if (checkResult.exists) {
         throw new Error(checkResult.message);
       }
+    }
+    if (
+      serviceType === 'submission'
+      && pricing
+      && pricing.amount > 0
+      && data._allowPaidSubmissionInsert !== true
+    ) {
+      throw new Error('当前投稿配置需要先支付后提交，请使用支付提交流程');
     }
 
     const insertPayload = {

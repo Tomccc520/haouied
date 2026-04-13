@@ -41,6 +41,12 @@
     max-width: 100%;
   }
 
+  .navbar-logo-link--icon {
+    min-width: 36px;
+    margin-right: 10px;
+    justify-content: center;
+  }
+
   .navbar-logo-img {
     height: var(--spacing-8); /* 32px */
     max-width: 120px;
