@@ -526,7 +526,14 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
                 window.open(directUrl, '_blank', 'noopener,noreferrer');
                 return;
               }
-              recordWebsiteClick(tool.id);
+              /**
+               * 详情页模式下如果交给父级统一处理点击，则由父级负责站点点击统计，避免重复记数。
+               */
+              const delegatedWebsiteClickTracking = hotRecommendationClickMode !== 'direct'
+                && typeof onWebsiteClick === 'function';
+              if (!delegatedWebsiteClickTracking) {
+                recordWebsiteClick(tool.id);
+              }
               
               // 热门推荐独立配置：直达模式
               if (hotRecommendationClickMode === 'direct') {

@@ -68,6 +68,11 @@ class HotRecommendationController extends baseController {
       this.result({ data: result, message: '创建成功' });
     } catch (error) {
       ctx.logger.error('创建热门推荐失败:', error);
+      const message = String(error?.message || '');
+      if (message.includes('结束时间不能早于开始时间')) {
+        this.result({ code: 400, message });
+        return;
+      }
       this.result({ code: 500, message: '创建热门推荐失败' });
     }
   }
@@ -86,6 +91,11 @@ class HotRecommendationController extends baseController {
       this.result({ data: result, message: '更新成功' });
     } catch (error) {
       ctx.logger.error('更新热门推荐失败:', error);
+      const message = String(error?.message || '');
+      if (message.includes('结束时间不能早于开始时间')) {
+        this.result({ code: 400, message });
+        return;
+      }
       this.result({ code: 500, message: '更新热门推荐失败' });
     }
   }

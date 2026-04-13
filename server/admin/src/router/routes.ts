@@ -101,6 +101,16 @@ export const constantRoutes: Array<RouteRecordRaw> = [
         component: LAYOUT,
         children: [
             {
+                path: 'setting',
+                name: Symbol(),
+                component: () => import('@/views/uied/setting/index.vue'),
+                meta: {
+                    title: '站点设置',
+                    hidden: true,
+                    activeMenu: '/system-setting/base-config/setting'
+                }
+            },
+            {
                 path: 'content-hub',
                 name: Symbol(),
                 component: () => import('@/views/uied/setting/contentHub.vue'),
@@ -122,15 +132,9 @@ export const constantRoutes: Array<RouteRecordRaw> = [
                     hidden: true,
                     activeMenu: '/system-setting/base-config/setting'
                 }
-            }
-        ]
-    },
-    {
-        path: '/uied/aiConfig',
-        component: LAYOUT,
-        children: [
+            },
             {
-                path: '',
+                path: 'aiConfig',
                 name: Symbol(),
                 component: () => import('@/views/uied/aiConfig/index.vue'),
                 meta: {
@@ -140,6 +144,10 @@ export const constantRoutes: Array<RouteRecordRaw> = [
                 }
             }
         ]
+    },
+    {
+        path: '/uied/aiConfig',
+        redirect: '/system-setting/base-config/aiConfig'
     },
     /**
      * 授权中心静态兜底路由：

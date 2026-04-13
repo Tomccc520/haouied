@@ -41,10 +41,25 @@
                 </el-table-column>
                 <el-table-column label="位置" prop="position" width="100" />
                 <el-table-column label="排序" prop="sortOrder" width="80" />
+                <el-table-column label="投放时间" min-width="220">
+                    <template #default="{ row }">
+                        <div class="text-xs leading-6">
+                            <div>开始：{{ formatScheduleTime(row.startTime) }}</div>
+                            <div>结束：{{ formatScheduleTime(row.endTime) }}</div>
+                        </div>
+                    </template>
+                </el-table-column>
                 <el-table-column label="状态" width="80">
                     <template #default="{ row }">
                         <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
                             {{ row.isActive ? '显示' : '隐藏' }}
+                        </el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="投放状态" width="100">
+                    <template #default="{ row }">
+                        <el-tag :type="getScheduleStatusType(row.scheduleStatus)" size="small">
+                            {{ getScheduleStatusLabel(row.scheduleStatus) }}
                         </el-tag>
                     </template>
                 </el-table-column>
@@ -113,6 +128,29 @@
                         <el-option label="底部" value="footer" />
                     </el-select>
                 </el-form-item>
+                <el-form-item label="开始时间">
+                    <el-date-picker
+                        v-model="editData.startTime"
+                        type="datetime"
+                        clearable
+                        value-format="X"
+                        placeholder="不填则立即生效"
+                        style="width: 100%"
+                    />
+                </el-form-item>
+                <el-form-item label="结束时间">
+                    <el-date-picker
+                        v-model="editData.endTime"
+                        type="datetime"
+                        clearable
+                        value-format="X"
+                        placeholder="不填则长期投放"
+                        style="width: 100%"
+                    />
+                    <div class="text-xs text-tx-secondary mt-1">
+                        适合控制广告/推荐位投放周期。结束时间早于开始时间将禁止保存。
+                    </div>
+                </el-form-item>
                 <el-form-item label="排序">
                     <el-input-number v-model="editData.sortOrder" :min="0" />
                 </el-form-item>
@@ -140,6 +178,7 @@ import {
     uiedWebsiteList
 } from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
+import { timeFormat } from '@/utils/util'
 import feedback from '@/utils/feedback'
 import type { FormInstance, FormRules } from 'element-plus'
 
@@ -167,6 +206,8 @@ const editData = reactive({
     iconUrl: '',
     description: '',
     position: 'hot',
+    startTime: '' as number | string,
+    endTime: '' as number | string,
     sortOrder: 0,
     isShow: true
 })
@@ -363,6 +404,8 @@ const resetEditData = () =>
         iconUrl: '',
         description: '',
         position: 'hot',
+        startTime: '',
+        endTime: '',
         sortOrder: 0,
         isShow: true
     })
@@ -382,6 +425,8 @@ const handleEdit = async (row: any) => {
         iconUrl: row.iconUrl || row.websiteIcon || '',
         description: row.description || '',
         position: row.position || 'hot',
+        startTime: Number(row?.startTime || 0) || '',
+        endTime: Number(row?.endTime || 0) || '',
         sortOrder: row.sortOrder || 0,
         isShow: row.isActive !== false && row.isShow !== false
     })
@@ -392,13 +437,24 @@ const handleEdit = async (row: any) => {
 
 const handleSubmit = async () => {
     await editFormRef.value?.validate()
+    const startTime = Number(editData.startTime || 0)
+    const endTime = Number(editData.endTime || 0)
+    if (startTime > 0 && endTime > 0 && endTime < startTime) {
+        feedback.msgError('结束时间不能早于开始时间')
+        return
+    }
     editLoading.value = true
     try {
+        const submitData = {
+            ...editData,
+            startTime,
+            endTime
+        }
         if (editData.id) {
-            await uiedHotRecommendationEdit(editData)
+            await uiedHotRecommendationEdit(submitData)
             feedback.msgSuccess('编辑成功')
         } else {
-            await uiedHotRecommendationAdd(editData)
+            await uiedHotRecommendationAdd(submitData)
             feedback.msgSuccess('添加成功')
         }
         showEdit.value = false
@@ -413,6 +469,50 @@ const handleDelete = async (id: number) => {
     await uiedHotRecommendationDelete({ id })
     feedback.msgSuccess('删除成功')
     getLists()
+}
+
+/**
+ * 格式化投放时间显示
+ * @param value 秒级时间戳
+ */
+const formatScheduleTime = (value: unknown) => {
+    const timestamp = Number(value || 0)
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return '不限'
+    return timeFormat(timestamp, 'yyyy-mm-dd hh:MM:ss')
+}
+
+/**
+ * 获取投放状态文案
+ * @param status 投放状态
+ */
+const getScheduleStatusLabel = (status: unknown) => {
+    switch (String(status || '')) {
+        case 'pending':
+            return '未开始'
+        case 'expired':
+            return '已结束'
+        case 'hidden':
+            return '已隐藏'
+        default:
+            return '投放中'
+    }
+}
+
+/**
+ * 获取投放状态标签类型
+ * @param status 投放状态
+ */
+const getScheduleStatusType = (status: unknown): 'warning' | 'danger' | 'info' | 'success' => {
+    switch (String(status || '')) {
+        case 'pending':
+            return 'warning'
+        case 'expired':
+            return 'danger'
+        case 'hidden':
+            return 'info'
+        default:
+            return 'success'
+    }
 }
 
 getLists()

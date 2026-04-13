@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../services/api';
-import { getBackendBaseUrl } from '../../utils/urlUtils';
+import { getFullImageUrl } from '../../utils/urlUtils';
 import { unwrapApiList } from '../../utils/apiResponse';
 import './index.css';
 
@@ -115,23 +115,6 @@ const fetchFaviconApis = async (): Promise<FaviconApiItem[]> => {
 };
 
 // ==================== 工具函数 ====================
-
-/**
- * 获取完整的图片 URL（处理相对路径和错误端口）
- */
-const getFullImageUrl = (url: string): string => {
-  if (!url) return '';
-  
-  const backendBase = getBackendBaseUrl();
-  
-  if (url.startsWith('/uploads/')) return `${backendBase}${url}`;
-  if (url.includes('localhost:5173/uploads/') || url.includes('localhost:3000/uploads/')) {
-    const uploadPath = url.match(/\/uploads\/.+$/)?.[0];
-    if (uploadPath) return `${backendBase}${uploadPath}`;
-  }
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
-  return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
-};
 
 /**
  * 从 URL 提取域名

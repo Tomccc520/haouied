@@ -23,7 +23,10 @@
 
 .footer-container {
   color: var(--text-secondary);
-  background-color: var(--bg-card); /* 改为卡片背景色，更干净 */
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.10), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.10), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, var(--bg-card) 52%, #ffffff 100%);
   position: relative;
   z-index: 1;
   margin-top: var(--spacing-10);
@@ -31,9 +34,17 @@
   border-top: 1px solid var(--border-light); /* 添加顶部边框 */
 }
 
-/* 移除原有的背景图片设置，保持简洁专业 */
+/* 使用本地渐变装饰替代外链背景图，避免正式环境依赖第三方资源 */
 .footer-container::before {
-  display: none;
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 72%);
+  pointer-events: none;
 }
 
 /* 移动端和桌面端视图控制 */

@@ -106,12 +106,7 @@ const Footer: React.FC = () => {
   );
 
   return (
-    <div 
-      className="footer-container"
-      style={{
-        backgroundImage: 'url(https://img.uied.cn/wp-content/themes/b2Jitheme/Center/Assets/images/footer-bg.svg)'
-      }}
-    >
+    <div className="footer-container">
       <div className="footer-main">
         <div className="footer-content-wrapper">
           {/* 移动端版本的简洁页脚 */}

@@ -360,6 +360,7 @@ class SettingService extends Service {
    * 导入后台设置备份
    */
   async importBackup(payload = {}, options = {}) {
+    const { app } = this;
     if (!this.isPlainObject(payload)) {
       throw new Error('备份数据格式错误，必须是 JSON 对象');
     }
@@ -374,14 +375,24 @@ class SettingService extends Service {
       throw new Error('备份中没有可导入的配置项');
     }
 
-    if (settingKeys.length) {
-      await this.save(normalizedSettings);
-    }
-    if (applySiteInfo && siteInfo && Object.keys(siteInfo).length) {
-      await this.saveSiteInfo(siteInfo);
-    }
-    if (applyAuthConfig && authConfig && Object.keys(authConfig).length) {
-      await this.updateAuthConfig(authConfig);
+    /**
+     * 统一事务导入，避免配置快照恢复过程中出现“部分成功、部分失败”的半成品状态。
+     */
+    const transaction = await app.model.transaction();
+    try {
+      if (settingKeys.length) {
+        await this.save(normalizedSettings, { transaction });
+      }
+      if (applySiteInfo && siteInfo && Object.keys(siteInfo).length) {
+        await this.saveSiteInfo(siteInfo, { transaction });
+      }
+      if (applyAuthConfig && authConfig && Object.keys(authConfig).length) {
+        await this.updateAuthConfig(authConfig, { transaction });
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
 
     return {
@@ -2744,12 +2755,13 @@ class SettingService extends Service {
   /**
    * 保存站点信息
    */
-  async saveSiteInfo(data) {
+  async saveSiteInfo(data, options = {}) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const fieldMapping = await this.getSiteInfoFieldMapping();
     const headerBrandConfig = this.normalizeHeaderBrandConfig(data);
-    const transaction = await app.model.transaction();
+    const transaction = options?.transaction || await app.model.transaction();
+    const ownsTransaction = !options?.transaction;
 
     try {
       // 检查是否存在记录
@@ -2860,9 +2872,13 @@ class SettingService extends Service {
         { transaction }
       );
 
-      await transaction.commit();
+      if (ownsTransaction) {
+        await transaction.commit();
+      }
     } catch (error) {
-      await transaction.rollback();
+      if (ownsTransaction) {
+        await transaction.rollback();
+      }
       throw error;
     }
   }
@@ -3246,19 +3262,20 @@ class SettingService extends Service {
   /**
    * 更新注册/登录配置
    */
-  async updateAuthConfig(data) {
+  async updateAuthConfig(data, options = {}) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
     const normalized = this.normalizeAuthConfig(data || {});
+    const transaction = options?.transaction;
 
     // 新结构：直接写入 key-value，避免依赖列式字段
-    await this.save({ [AUTH_CONFIG_SETTING_KEY]: normalized });
+    await this.save({ [AUTH_CONFIG_SETTING_KEY]: normalized }, { transaction });
 
     // 兼容历史结构：若数据库仍存在列式字段，则同步写一份
     if (await this.hasLegacyAuthColumns()) {
       const [ existing ] = await app.model.query(
         'SELECT id FROM uied_site_setting LIMIT 1',
-        { type: app.Sequelize.QueryTypes.SELECT }
+        { type: app.Sequelize.QueryTypes.SELECT, transaction }
       );
 
       if (existing) {
@@ -3280,6 +3297,7 @@ class SettingService extends Service {
               existing.id,
             ],
             type: app.Sequelize.QueryTypes.UPDATE,
+            transaction,
           }
         );
       } else {
@@ -3297,6 +3315,7 @@ class SettingService extends Service {
               now,
             ],
             type: app.Sequelize.QueryTypes.INSERT,
+            transaction,
           }
         );
       }

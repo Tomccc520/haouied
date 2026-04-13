@@ -12,6 +12,10 @@
 const { reqAdminIdKey = 'admin_id' } = require('../extend/config');
 
 const ACTIVATION_ALLOWLIST = new Set([
+  'common:index:config',
+  'system:admin:self',
+  'system:menu:route',
+  'system:logout',
   'uied:license:info',
   'uied:license:activate',
   'uied:license:save',
@@ -21,6 +25,19 @@ const ACTIVATION_ALLOWLIST = new Set([
   'uied:feature:list',
   'uied:feature:check',
 ]);
+
+const ADMIN_BUSINESS_API_PREFIXES = [
+  '/api/system/',
+  '/api/setting/',
+  '/api/common/',
+  '/api/monitor/',
+  '/api/gen/',
+  '/api/uied/',
+  '/api/user/',
+  '/api/article/',
+  '/api/channel/',
+  '/api/decorate/',
+];
 
 /**
  * 规范化请求路径为权限标识（与 auth 中间件保持一致）
@@ -37,7 +54,7 @@ module.exports = options => {
   /**
    * 商业版安装激活中间件
    * 规则：
-   * 1. 仅处理后台登录态下的 /api/uied/** 接口
+   * 1. 仅处理后台登录态下的后台业务接口
    * 2. 允许授权中心必需接口直通
    * 3. 未激活有效 Pro/Enterprise 授权码时，统一拦截
    */
@@ -51,7 +68,8 @@ module.exports = options => {
     }
 
     const requestPath = String(ctx.request.path || '');
-    if (!requestPath.startsWith('/api/uied/')) {
+    const isAdminBusinessRequest = ADMIN_BUSINESS_API_PREFIXES.some(prefix => requestPath.startsWith(prefix));
+    if (!isAdminBusinessRequest) {
       await next();
       return;
     }

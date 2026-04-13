@@ -14,6 +14,50 @@ const Service = require('egg').Service;
 
 class HotRecommendationService extends Service {
   /**
+   * 规范化投放时间戳（秒）
+   * @param {unknown} value 原始值
+   * @return {number} 标准化后的秒级时间戳，未设置时返回 0
+   */
+  normalizeScheduleTimestamp(value) {
+    const raw = Number(value || 0);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return Math.floor(raw);
+  }
+
+  /**
+   * 规范化投放时间窗口
+   * @param {{startTime?: unknown, endTime?: unknown}} data 原始表单数据
+   * @return {{startTime: number, endTime: number}} 标准化时间窗口
+   */
+  normalizeScheduleWindow(data = {}) {
+    const startTime = this.normalizeScheduleTimestamp(data.startTime);
+    const endTime = this.normalizeScheduleTimestamp(data.endTime);
+    if (startTime > 0 && endTime > 0 && endTime < startTime) {
+      throw new Error('结束时间不能早于开始时间');
+    }
+    return {
+      startTime,
+      endTime,
+    };
+  }
+
+  /**
+   * 解析当前投放状态
+   * @param {{isShow?: boolean|number, startTime?: number, endTime?: number}} item 推荐项
+   * @param {number} now 当前时间戳（秒）
+   * @return {'hidden'|'pending'|'active'|'expired'} 当前投放状态
+   */
+  resolveScheduleStatus(item, now = Math.floor(Date.now() / 1000)) {
+    const isShow = item && (item.isShow === true || item.isShow === 1 || item.isActive === true || item.isActive === 1);
+    const startTime = this.normalizeScheduleTimestamp(item?.startTime);
+    const endTime = this.normalizeScheduleTimestamp(item?.endTime);
+    if (!isShow) return 'hidden';
+    if (startTime > 0 && startTime > now) return 'pending';
+    if (endTime > 0 && endTime < now) return 'expired';
+    return 'active';
+  }
+
+  /**
    * 规范化站点权重标签键（支持中英文别名）
    * @param {unknown} value 原始值
    * @return {string} 规范化键值
@@ -93,6 +137,7 @@ class HotRecommendationService extends Service {
   async list({ page = 1, pageSize = 20, position, pageSlug }) {
     const { app } = this;
     const offset = (page - 1) * pageSize;
+    const now = Math.floor(Date.now() / 1000);
 
     let whereClause = 'is_delete = 0';
     const replacements = [];
@@ -117,7 +162,9 @@ class HotRecommendationService extends Service {
     const items = await app.model.query(
       `SELECT id, name as websiteName, name as title, description, url as websiteUrl, 
               icon_url as websiteIcon, icon_url as iconUrl, page_slug as pageSlug,
-              position, sort as sortOrder, is_show as isActive, click_count as clickCount,
+              position, sort as sortOrder, is_show as isActive,
+              start_time as startTime, end_time as endTime,
+              click_count as clickCount,
               create_time as createdAt
        FROM uied_hot_recommendation
        WHERE ${whereClause}
@@ -129,6 +176,7 @@ class HotRecommendationService extends Service {
     const lists = items.map(item => ({
       ...item,
       isActive: item.isActive === 1,
+      scheduleStatus: this.resolveScheduleStatus(item, now),
     }));
 
     return { lists, count: countResult.total, page, pageSize };
@@ -142,7 +190,9 @@ class HotRecommendationService extends Service {
 
     const [ item ] = await app.model.query(
       `SELECT id, name, description, url, icon_url as iconUrl, page_slug as pageSlug,
-              position, sort as sortOrder, is_show as isShow, click_count as clickCount,
+              position, sort as sortOrder, is_show as isShow,
+              start_time as startTime, end_time as endTime,
+              click_count as clickCount,
               create_time as createdAt
        FROM uied_hot_recommendation
        WHERE id = ? AND is_delete = 0`,
@@ -154,6 +204,7 @@ class HotRecommendationService extends Service {
     return {
       ...item,
       isShow: item.isShow === 1,
+      scheduleStatus: this.resolveScheduleStatus(item),
     };
   }
 
@@ -163,10 +214,11 @@ class HotRecommendationService extends Service {
   async add(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const { startTime, endTime } = this.normalizeScheduleWindow(data);
 
     const [ result ] = await app.model.query(
-      `INSERT INTO uied_hot_recommendation (name, description, url, icon_url, page_slug, position, sort, is_show, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO uied_hot_recommendation (name, description, url, icon_url, page_slug, position, sort, is_show, start_time, end_time, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           data.name,
@@ -177,6 +229,8 @@ class HotRecommendationService extends Service {
           data.position || 'hot',
           data.sortOrder || 0,
           data.isShow !== false ? 1 : 0,
+          startTime || null,
+          endTime || null,
           now,
           now,
         ],
@@ -193,6 +247,7 @@ class HotRecommendationService extends Service {
   async edit(data) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    const { startTime, endTime } = this.normalizeScheduleWindow(data);
 
     const updates = [];
     const values = [];
@@ -205,6 +260,8 @@ class HotRecommendationService extends Service {
     if (data.position !== undefined) { updates.push('position = ?'); values.push(data.position); }
     if (data.sortOrder !== undefined) { updates.push('sort = ?'); values.push(data.sortOrder); }
     if (data.isShow !== undefined) { updates.push('is_show = ?'); values.push(data.isShow ? 1 : 0); }
+    if (data.startTime !== undefined) { updates.push('start_time = ?'); values.push(startTime || null); }
+    if (data.endTime !== undefined) { updates.push('end_time = ?'); values.push(endTime || null); }
 
     updates.push('update_time = ?');
     values.push(now);
@@ -237,9 +294,14 @@ class HotRecommendationService extends Service {
    */
   async getActive(position, limit = 20) {
     const { app } = this;
+    const now = Math.floor(Date.now() / 1000);
 
     let whereClause = 'hr.is_delete = 0 AND hr.is_show = 1';
     const replacements = [];
+    whereClause += ' AND (hr.start_time IS NULL OR hr.start_time = 0 OR hr.start_time <= ?)';
+    replacements.push(now);
+    whereClause += ' AND (hr.end_time IS NULL OR hr.end_time = 0 OR hr.end_time >= ?)';
+    replacements.push(now);
 
     if (position && position !== 'all') {
       whereClause += ' AND hr.position = ?';
@@ -249,7 +311,8 @@ class HotRecommendationService extends Service {
     // LEFT JOIN uied_website 通过 URL 匹配，获取真实的 website_id 和 slug
     const items = await app.model.query(
       `SELECT hr.id, hr.name, hr.description, hr.url, hr.icon_url as iconUrl, 
-              hr.page_slug as pageSlug, hr.position, hr.sort as 'order', 
+              hr.page_slug as pageSlug, hr.position, hr.sort as 'order',
+              hr.start_time as startTime, hr.end_time as endTime,
               hr.is_show as visible, hr.click_count as clickCount,
               w.id as websiteId, w.slug as websiteSlug, w.tags as websiteTags
        FROM uied_hot_recommendation hr

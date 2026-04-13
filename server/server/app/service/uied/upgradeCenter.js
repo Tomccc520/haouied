@@ -57,6 +57,13 @@ class UpgradeCenterService extends Service {
   }
 
   /**
+   * 获取升级任务初始化锁名，确保“检查运行中任务 + 创建任务”具备互斥性。
+   */
+  getStartTaskLockName() {
+    return `${dbTablePrefix || 'la_'}uied_upgrade_start_lock`;
+  }
+
+  /**
    * 规范化字符串
    */
   toText(value, fallback = '') {
@@ -492,6 +499,45 @@ class UpgradeCenterService extends Service {
   }
 
   /**
+   * 获取升级任务启动锁，避免并发重复创建升级任务。
+   */
+  async acquireStartTaskLock(timeoutSeconds = 5) {
+    const { app } = this;
+    const lockName = this.getStartTaskLockName();
+    const [ row ] = await app.model.query(
+      'SELECT GET_LOCK(?, ?) AS locked',
+      {
+        replacements: [ lockName, this.toInt(timeoutSeconds, 5, 1, 30) ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+    if (Number(row?.locked || 0) !== 1) {
+      throw new Error('升级任务正在初始化，请稍后重试');
+    }
+    return lockName;
+  }
+
+  /**
+   * 释放升级任务启动锁。
+   */
+  async releaseStartTaskLock(lockName = '') {
+    const { app } = this;
+    const normalizedLockName = this.toText(lockName, '');
+    if (!normalizedLockName) return;
+    try {
+      await app.model.query(
+        'SELECT RELEASE_LOCK(?) AS released',
+        {
+          replacements: [ normalizedLockName ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+    } catch (error) {
+      this.ctx.logger.warn('[upgradeCenter] 释放启动锁失败:', error.message);
+    }
+  }
+
+  /**
    * 查询是否有正在执行的升级任务
    */
   async hasRunningTask() {
@@ -800,9 +846,6 @@ class UpgradeCenterService extends Service {
    */
   async startUpgradeTask(payload = {}) {
     await this.ensureTaskTable();
-    if (await this.hasRunningTask()) {
-      throw new Error('已有升级任务正在执行，请等待完成后再试');
-    }
 
     const operator = await this.verifyOperatorPassword(payload.adminPassword);
     const config = await this.getUpgradeConfig();
@@ -855,7 +898,19 @@ class UpgradeCenterService extends Service {
       logPath,
       resultPath,
     };
-    await this.createTask(task);
+
+    /**
+     * 使用数据库命名锁包裹“查询运行中任务 + 创建任务”，防止双击或并发请求重复发起升级。
+     */
+    const lockName = await this.acquireStartTaskLock();
+    try {
+      if (await this.hasRunningTask()) {
+        throw new Error('已有升级任务正在执行，请等待完成后再试');
+      }
+      await this.createTask(task);
+    } finally {
+      await this.releaseStartTaskLock(lockName);
+    }
 
     // 异步执行升级流程，接口立即返回任务编号，前端轮询任务状态。
     await this.launchUpgradeProcess(task, config);

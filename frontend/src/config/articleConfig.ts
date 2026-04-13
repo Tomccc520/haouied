@@ -4,6 +4,8 @@
  * @copyright Tomda
  */
 
+import { buildPlaceholderImage } from '../utils/placeholderImages';
+
 export interface TopicConfig {
   id: string; // 对应 category 或 tag 的 slug
   type: 'category' | 'tag';
@@ -18,7 +20,16 @@ export interface TopicConfig {
 export const DEFAULT_ARTICLE_CONFIG = {
   title: '设计专栏',
   description: '汇聚优质设计文章，分享前沿设计趋势、实战技巧与行业洞察',
-  coverImage: 'https://img.uied.cn/wp-content/uploads/2024/02/article-bg-default.jpg'
+  coverImage: buildPlaceholderImage({
+    eyebrow: 'UIED',
+    title: '设计专栏',
+    subtitle: '汇聚优质设计文章，分享前沿设计趋势与行业洞察',
+    palette: {
+      backgroundStart: '#EFF6FF',
+      backgroundEnd: '#F8FAFC',
+      accent: '#2563EB',
+    },
+  })
 };
 
 // 专题/分类配置表
@@ -31,7 +42,16 @@ export const ARTICLE_TOPICS: Record<string, TopicConfig> = {
     title: 'UI 设计',
     description: '探索用户界面设计的艺术与科学，分享最新的 UI 趋势、组件库和设计系统实践。',
     themeColor: '#3b82f6',
-    coverImage: 'https://img.uied.cn/wp-content/uploads/2024/02/ui-design-bg.jpg',
+    coverImage: buildPlaceholderImage({
+      eyebrow: 'UI',
+      title: 'UI 设计',
+      subtitle: '趋势、组件库与设计系统实践',
+      palette: {
+        backgroundStart: '#DBEAFE',
+        backgroundEnd: '#F0F7FF',
+        accent: '#2563EB',
+      },
+    }),
     icon: '🎨'
   },
   'ux-design': {
@@ -40,7 +60,16 @@ export const ARTICLE_TOPICS: Record<string, TopicConfig> = {
     title: '用户体验',
     description: '深入了解用户行为，掌握用户研究方法，打造极致的用户体验。',
     themeColor: '#10b981',
-    coverImage: 'https://img.uied.cn/wp-content/uploads/2024/02/ux-design-bg.jpg',
+    coverImage: buildPlaceholderImage({
+      eyebrow: 'UX',
+      title: '用户体验',
+      subtitle: '用户研究、流程与体验优化',
+      palette: {
+        backgroundStart: '#DCFCE7',
+        backgroundEnd: '#F0FDF4',
+        accent: '#10B981',
+      },
+    }),
     icon: '🧠'
   },
   'frontend': {
@@ -49,7 +78,16 @@ export const ARTICLE_TOPICS: Record<string, TopicConfig> = {
     title: '前端开发',
     description: '连接设计与代码，分享 React, Vue, CSS 等前端技术与设计工程化实践。',
     themeColor: '#6366f1',
-    coverImage: 'https://img.uied.cn/wp-content/uploads/2024/02/frontend-bg.jpg',
+    coverImage: buildPlaceholderImage({
+      eyebrow: 'Code',
+      title: '前端开发',
+      subtitle: '连接设计与代码的工程化实践',
+      palette: {
+        backgroundStart: '#E0E7FF',
+        backgroundEnd: '#F5F3FF',
+        accent: '#6366F1',
+      },
+    }),
     icon: '💻'
   },
   
@@ -60,7 +98,16 @@ export const ARTICLE_TOPICS: Record<string, TopicConfig> = {
     title: 'AI 设计工具',
     description: '精选 AI 设计工具评测与教程，助力设计师拥抱 AIGC 时代。',
     themeColor: '#8b5cf6',
-    coverImage: 'https://img.uied.cn/wp-content/uploads/2024/02/ai-tools-bg.jpg',
+    coverImage: buildPlaceholderImage({
+      eyebrow: 'AI',
+      title: 'AI 设计工具',
+      subtitle: '评测、教程与工作流升级',
+      palette: {
+        backgroundStart: '#F3E8FF',
+        backgroundEnd: '#FAF5FF',
+        accent: '#8B5CF6',
+      },
+    }),
     icon: '🤖'
   },
   'career': {
@@ -69,7 +116,16 @@ export const ARTICLE_TOPICS: Record<string, TopicConfig> = {
     title: '职场成长',
     description: '设计师职场进阶指南，包含面试技巧、作品集制作与职业规划。',
     themeColor: '#f59e0b',
-    coverImage: 'https://img.uied.cn/wp-content/uploads/2024/02/career-bg.jpg',
+    coverImage: buildPlaceholderImage({
+      eyebrow: 'Career',
+      title: '职场成长',
+      subtitle: '作品集、面试与职业进阶',
+      palette: {
+        backgroundStart: '#FEF3C7',
+        backgroundEnd: '#FFFBEB',
+        accent: '#F59E0B',
+      },
+    }),
     icon: '📈'
   }
 };

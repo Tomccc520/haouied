@@ -25,6 +25,8 @@ import { debugLog } from '../utils/debugHelper';
 import { getArticles } from '../services/articleService';
 import type { ArticleListItem } from '../types/article';
 import AdminShortcutHint from './AdminShortcutHint';
+import { getFullImageUrl } from '../utils/urlUtils';
+import { buildPlaceholderImage } from '../utils/placeholderImages';
 
 // 导入RankItem类型
 interface RankItem {
@@ -76,6 +78,18 @@ const DEFAULT_TAG_OPTIONS: TagOption[] = [
 
 // 常量定义
 const CACHE_EXPIRE_TIME = 10 * 60 * 1000; // 10分钟缓存过期
+const DEFAULT_ARTICLE_THUMBNAIL = buildPlaceholderImage({
+  eyebrow: 'UIED',
+  title: '设计文章',
+  subtitle: '默认封面',
+  width: 960,
+  height: 540,
+  palette: {
+    backgroundStart: '#EFF6FF',
+    backgroundEnd: '#F8FAFC',
+    accent: '#2563EB',
+  },
+});
 
 // 清除所有设计文章缓存
 const clearDesignArticlesCache = () => {
@@ -135,7 +149,7 @@ function saveToSessionStorage<T>(key: string, data: T) {
 // 根据环境处理图片URL
 const getImageUrl = (url?: string) => {
   if (!url) return undefined;
-  return url;
+  return getFullImageUrl(url) || url;
 };
 
 // 统一的图片错误处理函数
@@ -147,7 +161,7 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
   }
   
   img.dataset.errorHandled = 'true';
-  img.src = 'https://img.uied.cn/wp-content/themes/uied/assets/images/default-thumbnail.jpg';
+  img.src = DEFAULT_ARTICLE_THUMBNAIL;
   
   const container = img.parentElement;
   if (container && container.classList.contains('article-image-container')) {
@@ -163,7 +177,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: '2024年最受欢迎的UI设计趋势',
       description: '探索2024年最热门的UI设计趋势，包括新拟态、玻璃形态和动态交互设计',
       link: 'https://www.uied.cn/article/ui-trends-2024',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/ui-trends-cover.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'Trend',
+        title: '2024 UI 设计趋势',
+        subtitle: '新拟态、玻璃形态与动态交互',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#DBEAFE', backgroundEnd: '#F8FBFF', accent: '#2563EB' },
+      }),
       date: '2024-01-15',
       timeAgo: '2天前',
       isHot: true
@@ -173,7 +194,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: 'Figma插件推荐：提升设计效率的10个神器',
       description: '精选10个必备Figma插件，让你的设计工作效率翻倍',
       link: 'https://www.uied.cn/article/figma-plugins-2024',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/figma-plugins.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'Figma',
+        title: 'Figma 插件推荐',
+        subtitle: '提升设计效率的 10 个神器',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#EDE9FE', backgroundEnd: '#F8FAFC', accent: '#7C3AED' },
+      }),
       date: '2024-01-14',
       timeAgo: '3天前',
       isFeatured: true
@@ -183,7 +211,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: '移动端设计规范：iOS vs Android差异对比',
       description: '深度解析iOS和Android设计规范的差异，帮你做出更好的移动端设计',
       link: 'https://www.uied.cn/article/mobile-design-guidelines',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/mobile-design.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'Mobile',
+        title: '移动端设计规范',
+        subtitle: 'iOS 与 Android 差异对比',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#E0F2FE', backgroundEnd: '#F8FAFC', accent: '#0284C7' },
+      }),
       date: '2024-01-13',
       timeAgo: '4天前',
       isNew: true
@@ -193,7 +228,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: '色彩心理学在UI设计中的应用',
       description: '了解色彩对用户心理的影响，掌握色彩搭配的黄金法则',
       link: 'https://www.uied.cn/article/color-psychology-ui',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/color-psychology.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'Color',
+        title: '色彩心理学',
+        subtitle: 'UI 设计中的应用方法',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#FCE7F3', backgroundEnd: '#FFF7ED', accent: '#DB2777' },
+      }),
       date: '2024-01-12',
       timeAgo: '5天前'
     },
@@ -202,7 +244,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: '2024年网页设计灵感：30个优秀案例分析',
       description: '精选30个2024年优秀网页设计案例，分析设计亮点和创意思路',
       link: 'https://www.uied.cn/article/web-design-inspiration-2024',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/web-inspiration.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'Web',
+        title: '网页设计灵感',
+        subtitle: '30 个优秀案例分析',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#E0E7FF', backgroundEnd: '#EEF2FF', accent: '#4F46E5' },
+      }),
       date: '2024-01-11',
       timeAgo: '6天前'
     },
@@ -211,7 +260,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: 'AI设计工具大盘点：设计师的智能助手',
       description: '盘点最新AI设计工具，探索人工智能如何改变设计行业',
       link: 'https://www.uied.cn/article/ai-design-tools-2024',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/ai-design-tools.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'AI',
+        title: 'AI 设计工具',
+        subtitle: '设计师的智能助手',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#F3E8FF', backgroundEnd: '#FAF5FF', accent: '#8B5CF6' },
+      }),
       date: '2024-01-10',
       timeAgo: '1周前'
     },
@@ -220,7 +276,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: '用户体验设计的5个核心原则',
       description: '深入理解UX设计的基本原则，打造更好的用户体验',
       link: 'https://www.uied.cn/article/ux-design-principles',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/ux-principles.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'UX',
+        title: 'UX 核心原则',
+        subtitle: '打造更好的用户体验',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#DCFCE7', backgroundEnd: '#F0FDF4', accent: '#059669' },
+      }),
       date: '2024-01-09',
       timeAgo: '1周前'
     },
@@ -229,7 +292,14 @@ const generateMockData = (count: number): RankItem[] => {
       name: '设计系统构建指南：从零到一的完整流程',
       description: '学习如何构建一套完整的设计系统，提升团队协作效率',
       link: 'https://www.uied.cn/article/design-system-guide',
-      thumbnail: 'https://img.uied.cn/wp-content/uploads/2024/01/design-system.jpg',
+      thumbnail: buildPlaceholderImage({
+        eyebrow: 'System',
+        title: '设计系统构建指南',
+        subtitle: '从零到一的完整流程',
+        width: 960,
+        height: 540,
+        palette: { backgroundStart: '#FEF3C7', backgroundEnd: '#FFFBEB', accent: '#D97706' },
+      }),
       date: '2024-01-08',
       timeAgo: '1周前'
     }

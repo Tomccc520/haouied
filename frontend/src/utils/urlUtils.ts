@@ -13,6 +13,34 @@ const DEFAULT_API_PORT = '8002';
 const DEFAULT_API_BASE = `http://localhost:${DEFAULT_API_PORT}/api`;
 
 /**
+ * 判断是否为可直接返回的 data URI。
+ */
+const isDataUrl = (value: string): boolean => {
+  return /^data:/i.test(String(value || '').trim());
+};
+
+/**
+ * 从绝对地址或相对地址中提取上传资源路径，并保留原始 uploads/public/api 前缀。
+ */
+const extractUploadPath = (rawUrl: string): string => {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+
+  const matchers = [
+    /\/uploads\/.+$/i,
+    /\/public\/uploads\/.+$/i,
+    /\/api\/uploads\/.+$/i,
+  ];
+
+  for (const matcher of matchers) {
+    const matchedPath = value.match(matcher)?.[0];
+    if (matchedPath) return matchedPath;
+  }
+
+  return '';
+};
+
+/**
  * 获取 API 基础地址
  * 统一优先使用 CRA 环境变量（REACT_APP_API_URL）
  * 
@@ -47,32 +75,34 @@ export const getBackendBaseUrl = (): string => {
  */
 export const getFullImageUrl = (url: string): string => {
   if (!url) return '';
+  if (isDataUrl(url)) return url;
   
   const backendBase = getBackendBaseUrl();
+  const normalizedUrl = String(url || '').trim();
+  const uploadPath = extractUploadPath(normalizedUrl);
   
   // 如果是相对路径，添加后端服务器地址
-  if (url.startsWith('/uploads/')) {
-    return `${backendBase}${url}`;
+  if (normalizedUrl.startsWith('/uploads/')
+    || normalizedUrl.startsWith('/public/uploads/')
+    || normalizedUrl.startsWith('/api/uploads/')) {
+    return `${backendBase}${normalizedUrl}`;
   }
   
-  // 如果是完整 URL，检查是否需要修正端口
-  // 处理 localhost:5173 (admin) 或其他错误端口的情况
-  if (url.includes('localhost:5173/uploads/') || 
-      url.includes('localhost:3000/uploads/') ||
-      url.includes('localhost:5174/uploads/')) {
-    const uploadPath = url.match(/\/uploads\/.+$/)?.[0];
-    if (uploadPath) {
-      return `${backendBase}${uploadPath}`;
-    }
+  /**
+   * 历史数据里可能写入了 localhost / 127.0.0.1 / 旧端口的绝对地址。
+   * 只要命中 uploads 资源路径，就统一切回当前后端域名。
+   */
+  if (uploadPath) {
+    return `${backendBase}${uploadPath}`;
   }
   
   // 如果已经是完整的外部 URL，直接返回
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
+  if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
+    return normalizedUrl;
   }
   
   // 其他情况，添加后端地址
-  return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  return `${backendBase}${normalizedUrl.startsWith('/') ? '' : '/'}${normalizedUrl}`;
 };
 
 /**
@@ -88,12 +118,20 @@ export const processContentImageUrls = (content: string): string => {
   const backendBase = getBackendBaseUrl();
   
   return content
-    // 替换错误端口的图片路径
-    .replace(/src="http:\/\/localhost:5173\/uploads\//g, `src="${backendBase}/uploads/`)
-    .replace(/src="http:\/\/localhost:5174\/uploads\//g, `src="${backendBase}/uploads/`)
-    .replace(/src="http:\/\/localhost:3000\/uploads\//g, `src="${backendBase}/uploads/`)
+    // 替换历史 localhost / 127.0.0.1 图片地址
+    .replace(/src="https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/uploads\//g, `src="${backendBase}/uploads/`)
+    .replace(/src="https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/public\/uploads\//g, `src="${backendBase}/public/uploads/`)
+    .replace(/src="https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/api\/uploads\//g, `src="${backendBase}/api/uploads/`)
+    .replace(/src='https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/uploads\//g, `src='${backendBase}/uploads/`)
+    .replace(/src='https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/public\/uploads\//g, `src='${backendBase}/public/uploads/`)
+    .replace(/src='https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\/api\/uploads\//g, `src='${backendBase}/api/uploads/`)
     // 替换相对路径
-    .replace(/src="\/uploads\//g, `src="${backendBase}/uploads/`);
+    .replace(/src="\/uploads\//g, `src="${backendBase}/uploads/`)
+    .replace(/src="\/public\/uploads\//g, `src="${backendBase}/public/uploads/`)
+    .replace(/src="\/api\/uploads\//g, `src="${backendBase}/api/uploads/`)
+    .replace(/src='\/uploads\//g, `src='${backendBase}/uploads/`)
+    .replace(/src='\/public\/uploads\//g, `src='${backendBase}/public/uploads/`)
+    .replace(/src='\/api\/uploads\//g, `src='${backendBase}/api/uploads/`);
 };
 
 /**

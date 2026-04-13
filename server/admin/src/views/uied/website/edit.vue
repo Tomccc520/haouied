@@ -146,17 +146,48 @@
                                     </div>
                                 </el-form-item>
                                 <el-form-item label="图标URL">
-                                    <div class="flex gap-2 w-100">
-                                        <el-input
-                                            v-model="editData.iconUrl"
-                                            placeholder="请输入图标URL"
-                                            maxlength="500"
-                                            show-word-limit
-                                            clearable
-                                        />
-                                        <el-button :loading="fetchingIcon" @click="handleFetchIcon"
-                                            >获取图标</el-button
-                                        >
+                                    <div class="w-100">
+                                        <div class="website-icon-toolbar">
+                                            <el-input
+                                                v-model="editData.iconUrl"
+                                                placeholder="输入图标URL或从素材中心选择"
+                                                maxlength="500"
+                                                show-word-limit
+                                                clearable
+                                            />
+                                            <el-button @click="openIconPicker">
+                                                <el-icon class="mr-1"><FolderOpened /></el-icon>
+                                                素材中心
+                                            </el-button>
+                                            <el-button :loading="fetchingIcon" @click="handleFetchIcon">
+                                                获取图标
+                                            </el-button>
+                                        </div>
+                                        <div class="website-icon-preview mt-2">
+                                            <template v-if="editData.iconUrl">
+                                                <div class="website-icon-preview__toolbar">
+                                                    <span class="dot"></span>
+                                                    <span class="dot"></span>
+                                                    <span class="dot"></span>
+                                                    <span class="website-icon-preview__url">
+                                                        {{ editData.iconUrl }}
+                                                    </span>
+                                                </div>
+                                                <div class="website-icon-preview__body">
+                                                    <div class="website-icon-preview__card">
+                                                        <el-image
+                                                            :src="editData.iconUrl"
+                                                            class="website-icon-preview__image"
+                                                            fit="contain"
+                                                            :preview-src-list="[editData.iconUrl]"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <div v-else class="website-icon-preview__empty">
+                                                暂无图标，可手动填写 URL、从素材中心选择，或点击“获取图标”
+                                            </div>
+                                        </div>
                                     </div>
                                 </el-form-item>
                                 <el-form-item label="标签">
@@ -816,6 +847,14 @@
             :limit="1"
             hidden-upload
             @change="handleThumbnailSelect"
+        />
+        <!-- 图标素材选择器（隐藏触发器模式） -->
+        <material-picker
+            ref="iconPickerRef"
+            type="image"
+            :limit="1"
+            hidden-upload
+            @change="handleIconSelect"
         />
     </div>
 </template>
@@ -1551,6 +1590,25 @@ const handleThumbnailSelect = (urls: string | string[]) => {
     if (url) editData.thumbnail = url
 }
 const capturingThumbnail = ref(false)
+
+// ==================== 图标 ====================
+const iconPickerRef = ref<InstanceType<typeof MaterialPicker>>()
+
+/**
+ * 打开图标素材选择器
+ */
+const openIconPicker = () => {
+    iconPickerRef.value?.showPopup(-1)
+}
+
+/**
+ * 处理图标素材选择结果
+ * @param urls 素材中心返回的图片地址
+ */
+const handleIconSelect = (urls: string | string[]) => {
+    const url = Array.isArray(urls) ? urls[0] : urls
+    if (url) editData.iconUrl = url
+}
 
 /**
  * 解析当前编辑网站 ID（仅编辑态可用）
@@ -3003,6 +3061,74 @@ onBeforeUnmount(() => {
     color: #303133;
     margin-bottom: 10px;
 }
+.website-icon-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+}
+.website-icon-preview {
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+    min-height: 156px;
+}
+.website-icon-preview__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    background: #fafafa;
+}
+.website-icon-preview__toolbar .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d0d7de;
+}
+.website-icon-preview__url {
+    margin-left: 6px;
+    font-size: 12px;
+    color: #606266;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.website-icon-preview__body {
+    min-height: 112px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+.website-icon-preview__card {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    border: 1px solid var(--el-border-color-lighter);
+    background: #fff;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+.website-icon-preview__image {
+    width: 48px;
+    height: 48px;
+    display: block;
+}
+.website-icon-preview__empty {
+    min-height: 156px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px;
+    color: #909399;
+    font-size: 13px;
+}
 .detail-thumbnail-toolbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -3351,6 +3477,9 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
     .website-url-tools {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .website-icon-toolbar {
         grid-template-columns: minmax(0, 1fr);
     }
     .detail-config-grid {
