@@ -83,6 +83,7 @@ deploy_tgz_to_dir() {
   local package_file="$1"
   local target_dir="$2"
   local stage_name="$3"
+  local preserve_uploads="${4:-0}"
   if [[ ! -f "$package_file" ]]; then
     log "$stage_name: 未提供对应包，跳过"
     return 0
@@ -97,10 +98,25 @@ deploy_tgz_to_dir() {
   mkdir -p "$tmp_extract" "$target_dir"
   tar -xzf "$package_file" -C "$tmp_extract"
   if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete "$tmp_extract"/ "$target_dir"/
+    if [[ "$preserve_uploads" == "1" ]]; then
+      rsync -a --delete --exclude 'app/public/uploads/' "$tmp_extract"/ "$target_dir"/
+    else
+      rsync -a --delete "$tmp_extract"/ "$target_dir"/
+    fi
   else
+    local preserved_uploads_tmp="$UIED_TEMP_DIR/preserved_uploads_${UIED_TASK_NO}"
+    rm -rf "$preserved_uploads_tmp"
+    if [[ "$preserve_uploads" == "1" && -d "$target_dir/app/public/uploads" ]]; then
+      mkdir -p "$preserved_uploads_tmp"
+      cp -a "$target_dir/app/public/uploads" "$preserved_uploads_tmp/uploads"
+    fi
     find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
     cp -a "$tmp_extract"/. "$target_dir"/
+    if [[ "$preserve_uploads" == "1" && -d "$preserved_uploads_tmp/uploads" ]]; then
+      mkdir -p "$target_dir/app/public"
+      rm -rf "$target_dir/app/public/uploads"
+      mv "$preserved_uploads_tmp/uploads" "$target_dir/app/public/uploads"
+    fi
   fi
   log "$stage_name: 部署完成 -> $target_dir"
 }
@@ -369,7 +385,7 @@ main() {
   local frontend_code=$?
   deploy_tgz_to_dir "$WORK_DIR/admin-static.tgz" "$UIED_ADMIN_DEPLOY_DIR" "admin"
   local admin_code=$?
-  deploy_tgz_to_dir "$WORK_DIR/backend-server.tgz" "$UIED_BACKEND_DEPLOY_DIR" "backend"
+  deploy_tgz_to_dir "$WORK_DIR/backend-server.tgz" "$UIED_BACKEND_DEPLOY_DIR" "backend" "1"
   local backend_code=$?
   if [[ "$frontend_code" -ne 0 || "$admin_code" -ne 0 || "$backend_code" -ne 0 ]]; then
     rollback_all "升级包部署阶段失败"

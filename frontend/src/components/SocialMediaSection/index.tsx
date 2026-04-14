@@ -149,7 +149,11 @@ const typeIcons: Record<string, string> = {
  */
 const isAssetUrl = (value?: string): boolean => {
   const text = String(value || '').trim();
-  return /^https?:\/\//i.test(text) || /^data:image\//i.test(text) || text.startsWith('/uploads/');
+  return /^https?:\/\//i.test(text)
+    || /^data:image\//i.test(text)
+    || text.startsWith('/uploads/')
+    || text.startsWith('/public/uploads/')
+    || text.startsWith('/api/uploads/');
 };
 
 /**

@@ -12,6 +12,7 @@
 const Service = require('egg').Service;
 const fs = require('fs');
 const path = require('path');
+const uploadsPathUtil = require('../../util/uploadsPathUtil');
 
 class WebsitePreviewSnapshotService extends Service {
   /**
@@ -31,11 +32,11 @@ class WebsitePreviewSnapshotService extends Service {
   }
 
   /**
-   * 本地截图缓存目录（映射到前端可访问的 /uploads 路径）
+   * 本地截图缓存目录（映射到前端可访问的 /public/uploads 路径）
    * @return {string} 截图缓存目录绝对路径
    */
   getSnapshotDirAbsolutePath() {
-    return path.join(this.app.baseDir, 'app/public/uploads/website-preview-cache');
+    return uploadsPathUtil.resolveUploadsSubPath(this.app, 'website-preview-cache');
   }
 
   /**
@@ -53,7 +54,7 @@ class WebsitePreviewSnapshotService extends Service {
    * @return {string} 公共访问路径
    */
   buildSnapshotPublicPath(websiteId) {
-    return `/uploads/website-preview-cache/${this.buildSnapshotFileName(websiteId)}`;
+    return uploadsPathUtil.buildPublicUploadUri('website-preview-cache', this.buildSnapshotFileName(websiteId));
   }
 
   /**

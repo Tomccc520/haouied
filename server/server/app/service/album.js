@@ -5,6 +5,7 @@ const Sequelize = require('sequelize');
 const Op = Sequelize.Op;
 const util = require('../util');
 const urlUtil = require('../util/urlUtil');
+const uploadsPathUtil = require('../util/uploadsPathUtil');
 const path = require('path');
 const { reqAdminIdKey, superAdminId } = require('../extend/config');
 const fs = require('fs');
@@ -281,12 +282,13 @@ class AlbumService extends Service {
     }
 
     const publicRoot = path.join(this.config.baseDir, 'app', 'public');
+    const uploadsRoot = uploadsPathUtil.resolveUploadsAbsoluteDir(this.app);
     const scanBasePaths = [];
     if (scanRoot === 'public') {
       scanBasePaths.push(publicRoot);
     } else {
       [ 'image', 'video', 'file' ].forEach(dirName => {
-        const candidatePath = path.join(publicRoot, 'uploads', dirName);
+        const candidatePath = path.join(uploadsRoot, dirName);
         if (fs.existsSync(candidatePath)) {
           scanBasePaths.push(candidatePath);
         }
@@ -375,12 +377,15 @@ class AlbumService extends Service {
         continue;
       }
 
-      const relativeInPublicRoot = path.relative(publicRoot, absolutePath).replace(/\\/g, '/');
-      if (!relativeInPublicRoot || relativeInPublicRoot.startsWith('..')) {
+      const relativeBasePath = scanRoot === 'public' ? publicRoot : uploadsRoot;
+      const relativePath = path.relative(relativeBasePath, absolutePath).replace(/\\/g, '/');
+      if (!relativePath || relativePath.startsWith('..')) {
         skipped += 1;
         continue;
       }
-      const uri = `/public/${relativeInPublicRoot}`;
+      const uri = scanRoot === 'public'
+        ? `/public/${relativePath}`
+        : uploadsPathUtil.buildPublicUploadUri(relativePath);
       scanned += 1;
       if (activeUriSet.has(uri)) {
         existed += 1;
@@ -589,9 +594,9 @@ class AlbumService extends Service {
     extOverride = '',
     fileNameBase = ''
   ) {
-    const pathDir = type === 10 ? '/public/uploads/image/' : '/public/uploads/video/';
-    const targetDir = pathDir + dayjs().format('YYYY-MM-DD');
-    const dir = path.join(this.config.baseDir, 'app', targetDir);
+    const bucket = type === 10 ? 'image' : 'video';
+    const dateDir = dayjs().format('YYYY-MM-DD');
+    const dir = uploadsPathUtil.resolveUploadsSubPath(this.app, bucket, dateDir);
     await mkdirp.sync(dir);
     const resolvedExt = this.normalizeImageExt(
       extOverride || path.extname(String(originalFileName || '')).replace('.', '')
@@ -600,14 +605,14 @@ class AlbumService extends Service {
     let filename = normalizedBase
       ? `${normalizedBase}.${resolvedExt}`
       : `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${resolvedExt}`;
-    let relativeUrl = `${targetDir}/${filename}`;
-    let targetPath = path.join(this.config.baseDir, 'app', relativeUrl);
+    let relativeUrl = uploadsPathUtil.buildPublicUploadUri(bucket, dateDir, filename);
+    let targetPath = path.join(dir, filename);
     if (normalizedBase) {
       let counter = 1;
       while (fs.existsSync(targetPath)) {
         filename = `${normalizedBase}_${counter}.${resolvedExt}`;
-        relativeUrl = `${targetDir}/${filename}`;
-        targetPath = path.join(this.config.baseDir, 'app', relativeUrl);
+        relativeUrl = uploadsPathUtil.buildPublicUploadUri(bucket, dateDir, filename);
+        targetPath = path.join(dir, filename);
         counter += 1;
       }
     }
@@ -1014,17 +1019,11 @@ class AlbumService extends Service {
     if (!relativeUri) {
       return { relativeUri: '', absolutePath: '', safe: false };
     }
-    const normalizedRelative = path.posix.normalize(relativeUri.replace(/\\/g, '/'));
-    if (!normalizedRelative.startsWith('/public/uploads/')) {
-      return { relativeUri: normalizedRelative, absolutePath: '', safe: false };
-    }
-    const absolutePath = path.join(this.config.baseDir, 'app', normalizedRelative);
-    const uploadsRoot = path.join(this.config.baseDir, 'app', 'public', 'uploads');
-    const safe = absolutePath.startsWith(uploadsRoot + path.sep) || absolutePath === uploadsRoot;
+    const pathInfo = uploadsPathUtil.resolveUploadUriToAbsolutePath(this.app, relativeUri);
     return {
-      relativeUri: normalizedRelative,
-      absolutePath,
-      safe,
+      relativeUri: pathInfo.relativeUri,
+      absolutePath: pathInfo.absolutePath,
+      safe: pathInfo.safe,
     };
   }
 
@@ -1472,9 +1471,14 @@ class AlbumService extends Service {
       const uploaded = await this.handleUploadFile(stream, type);
       const { url, fileName } = uploaded;
       const aid = ctx.session[reqAdminIdKey];
+      const uploadedPathInfo = uploadsPathUtil.resolveUploadUriToAbsolutePath(this.app, url);
       const fileSizeInBytes = Number(uploaded.sizeBytes || 0) > 0
         ? Number(uploaded.sizeBytes)
-        : fs.statSync(path.join(this.config.baseDir, 'app', url)).size;
+        : (
+          uploadedPathInfo.safe && uploadedPathInfo.absolutePath && fs.existsSync(uploadedPathInfo.absolutePath)
+            ? fs.statSync(uploadedPathInfo.absolutePath).size
+            : 0
+        );
       const ext = this.normalizeImageExt(
         uploaded.ext || path.extname(url).replace('.', '')
       );
@@ -1553,12 +1557,12 @@ class AlbumService extends Service {
       }
     }
 
-    const pathDir = type === 10 ? '/public/uploads/image/' : '/public/uploads/video/';
-    const targetDir = pathDir + dayjs().format('YYYY-MM-DD');
-    const dir = path.join(this.config.baseDir, 'app', targetDir);
+    const bucket = type === 10 ? 'image' : 'video';
+    const dateDir = dayjs().format('YYYY-MM-DD');
+    const dir = uploadsPathUtil.resolveUploadsSubPath(this.app, bucket, dateDir);
     await mkdirp.sync(dir);
     const filename = Date.now() + path.extname(stream.filename).toLocaleLowerCase();
-    const target = path.join('app', targetDir, filename);
+    const target = path.join(dir, filename);
     const writeStream = fs.createWriteStream(target);
     try {
       await awaitWriteStream(stream.pipe(writeStream));
@@ -1566,10 +1570,10 @@ class AlbumService extends Service {
       await sendToWormhole(stream);
       throw new Error(err);
     }
-    const stats = fs.statSync(path.join(this.config.baseDir, target));
+    const stats = fs.statSync(target);
     const ext = this.normalizeImageExt(path.extname(filename).replace('.', ''));
     return {
-      url: `${targetDir}/${filename}`,
+      url: uploadsPathUtil.buildPublicUploadUri(bucket, dateDir, filename),
       fileName: stream.filename,
       ext,
       sizeBytes: Number(stats.size || 0),

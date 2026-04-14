@@ -15,6 +15,7 @@ const md5 = require('md5');
 const mysql = require('mysql2/promise');
 const Service = require('egg').Service;
 const { dbTablePrefix = 'la_' } = require('../extend/config');
+const uploadsPathUtil = require('../util/uploadsPathUtil');
 
 const INSTALL_STATE_KEY = 'install_wizard_state';
 const INSTALL_WIZARD_VERSION = '1.0.0';
@@ -341,7 +342,7 @@ class InstallService extends Service {
    * 检测运行目录可写性
    */
   async detectWritableCheck() {
-    const uploadPath = path.join(this.app.baseDir, 'app/public/uploads');
+    const uploadPath = uploadsPathUtil.resolveUploadsAbsoluteDir(this.app);
     const logsPath = path.join(this.app.baseDir, 'logs');
     const runPath = path.join(this.app.baseDir, 'run');
     const checks = await Promise.all([

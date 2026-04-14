@@ -36,5 +36,13 @@ module.exports = appInfo => {
         }
     }
 
+    /**
+     * 可选：独立上传目录（推荐配置到项目外，升级时素材不受影响）。
+     */
+    const uploadsAbsDir = String(process.env.UIED_UPLOADS_ABS_DIR || '').trim()
+    if (uploadsAbsDir) {
+        config.uiedUploadsAbsDir = uploadsAbsDir
+    }
+
     return config
 }

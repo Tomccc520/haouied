@@ -165,8 +165,11 @@ const normalizePreviewSnapshotPayload = (payload: WebsitePreviewSnapshotData | n
   const fallbackUrls = Array.isArray(payload?.fallbackUrls)
     ? payload?.fallbackUrls?.map(item => String(item || '').trim()).filter(Boolean) || []
     : [];
+  const isLocalPreviewPath = previewUrl.startsWith('/uploads/')
+    || previewUrl.startsWith('/public/uploads/')
+    || previewUrl.startsWith('/api/uploads/');
   return {
-    url: previewUrl.startsWith('/uploads/') ? getFullImageUrl(previewUrl) : previewUrl,
+    url: isLocalPreviewPath ? getFullImageUrl(previewUrl) : previewUrl,
     fallbackUrls,
   };
 };

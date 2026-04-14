@@ -1,4 +1,7 @@
 const path = require('path');
+const {
+    resolveUploadsAbsoluteDirByInput,
+} = require('../app/util/uploadsPathUtil');
 /**
  * @param {Egg.EggAppInfo} appInfo app info
  */
@@ -84,10 +87,30 @@ module.exports = appInfo => {
     // 是否要求安装后先导入付费许可证再使用后台业务能力（默认开启）
     config.uiedRequirePaidLicenseActivation = String(process.env.UIED_REQUIRE_PAID_LICENSE_ACTIVATION || 'true').trim().toLowerCase() !== 'false';
 
+    /**
+     * 解析上传目录绝对路径（支持传 uploads 父目录或 uploads 目录本身）。
+     * 该目录用于素材上传与截图缓存，建议线上指向项目外持久化目录。
+     */
+    const uploadsAbsDir = resolveUploadsAbsoluteDirByInput(
+        appInfo.baseDir,
+        process.env.UIED_UPLOADS_ABS_DIR || ''
+    );
+    config.uiedUploadsAbsDir = uploadsAbsDir;
+
+    const defaultStaticRoot = path.join(appInfo.baseDir, 'app/public');
+    const defaultUploadsRoot = path.join(defaultStaticRoot, 'uploads');
+    const staticDirs = [defaultStaticRoot];
+    if (uploadsAbsDir !== defaultUploadsRoot) {
+        staticDirs.push({
+            prefix: '/public/uploads',
+            dir: uploadsAbsDir,
+        });
+    }
+
     // 设置静态目录
     config.static = {
         prefix: '/public',
-        dir: [path.join(appInfo.baseDir, 'app/public')],
+        dir: staticDirs,
         dynamic: true, // 如果当前访问的静态资源没有缓存，则缓存静态文件，和`preload`配合使用；
         preload: false,
         maxAge: 31536000, // in prod env, 0 in other envs
