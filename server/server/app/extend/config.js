@@ -187,6 +187,7 @@ const rsa = {
     'banners', // GET /api/banners
     'site-info', // GET /api/site-info
     'seo:public-config', // GET /api/seo/public-config
+    'seo:redirect:resolve', // GET /api/seo/redirect/resolve
     'seo:prerender-manifest', // GET /api/seo/prerender-manifest
     'seo:report-404', // POST /api/seo/report-404
     'robots.txt', // GET /robots.txt

@@ -259,7 +259,7 @@ class SeoCenterService extends Service {
     return list
       .map((item, index) => {
         const id = this.normalizeString(item?.id || '') || this.createId();
-        const from = this.normalizePath(item?.from || '/');
+        const from = this.normalizeRedirectFromPath(item?.from || '/');
         const toRaw = this.normalizeString(item?.to || '/');
         const to = /^https?:\/\//i.test(toRaw)
           ? toRaw
@@ -272,6 +272,47 @@ class SeoCenterService extends Service {
         return { id, from, to, type, enabled, preserveQuery, sort, note };
       })
       .sort((a, b) => a.sort - b.sort);
+  }
+
+  /**
+   * 规范化重定向来源路径（统一去除尾斜杠，根路径保留 /）
+   * @param {unknown} pathValue 来源路径
+   * @return {string} 规范化来源路径
+   */
+  normalizeRedirectFromPath(pathValue) {
+    const normalizedPath = this.normalizePath(pathValue || '/');
+    if (normalizedPath === '/') return '/';
+    const cleaned = normalizedPath.replace(/\/+$/, '');
+    return cleaned || '/';
+  }
+
+  /**
+   * 生成重定向来源路径比对键（忽略大小写，避免重复配置）
+   * @param {unknown} pathValue 来源路径
+   * @return {string} 比对键
+   */
+  buildRedirectFromKey(pathValue) {
+    return this.normalizeRedirectFromPath(pathValue).toLowerCase();
+  }
+
+  /**
+   * 校验重定向规则来源路径是否重复
+   * @param {Array<Record<string, any>>} rules 规则列表
+   */
+  validateRedirectRules(rules = []) {
+    const sourceMap = new Map();
+    for (const rule of Array.isArray(rules) ? rules : []) {
+      const fromPath = this.normalizeRedirectFromPath(rule?.from || '/');
+      const fromKey = this.buildRedirectFromKey(fromPath);
+      if (!fromKey) continue;
+      const existing = sourceMap.get(fromKey);
+      if (existing) {
+        const error = new Error(`来源路径已存在：${fromPath}`);
+        error.code = 'SEO_REDIRECT_FROM_DUPLICATED';
+        throw error;
+      }
+      sourceMap.set(fromKey, true);
+    }
   }
 
   /**
@@ -492,6 +533,7 @@ class SeoCenterService extends Service {
     const current = await this.getConfig();
     const merged = this.deepMerge(current, this.isPlainObject(payload) ? payload : {});
     const normalized = this.normalizeConfig(merged);
+    this.validateRedirectRules(normalized.redirects);
     await this.ctx.service.uied.setting.save({ [SEO_CENTER_CONFIG_KEY]: normalized });
     this._seoCenterConfigCache = normalized;
     this._seoCenterConfigCacheAt = Date.now();
@@ -1995,12 +2037,12 @@ class SeoCenterService extends Service {
    * @return {{matched:boolean,targetUrl?:string,statusCode?:number}} 匹配结果
    */
   matchRedirectRule(pathname, querystring, config) {
-    const path = this.normalizePath(pathname || '/');
+    const path = this.buildRedirectFromKey(pathname || '/');
     const rules = Array.isArray(config?.redirects) ? config.redirects : [];
 
     for (const rule of rules) {
       if (!rule?.enabled) continue;
-      const from = this.normalizePath(rule.from || '/');
+      const from = this.buildRedirectFromKey(rule.from || '/');
       if (from !== path) continue;
       const type = String(rule.type || '301') === '302' ? 302 : 301;
       let target = String(rule.to || '/').trim();

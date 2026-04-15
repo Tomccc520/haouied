@@ -53,6 +53,10 @@ class SeoCenterController extends baseController {
       this.result({ data, message: '保存成功' });
     } catch (error) {
       ctx.logger.error('[seoCenter] 保存配置失败:', error);
+      if (String(error?.code || '') === 'SEO_REDIRECT_FROM_DUPLICATED') {
+        this.result({ code: 400, message: error.message || '来源路径重复，请调整后重试' });
+        return;
+      }
       this.result({ code: 500, message: error.message || '保存 SEO 配置失败' });
     }
   }

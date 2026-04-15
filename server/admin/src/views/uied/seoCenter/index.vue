@@ -409,17 +409,17 @@
                         type="info"
                         :closable="false"
                         class="uied-seo-center__alert"
-                        title="运营短链示例：来源路径填 /codeflying，目标地址填 https://www.codeflying.net/?utm=...，即可把 hao.uied.cn/codeflying 跳转到推广链接。"
+                        title="运营短链示例：来源路径填 /uied，目标地址填 https://www.uied.cn/，即可把 hao.uied.cn/uied 跳转到目标链接。"
                     />
                     <el-table :data="configForm.redirects" border>
                         <el-table-column label="来源路径" min-width="180">
-                            <template #default="{ row }">
-                                <el-input v-model="row.from" placeholder="/codeflying（精确匹配）" />
+                            <template #default="{ row, $index }">
+                                <el-input v-model="row.from" placeholder="/uied（精确匹配）" @blur="handleRedirectFromBlur(row, $index)" />
                             </template>
                         </el-table-column>
                         <el-table-column label="目标地址" min-width="220">
                             <template #default="{ row }">
-                                <el-input v-model="row.to" placeholder="https://www.codeflying.net/?utm=..." />
+                                <el-input v-model="row.to" placeholder="https://www.uied.cn/" />
                             </template>
                         </el-table-column>
                         <el-table-column label="类型" width="90">
@@ -909,6 +909,49 @@ const stringifyLineList = (value: unknown): string => {
     return list.map(item => String(item || '').trim()).filter(Boolean).join('\n')
 }
 
+/**
+ * 规范化短链来源路径，用于重复校验（统一前导斜杠并去除尾斜杠）。
+ */
+const normalizeRedirectFromPath = (value: unknown): string => {
+    const raw = String(value || '').trim()
+    if (!raw) return ''
+    const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`
+    const normalizedSlash = withLeadingSlash.replace(/\/+/g, '/')
+    if (normalizedSlash === '/') return '/'
+    const withoutTrailingSlash = normalizedSlash.replace(/\/+$/, '')
+    return withoutTrailingSlash || '/'
+}
+
+/**
+ * 获取重复来源路径列表，返回标准化后的路径集合。
+ */
+const collectDuplicateRedirectFromPaths = (rules: any[]): string[] => {
+    const pathMap = new Map<string, number>()
+    const duplicates = new Set<string>()
+    ;(Array.isArray(rules) ? rules : []).forEach((rule) => {
+        const normalizedPath = normalizeRedirectFromPath(rule?.from)
+        if (!normalizedPath) return
+        const compareKey = normalizedPath.toLowerCase()
+        const count = Number(pathMap.get(compareKey) || 0) + 1
+        pathMap.set(compareKey, count)
+        if (count > 1) {
+            duplicates.add(normalizedPath)
+        }
+    })
+    return Array.from(duplicates)
+}
+
+/**
+ * 校验短链来源路径是否重复，重复时提示并阻断保存。
+ */
+const validateRedirectRulesBeforeSave = (): boolean => {
+    const duplicatePaths = collectDuplicateRedirectFromPaths(configForm.redirects as any[])
+    if (duplicatePaths.length === 0) return true
+    activeTab.value = 'redirects'
+    feedback.msgError(`来源路径已存在：${duplicatePaths.join('、')}，请去重后再保存`)
+    return false
+}
+
 const activeTab = ref<SeoTab>('basic')
 const basicSubTab = ref<BasicSubTab>('tdk')
 const monitorSubTab = ref<MonitorSubTab>('actions')
@@ -1022,9 +1065,10 @@ const addRedirectRule = () => {
     const nextSort = list.length > 0
         ? Math.max(...list.map(item => Number(item?.sort || 0))) + 10
         : 10
+    const nextFromPath = `/short-link-${list.length + 1}`
     list.push({
         id: createRuleId(),
-        from: '/short-link',
+        from: nextFromPath,
         to: 'https://example.com/landing',
         type: '301',
         enabled: true,
@@ -1042,6 +1086,23 @@ const removeRedirectRule = (index: number) => {
     const list = Array.isArray(configForm.redirects) ? configForm.redirects : []
     if (index < 0 || index >= list.length) return
     list.splice(index, 1)
+}
+
+/**
+ * 来源路径输入框失焦校验：发现重复时清空当前值并提示。
+ */
+const handleRedirectFromBlur = (row: any, index: number) => {
+    const normalizedPath = normalizeRedirectFromPath(row?.from)
+    if (!normalizedPath) return
+    row.from = normalizedPath
+    const list = Array.isArray(configForm.redirects) ? configForm.redirects : []
+    const duplicatedIndex = list.findIndex((item, itemIndex) => {
+        if (itemIndex === index) return false
+        return normalizeRedirectFromPath(item?.from).toLowerCase() === normalizedPath.toLowerCase()
+    })
+    if (duplicatedIndex === -1) return
+    row.from = ''
+    feedback.msgError(`来源路径 ${normalizedPath} 已存在，请勿重复填写`)
 }
 
 /**
@@ -1073,9 +1134,12 @@ const loadConfig = async () => {
  * 保存 SEO 配置。
  */
 const saveConfig = async () => {
+    applyTextFieldsToConfig()
+    if (!validateRedirectRulesBeforeSave()) {
+        return
+    }
     loading.saveConfig = true
     try {
-        applyTextFieldsToConfig()
         const payload = cloneJson(configForm)
         await uiedSeoCenterConfigSave(payload)
         feedback.msgSuccess('SEO 配置已保存')
