@@ -932,6 +932,24 @@ export const DEFAULT_AUTH_CONFIG: AuthConfig = {
   },
 };
 
+/**
+ * 公开设置缓存 TTL（毫秒）。
+ * 说明：用于降低页面切换时重复请求 `/api/settings/public` 的频率，减少被网关/WAF 误判风险。
+ */
+const PUBLIC_SETTINGS_CACHE_TTL = 60 * 1000;
+/**
+ * 公开设置内存缓存。
+ */
+let publicSettingsCache: PublicSettings | null = null;
+/**
+ * 公开设置缓存时间戳。
+ */
+let publicSettingsCacheAt = 0;
+/**
+ * 公开设置进行中的请求 Promise（并发去重）。
+ */
+let publicSettingsPendingPromise: Promise<PublicSettings> | null = null;
+
 // ==================== API 服务 ====================
 
 export const publicSettingService = {
@@ -1755,136 +1773,175 @@ export const publicSettingService = {
    * 获取所有公开设置
    */
   getPublicSettings: async (options?: { forceFresh?: boolean }): Promise<PublicSettings> => {
-    try {
-      const response = await api.get('/settings/public', {
-        params: options?.forceFresh ? { _t: Date.now() } : undefined,
-      });
-      const data = publicSettingService.unwrapResponseData<PublicSettingsPayload>(response.data, {});
-      const exitModalConfig = data.exitModal || data.popup;
-      const rawAuthConfig = data.authConfig || {};
-      /**
-       * 规范化个人中心模块开关，避免后端缺字段时前端展示异常。
-       */
-      const normalizeUserCenterModules = (modules: any) => {
-        const source = modules && typeof modules === 'object' ? modules : {};
-        const defaults = DEFAULT_AUTH_CONFIG.userCenterModules;
-        const normalizedModules = {
-          profile: source.profile !== false && defaults.profile !== false,
-          messages: source.messages !== false && defaults.messages !== false,
-          orders: source.orders === true || defaults.orders === true,
-          submissions: source.submissions !== false && defaults.submissions !== false,
-          collections: source.collections !== false && defaults.collections !== false,
-          likes: source.likes !== false && defaults.likes !== false,
-          comments: source.comments !== false && defaults.comments !== false,
-          loginLogs: source.loginLogs !== false && defaults.loginLogs !== false,
-          security: source.security !== false && defaults.security !== false,
+    const forceFresh = options?.forceFresh === true;
+    const now = Date.now();
+    const cacheValid = Boolean(publicSettingsCache) && (now - publicSettingsCacheAt) < PUBLIC_SETTINGS_CACHE_TTL;
+
+    if (!forceFresh && cacheValid && publicSettingsCache) {
+      return publicSettingsCache;
+    }
+
+    if (!forceFresh && publicSettingsPendingPromise) {
+      return publicSettingsPendingPromise;
+    }
+
+    /**
+     * 拉取并规范化公开设置。
+     * 说明：统一封装请求与默认值兜底，供缓存与并发去重复用。
+     */
+    const loadSettings = async (): Promise<PublicSettings> => {
+      try {
+        const response = await api.get('/settings/public', {
+          params: forceFresh ? { _t: Date.now() } : undefined,
+        });
+        const data = publicSettingService.unwrapResponseData<PublicSettingsPayload>(response.data, {});
+        const exitModalConfig = data.exitModal || data.popup;
+        const rawAuthConfig = data.authConfig || {};
+        /**
+         * 规范化个人中心模块开关，避免后端缺字段时前端展示异常。
+         */
+        const normalizeUserCenterModules = (modules: any) => {
+          const source = modules && typeof modules === 'object' ? modules : {};
+          const defaults = DEFAULT_AUTH_CONFIG.userCenterModules;
+          const normalizedModules = {
+            profile: source.profile !== false && defaults.profile !== false,
+            messages: source.messages !== false && defaults.messages !== false,
+            orders: source.orders === true || defaults.orders === true,
+            submissions: source.submissions !== false && defaults.submissions !== false,
+            collections: source.collections !== false && defaults.collections !== false,
+            likes: source.likes !== false && defaults.likes !== false,
+            comments: source.comments !== false && defaults.comments !== false,
+            loginLogs: source.loginLogs !== false && defaults.loginLogs !== false,
+            security: source.security !== false && defaults.security !== false,
+          };
+          if (!Object.values(normalizedModules).some(Boolean)) {
+            normalizedModules.profile = true;
+          }
+          return normalizedModules;
         };
-        if (!Object.values(normalizedModules).some(Boolean)) {
-          normalizedModules.profile = true;
-        }
-        return normalizedModules;
-      };
-      const authConfig: AuthConfig = {
-        enable_register: rawAuthConfig.enable_register === 0 ? 0 : 1,
-        enable_login: rawAuthConfig.enable_login === 0 ? 0 : 1,
-        enable_user_center: rawAuthConfig.enable_user_center === 0 ? 0 : 1,
-        register_close_message: String(
-          rawAuthConfig.register_close_message || DEFAULT_AUTH_CONFIG.register_close_message
-        ).trim() || DEFAULT_AUTH_CONFIG.register_close_message,
-        login_close_message: String(
-          rawAuthConfig.login_close_message || DEFAULT_AUTH_CONFIG.login_close_message
-        ).trim() || DEFAULT_AUTH_CONFIG.login_close_message,
-        user_center_close_message: String(
-          rawAuthConfig.user_center_close_message || DEFAULT_AUTH_CONFIG.user_center_close_message
-        ).trim() || DEFAULT_AUTH_CONFIG.user_center_close_message,
-        userCenterModules: normalizeUserCenterModules(rawAuthConfig.userCenterModules),
-        wechatWebsiteLogin: {
-          enabled: rawAuthConfig?.wechatWebsiteLogin?.enabled === true,
-          appId: String(
-            rawAuthConfig?.wechatWebsiteLogin?.appId
-              || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.appId
-          ).trim(),
-          callbackPath: String(
-            rawAuthConfig?.wechatWebsiteLogin?.callbackPath
-              || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath
-          ).trim() || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath,
-        },
-        qqLogin: {
-          enabled: rawAuthConfig?.qqLogin?.enabled === true,
-          appId: String(
-            rawAuthConfig?.qqLogin?.appId
-              || DEFAULT_AUTH_CONFIG.qqLogin.appId
-          ).trim(),
-          callbackPath: String(
-            rawAuthConfig?.qqLogin?.callbackPath
-              || DEFAULT_AUTH_CONFIG.qqLogin.callbackPath
-          ).trim() || DEFAULT_AUTH_CONFIG.qqLogin.callbackPath,
-        },
-        wechatOfficialAccountLogin: {
-          enabled: rawAuthConfig?.wechatOfficialAccountLogin?.enabled === true,
-          appId: String(
-            rawAuthConfig?.wechatOfficialAccountLogin?.appId
-              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.appId
-          ).trim(),
-          domainVerifyFileName: String(
-            rawAuthConfig?.wechatOfficialAccountLogin?.domainVerifyFileName
-              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.domainVerifyFileName
-          ).trim(),
-          scanAutoLoginEnabled:
-            rawAuthConfig?.wechatOfficialAccountLogin?.scanAutoLoginEnabled === true,
-          scanAutoLoginPrompt: String(
-            rawAuthConfig?.wechatOfficialAccountLogin?.scanAutoLoginPrompt
-              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.scanAutoLoginPrompt
-          ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.scanAutoLoginPrompt,
-          oauthCallbackPath: String(
-            rawAuthConfig?.wechatOfficialAccountLogin?.oauthCallbackPath
-              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.oauthCallbackPath
-          ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.oauthCallbackPath,
-          eventCallbackPath: String(
-            rawAuthConfig?.wechatOfficialAccountLogin?.eventCallbackPath
-              || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.eventCallbackPath
-          ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.eventCallbackPath,
-        },
-      };
-      return {
-        authConfig,
-        brand: publicSettingService.normalizeBrandConfig(data.brand),
-        siteInfo: normalizeSiteInfoConfig(data.siteInfo),
-        appearance: data.appearance || DEFAULT_APPEARANCE,
-        homepage: publicSettingService.normalizeHomepageConfig(data.homepage),
-        pageGlobal: publicSettingService.normalizePageGlobalConfig(data.pageGlobal),
-        cardStyle: data.cardStyle || DEFAULT_CARD_STYLE,
-        sidebar: data.sidebar || DEFAULT_SIDEBAR,
-        search: publicSettingService.normalizeSearchConfig(data.search),
-        exitModal: exitModalConfig || DEFAULT_EXIT_MODAL,
-        detailPage: publicSettingService.normalizeDetailPageConfig(data.detailPage),
-        article: publicSettingService.normalizeArticleConfig(data.article),
-        articleTopics: publicSettingService.normalizeArticleTopicsConfig(data.articleTopics),
-        mcpPage: publicSettingService.normalizeMcpPageConfig(data.mcpPage),
-        figmaPage: publicSettingService.normalizeFigmaPageConfig(data.figmaPage),
-        websiteCompare: publicSettingService.normalizeWebsiteCompareConfig(data.websiteCompare),
-      };
-    } catch (error) {
-      debugLog.error('获取公开设置失败，使用默认配置:', error);
-      // 返回默认配置
-      return {
-        authConfig: DEFAULT_AUTH_CONFIG,
-        brand: DEFAULT_BRAND_CONFIG,
-        siteInfo: normalizeSiteInfoConfig(DEFAULT_SITE_INFO),
-        appearance: DEFAULT_APPEARANCE,
-        homepage: DEFAULT_HOMEPAGE,
-        pageGlobal: DEFAULT_PAGE_GLOBAL,
-        cardStyle: DEFAULT_CARD_STYLE,
-        sidebar: DEFAULT_SIDEBAR,
-        search: DEFAULT_SEARCH,
-        exitModal: DEFAULT_EXIT_MODAL,
-        detailPage: publicSettingService.normalizeDetailPageConfig(DEFAULT_DETAIL_PAGE),
-        article: DEFAULT_ARTICLE_SETTING,
-        articleTopics: DEFAULT_ARTICLE_TOPICS,
-        mcpPage: DEFAULT_MCP_PAGE,
-        figmaPage: DEFAULT_FIGMA_PAGE,
-        websiteCompare: DEFAULT_WEBSITE_COMPARE,
-      };
+        const authConfig: AuthConfig = {
+          enable_register: rawAuthConfig.enable_register === 0 ? 0 : 1,
+          enable_login: rawAuthConfig.enable_login === 0 ? 0 : 1,
+          enable_user_center: rawAuthConfig.enable_user_center === 0 ? 0 : 1,
+          register_close_message: String(
+            rawAuthConfig.register_close_message || DEFAULT_AUTH_CONFIG.register_close_message
+          ).trim() || DEFAULT_AUTH_CONFIG.register_close_message,
+          login_close_message: String(
+            rawAuthConfig.login_close_message || DEFAULT_AUTH_CONFIG.login_close_message
+          ).trim() || DEFAULT_AUTH_CONFIG.login_close_message,
+          user_center_close_message: String(
+            rawAuthConfig.user_center_close_message || DEFAULT_AUTH_CONFIG.user_center_close_message
+          ).trim() || DEFAULT_AUTH_CONFIG.user_center_close_message,
+          userCenterModules: normalizeUserCenterModules(rawAuthConfig.userCenterModules),
+          wechatWebsiteLogin: {
+            enabled: rawAuthConfig?.wechatWebsiteLogin?.enabled === true,
+            appId: String(
+              rawAuthConfig?.wechatWebsiteLogin?.appId
+                || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.appId
+            ).trim(),
+            callbackPath: String(
+              rawAuthConfig?.wechatWebsiteLogin?.callbackPath
+                || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath
+            ).trim() || DEFAULT_AUTH_CONFIG.wechatWebsiteLogin.callbackPath,
+          },
+          qqLogin: {
+            enabled: rawAuthConfig?.qqLogin?.enabled === true,
+            appId: String(
+              rawAuthConfig?.qqLogin?.appId
+                || DEFAULT_AUTH_CONFIG.qqLogin.appId
+            ).trim(),
+            callbackPath: String(
+              rawAuthConfig?.qqLogin?.callbackPath
+                || DEFAULT_AUTH_CONFIG.qqLogin.callbackPath
+            ).trim() || DEFAULT_AUTH_CONFIG.qqLogin.callbackPath,
+          },
+          wechatOfficialAccountLogin: {
+            enabled: rawAuthConfig?.wechatOfficialAccountLogin?.enabled === true,
+            appId: String(
+              rawAuthConfig?.wechatOfficialAccountLogin?.appId
+                || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.appId
+            ).trim(),
+            domainVerifyFileName: String(
+              rawAuthConfig?.wechatOfficialAccountLogin?.domainVerifyFileName
+                || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.domainVerifyFileName
+            ).trim(),
+            scanAutoLoginEnabled:
+              rawAuthConfig?.wechatOfficialAccountLogin?.scanAutoLoginEnabled === true,
+            scanAutoLoginPrompt: String(
+              rawAuthConfig?.wechatOfficialAccountLogin?.scanAutoLoginPrompt
+                || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.scanAutoLoginPrompt
+            ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.scanAutoLoginPrompt,
+            oauthCallbackPath: String(
+              rawAuthConfig?.wechatOfficialAccountLogin?.oauthCallbackPath
+                || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.oauthCallbackPath
+            ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.oauthCallbackPath,
+            eventCallbackPath: String(
+              rawAuthConfig?.wechatOfficialAccountLogin?.eventCallbackPath
+                || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.eventCallbackPath
+            ).trim() || DEFAULT_AUTH_CONFIG.wechatOfficialAccountLogin.eventCallbackPath,
+          },
+        };
+        return {
+          authConfig,
+          brand: publicSettingService.normalizeBrandConfig(data.brand),
+          siteInfo: normalizeSiteInfoConfig(data.siteInfo),
+          appearance: data.appearance || DEFAULT_APPEARANCE,
+          homepage: publicSettingService.normalizeHomepageConfig(data.homepage),
+          pageGlobal: publicSettingService.normalizePageGlobalConfig(data.pageGlobal),
+          cardStyle: data.cardStyle || DEFAULT_CARD_STYLE,
+          sidebar: data.sidebar || DEFAULT_SIDEBAR,
+          search: publicSettingService.normalizeSearchConfig(data.search),
+          exitModal: exitModalConfig || DEFAULT_EXIT_MODAL,
+          detailPage: publicSettingService.normalizeDetailPageConfig(data.detailPage),
+          article: publicSettingService.normalizeArticleConfig(data.article),
+          articleTopics: publicSettingService.normalizeArticleTopicsConfig(data.articleTopics),
+          mcpPage: publicSettingService.normalizeMcpPageConfig(data.mcpPage),
+          figmaPage: publicSettingService.normalizeFigmaPageConfig(data.figmaPage),
+          websiteCompare: publicSettingService.normalizeWebsiteCompareConfig(data.websiteCompare),
+        };
+      } catch (error) {
+        debugLog.error('获取公开设置失败，使用默认配置:', error);
+        return {
+          authConfig: DEFAULT_AUTH_CONFIG,
+          brand: DEFAULT_BRAND_CONFIG,
+          siteInfo: normalizeSiteInfoConfig(DEFAULT_SITE_INFO),
+          appearance: DEFAULT_APPEARANCE,
+          homepage: DEFAULT_HOMEPAGE,
+          pageGlobal: DEFAULT_PAGE_GLOBAL,
+          cardStyle: DEFAULT_CARD_STYLE,
+          sidebar: DEFAULT_SIDEBAR,
+          search: DEFAULT_SEARCH,
+          exitModal: DEFAULT_EXIT_MODAL,
+          detailPage: publicSettingService.normalizeDetailPageConfig(DEFAULT_DETAIL_PAGE),
+          article: DEFAULT_ARTICLE_SETTING,
+          articleTopics: DEFAULT_ARTICLE_TOPICS,
+          mcpPage: DEFAULT_MCP_PAGE,
+          figmaPage: DEFAULT_FIGMA_PAGE,
+          websiteCompare: DEFAULT_WEBSITE_COMPARE,
+        };
+      }
+    };
+
+    const requestPromise = (async (): Promise<PublicSettings> => {
+      const settings = await loadSettings();
+      /**
+       * 更新公开设置缓存，避免短时间重复请求触发网关拦截。
+       */
+      publicSettingsCache = settings;
+      publicSettingsCacheAt = Date.now();
+      return settings;
+    })();
+
+    if (!forceFresh) {
+      publicSettingsPendingPromise = requestPromise;
+    }
+
+    try {
+      return await requestPromise;
+    } finally {
+      if (!forceFresh) {
+        publicSettingsPendingPromise = null;
+      }
     }
   },
 

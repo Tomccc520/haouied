@@ -280,9 +280,14 @@ html {
   .main-layout {
     flex-direction: column;
     gap: 0.75rem;
+    align-items: stretch;
   }
 
   .main-layout .category-sidebar {
+    width: 100%;
+  }
+
+  .main-layout .tools-main {
     width: 100%;
   }
 }
@@ -306,6 +311,93 @@ html {
 .tools-count {
   color: var(--text-light);
   font-size: 0.875rem;
+}
+
+/**
+ * 动态页子分类标签样式：
+ * 与热门推荐标签尺寸保持一致，便于不同区块视觉统一。
+ */
+.dynamic-page .subcategory-section .subcategory-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dynamic-page .subcategory-section .subcategory-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  min-height: 2rem;
+  border-radius: 1rem;
+  border: 0.0625rem solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.dynamic-page .subcategory-section .subcategory-tab:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.dynamic-page .subcategory-section .subcategory-tab.active {
+  background: transparent;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.dynamic-page .subcategory-section .subcategory-tab.active:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.dynamic-page .subcategory-section .subcategory-tab .tab-name {
+  font-weight: 500;
+}
+
+.dynamic-page .subcategory-section .subcategory-tab .tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.1875rem;
+  border-radius: 0.5rem;
+  background: var(--border-color);
+  color: var(--text-light);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.dynamic-page .subcategory-section .subcategory-tab.active .tab-count,
+.dynamic-page .subcategory-section .subcategory-tab:hover:not(.active) .tab-count {
+  background: var(--primary-color);
+  color: var(--white);
+}
+
+@media (max-width: 768px) {
+  .dynamic-page .subcategory-section .subcategory-tab {
+    padding: 0.375rem 0.625rem;
+    min-height: 32px;
+    font-size: 0.75rem;
+  }
+
+  .dynamic-page .subcategory-section .subcategory-tab .tab-count {
+    min-width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 0.4375rem;
+    font-size: 0.625rem;
+  }
 }
 
 /* 热门推荐网址网格 - 统一固定网格布局 */
@@ -354,9 +446,30 @@ html {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .tools-grid {
     grid-auto-rows: auto;
+  }
+
+  /**
+   * 动态页小屏双列兜底（改用 flex 布局）：
+   * 避免 grid 在部分设备上受最小内容宽度影响退化为单列。
+   */
+  .dynamic-page .content-section .tools-grid,
+  .dynamic-page .subcategory-section .tools-grid,
+  .dynamic-page .search-results .tools-grid,
+  .dynamic-page .hot-recommendations-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .dynamic-page .tools-grid > .tool-card-wrapper,
+  .dynamic-page .hot-recommendations-grid > .tool-card-wrapper {
+    flex: 0 0 calc((100% - 0.5rem) / 2) !important;
+    width: calc((100% - 0.5rem) / 2) !important;
+    min-width: 0 !important;
+    max-width: calc((100% - 0.5rem) / 2) !important;
   }
 }
 

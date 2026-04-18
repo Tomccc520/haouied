@@ -10,9 +10,6 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import './DesignArticleGrid.css';
 
-// 导入实际的WordPress API服务
-import wordPressApi from '../services/wordpress-api';
-
 // 导入 WordPress 组件配置 Hook
 import { useWordPressWidgets } from '../hooks/useWordPressWidgets';
 
@@ -27,6 +24,8 @@ import type { ArticleListItem } from '../types/article';
 import AdminShortcutHint from './AdminShortcutHint';
 import { getFullImageUrl } from '../utils/urlUtils';
 import { buildPlaceholderImage } from '../utils/placeholderImages';
+import api from '../services/api';
+import { unwrapApiList } from '../utils/apiResponse';
 
 // 导入RankItem类型
 interface RankItem {
@@ -329,6 +328,98 @@ const mapLocalArticleToRankItem = (article: ArticleListItem): RankItem => {
   };
 };
 
+/**
+ * 从代理文章数据中提取封面图地址，兼容不同字段命名与 WordPress 嵌套结构。
+ */
+const resolveProxyThumbnail = (row: Record<string, unknown>): string => {
+  /**
+   * 将任意值转换为可用文本 URL，空值返回空字符串。
+   */
+  const toUrlText = (value: unknown): string => String(value || '').trim();
+
+  const directCandidates: unknown[] = [
+    row?.thumbnail,
+    row?.coverImage,
+    row?.cover,
+    row?.image,
+    row?.featuredImage,
+    row?.featured_image,
+    row?.featuredMediaUrl,
+    row?.featured_media_url,
+    row?.postThumbnail,
+    row?.post_thumbnail,
+  ];
+
+  for (const candidate of directCandidates) {
+    const urlText = toUrlText(candidate);
+    if (urlText) return urlText;
+  }
+
+  const featuredMedia = row?.featuredMedia;
+  if (featuredMedia && typeof featuredMedia === 'object' && !Array.isArray(featuredMedia)) {
+    const mediaObject = featuredMedia as Record<string, unknown>;
+    const sourceUrl = toUrlText(mediaObject.source_url || mediaObject.url || mediaObject.thumbnail);
+    if (sourceUrl) return sourceUrl;
+
+    const sizes = mediaObject.sizes;
+    if (sizes && typeof sizes === 'object' && !Array.isArray(sizes)) {
+      const sizeMap = sizes as Record<string, unknown>;
+      for (const key of [ 'large', 'medium_large', 'medium', 'thumbnail' ]) {
+        const sizeItem = sizeMap[key];
+        if (sizeItem && typeof sizeItem === 'object' && !Array.isArray(sizeItem)) {
+          const sizeUrl = toUrlText((sizeItem as Record<string, unknown>).source_url || (sizeItem as Record<string, unknown>).url);
+          if (sizeUrl) return sizeUrl;
+        }
+      }
+    }
+  }
+
+  const embedded = row?._embedded;
+  if (embedded && typeof embedded === 'object' && !Array.isArray(embedded)) {
+    const embeddedMap = embedded as Record<string, unknown>;
+    const featuredMediaList = embeddedMap['wp:featuredmedia'];
+    if (Array.isArray(featuredMediaList) && featuredMediaList.length > 0) {
+      const firstMedia = featuredMediaList[0];
+      if (firstMedia && typeof firstMedia === 'object' && !Array.isArray(firstMedia)) {
+        const embeddedUrl = toUrlText((firstMedia as Record<string, unknown>).source_url || (firstMedia as Record<string, unknown>).url);
+        if (embeddedUrl) return embeddedUrl;
+      }
+    }
+  }
+
+  return '';
+};
+
+/**
+ * 将后端 WordPress 代理接口返回的文章统一映射为网格卡片数据。
+ */
+const mapProxyArticleToRankItem = (row: Record<string, unknown>): RankItem => {
+  const rawId = String(row?.id || '').trim();
+  const fallbackId = `wp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const title = String(row?.name || row?.title || '未命名文章').trim() || '未命名文章';
+  const link = String(row?.link || row?.url || '#').trim() || '#';
+  const thumbnail = resolveProxyThumbnail(row);
+  const date = String(row?.date || row?.publishedAt || row?.createdAt || '').trim();
+  const viewCount = Number.parseInt(String(row?.viewCount || row?.views || 0), 10);
+  const score = Number.parseFloat(String(row?.score || 0));
+
+  return {
+    id: rawId || fallbackId,
+    name: title,
+    description: String(row?.description || row?.excerpt || '').trim(),
+    link,
+    thumbnail,
+    date,
+    authorName: String(row?.authorName || row?.author || '').trim(),
+    authorAvatar: String(row?.authorAvatar || '').trim(),
+    viewCount: Number.isFinite(viewCount) && viewCount > 0 ? viewCount : 0,
+    score: Number.isFinite(score) && score > 0 ? score : undefined,
+    isNew: row?.isNew === true,
+    isHot: row?.isHot === true,
+    isFeatured: row?.isFeatured === true,
+  };
+};
+
 interface DesignArticleGridProps {
   title?: string;
   limit?: number;
@@ -555,6 +646,8 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   
   // 使用useRef跟踪加载状态，避免重复请求
   const isLoadingRef = useRef(false);
+  // 请求序号：用于忽略过期请求响应，避免“旧请求覆盖新状态”
+  const requestSeqRef = useRef(0);
   
   // 使用useRef存储组件是否已挂载 - 每次渲染时重置为true
   const isMountedRef = useRef(true);
@@ -582,11 +675,12 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
 
   // 获取文章数据
   const fetchArticles = useCallback(async (forceRefresh = false) => {
-    // 如果已经在加载中，则跳过
-    if (isLoadingRef.current) {
-      debugLog.dev('DesignArticleGrid: 已在加载中，跳过重复请求');
-      return;
-    }
+    /**
+     * 不再使用“加载中直接跳过”策略：
+     * tab 切换时允许并发发起新请求，通过 requestSeq 只保留最后一次结果，
+     * 解决慢网速下“点击第二个 tab 无响应/被旧请求覆盖”的问题。
+     */
+    const requestSeq = ++requestSeqRef.current;
     const fetchLimit = effectiveLimit;
 
     if (isMountedRef.current) {
@@ -605,7 +699,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           const cachedData = getFromSessionStorage<RankItem[]>(cacheKey);
           if (cachedData) {
             debugLog.dev('DesignArticleGrid: 使用本地文章缓存:', cachedData.length, '条');
-            if (isMountedRef.current) {
+            if (isMountedRef.current && requestSeq === requestSeqRef.current) {
               setArticles(cachedData);
               setIsLoading(false);
               setError(null);
@@ -622,7 +716,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           ? response.data.map((item) => mapLocalArticleToRankItem(item)).filter((item) => !!item.name)
           : [];
 
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current || requestSeq !== requestSeqRef.current) return;
 
         if (normalizedRows.length > 0) {
           saveToSessionStorage(cacheKey, normalizedRows);
@@ -636,7 +730,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
         setError('暂无本地文章数据');
       } catch (err) {
         debugLog.error('DesignArticleGrid: 获取本地文章失败:', err);
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current || requestSeq !== requestSeqRef.current) return;
         const fallbackData = getFromSessionStorage<RankItem[]>(cacheKey);
         if (fallbackData && fallbackData.length > 0) {
           setArticles(fallbackData);
@@ -647,10 +741,12 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
         }
         setRetryCount((prev) => prev + 1);
       } finally {
-        if (isMountedRef.current) {
+        if (isMountedRef.current && requestSeq === requestSeqRef.current) {
           setIsLoading(false);
         }
-        isLoadingRef.current = false;
+        if (requestSeq === requestSeqRef.current) {
+          isLoadingRef.current = false;
+        }
       }
       return;
     }
@@ -666,12 +762,14 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       const cachedData = getFromSessionStorage<RankItem[]>(cacheKey);
       if (cachedData) {
         debugLog.dev('DesignArticleGrid: 使用缓存数据:', cachedData.length, '条');
-        if (isMountedRef.current) {
+        if (isMountedRef.current && requestSeq === requestSeqRef.current) {
           setArticles(cachedData);
           setIsLoading(false);
           setError(null);
         }
-        isLoadingRef.current = false;
+        if (requestSeq === requestSeqRef.current) {
+          isLoadingRef.current = false;
+        }
         return;
       }
     }
@@ -688,40 +786,42 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
         useMock
       });
 
-      let response;
+      let response: RankItem[];
 
       // 如果使用模拟数据，直接返回案例数据
       if (useMock) {
         debugLog.dev('DesignArticleGrid: 使用案例数据进行样式调试');
         response = generateMockData(fetchLimit);
       } else {
-        // 根据类型调用不同的API
+        /**
+         * API 模式统一通过本站后端代理拉取内容，避免前端直连第三方源站导致：
+         * 1) CORS/证书问题
+         * 2) 无法走后台配置的 WordPress 源
+         * 3) 图片字段结构不一致
+         */
+        const params: Record<string, string | number> = {
+          source: 'auto',
+          page: 1,
+          perPage: fetchLimit,
+          orderBy: 'date',
+          order: 'desc',
+        };
         if (currentOption.type === 'tag') {
-          // 使用标签API
-          response = await wordPressApi.getTagPosts({
-            tagId: currentOption.id,
-            page: 1,
-            perPage: fetchLimit,
-            orderBy: 'date',
-            order: 'desc'
-          });
+          params.tagId = currentOption.id;
         } else {
-          // 使用分类API
-          response = await wordPressApi.getCategoryPosts({
-            categoryId: currentOption.id,
-            page: 1,
-            perPage: fetchLimit,
-            orderBy: 'date',
-            order: 'desc',
-            useMock: false
-          });
+          params.categoryId = currentOption.id;
         }
+
+        const proxyResponse = await api.get('/wordpress/posts', { params });
+        response = unwrapApiList<Record<string, unknown>>(proxyResponse?.data)
+          .map((item) => mapProxyArticleToRankItem(item))
+          .filter((item) => Boolean(item.name));
       }
 
       debugLog.dev('DesignArticleGrid: 返回数据:', response);
 
       // 组件可能已卸载，检查挂载状态
-      if (!isMountedRef.current) {
+      if (!isMountedRef.current || requestSeq !== requestSeqRef.current) {
         debugLog.dev('DesignArticleGrid: 组件已卸载，停止处理');
         return;
       }
@@ -744,7 +844,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       debugLog.error('DesignArticleGrid: 获取设计文章失败:', err);
 
       // 组件可能已卸载，检查挂载状态
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestSeq !== requestSeqRef.current) return;
 
       // 尝试从sessionStorage获取任何类别的缓存数据作为后备
       let foundFallback = false;
@@ -769,10 +869,12 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
 
       setRetryCount(prev => prev + 1);
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && requestSeq === requestSeqRef.current) {
         setIsLoading(false);
       }
-      isLoadingRef.current = false;
+      if (requestSeq === requestSeqRef.current) {
+        isLoadingRef.current = false;
+      }
     }
   }, [effectiveLimit, useMock, getCurrentOption, activeTag, TAG_OPTIONS, widgetArticleSource]);
 
@@ -783,12 +885,6 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
     }
     // 如果是当前选中的标签，忽略
     if (tagKey === activeTag) {
-      return;
-    }
-    
-    // 如果正在加载中，忽略请求
-    if (isLoadingRef.current) {
-      debugLog.dev('DesignArticleGrid: 正在加载中，忽略切换请求');
       return;
     }
     
@@ -809,19 +905,11 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       }
     }
     
-    // 没有缓存，显示loading并请求数据
+    // 没有缓存，切换标签后由 activeTag 监听逻辑触发请求
     setActiveTag(tagKey);
     setError(null);
     setIsLoading(true);
-    isLoadingRef.current = false;
-    
-    // 立即获取数据
-    setTimeout(() => {
-      if (isMountedRef.current) {
-        fetchArticles(false);
-      }
-    }, 0);
-  }, [fetchArticles, activeTag, TAG_OPTIONS, effectiveLimit, effectiveEnableSubCategories]);
+  }, [activeTag, TAG_OPTIONS, effectiveLimit, effectiveEnableSubCategories]);
 
   // 重试加载数据
   const handleRetry = useCallback(() => {

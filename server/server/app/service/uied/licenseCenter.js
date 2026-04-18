@@ -12,6 +12,8 @@
 
 const Service = require('egg').Service;
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const util = require('../../util');
 const { dbTablePrefix = 'la_' } = require('../../extend/config');
 
@@ -21,8 +23,21 @@ const COMMERCIAL_MODE_KEY = 'commercial_mode_config';
 const LICENSE_DOMAIN_BINDINGS_KEY = 'license_runtime_domains';
 const LICENSE_SIGN_VERSION = 'v1';
 const DEFAULT_LICENSE_ACTIVATE_ENDPOINT = 'https://fsuied.com/api/license/detail';
+const DEFAULT_LOCAL_LICENSE_RELATIVE_PATH = 'licenses/my.license';
+const DEFAULT_LOCAL_LICENSE_RELATIVE_PATH_CANDIDATES = [
+  'licenses/my.license',
+  '../licenses/my.license',
+];
+const DEFAULT_LOCAL_LICENSE_DIR_RELATIVE_PATH_CANDIDATES = [
+  'licenses',
+  '../licenses',
+  'license',
+  '../license',
+];
+const AUTO_REMOTE_REPAIR_COOLDOWN_SECONDS = 600;
+const AUTO_REMOTE_REPAIR_FAILURE_CACHE = new Map();
 const LICENSE_ACTIVATE_REMOTE_ERROR_MESSAGE_MAP = {
-  1001: '授权中心鉴权失败，请检查 UIED_LICENSE_ACTIVATE_TOKEN 或 API 签名密钥配置',
+  1001: '授权中心鉴权失败，请检查 UIED_LICENSE_ACTIVATE_TOKEN 或 API 签名密钥配置；也可把授权文件放到 server/licenses 目录（任意 .license 文件）后重试',
   41000: '授权请求参数不完整或格式不合法',
   41001: '授权码无效或不存在',
   41002: '授权码与当前域名不匹配（域名未在授权白名单），请先在 fsuied.com 绑定后重试',
@@ -467,6 +482,119 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 生成“自动远端修复”冷却缓存键
+   * 使用验签摘要可确保字段变化后立即触发新一轮修复尝试。
+   */
+  buildRemoteRepairCacheKey(payload = {}) {
+    const digest = this.buildLicenseVerifyDigest(payload);
+    if (digest) return digest;
+    const licenseKey = String(payload.licenseKey || '').trim();
+    return licenseKey || 'unknown';
+  }
+
+  /**
+   * 读取自动远端修复失败时间戳
+   */
+  getRemoteRepairLastFailedAt(payload = {}) {
+    const cacheKey = this.buildRemoteRepairCacheKey(payload);
+    if (!cacheKey) return 0;
+    return Number(AUTO_REMOTE_REPAIR_FAILURE_CACHE.get(cacheKey) || 0) || 0;
+  }
+
+  /**
+   * 写入自动远端修复失败时间戳
+   */
+  markRemoteRepairFailed(payload = {}) {
+    const cacheKey = this.buildRemoteRepairCacheKey(payload);
+    if (!cacheKey) return;
+    AUTO_REMOTE_REPAIR_FAILURE_CACHE.set(cacheKey, Math.floor(Date.now() / 1000));
+  }
+
+  /**
+   * 清理自动远端修复失败时间戳
+   */
+  clearRemoteRepairFailed(payload = {}) {
+    const cacheKey = this.buildRemoteRepairCacheKey(payload);
+    if (!cacheKey) return;
+    AUTO_REMOTE_REPAIR_FAILURE_CACHE.delete(cacheKey);
+  }
+
+  /**
+   * 判断是否显式配置了许可证签名密钥（不包含 app.keys 回退）
+   */
+  hasConfiguredLicenseSignSecret() {
+    const appConfig = this.app.config || {};
+    const envSecret = String(process.env.UIED_LICENSE_SIGN_SECRET || '').trim();
+    if (envSecret) return true;
+    const cfgSecret = String(appConfig.uiedLicenseSignSecret || '').trim();
+    return Boolean(cfgSecret);
+  }
+
+  /**
+   * 计算许可证验签摘要（用于无密钥场景下的远端验签缓存校验）
+   */
+  buildLicenseVerifyDigest(payload = {}) {
+    const signPayload = this.buildLicenseSignPayload(payload);
+    const signature = String(payload.signature || '').trim().toLowerCase();
+    const digestContent = `${JSON.stringify(signPayload)}\n${signature}`;
+    return crypto.createHash('sha256').update(digestContent).digest('hex');
+  }
+
+  /**
+   * 校验远端验签缓存是否仍与当前许可证字段一致
+   */
+  isRemoteVerifiedDigestValid(payload = {}) {
+    const verifiedAt = Number(payload.remoteVerifiedAt || 0) || 0;
+    const storedDigest = String(payload.remoteVerifiedDigest || '').trim().toLowerCase();
+    if (!verifiedAt || !storedDigest) return false;
+    const currentDigest = this.buildLicenseVerifyDigest(payload);
+    if (!currentDigest || currentDigest.length !== storedDigest.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(currentDigest), Buffer.from(storedDigest));
+  }
+
+  /**
+   * 通过授权中心返回的官方载荷进行远端验签兜底（用于客户站未配置本地签名密钥时）
+   */
+  async verifyLicenseSignatureByRemotePayload(payload = {}) {
+    const licenseKey = String(payload.licenseKey || '').trim();
+    if (!licenseKey) {
+      return { passed: false, reason: 'license_key_empty' };
+    }
+    const appConfig = this.app.config || {};
+    const runtimeDomain = this.normalizeDomain(
+      payload.runtimeDomain
+      || payload.bindDomain
+      || this.getRuntimeDomain()
+      || ''
+    );
+    const projectCode = String(
+      payload.projectCode
+      || process.env.UIED_LICENSE_PROJECT_CODE
+      || appConfig.uiedLicenseProjectCode
+      || 'fsuied'
+    ).trim().toLowerCase();
+    try {
+      const remotePayload = await this.fetchLicensePayloadByKey(licenseKey, runtimeDomain, projectCode);
+      const localSignPayloadText = JSON.stringify(this.buildLicenseSignPayload(payload));
+      const remoteSignPayloadText = JSON.stringify(this.buildLicenseSignPayload(remotePayload));
+      const localSignature = String(payload.signature || '').trim().toLowerCase();
+      const remoteSignature = String(remotePayload.signature || '').trim().toLowerCase();
+      const signPayloadMatched = localSignPayloadText === remoteSignPayloadText;
+      const signatureMatched = Boolean(localSignature) && localSignature === remoteSignature;
+      return {
+        passed: signPayloadMatched && signatureMatched,
+        reason: signPayloadMatched && signatureMatched ? 'remote_matched' : 'remote_payload_mismatch',
+      };
+    } catch (error) {
+      return {
+        passed: false,
+        reason: 'remote_verify_failed',
+        error,
+      };
+    }
+  }
+
+  /**
    * 获取授权 API 请求签名密钥（用于激活接口签名）
    */
   getLicenseApiSignSecret() {
@@ -475,7 +603,41 @@ class LicenseCenterService extends Service {
     if (envApiSecret) return envApiSecret;
     const cfgApiSecret = String(appConfig.uiedLicenseApiSignSecret || '').trim();
     if (cfgApiSecret) return cfgApiSecret;
-    return this.getLicenseSignSecret();
+    /**
+     * 注意：这里不再回退到 getLicenseSignSecret()/app.keys，
+     * 避免客户站在未配置 API 签名密钥时，携带“错误签名头”导致授权中心直接鉴权失败。
+     */
+    return '';
+  }
+
+  /**
+   * 使用本地授权文件内容做二次比对兜底（无本地签名密钥且远端鉴权失败时）
+   * 规则：签名参与字段与 signature 必须与当前导入内容完全一致。
+   */
+  async verifyLicenseSignatureByLocalFilePayload(payload = {}) {
+    try {
+      const localData = await this.readLocalLicensePayload();
+      if (!localData || !localData.payload) {
+        return { passed: false, reason: 'local_license_not_found' };
+      }
+      const localPayload = localData.payload;
+      const localSignPayloadText = JSON.stringify(this.buildLicenseSignPayload(localPayload));
+      const currentSignPayloadText = JSON.stringify(this.buildLicenseSignPayload(payload));
+      const localSignature = String(localPayload.signature || '').trim().toLowerCase();
+      const currentSignature = String(payload.signature || '').trim().toLowerCase();
+      const signPayloadMatched = localSignPayloadText === currentSignPayloadText;
+      const signatureMatched = Boolean(localSignature) && localSignature === currentSignature;
+      return {
+        passed: signPayloadMatched && signatureMatched,
+        reason: signPayloadMatched && signatureMatched ? 'local_file_matched' : 'local_file_payload_mismatch',
+      };
+    } catch (error) {
+      return {
+        passed: false,
+        reason: 'local_file_verify_failed',
+        error,
+      };
+    }
   }
 
   /**
@@ -604,6 +766,201 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 生成本地授权文件候选路径（兼容多种部署目录）
+   */
+  resolveLocalLicenseFilePathCandidates() {
+    const appConfig = this.app.config || {};
+    const rawPath = String(
+      process.env.UIED_LICENSE_FILE_PATH
+      || appConfig.uiedLicenseFilePath
+      || DEFAULT_LOCAL_LICENSE_RELATIVE_PATH
+      || ''
+    ).trim();
+    const candidates = [];
+    const seen = new Set();
+    const pushCandidate = (targetPath = '') => {
+      const cleanPath = String(targetPath || '').trim();
+      if (!cleanPath) return;
+      const resolvedPath = path.isAbsolute(cleanPath)
+        ? cleanPath
+        : path.resolve(this.app.baseDir, cleanPath);
+      if (seen.has(resolvedPath)) return;
+      seen.add(resolvedPath);
+      candidates.push(resolvedPath);
+    };
+    /**
+     * 从目录中自动发现授权文件，支持“目录名或文件名不固定”的交付场景。
+     */
+    const pushDirectoryLicenseCandidates = (targetDir = '') => {
+      const cleanDir = String(targetDir || '').trim();
+      if (!cleanDir) return;
+      const resolvedDir = path.isAbsolute(cleanDir)
+        ? cleanDir
+        : path.resolve(this.app.baseDir, cleanDir);
+      let stat = null;
+      try {
+        stat = fs.statSync(resolvedDir);
+      } catch (error) {
+        return;
+      }
+      if (!stat || !stat.isDirectory()) return;
+      let entries = [];
+      try {
+        entries = fs.readdirSync(resolvedDir, { withFileTypes: true });
+      } catch (error) {
+        return;
+      }
+      const licenseFiles = entries
+        .filter(entry => entry && entry.isFile() && /\.license$/i.test(String(entry.name || '')))
+        .map(entry => path.join(resolvedDir, String(entry.name || '')))
+        .sort((left, right) => {
+          const leftName = path.basename(left).toLowerCase();
+          const rightName = path.basename(right).toLowerCase();
+          if (leftName === rightName) return 0;
+          if (leftName === 'my.license') return -1;
+          if (rightName === 'my.license') return 1;
+          return leftName.localeCompare(rightName);
+        });
+      licenseFiles.forEach(filePath => pushCandidate(filePath));
+    };
+    if (rawPath) {
+      pushCandidate(rawPath);
+    }
+    DEFAULT_LOCAL_LICENSE_RELATIVE_PATH_CANDIDATES.forEach(item => pushCandidate(item));
+    DEFAULT_LOCAL_LICENSE_DIR_RELATIVE_PATH_CANDIDATES.forEach(item => pushDirectoryLicenseCandidates(item));
+    /**
+     * 兼容 UIED_LICENSE_FILE_PATH 指向“目录”或“同目录其它文件名”的情况：
+     * 额外扫描当前候选文件所在目录中的 *.license。
+     */
+    candidates
+      .map(item => path.dirname(item))
+      .forEach(dirPath => pushDirectoryLicenseCandidates(dirPath));
+    return candidates;
+  }
+
+  /**
+   * 解析本地授权文件路径
+   * 支持 UIED_LICENSE_FILE_PATH 自定义，默认读取 server/licenses/my.license
+   */
+  resolveLocalLicenseFilePath() {
+    const candidates = this.resolveLocalLicenseFilePathCandidates();
+    if (!Array.isArray(candidates) || candidates.length === 0) return '';
+    return String(candidates[0] || '');
+  }
+
+  /**
+   * 解析本地授权文件内容
+   * 支持 JSON 明文，兼容少数场景的 Base64(JSON) 内容。
+   */
+  parseLocalLicenseContent(rawContent = '') {
+    const text = String(rawContent || '').trim();
+    if (!text) return null;
+    const candidates = [ text ];
+    if (!text.startsWith('{') && !text.startsWith('[')) {
+      try {
+        const decoded = Buffer.from(text, 'base64').toString('utf8').trim();
+        if (decoded) candidates.push(decoded);
+      } catch (error) {
+        // Base64 解析失败时忽略，继续按 JSON 明文尝试
+      }
+    }
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      try {
+        const parsed = JSON.parse(candidate);
+        if (this.isLicensePayloadLike(parsed)) {
+          return parsed;
+        }
+        try {
+          return this.extractLicensePayloadFromRemoteBody(parsed);
+        } catch (error) {
+          continue;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 读取本地授权文件并提取授权载荷
+   */
+  async readLocalLicensePayload() {
+    const candidates = this.resolveLocalLicenseFilePathCandidates();
+    if (!Array.isArray(candidates) || candidates.length === 0) return null;
+    let parseError = null;
+    for (const filePath of candidates) {
+      try {
+        const fileContent = await fs.promises.readFile(filePath, 'utf8');
+        const payload = this.parseLocalLicenseContent(fileContent);
+        if (!payload) {
+          parseError = new Error(`本地授权文件格式无效：${filePath}，请确认是 fsuied.com 下发的 JSON 授权文件`);
+          continue;
+        }
+        return {
+          payload,
+          filePath,
+        };
+      } catch (error) {
+        if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (parseError) throw parseError;
+    return null;
+  }
+
+  /**
+   * 本地授权文件兜底激活（适用于客户环境未配置远端鉴权 Token 的场景）
+   */
+  async activateLicenseByLocalFile(options = {}) {
+    const localData = await this.readLocalLicensePayload();
+    if (!localData) return null;
+    const sourcePayload = localData.payload && typeof localData.payload === 'object'
+      ? { ...localData.payload }
+      : {};
+    const inputLicenseKey = String(options.licenseKey || '').trim();
+    const fileLicenseKey = String(sourcePayload.licenseKey || '').trim();
+    if (inputLicenseKey && fileLicenseKey && inputLicenseKey !== fileLicenseKey) {
+      throw new Error(`本地授权文件中的授权码（${fileLicenseKey}）与当前输入不一致，请确认后重试`);
+    }
+    if (!fileLicenseKey && inputLicenseKey) {
+      sourcePayload.licenseKey = inputLicenseKey;
+    }
+    if (!String(sourcePayload.licenseKey || '').trim()) {
+      throw new Error('本地授权文件缺少 licenseKey，请重新下载授权文件');
+    }
+    const bindDomain = String(options.bindDomain || '').trim();
+    if (bindDomain && !String(sourcePayload.runtimeDomain || '').trim()) {
+      sourcePayload.runtimeDomain = bindDomain;
+    }
+    this.assertCommercialEdition(sourcePayload.edition);
+    const saved = await this.saveLicenseInfo(sourcePayload);
+    return {
+      ...saved,
+      activatedBy: 'license_file',
+      activateSourceFile: localData.filePath,
+    };
+  }
+
+  /**
+   * 判断远端激活失败后是否应该尝试本地授权文件兜底
+   * 仅在鉴权配置缺失、网络异常、证书异常等场景启用，业务错误码不走兜底。
+   */
+  shouldFallbackToLocalLicense(error) {
+    const bizCode = Number(error?.bizCode || 0);
+    if (Number.isFinite(bizCode) && bizCode > 0) {
+      return bizCode === 1001;
+    }
+    const message = String(error?.message || '').toLowerCase();
+    if (!message) return false;
+    return /network|timeout|certificate|unable to get local issuer|self signed|econnrefused|enotfound|eai_again/i.test(message);
+  }
+
+  /**
    * 判断对象是否像“授权载荷”
    */
   isLicensePayloadLike(payload) {
@@ -709,10 +1066,6 @@ class LicenseCenterService extends Service {
       || payload.key
       || ''
     ).trim();
-    if (!licenseKey) {
-      throw new Error('授权码不能为空');
-    }
-
     const bindDomain = this.normalizeDomain(
       payload.bindDomain
       || payload.runtimeDomain
@@ -726,7 +1079,42 @@ class LicenseCenterService extends Service {
       || appConfig.uiedLicenseProjectCode
       || 'fsuied'
     ).trim().toLowerCase();
-    const remotePayload = await this.fetchLicensePayloadByKey(licenseKey, bindDomain, projectCode);
+    /**
+     * 文件授权模式：未传授权码时，直接尝试读取本地授权文件。
+     * 这样后台可以隐藏在线 Key 激活入口，只保留文件激活入口。
+     */
+    if (!licenseKey) {
+      const localActivated = await this.activateLicenseByLocalFile({
+        bindDomain,
+        projectCode,
+      });
+      if (localActivated) {
+        return {
+          ...localActivated,
+          activatedBy: 'license_file_direct',
+        };
+      }
+      throw new Error('未检测到本地授权文件，请将授权文件放到 server/licenses/my.license 后重试');
+    }
+    let remotePayload = null;
+    try {
+      remotePayload = await this.fetchLicensePayloadByKey(licenseKey, bindDomain, projectCode);
+    } catch (error) {
+      if (this.shouldFallbackToLocalLicense(error)) {
+        const localActivated = await this.activateLicenseByLocalFile({
+          licenseKey,
+          bindDomain,
+          projectCode,
+        });
+        if (localActivated) {
+          return {
+            ...localActivated,
+            activatedBy: 'license_file_fallback',
+          };
+        }
+      }
+      throw error;
+    }
     const remoteLicenseKey = String(remotePayload.licenseKey || '').trim();
     if (!remoteLicenseKey) {
       throw new Error('授权中心返回的授权数据缺少 licenseKey');
@@ -835,6 +1223,68 @@ class LicenseCenterService extends Service {
   }
 
   /**
+   * 自动修复历史授权数据中的 invalid_signature（无本地密钥场景）
+   * 场景：客户站升级后未重新导入 license，希望系统自动完成一次远端核验并回写摘要缓存。
+   */
+  async tryAutoRepairLicenseSignature(payload = {}) {
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const hasConfiguredSignSecret = this.hasConfiguredLicenseSignSecret();
+    const isPaidEdition = this.isPaidEdition(source.edition);
+    const hasLicenseKey = Boolean(String(source.licenseKey || '').trim());
+    const hasSignature = Boolean(String(source.signature || '').trim());
+    if (hasConfiguredSignSecret || !isPaidEdition || !hasLicenseKey || !hasSignature) {
+      return { repaired: false, reason: 'repair_not_required' };
+    }
+    if (this.isRemoteVerifiedDigestValid(source)) {
+      return { repaired: false, reason: 'remote_digest_exists' };
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const lastFailedAt = this.getRemoteRepairLastFailedAt(source);
+    if (lastFailedAt > 0 && (now - lastFailedAt) < AUTO_REMOTE_REPAIR_COOLDOWN_SECONDS) {
+      return { repaired: false, reason: 'cooldown' };
+    }
+    const verifyResult = await this.verifyLicenseSignatureByRemotePayload({
+      ...source,
+      runtimeDomain: this.getRuntimeDomain(),
+    });
+    if (!verifyResult.passed) {
+      const localFileResult = await this.verifyLicenseSignatureByLocalFilePayload(source);
+      if (localFileResult.passed) {
+        const nextByLocalFile = {
+          ...source,
+          remoteVerifiedAt: now,
+          remoteVerifiedDigest: this.buildLicenseVerifyDigest(source),
+          updatedAt: now,
+        };
+        await this.ctx.service.uied.setting.save({ [LICENSE_INFO_KEY]: nextByLocalFile });
+        this.clearRemoteRepairFailed(source);
+        return {
+          repaired: true,
+          payload: nextByLocalFile,
+        };
+      }
+      this.markRemoteRepairFailed(source);
+      return {
+        repaired: false,
+        reason: verifyResult.reason || 'remote_verify_failed',
+        error: verifyResult.error,
+      };
+    }
+    const next = {
+      ...source,
+      remoteVerifiedAt: now,
+      remoteVerifiedDigest: this.buildLicenseVerifyDigest(source),
+      updatedAt: now,
+    };
+    await this.ctx.service.uied.setting.save({ [LICENSE_INFO_KEY]: next });
+    this.clearRemoteRepairFailed(source);
+    return {
+      repaired: true,
+      payload: next,
+    };
+  }
+
+  /**
    * 获取许可证信息（带有效性判定）
    */
   async getLicenseInfo() {
@@ -856,6 +1306,8 @@ class LicenseCenterService extends Service {
       note: '',
       signVersion: LICENSE_SIGN_VERSION,
       signature: '',
+      remoteVerifiedAt: 0,
+      remoteVerifiedDigest: '',
       updatedAt: now,
     };
     const source = this.applyEditionPolicy(raw && typeof raw === 'object' ? raw : {});
@@ -872,6 +1324,8 @@ class LicenseCenterService extends Service {
       expiresAt: Number(source.expiresAt || 0) || 0,
       signVersion: String(source.signVersion || defaults.signVersion),
       signature: String(source.signature || defaults.signature).trim().toLowerCase(),
+      remoteVerifiedAt: Number(source.remoteVerifiedAt || 0) || 0,
+      remoteVerifiedDigest: String(source.remoteVerifiedDigest || '').trim().toLowerCase(),
       updatedAt: Number(source.updatedAt || 0) || now,
     };
     const rawStatus = normalized.status;
@@ -883,7 +1337,25 @@ class LicenseCenterService extends Service {
      * 2. Free 版本仅在后台显式开启时才验签
      */
     const signatureRequired = isPaidEdition || mode.enforceLicenseSignature === true;
-    const isSignatureValid = this.verifyLicenseSignature(normalized);
+    const hasConfiguredSignSecret = this.hasConfiguredLicenseSignSecret();
+    const isSignatureValidLocal = this.verifyLicenseSignature(normalized);
+    let isSignatureValidRemoteCached = !hasConfiguredSignSecret
+      && this.isRemoteVerifiedDigestValid(normalized);
+    if (signatureRequired && !isSignatureValidLocal && !isSignatureValidRemoteCached) {
+      const repairedResult = await this.tryAutoRepairLicenseSignature(normalized);
+      if (repairedResult.repaired && repairedResult.payload) {
+        normalized.remoteVerifiedAt = Number(repairedResult.payload.remoteVerifiedAt || 0) || 0;
+        normalized.remoteVerifiedDigest = String(repairedResult.payload.remoteVerifiedDigest || '').trim().toLowerCase();
+        normalized.updatedAt = Number(repairedResult.payload.updatedAt || normalized.updatedAt) || normalized.updatedAt;
+        isSignatureValidRemoteCached = !hasConfiguredSignSecret
+          && this.isRemoteVerifiedDigestValid(normalized);
+      } else if (repairedResult.error) {
+        this.ctx.logger.warn(
+          `[licenseCenter] 自动远端修复签名失败: ${String(repairedResult.error.message || repairedResult.reason || 'unknown')}`
+        );
+      }
+    }
+    const isSignatureValid = isSignatureValidLocal || isSignatureValidRemoteCached;
     const signatureBlocked = signatureRequired && !isSignatureValid;
     const isExpired = normalized.expiresAt > 0 && normalized.expiresAt < now;
     const baseIsActive = rawStatus === 'active' && !isExpired && !signatureBlocked;
@@ -920,6 +1392,9 @@ class LicenseCenterService extends Service {
       isProEdition,
       effectiveEdition,
       isSignatureValid,
+      signatureVerifyMode: isSignatureValidLocal
+        ? 'local_secret'
+        : (isSignatureValidRemoteCached ? 'remote_cached' : 'failed'),
       signatureRequired,
       domainEnforceEnabled: domainAuth.domainEnforceEnabled,
       isDomainAuthorized: domainAuth.isDomainAuthorized,
@@ -973,6 +1448,8 @@ class LicenseCenterService extends Service {
       expiresAt: Number(source.expiresAt || 0) || 0,
       note: String(source.note || '').trim(),
       signVersion: LICENSE_SIGN_VERSION,
+      remoteVerifiedAt: 0,
+      remoteVerifiedDigest: '',
       updatedAt: now,
     };
 
@@ -983,8 +1460,42 @@ class LicenseCenterService extends Service {
       throw new Error('Pro/Enterprise 许可证必须包含签名，请使用授权码激活或导入 fsuied.com 签名授权');
     }
     next.signature = incomingSignature;
-    if (!this.verifyLicenseSignature(next)) {
-      throw new Error('许可证签名校验失败，请确认授权文件来自 fsuied.com');
+    const hasConfiguredSignSecret = this.hasConfiguredLicenseSignSecret();
+    const isSignatureValidLocal = this.verifyLicenseSignature(next);
+    if (!isSignatureValidLocal) {
+      /**
+       * 兜底策略：
+       * 当客户站未配置本地签名密钥时，允许向授权中心拉取官方载荷二次核对。
+       * 通过后缓存摘要，后续读取时仍可防止本地篡改。
+       */
+      if (!hasConfiguredSignSecret) {
+        const remoteVerifyResult = await this.verifyLicenseSignatureByRemotePayload({
+          ...next,
+          runtimeDomain: this.getRuntimeDomain(),
+        });
+        if (remoteVerifyResult.passed) {
+          next.remoteVerifiedAt = now;
+          next.remoteVerifiedDigest = this.buildLicenseVerifyDigest(next);
+        } else {
+          const localFileVerifyResult = await this.verifyLicenseSignatureByLocalFilePayload(next);
+          if (localFileVerifyResult.passed) {
+            next.remoteVerifiedAt = now;
+            next.remoteVerifiedDigest = this.buildLicenseVerifyDigest(next);
+          } else {
+            const remoteErrorText = String(remoteVerifyResult.error?.message || '').trim();
+            const remoteHint = remoteErrorText
+              ? `（远端校验失败：${remoteErrorText}）`
+              : '';
+            const localErrorText = String(localFileVerifyResult.error?.message || '').trim();
+            const localHint = localErrorText
+              ? `（本地文件校验失败：${localErrorText}）`
+              : '';
+            throw new Error(`许可证签名校验失败：请确认 UIED_LICENSE_SIGN_SECRET 与签发端一致，且授权文件未被修改${remoteHint}${localHint}`);
+          }
+        }
+      } else {
+        throw new Error('许可证签名校验失败：请确认 UIED_LICENSE_SIGN_SECRET 与签发端一致，且授权文件未被修改');
+      }
     }
 
     await this.ctx.service.uied.setting.save({ [LICENSE_INFO_KEY]: next });

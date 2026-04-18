@@ -12,6 +12,13 @@
 const { reqAdminIdKey = 'admin_id' } = require('../extend/config');
 
 const ACTIVATION_ALLOWLIST = new Set([
+  /**
+   * 登录相关接口必须放行：
+   * 1. 兼容“会话残留 admin_id”场景，避免登录接口被误拦截
+   * 2. 确保未激活状态下仍可重新登录并进入授权中心处理
+   */
+  'system:login',
+  'system:login:captcha',
   'common:index:config',
   'system:admin:self',
   'system:menu:route',
@@ -20,6 +27,7 @@ const ACTIVATION_ALLOWLIST = new Set([
   'uied:license:activate',
   'uied:license:save',
   'uied:license:verify',
+  'uied:license:public-status',
   'uied:commercial:mode:get',
   'uied:commercial:overview',
   'uied:feature:list',

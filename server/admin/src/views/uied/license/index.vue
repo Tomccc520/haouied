@@ -97,26 +97,26 @@
                         <el-button
                             type="primary"
                             :loading="licenseSaving"
-                            @click="handleActivateByKey"
+                            @click="handleActivateByFile"
                         >
-                            激活授权
+                            文件激活
                         </el-button>
                     </div>
                 </div>
             </template>
             <el-alert
-                title="请在 fsuied.com 购买后获取授权码，输入授权码即可自动拉取签名授权并激活。"
+                title="请在 fsuied.com 购买后下载授权文件。将授权文件放到服务端 server/licenses/my.license 后，点击“文件激活”即可生效。"
                 type="warning"
                 :closable="false"
                 class="mb-4"
             />
 
             <el-form label-width="120px" class="max-w-[860px]">
-                <el-form-item label="授权码 Key">
-                    <el-input
-                        v-model="activateForm.licenseKey"
-                        placeholder="请输入 fsuied.com 下发的授权码（例如 UIED-PRO-XXXX-XXXX）"
-                    />
+                <el-form-item label="授权文件位置">
+                    <el-input value="server/licenses/my.license" disabled />
+                    <div class="text-xs text-tx-secondary mt-2">
+                        服务器示例：/www/wwwroot/hao.uied.cn/server/licenses/my.license
+                    </div>
                 </el-form-item>
                 <el-form-item label="绑定域名(可选)">
                     <el-input
@@ -222,7 +222,8 @@
                         购买 Pro / Enterprise 授权。
                     </li>
                     <li>在 fsuied.com 授权中心填写部署域名并提交绑定。</li>
-                    <li>回到当前页面输入授权码 Key，点击“激活授权”。</li>
+                    <li>将 fsuied.com 下发的授权文件放到 <code>server/licenses/my.license</code>。</li>
+                    <li>回到当前页面点击“文件激活”，成功后刷新后台。</li>
                     <li>激活成功后刷新后台，即可访问完整后台功能。</li>
                 </ol>
                 <p>
@@ -289,7 +290,6 @@ const licenseSaving = ref(false)
 const licenseLoading = ref(false)
 
 const activateForm = reactive({
-    licenseKey: '',
     bindDomain: ''
 })
 
@@ -467,9 +467,6 @@ const loadLicenseInfo = async () => {
     runtimeState.registeredDomains = Array.isArray(data?.registeredDomains)
         ? data.registeredDomains
         : []
-    if (!String(activateForm.licenseKey || '').trim() && String(data?.licenseKey || '').trim()) {
-        activateForm.licenseKey = String(data.licenseKey || '').trim()
-    }
     if (
         !String(activateForm.bindDomain || '').trim() &&
         String(runtimeState.runtimeDomain || '').trim()
@@ -525,9 +522,9 @@ const resolveActivateErrorMessage = (error: any) => {
     )
     if (domainMismatchByCode || domainMismatchByText) {
         if (bindDomain) {
-            return `授权码与域名不匹配：${bindDomain} 未在该 Key 的白名单，请到 fsuied.com 完成域名绑定后重试`
+            return `授权与域名不匹配：${bindDomain} 未在当前授权白名单，请到 fsuied.com 完成域名绑定后重试`
         }
-        return '授权码与域名不匹配：当前域名未在该 Key 的白名单，请到 fsuied.com 完成域名绑定后重试'
+        return '授权与域名不匹配：当前域名未在授权白名单，请到 fsuied.com 完成域名绑定后重试'
     }
     const projectMismatchByCode = code === 41003
     const projectMismatchByText = /项目不匹配|project[_\s-]?mismatch/i.test(normalizedMessage)
@@ -548,22 +545,15 @@ const resolveActivateErrorMessage = (error: any) => {
 }
 
 /**
- * 按授权码激活授权
+ * 通过本地授权文件激活授权
  */
-const handleActivateByKey = async () => {
-    const licenseKey = String(activateForm.licenseKey || '').trim()
-    if (!licenseKey) {
-        feedback.msgError('请先输入授权码 Key')
-        return
-    }
-
+const handleActivateByFile = async () => {
     licenseSaving.value = true
     try {
         await uiedActivateLicenseByKey({
-            licenseKey,
             bindDomain: String(activateForm.bindDomain || '').trim()
         })
-        feedback.msgSuccess('授权激活成功')
+        feedback.msgSuccess('授权文件激活成功')
         await loadLicenseInfo()
     } catch (error) {
         if ((error as any)?.__uiedHandled === true) return
@@ -626,9 +616,9 @@ const runtimeDomainQuotaDisplay = computed(() => {
 const runtimeInactiveAlertText = computed(() => {
     const reason = String(runtimeState.note || '').trim()
     if (!reason) {
-        return '当前授权已被禁用，请在 fsuied.com 处理后重新激活授权码。'
+        return '当前授权已被禁用，请在 fsuied.com 处理后重新激活授权。'
     }
-    return `当前授权已被禁用：${reason}，请在 fsuied.com 处理后重新激活授权码。`
+    return `当前授权已被禁用：${reason}，请在 fsuied.com 处理后重新激活授权。`
 })
 
 /**
@@ -637,9 +627,9 @@ const runtimeInactiveAlertText = computed(() => {
 const runtimeDomainUnauthorizedAlertText = computed(() => {
     const reason = String(runtimeState.domainReason || '').trim().toLowerCase()
     if (reason === 'domain_not_in_whitelist') {
-        return '当前域名未在授权白名单，请先在 fsuied.com 绑定该域名后，回到本页重新激活授权码。'
+        return '当前域名未在授权白名单，请先在 fsuied.com 绑定该域名后，回到本页重新激活授权。'
     }
-    return '当前域名未授权：已超过域名绑定上限，请在 fsuied.com 申请改绑后重新激活授权码。'
+    return '当前域名未授权：已超过域名绑定上限，请在 fsuied.com 申请改绑后重新激活授权。'
 })
 
 /**
@@ -708,7 +698,7 @@ const expiryMeta = computed<{
             label: `已过期 ${Math.abs(remainDays)} 天`,
             tagType: 'danger',
             alertType: 'error',
-            alertText: '许可证已过期，请在 fsuied.com 续期后重新激活授权码。'
+            alertText: '许可证已过期，请在 fsuied.com 续期后重新激活授权。'
         }
     }
     if (remainDays <= 7) {

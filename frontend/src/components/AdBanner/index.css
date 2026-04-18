@@ -458,7 +458,8 @@
 
 @media (max-width: 480px) {
   .page-banner-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   /* 页面四卡文本广告在手机端保持两列，避免纵向过长 */

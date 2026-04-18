@@ -61,6 +61,28 @@ const repoIconMap = {
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.1.3',
+    date: '2026-04-19',
+    title: '正式版1.1.3：授权稳态增强与首页体验修复',
+    changes: [
+      { type: 'fix', scope: 'backend', text: '【授权激活】修复未激活场景下登录接口被误拦截问题：商业激活守卫放行 `/api/system/login` 与 `/api/system/login/captcha`，避免后台无法重新登录进入授权中心。' },
+      { type: 'improve', scope: 'backend', text: '【授权文件兼容】本地授权读取支持目录自动发现任意 `.license` 文件（兼容 `licenses` / `license` 目录与自定义文件名），降低客户部署时因目录名不一致导致的激活失败。' },
+      { type: 'fix', scope: 'backend', text: '【签名兜底】签名校验失败时新增本地授权文件载荷比对兜底，并在通过后回写远端验签摘要，提升授权链路稳定性。' },
+      { type: 'fix', scope: 'frontend', text: '【首页文章Tab】修复 `design-article-grid` 子分类切换竞态：快速切换标签时仅保留最后一次请求结果，解决第二个标签内容错位。' },
+      { type: 'improve', scope: 'frontend', text: '【移动端交互】`design-article-grid-container` 小屏横向列表统一隐藏滚动条（Chrome/Safari/Firefox），保留手势滑动，减少视觉干扰。' },
+    ],
+  },
+  {
+    version: '1.1.2',
+    date: '2026-04-17',
+    title: '正式版1.1.2：版本号统一与发布链路收口',
+    changes: [
+      { type: 'feature', scope: 'fullstack', text: '【版本统一】系统正式版升级为 `1.1.2`，并同步后端系统版本、后台更新标识与前台更新记录入口，确保交付口径一致。' },
+      { type: 'improve', scope: 'backend', text: '【升级中心示例】“发起升级”中的升级包路径示例更新为 `1.1.2/uied-nav-1.1.2-release-bundle.tgz`，减少上线时手工替换失误。' },
+      { type: 'improve', scope: 'backend', text: '【升级中心标记】升级中心控制器/服务版本注释统一提升到 `1.1.2`，便于后续运维排查时快速确认代码批次。' },
+    ],
+  },
+  {
     version: '1.1.1',
     date: '2026-04-14',
     title: '正式版1.1.1：售卖版交付增强、账号体系补齐与投稿服务重构',

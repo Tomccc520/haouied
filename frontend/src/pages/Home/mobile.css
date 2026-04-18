@@ -392,6 +392,52 @@
     margin-top: 0;
   }
 
+  /* 首页推荐区：移动端改为双列卡片，避免一行一个 */
+  .home-ranking-section .ranking-content {
+    overflow: visible;
+    max-height: none;
+    padding-right: 0;
+  }
+
+  .home-ranking-section .ranking-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .home-ranking-section .ranking-item {
+    padding: 0.625rem;
+    margin: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--white);
+    min-height: 4.75rem;
+    align-items: flex-start;
+  }
+
+  .home-ranking-section .rank-number-container {
+    width: 1.375rem;
+    height: 1.375rem;
+    margin-right: 0.375rem;
+  }
+
+  .home-ranking-section .ranking-item-title {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+    line-height: 1.3;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .home-ranking-section .ranking-item-meta {
+    gap: 0.375rem;
+    font-size: 0.625rem;
+    flex-wrap: wrap;
+  }
+
   .ranking-title {
     font-size: 1.125rem;
     margin-bottom: 1rem;
@@ -462,12 +508,38 @@
     flex-shrink: 0;
   }
 
-  /* 文章网格在移动端改为2列 */
-  .home-design-section .article-grid,
-  .home-design-section .articles-grid,
-  .home-design-section .skeleton-grid {
-    grid-template-columns: repeat(2, 1fr);
+  /* 首页广告卡片：移动端固定两列，避免退化成单列 */
+  .home-page .page-banner-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.625rem !important;
+  }
+
+  /* 首页文章卡片：移动端使用单行横向滑动 */
+  .home-design-section .article-grid {
+    display: block !important;
+    overflow: hidden;
+  }
+
+  .home-design-section .article-grid .articles-grid,
+  .home-design-section .article-grid .skeleton-grid {
+    display: flex !important;
     gap: 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.375rem;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-design-section .article-grid .articles-grid::-webkit-scrollbar,
+  .home-design-section .article-grid .skeleton-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-design-section .article-grid .article-card {
+    flex: 0 0 clamp(9.5rem, 44vw, 11rem);
+    width: clamp(9.5rem, 44vw, 11rem);
+    scroll-snap-align: start;
   }
 
   .home-design-section .article-card {
@@ -573,6 +645,21 @@
     font-size: 0.8125rem;
   }
 
+  /* 超小屏继续保持两列 */
+  .home-ranking-section .ranking-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4375rem;
+  }
+
+  .home-ranking-section .ranking-item {
+    padding: 0.5rem;
+    min-height: 4.5rem;
+  }
+
+  .home-ranking-section .ranking-item-title {
+    font-size: 0.6875rem;
+  }
+
   .home-design-section {
     padding: 0 0.75rem;
   }
@@ -581,16 +668,19 @@
     font-size: 1.125rem;
   }
 
-  /* 超小屏幕下文章网格改为单列 */
-  .home-design-section .article-grid,
-  .home-design-section .articles-grid,
-  .home-design-section .skeleton-grid {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+  .home-page .page-banner-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  /* 超小屏保持“左右滑动 + 视口内两张卡片” */
+  .home-design-section .article-grid .article-card {
+    flex-basis: calc((100% - 0.625rem) / 2);
+    width: calc((100% - 0.625rem) / 2);
   }
 
   .home-design-section .article-image-container {
-    height: 10rem;
+    height: 7.5rem;
   }
 }
 

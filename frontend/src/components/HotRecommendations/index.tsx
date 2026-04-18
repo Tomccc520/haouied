@@ -7,7 +7,7 @@
  * @version 1.4.0 - 移除静态数据依赖，完全使用 API
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useHotRecommendations, HotRecommendation } from '../../hooks/useHotRecommendations';
 import { Tool } from '../../hooks/useNavigation';
 import ToolCard from '../ToolCard';
@@ -71,6 +71,21 @@ interface HotRecommendationsProps {
   /** 网站点击回调 - 用于显示跳转弹窗 */
   onWebsiteClick?: (tool: Tool) => void;
 }
+
+/**
+ * 解析小屏网格兜底样式：
+ * 对 <=900px 视口统一强制双列，避免媒体查询被覆盖时退化为单列。
+ */
+const resolveCompactGridStyle = (): React.CSSProperties | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  if (window.innerWidth > 900) return undefined;
+  return {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.5rem',
+    gridAutoRows: 'auto',
+  };
+};
 
 /**
  * 推荐热门组件
@@ -202,6 +217,7 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [compactGridStyle, setCompactGridStyle] = useState<React.CSSProperties | undefined>(() => resolveCompactGridStyle());
   /**
    * 分页条数兜底使用 limit，便于按“每屏展示行数”统一控制热门推荐卡片数量。
    */
@@ -210,6 +226,20 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
     if (!Number.isFinite(parsedLimit) || parsedLimit <= 0) return 12;
     return Math.max(6, Math.min(36, Math.floor(parsedLimit)));
   }, [limit]);
+
+  /**
+   * 监听视口变化，实时同步小屏双列兜底样式。
+   */
+  useEffect(() => {
+    const handleResize = () => {
+      setCompactGridStyle(resolveCompactGridStyle());
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
   
   // 初始化标记
   const [initialized, setInitialized] = useState(false);
@@ -504,7 +534,7 @@ const HotRecommendations: React.FC<HotRecommendationsProps> = ({
         </div>
       )}
       
-      <div className="hot-recommendations-grid">
+      <div className="hot-recommendations-grid" style={compactGridStyle}>
         {paginationData.currentPageTools.map((tool: Tool, index: number) => (
           <ToolCard 
             key={tool.id} 

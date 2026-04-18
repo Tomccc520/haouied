@@ -721,7 +721,13 @@ build_single_edition_package() {
   cat > "$target/config/app.env.example" <<'EOF'
 # UIED-NAV 环境变量模板
 NODE_ENV=production
+EGG_SERVER_ENV=prod
+# 客户站必须关闭本地签发（仅 fsuied 授权中心可开启）
+UIED_ENABLE_LOCAL_LICENSE_SIGN=false
+# 许可证签名密钥（必须与 fsuied 签发端一致）
 UIED_LICENSE_SIGN_SECRET=replace-with-your-secret
+# 授权接口签名密钥（默认与许可证签名密钥保持一致）
+UIED_LICENSE_API_SIGN_SECRET=replace-with-your-secret
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
 MYSQL_DATABASE=uied_nav

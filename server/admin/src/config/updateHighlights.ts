@@ -18,7 +18,7 @@ export interface AdminUpdateHighlightItem {
     actionText?: string
 }
 
-export const CURRENT_ADMIN_UPDATE_VERSION = 'v1.1.1'
+export const CURRENT_ADMIN_UPDATE_VERSION = 'v1.1.3'
 
 export const ADMIN_UPDATE_GROUP_LABELS: Record<AdminUpdateHighlightItem['group'], string> = {
     delivery: '交付与授权',

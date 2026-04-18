@@ -52,6 +52,23 @@
   display: none;
 }
 
+.footer-mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+}
+
+.footer-mobile-actions .footer-action-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 2.375rem;
+}
+
+.footer-mobile-actions .footer-action-btn:only-child {
+  grid-column: 1 / -1;
+}
+
 .footer-desktop-view {
   display: block;
 }
@@ -117,7 +134,8 @@
 .footer-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-6);
+  flex-wrap: wrap;
+  gap: 0.625rem;
   margin-top: var(--spacing-4);
 }
 
@@ -428,6 +446,10 @@
   
   .footer-content-wrapper {
     padding: 0 15px;
+  }
+
+  .footer-mobile-actions {
+    margin: 8px 10px 0;
   }
   
   .footer-sections-mobile {
@@ -742,57 +764,87 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   text-decoration: none;
   border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.footer-action-btn:active {
+  transform: translateY(1px);
+}
+
+.footer-action-btn:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
 }
 
 .footer-action-btn svg {
   flex-shrink: 0;
+  width: 14px;
+  height: 14px;
 }
 
 /* 网站收录按钮 - 主要按钮 */
 .footer-submit-btn {
-  background: var(--primary-color, #0066ff);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #fff;
-  border-color: var(--primary-color, #0066ff);
+  border-color: rgba(29, 78, 216, 0.2);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.22);
 }
 
 .footer-submit-btn:hover {
-  background: var(--primary-dark, #0052cc);
-  border-color: var(--primary-dark, #0052cc);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  border-color: rgba(30, 64, 175, 0.28);
+  box-shadow: 0 6px 16px rgba(30, 64, 175, 0.24);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 /* 收录与增值服务按钮 - 中性强调按钮 */
 .footer-service-btn {
-  background: rgba(239, 246, 255, 0.92);
+  background: rgba(239, 246, 255, 0.88);
   color: var(--primary-color, #0066ff);
   border-color: rgba(37, 99, 235, 0.16);
 }
 
 .footer-service-btn:hover {
-  background: rgba(219, 234, 254, 0.92);
+  background: rgba(219, 234, 254, 0.9);
   color: var(--primary-dark, #0052cc);
   border-color: rgba(37, 99, 235, 0.28);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .footer-mobile-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-mobile-actions .footer-action-btn {
+    min-height: 2.5rem;
+    font-size: 0.8125rem;
+  }
 }
 
 /* 更新记录按钮 - 次要按钮 */
 .footer-changelog-btn {
-  background: transparent;
-  color: var(--text-light, #666);
-  border-color: var(--border-color, #eaeaea);
+  background: #fff;
+  color: var(--text-secondary, #64748b);
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
 .footer-changelog-btn:hover {
-  background: var(--bg-medium, #f5f5f5);
+  background: rgba(248, 250, 252, 0.92);
   color: var(--primary-color, #0066ff);
-  border-color: var(--primary-color, #0066ff);
+  border-color: rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
 }
 
 /* 无障碍：减少动画 */

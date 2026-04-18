@@ -80,6 +80,8 @@ module.exports = appInfo => {
     config.uiedLicenseActivateToken = String(process.env.UIED_LICENSE_ACTIVATE_TOKEN || '').trim();
     // 按授权码激活：项目编码（默认 fsuied）
     config.uiedLicenseProjectCode = String(process.env.UIED_LICENSE_PROJECT_CODE || 'fsuied').trim().toLowerCase();
+    // 本地授权文件路径（支持绝对路径；相对路径默认基于 server 目录）
+    config.uiedLicenseFilePath = String(process.env.UIED_LICENSE_FILE_PATH || 'licenses/my.license').trim();
     // 按授权码激活：超时时间（毫秒）
     config.uiedLicenseActivateTimeout = Number(process.env.UIED_LICENSE_ACTIVATE_TIMEOUT || 10000) || 10000;
     // 按授权码激活：本地联调时是否允许不安全 TLS（仅开发环境建议开启）

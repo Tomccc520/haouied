@@ -52,7 +52,7 @@
         "node": ">=10.0.0"
     },
     "scripts": {
-        "start": "egg-scripts start --daemon --title=egg-server-vue-admin-serve",
+        "start": "sh ./scripts/start_prod.sh",
         "stop": "egg-scripts stop --title=egg-server-vue-admin-serve",
         "dev": "egg-bin dev --port=8002",
         "preflight:commercial": "node ../../scripts/commercial-preflight-check.js",

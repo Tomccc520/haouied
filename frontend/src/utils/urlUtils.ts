@@ -10,13 +10,89 @@
 
 // 默认端口配置
 const DEFAULT_API_PORT = '8002';
-const DEFAULT_API_BASE = `http://localhost:${DEFAULT_API_PORT}/api`;
+const LOCAL_API_BASE = `http://localhost:${DEFAULT_API_PORT}/api`;
+const SAME_ORIGIN_API_BASE = '/api';
+
+/**
+ * 本地环境主机名集合。
+ */
+const LOCAL_HOST_SET = new Set([ 'localhost', '127.0.0.1', '0.0.0.0', '::1' ]);
+
+/**
+ * 判断主机名是否为本地地址。
+ */
+const isLocalHostname = (hostname: string): boolean => {
+  return LOCAL_HOST_SET.has(String(hostname || '').trim().toLowerCase());
+};
+
+/**
+ * 统一规范 API 基址，保证绝对地址场景自动补全 /api。
+ */
+const normalizeApiBase = (rawBase: string): string => {
+  const normalized = String(rawBase || '').trim().replace(/\/+$/, '');
+  if (!normalized) return '';
+  if (/^https?:\/\/[^/]+$/i.test(normalized)) {
+    return `${normalized}/api`;
+  }
+  return normalized;
+};
 
 /**
  * 判断是否为可直接返回的 data URI。
  */
 const isDataUrl = (value: string): boolean => {
   return /^data:/i.test(String(value || '').trim());
+};
+
+/**
+ * 判断字符串是否为 http/https 绝对地址。
+ */
+const isHttpAbsoluteUrl = (value: string): boolean => {
+  return /^https?:\/\//i.test(String(value || '').trim());
+};
+
+/**
+ * 解析 URL 的主机名，解析失败时返回空字符串。
+ */
+const resolveHostnameFromUrl = (value: string): string => {
+  try {
+    return new URL(String(value || '').trim()).hostname.toLowerCase();
+  } catch (_error) {
+    return '';
+  }
+};
+
+/**
+ * 获取当前后端基址对应的主机名（用于判断是否同站历史地址）。
+ */
+const resolveBackendHostname = (): string => {
+  const backendBase = String(getBackendBaseUrl() || '').trim();
+  if (!backendBase) return '';
+
+  // 绝对地址：直接解析主机
+  if (isHttpAbsoluteUrl(backendBase)) {
+    return resolveHostnameFromUrl(backendBase);
+  }
+
+  // 相对地址场景（如 /api）：回退为当前页面主机
+  if (typeof window !== 'undefined') {
+    return String(window.location.hostname || '').trim().toLowerCase();
+  }
+  return '';
+};
+
+/**
+ * 判断“包含 uploads 路径的绝对地址”是否应改写到当前后端域名。
+ * 仅对本地地址或同站历史地址生效，避免误改写外部 CDN 图（如 img.uied.cn）。
+ */
+const shouldRewriteAbsoluteUploadUrl = (rawUrl: string): boolean => {
+  const hostname = resolveHostnameFromUrl(rawUrl);
+  if (!hostname) return false;
+  if (isLocalHostname(hostname)) return true;
+
+  const backendHostname = resolveBackendHostname();
+  if (!backendHostname) return false;
+  return hostname === backendHostname;
 };
 
 /**
@@ -49,14 +125,30 @@ const extractUploadPath = (rawUrl: string): string => {
 export const getApiBaseUrl = (): string => {
   const craEnv = String(process.env.REACT_APP_API_URL || '').trim();
   const legacyEnv = String(process.env.VITE_API_URL || '').trim();
-  const candidate = craEnv || legacyEnv || DEFAULT_API_BASE;
-  const normalized = candidate.replace(/\/+$/, '');
+  const envCandidate = craEnv || legacyEnv;
+  const runtimeHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  const runtimeIsLocal = isLocalHostname(runtimeHost);
 
-  // 兜底兼容：若误传后端根地址（不含 /api），自动补齐
-  if (/^https?:\/\/[^/]+$/i.test(normalized)) {
-    return `${normalized}/api`;
+  /**
+   * 优先读取环境变量，但生产站点禁止回落到 localhost/127.0.0.1，
+   * 防止打包时误把本机地址写进产物导致线上 CORS 全量失败。
+   */
+  if (envCandidate) {
+    const normalizedEnvBase = normalizeApiBase(envCandidate);
+    if (/^https?:\/\//i.test(normalizedEnvBase)) {
+      try {
+        const parsed = new URL(normalizedEnvBase);
+        if (isLocalHostname(parsed.hostname) && !runtimeIsLocal) {
+          return SAME_ORIGIN_API_BASE;
+        }
+      } catch (error) {
+        console.warn('解析 API 地址失败，使用原始配置:', error);
+      }
+    }
+    return normalizedEnvBase;
   }
-  return normalized || DEFAULT_API_BASE;
+
+  return runtimeIsLocal ? LOCAL_API_BASE : SAME_ORIGIN_API_BASE;
 };
 
 /**
@@ -89,11 +181,18 @@ export const getFullImageUrl = (url: string): string => {
   }
   
   /**
-   * 历史数据里可能写入了 localhost / 127.0.0.1 / 旧端口的绝对地址。
-   * 只要命中 uploads 资源路径，就统一切回当前后端域名。
+   * 仅当是“本地/同站历史地址”时，才把 uploads 绝对地址改写到当前后端域名。
+   * 外部站点（例如 img.uied.cn）即便包含 /uploads/ 也必须保持原始地址，
+   * 否则会被错误改写为本站地址，触发 404 后回退成统一占位图。
    */
   if (uploadPath) {
-    return `${backendBase}${uploadPath}`;
+    if (!isHttpAbsoluteUrl(normalizedUrl)) {
+      return `${backendBase}${uploadPath}`;
+    }
+    if (shouldRewriteAbsoluteUploadUrl(normalizedUrl)) {
+      return `${backendBase}${uploadPath}`;
+    }
+    return normalizedUrl;
   }
   
   // 如果已经是完整的外部 URL，直接返回

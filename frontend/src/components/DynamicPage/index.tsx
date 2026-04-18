@@ -58,6 +58,21 @@ const isWindowScrollContainer = (container: Window | HTMLElement): container is 
 };
 
 /**
+ * 解析移动端工具网格内联样式（强制双列兜底）
+ * 说明：当样式优先级冲突时，使用内联样式确保移动端始终显示两列。
+ */
+const resolveMobileToolsGridStyle = (): React.CSSProperties | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  if (window.innerWidth > 900) return undefined;
+  return {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.5rem',
+    gridAutoRows: 'auto',
+  };
+};
+
+/**
  * 将页面标识统一映射为 HeroBanner 支持的 pageType。
  */
 const resolveHeroPageType = (input: string | NavMenuType | undefined): HeroPageType => {
@@ -104,6 +119,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const [dailyNewDisplayConfig, setDailyNewDisplayConfig] = useState<DailyNewDisplayConfig | null>(null);
   const [sidebarStickyEnabled, setSidebarStickyEnabled] = useState<boolean>(true);
   const [sidebarFixedActive, setSidebarFixedActive] = useState<boolean>(false);
+  const [mobileToolsGridStyle, setMobileToolsGridStyle] = useState<React.CSSProperties | undefined>(() => resolveMobileToolsGridStyle());
   const mainLayoutRef = useRef<HTMLDivElement | null>(null);
   
   // 获取前端配置（跳转弹窗自定义文案）
@@ -303,6 +319,20 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
     window.addEventListener('resize', resolveSidebarStickyState, { passive: true });
     return () => {
       window.removeEventListener('resize', resolveSidebarStickyState);
+    };
+  }, []);
+
+  /**
+   * 监听视口变化，实时同步移动端双列网格样式。
+   */
+  useEffect(() => {
+    const handleResize = () => {
+      setMobileToolsGridStyle(resolveMobileToolsGridStyle());
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
 
@@ -895,7 +925,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
               </div>
               
               {searchResults.length > 0 ? (
-                <div className="tools-grid">
+                <div className="tools-grid" style={mobileToolsGridStyle}>
                   {searchResults.map(website => (
                     <ToolCard
                       key={website.id}
@@ -953,14 +983,15 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                 
                 {/* 子分类标签 - 只有当子分类有网站时才显示 */}
                 {subCategories.length > 0 && hasSubCategoryWebsites && (
-                  <SubCategoryTabs
-                    subCategories={subCategories}
-                    categorySlug={category.slug}
-                    getWebsitesBySubCategory={getWebsitesBySubCategory}
-                    onWebsiteClick={handleWebsiteClick}
-                    showDirectArrow={showDirectArrow}
-                    onDirectVisit={handleDirectVisit}
-                    arrowLabel={arrowLabel}
+                    <SubCategoryTabs
+                      subCategories={subCategories}
+                      categorySlug={category.slug}
+                      getWebsitesBySubCategory={getWebsitesBySubCategory}
+                      onWebsiteClick={handleWebsiteClick}
+                      mobileToolsGridStyle={mobileToolsGridStyle}
+                      showDirectArrow={showDirectArrow}
+                      onDirectVisit={handleDirectVisit}
+                      arrowLabel={arrowLabel}
                     arrowIsExternal={arrowIsExternal}
                     directArrowNewWindow={directArrowNewWindow}
                     viewMoreNewWindow={viewMoreNewWindow}
@@ -969,7 +1000,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                 
                 {/* 如果没有子分类，或者子分类都没有网站，直接显示所有网站 */}
                 {(subCategories.length === 0 || !hasSubCategoryWebsites) && categoryWebsites.length > 0 && (
-                  <div className="tools-grid">
+                  <div className="tools-grid" style={mobileToolsGridStyle}>
                     {categoryWebsites.map(website => (
                       <ToolCard
                         key={website.id}
@@ -1011,6 +1042,7 @@ interface SubCategoryTabsProps {
   categorySlug?: string;
   getWebsitesBySubCategory: (id: string) => Website[];
   onWebsiteClick: (website: Website) => void;
+  mobileToolsGridStyle?: React.CSSProperties;
   showDirectArrow?: boolean;
   onDirectVisit?: (tool: DirectVisitTarget, e: React.MouseEvent) => void;
   arrowLabel?: string;
@@ -1024,6 +1056,7 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   categorySlug,
   getWebsitesBySubCategory,
   onWebsiteClick,
+  mobileToolsGridStyle,
   showDirectArrow = false,
   onDirectVisit,
   arrowLabel = '直达网站',
@@ -1136,9 +1169,12 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: '16px',
+        width: '100%',
+        minWidth: 0,
       }}>
         <div style={{
-          flex: 1,
+          flex: '1 1 auto',
+          minWidth: 0,
           overflowX: 'auto',
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
@@ -1148,26 +1184,15 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
             display: 'flex',
             gap: '8px',
             paddingBottom: '8px',
-            minWidth: 'max-content',
+            width: 'max-content',
           }}>
             {/* 全部标签 */}
             <button
               className={`subcategory-tab ${activeSubCategory === 'all' ? 'active' : ''}`}
               onClick={() => handleSubCategoryChange('all')}
-              style={{
-                padding: '6px 16px',
-                borderRadius: '16px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
-                background: activeSubCategory === 'all' ? 'var(--primary-color, #1890ff)' : '#f5f5f5',
-                color: activeSubCategory === 'all' ? '#fff' : '#666',
-              }}
             >
-              全部 ({allWebsites.length})
+              <span className="tab-name">全部</span>
+              <span className="tab-count">{allWebsites.length}</span>
             </button>
             
             {/* 子分类标签 */}
@@ -1180,20 +1205,9 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
                   key={subCat.id}
                   className={`subcategory-tab ${isActive ? 'active' : ''}`}
                   onClick={() => handleSubCategoryChange(subCat.id)}
-                  style={{
-                    padding: '6px 16px',
-                    borderRadius: '16px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.2s',
-                    background: isActive ? 'var(--primary-color, #1890ff)' : '#f5f5f5',
-                    color: isActive ? '#fff' : '#666',
-                  }}
                 >
-                  {subCat.name} ({count})
+                  <span className="tab-name">{subCat.name}</span>
+                  <span className="tab-count">{count}</span>
                 </button>
               );
             })}
@@ -1280,7 +1294,7 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
       </div>
       
       {/* 网站列表 */}
-      <div className="tools-grid">
+      <div className="tools-grid" style={mobileToolsGridStyle}>
         {paginationData.currentPageItems.map(website => (
           <ToolCard
             key={website.id}
