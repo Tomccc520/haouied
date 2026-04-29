@@ -333,7 +333,7 @@ const defaultHomepageConfig: HomepageConfig = {
   dailyNewDisplayPlacements: [ 'nav_quick_entry' ],
   dailyNewDisplaySort: 86,
   dailyNewDisplayOpenInNewTab: false,
-  dailyNewDefaultDays: 1,
+  dailyNewDefaultDays: 7,
   dailyNewPageKicker: 'Daily Fresh',
   dailyNewPageTitle: '每日上新网址',
   dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',

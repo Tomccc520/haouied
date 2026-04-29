@@ -100,7 +100,7 @@
                         />
                     </el-select>
                     <div class="text-xs text-tx-secondary mt-1">
-                        仅从“网站管理”中选择，避免热门推荐重复手工建站点。
+                        展示时实时读取“网站管理”的最新名称和链接；如需更换推荐对象，请重新选择网站。
                     </div>
                 </el-form-item>
                 <el-form-item label="网站名称" prop="name">
@@ -110,7 +110,10 @@
                     <el-input v-model="editData.url" placeholder="将由上方自动填充" disabled />
                 </el-form-item>
                 <el-form-item label="图标URL">
-                    <el-input v-model="editData.iconUrl" placeholder="优先使用网站库图标，可按需覆盖" />
+                    <el-input
+                        v-model="editData.iconUrl"
+                        placeholder="优先使用网站库图标，可按需覆盖"
+                    />
                 </el-form-item>
                 <el-form-item label="描述">
                     <el-input
@@ -237,7 +240,7 @@ const editRules: FormRules = {
  */
 const mergeWebsiteOptions = (rows: WebsiteOption[]) => {
     const map = new Map<number, WebsiteOption>()
-    ;[ ...(websiteOptions.value || []), ...(Array.isArray(rows) ? rows : []) ].forEach((item) => {
+    ;[...(websiteOptions.value || []), ...(Array.isArray(rows) ? rows : [])].forEach((item) => {
         if (!item || !Number(item.id)) return
         map.set(Number(item.id), item)
     })
@@ -313,13 +316,15 @@ const handleWebsiteRemoteSearch = async (keyword: string) => {
             pageNo: 1
         })
         const rows = Array.isArray(res?.lists) ? res.lists : []
-        const options: WebsiteOption[] = rows.map((item: any) => ({
-            id: Number(item?.id || 0),
-            name: String(item?.name || '').trim(),
-            url: String(item?.url || '').trim(),
-            iconUrl: String(item?.iconUrl || '').trim(),
-            description: String(item?.description || '').trim()
-        })).filter((item: WebsiteOption) => item.id > 0 && item.name && item.url)
+        const options: WebsiteOption[] = rows
+            .map((item: any) => ({
+                id: Number(item?.id || 0),
+                name: String(item?.name || '').trim(),
+                url: String(item?.url || '').trim(),
+                iconUrl: String(item?.iconUrl || '').trim(),
+                description: String(item?.description || '').trim()
+            }))
+            .filter((item: WebsiteOption) => item.id > 0 && item.name && item.url)
         if (currentSeq !== websiteSearchSequence.value) return
         replaceWebsiteOptions(options)
     } catch (error) {
@@ -359,9 +364,7 @@ const handleWebsiteSelect = (websiteId: number | string) => {
     editData.websiteId = matched.id
     editData.name = matched.name
     editData.url = matched.url
-    if (!String(editData.iconUrl || '').trim()) {
-        editData.iconUrl = matched.iconUrl
-    }
+    editData.iconUrl = matched.iconUrl
     if (!String(editData.description || '').trim()) {
         editData.description = matched.description
     }
@@ -380,7 +383,7 @@ const tryHydrateWebsiteSelectionForEdit = async (row: any) => {
             iconUrl: String(row?.iconUrl || row?.websiteIcon || '').trim(),
             description: String(row?.description || '').trim()
         }
-        mergeWebsiteOptions([ option ])
+        mergeWebsiteOptions([option])
         editData.websiteId = rawWebsiteId
         return
     }

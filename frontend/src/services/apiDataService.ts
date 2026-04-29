@@ -18,13 +18,44 @@ function websiteToTool(website: Website, categoryId?: string): Tool {
     name: website.name,
     description: website.description,
     url: website.url,
+    iconUrl: website.iconUrl,
     category: categoryId || '',
     isNew: website.isNew,
     isFeatured: website.isFeatured,
     isHot: website.isHot,
+    isPinned: website.isPinned === true,
+    sortOrder: Number(website.sortOrder || 0),
     tags: website.tags || [],
     weightTags: website.weightTags || []
   };
+}
+
+/**
+ * 按后台运营权重对网站卡片排序：置顶优先，其次热门/推荐，再按排序值与 ID 兜底。
+ */
+function compareToolsByOperationalOrder(a: Tool, b: Tool): number {
+  if (a.isPinned && !b.isPinned) return -1;
+  if (!a.isPinned && b.isPinned) return 1;
+  if (a.isHot && !b.isHot) return -1;
+  if (!a.isHot && b.isHot) return 1;
+  if (a.isFeatured && !b.isFeatured) return -1;
+  if (!a.isFeatured && b.isFeatured) return 1;
+  const sortDiff = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
+  if (sortDiff !== 0) return sortDiff;
+  return Number(b.id || 0) - Number(a.id || 0);
+}
+
+/**
+ * 按网站 ID 去重，避免主分类与子分类/多分类同时关联时重复展示同一张卡片。
+ */
+function dedupeToolsById(tools: Tool[]): Tool[] {
+  const toolMap = new Map<string, Tool>();
+  tools.forEach((tool) => {
+    if (tool?.id && !toolMap.has(tool.id)) {
+      toolMap.set(tool.id, tool);
+    }
+  });
+  return Array.from(toolMap.values());
 }
 
 /**
@@ -172,16 +203,10 @@ export class APIDataService implements DataService {
       });
     }
 
-    // 排序：热门 > 推荐 > 新增
-    tools.sort((a, b) => {
-      if (a.isHot && !b.isHot) return -1;
-      if (!a.isHot && b.isHot) return 1;
-      if (a.isFeatured && !b.isFeatured) return -1;
-      if (!a.isFeatured && b.isFeatured) return 1;
-      if (a.isNew && !b.isNew) return -1;
-      if (!a.isNew && b.isNew) return 1;
-      return 0;
-    });
+    tools = dedupeToolsById(tools);
+
+    // 排序：保持与后台前台接口一致，避免覆盖运营设置。
+    tools.sort(compareToolsByOperationalOrder);
 
     // 限制数量
     if (params?.limit) {
@@ -202,10 +227,13 @@ export class APIDataService implements DataService {
 
     Object.entries(this.data.websitesByCategory).forEach(([catId, websites]) => {
       websites.forEach(w => {
+        const name = String(w.name || '');
+        const description = String(w.description || '');
+        const tags = Array.isArray(w.tags) ? w.tags : [];
         if (
-          w.name.toLowerCase().includes(lowerKeyword) ||
-          w.description.toLowerCase().includes(lowerKeyword) ||
-          (w.tags || []).some(tag => tag.toLowerCase().includes(lowerKeyword))
+          name.toLowerCase().includes(lowerKeyword) ||
+          description.toLowerCase().includes(lowerKeyword) ||
+          tags.some(tag => String(tag || '').toLowerCase().includes(lowerKeyword))
         ) {
           results.push(websiteToTool(w, catId));
         }

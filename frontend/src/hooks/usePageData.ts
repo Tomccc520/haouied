@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { pageService, PageFullData, Website, Category, SubCategory } from '../services/pageService';
 import { debugLog } from '../utils/debugHelper';
 
@@ -41,6 +41,18 @@ interface UsePageDataReturn {
 }
 
 /**
+ * 按后台运营权重对网站列表排序，保证前端聚合分类时不打散置顶/排序规则。
+ */
+const compareWebsitesByOperationalOrder = (left: Website, right: Website): number => {
+  if (left.isPinned !== right.isPinned) return left.isPinned ? -1 : 1;
+  if (left.isHot !== right.isHot) return left.isHot ? -1 : 1;
+  if (left.isFeatured !== right.isFeatured) return left.isFeatured ? -1 : 1;
+  const sortDiff = Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
+  if (sortDiff !== 0) return sortDiff;
+  return Number(right.id || 0) - Number(left.id || 0);
+};
+
+/**
  * 页面数据 Hook - 从 API 获取页面配置、分类和网站数据
  */
 export const usePageData = ({ slug, enabled = true }: UsePageDataOptions): UsePageDataReturn => {
@@ -48,38 +60,53 @@ export const usePageData = ({ slug, enabled = true }: UsePageDataOptions): UsePa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [dynamicHotTags, setDynamicHotTags] = useState<string[]>([]);
-  // 用于跟踪是否是首次加载
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const requestSeqRef = useRef(0);
+  const hotTagsSeqRef = useRef(0);
 
   // 获取数据
   const fetchData = useCallback(async () => {
-    if (!enabled || !slug) return;
+    if (!enabled || !slug) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
     
     try {
-      // 只在首次加载时显示 loading 状态，避免刷新时闪烁
-      if (isInitialLoad) {
-        setLoading(true);
-      }
+      setLoading(true);
       setError(null);
+      setData(null);
       const result = await pageService.getFullData(slug);
+      if (requestSeq !== requestSeqRef.current) return;
       setData(result);
-      setIsInitialLoad(false);
     } catch (err) {
+      if (requestSeq !== requestSeqRef.current) return;
       setError(err as Error);
       debugLog.error(`Failed to fetch page data for ${slug}:`, err);
     } finally {
-      setLoading(false);
+      if (requestSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
-  }, [slug, enabled, isInitialLoad]);
+  }, [slug, enabled]);
 
   // 获取动态热门标签（按点击量排序）
   const fetchHotTags = useCallback(async () => {
-    if (!enabled || !slug) return;
+    if (!enabled || !slug) {
+      setDynamicHotTags([]);
+      return;
+    }
+    const requestSeq = hotTagsSeqRef.current + 1;
+    hotTagsSeqRef.current = requestSeq;
     
     try {
       const response = await pageService.getHotTags(slug, 10);
+      if (requestSeq !== hotTagsSeqRef.current) return;
       setDynamicHotTags(response.tags || []);
     } catch (err) {
+      if (requestSeq !== hotTagsSeqRef.current) return;
       debugLog.error(`Failed to fetch hot tags for ${slug}:`, err);
       // 失败时不影响其他功能
     }
@@ -108,21 +135,25 @@ export const usePageData = ({ slug, enabled = true }: UsePageDataOptions): UsePa
     if (!category) return [];
     
     // 获取该分类及其子分类的所有网站
-    const websites: Website[] = [];
+    const websiteMap = new Map<string, Website>();
     
     // 主分类的网站
     if (data.websitesByCategory[categoryId]) {
-      websites.push(...data.websitesByCategory[categoryId]);
+      data.websitesByCategory[categoryId].forEach((website) => {
+        if (website?.id) websiteMap.set(website.id, website);
+      });
     }
     
     // 子分类的网站
     for (const subCat of category.subCategories) {
       if (data.websitesByCategory[subCat.id]) {
-        websites.push(...data.websitesByCategory[subCat.id]);
+        data.websitesByCategory[subCat.id].forEach((website) => {
+          if (website?.id) websiteMap.set(website.id, website);
+        });
       }
     }
     
-    return websites;
+    return Array.from(websiteMap.values()).sort(compareWebsitesByOperationalOrder);
   }, [data]);
 
   // 根据子分类获取网站
@@ -152,11 +183,16 @@ export const usePageData = ({ slug, enabled = true }: UsePageDataOptions): UsePa
   const searchWebsites = useCallback((keyword: string): Website[] => {
     if (!keyword) return [];
     const lowerKeyword = keyword.toLowerCase();
-    return allWebsites.filter(w => 
-      w.name.toLowerCase().includes(lowerKeyword) ||
-      w.description.toLowerCase().includes(lowerKeyword) ||
-      w.tags.some(tag => tag.toLowerCase().includes(lowerKeyword))
-    );
+    return allWebsites.filter(w => {
+      const name = String(w.name || '');
+      const description = String(w.description || '');
+      const tags = Array.isArray(w.tags) ? w.tags : [];
+      return (
+        name.toLowerCase().includes(lowerKeyword) ||
+        description.toLowerCase().includes(lowerKeyword) ||
+        tags.some(tag => String(tag || '').toLowerCase().includes(lowerKeyword))
+      );
+    });
   }, [allWebsites]);
 
   // 获取所有网站

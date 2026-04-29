@@ -77,6 +77,9 @@ export interface Website {
   isHot: boolean;
   isFeatured: boolean;
   isNew: boolean;
+  isPinned?: boolean;
+  sortOrder?: number;
+  createdAt?: number;
   tags: string[];
   weightTags?: string[];
 }

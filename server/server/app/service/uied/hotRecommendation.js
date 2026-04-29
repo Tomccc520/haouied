@@ -14,6 +14,137 @@ const Service = require('egg').Service;
 
 class HotRecommendationService extends Service {
   /**
+   * 判断是否为字段已存在错误，避免自动补丁重复执行时报错。
+   * @param {Error} error 异常对象
+   * @return {boolean} 是否字段重复
+   */
+  isDuplicateColumnError(error) {
+    const message = String(error?.message || '');
+    const code = String(error?.original?.code || error?.code || '').toUpperCase();
+    return code === 'ER_DUP_FIELDNAME' || /Duplicate column name/i.test(message);
+  }
+
+  /**
+   * 判断是否为索引已存在错误，避免自动补丁重复执行时报错。
+   * @param {Error} error 异常对象
+   * @return {boolean} 是否索引重复
+   */
+  isDuplicateKeyError(error) {
+    const message = String(error?.message || '');
+    const code = String(error?.original?.code || error?.code || '').toUpperCase();
+    return code === 'ER_DUP_KEYNAME' || /Duplicate key name/i.test(message);
+  }
+
+  /**
+   * 规范化网站 ID，只保留正整数。
+   * @param {unknown} value 原始网站 ID
+   * @return {number} 规范化后的网站 ID
+   */
+  normalizeWebsiteId(value) {
+    const id = Number.parseInt(String(value || 0), 10);
+    return Number.isInteger(id) && id > 0 ? id : 0;
+  }
+
+  /**
+   * 确保热门推荐表存在 website_id 字段，并按 URL 回填历史数据。
+   */
+  async ensureWebsiteIdColumn() {
+    if (this._hotRecommendationWebsiteIdColumnReady) return;
+    const { app, ctx } = this;
+
+    try {
+      await app.model.query(
+        'ALTER TABLE `uied_hot_recommendation` ADD COLUMN `website_id` int unsigned NOT NULL DEFAULT 0 COMMENT \'关联网站ID\' AFTER `old_id`',
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+    } catch (error) {
+      if (!this.isDuplicateColumnError(error)) {
+        ctx.logger.warn('[uied.hotRecommendation] 自动补齐 website_id 字段失败，请手动执行 SQL 补丁: %s', error.message);
+      }
+    }
+
+    try {
+      await app.model.query(
+        'ALTER TABLE `uied_hot_recommendation` ADD KEY `idx_website_id` (`website_id`)',
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+    } catch (error) {
+      if (!this.isDuplicateKeyError(error)) {
+        ctx.logger.warn('[uied.hotRecommendation] 自动补齐 website_id 索引失败，请手动执行 SQL 补丁: %s', error.message);
+      }
+    }
+
+    try {
+      await app.model.query(
+        `UPDATE uied_hot_recommendation hr
+         INNER JOIN uied_website w ON hr.url = w.url AND w.is_delete = 0
+         SET hr.website_id = w.id
+         WHERE hr.is_delete = 0 AND (hr.website_id IS NULL OR hr.website_id = 0)`,
+        { type: app.Sequelize.QueryTypes.UPDATE }
+      );
+    } catch (error) {
+      ctx.logger.warn('[uied.hotRecommendation] 历史热门推荐 website_id 回填失败，可忽略后重新选择网站: %s', error.message);
+    }
+
+    this._hotRecommendationWebsiteIdColumnReady = true;
+  }
+
+  /**
+   * 按网站 ID 或 URL 获取网站库最新信息，优先使用网站 ID。
+   * @param {{websiteId?: unknown, url?: unknown}} params 查询参数
+   * @return {Promise<object|null>} 网站信息
+   */
+  async findWebsiteSource(params = {}) {
+    const { app } = this;
+    const websiteId = this.normalizeWebsiteId(params.websiteId);
+    if (websiteId > 0) {
+      const [ website ] = await app.model.query(
+        `SELECT id, name, description, url, icon_url as iconUrl, slug, tags
+         FROM uied_website
+         WHERE id = ? AND is_delete = 0
+         LIMIT 1`,
+        { replacements: [ websiteId ], type: app.Sequelize.QueryTypes.SELECT }
+      );
+      if (website) return website;
+    }
+
+    const url = String(params.url || '').trim();
+    if (!url) return null;
+    const [ website ] = await app.model.query(
+      `SELECT id, name, description, url, icon_url as iconUrl, slug, tags
+       FROM uied_website
+       WHERE url = ? AND is_delete = 0
+       ORDER BY id DESC
+       LIMIT 1`,
+      { replacements: [ url ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    return website || null;
+  }
+
+  /**
+   * 构建热门推荐入库数据，绑定网站 ID 并保存一份快照兜底。
+   * @param {object} data 表单数据
+   * @return {Promise<object>} 标准化后的入库数据
+   */
+  async buildStoragePayload(data = {}) {
+    const website = await this.findWebsiteSource({
+      websiteId: data.websiteId,
+      url: data.url,
+    });
+    const hasOwnDescription = Object.prototype.hasOwnProperty.call(data, 'description');
+    const websiteId = website ? this.normalizeWebsiteId(website.id) : this.normalizeWebsiteId(data.websiteId);
+    const name = String((website && website.name) || data.name || '').trim();
+    const url = String((website && website.url) || data.url || '').trim();
+    return {
+      websiteId,
+      name,
+      url,
+      description: String(hasOwnDescription ? data.description || '' : (website && website.description) || '').trim(),
+      iconUrl: String(data.iconUrl || (website && website.iconUrl) || '').trim() || null,
+    };
+  }
+
+  /**
    * 规范化投放时间戳（秒）
    * @param {unknown} value 原始值
    * @return {number} 标准化后的秒级时间戳，未设置时返回 0
@@ -136,39 +267,53 @@ class HotRecommendationService extends Service {
    */
   async list({ page = 1, pageSize = 20, position, pageSlug }) {
     const { app } = this;
+    await this.ensureWebsiteIdColumn();
     const offset = (page - 1) * pageSize;
     const now = Math.floor(Date.now() / 1000);
 
-    let whereClause = 'is_delete = 0';
+    let whereClause = 'hr.is_delete = 0';
     const replacements = [];
 
     if (position) {
-      whereClause += ' AND position = ?';
+      whereClause += ' AND hr.position = ?';
       replacements.push(position);
     }
 
     if (pageSlug) {
-      whereClause += ' AND page_slug = ?';
+      whereClause += ' AND hr.page_slug = ?';
       replacements.push(pageSlug);
     }
 
     // 获取总数
     const [ countResult ] = await app.model.query(
-      `SELECT COUNT(*) as total FROM uied_hot_recommendation WHERE ${whereClause}`,
+      `SELECT COUNT(*) as total FROM uied_hot_recommendation hr WHERE ${whereClause}`,
       { replacements, type: app.Sequelize.QueryTypes.SELECT }
     );
 
     // 获取列表 - 映射字段名以兼容 Vue 管理后台
     const items = await app.model.query(
-      `SELECT id, name as websiteName, name as title, description, url as websiteUrl, 
-              icon_url as websiteIcon, icon_url as iconUrl, page_slug as pageSlug,
-              position, sort as sortOrder, is_show as isActive,
-              start_time as startTime, end_time as endTime,
-              click_count as clickCount,
-              create_time as createdAt
-       FROM uied_hot_recommendation
+      `SELECT hr.id, COALESCE(w.id, hr.website_id, 0) as websiteId,
+              COALESCE(NULLIF(w.name, ''), hr.name) as name,
+              COALESCE(NULLIF(w.name, ''), hr.name) as websiteName,
+              COALESCE(NULLIF(w.name, ''), hr.name) as title,
+              hr.name as storedName,
+              hr.description,
+              COALESCE(NULLIF(w.url, ''), hr.url) as url,
+              COALESCE(NULLIF(w.url, ''), hr.url) as websiteUrl,
+              COALESCE(NULLIF(hr.icon_url, ''), NULLIF(w.icon_url, '')) as websiteIcon,
+              COALESCE(NULLIF(hr.icon_url, ''), NULLIF(w.icon_url, '')) as iconUrl,
+              hr.page_slug as pageSlug,
+              hr.position, hr.sort as sortOrder, hr.is_show as isActive,
+              hr.start_time as startTime, hr.end_time as endTime,
+              hr.click_count as clickCount,
+              hr.create_time as createdAt
+       FROM uied_hot_recommendation hr
+       LEFT JOIN uied_website w
+         ON w.is_delete = 0
+        AND ((hr.website_id > 0 AND w.id = hr.website_id)
+          OR ((hr.website_id IS NULL OR hr.website_id = 0) AND w.url = hr.url))
        WHERE ${whereClause}
-       ORDER BY sort ASC, id DESC
+       ORDER BY hr.sort ASC, hr.id DESC
        LIMIT ? OFFSET ?`,
       { replacements: [ ...replacements, pageSize, offset ], type: app.Sequelize.QueryTypes.SELECT }
     );
@@ -187,15 +332,26 @@ class HotRecommendationService extends Service {
    */
   async detail(id) {
     const { app } = this;
+    await this.ensureWebsiteIdColumn();
 
     const [ item ] = await app.model.query(
-      `SELECT id, name, description, url, icon_url as iconUrl, page_slug as pageSlug,
-              position, sort as sortOrder, is_show as isShow,
-              start_time as startTime, end_time as endTime,
-              click_count as clickCount,
-              create_time as createdAt
-       FROM uied_hot_recommendation
-       WHERE id = ? AND is_delete = 0`,
+      `SELECT hr.id, COALESCE(w.id, hr.website_id, 0) as websiteId,
+              COALESCE(NULLIF(w.name, ''), hr.name) as name,
+              hr.name as storedName,
+              hr.description,
+              COALESCE(NULLIF(w.url, ''), hr.url) as url,
+              COALESCE(NULLIF(hr.icon_url, ''), NULLIF(w.icon_url, '')) as iconUrl,
+              hr.page_slug as pageSlug,
+              hr.position, hr.sort as sortOrder, hr.is_show as isShow,
+              hr.start_time as startTime, hr.end_time as endTime,
+              hr.click_count as clickCount,
+              hr.create_time as createdAt
+       FROM uied_hot_recommendation hr
+       LEFT JOIN uied_website w
+         ON w.is_delete = 0
+        AND ((hr.website_id > 0 AND w.id = hr.website_id)
+          OR ((hr.website_id IS NULL OR hr.website_id = 0) AND w.url = hr.url))
+       WHERE hr.id = ? AND hr.is_delete = 0`,
       { replacements: [ id ], type: app.Sequelize.QueryTypes.SELECT }
     );
 
@@ -213,18 +369,25 @@ class HotRecommendationService extends Service {
    */
   async add(data) {
     const { app } = this;
+    await this.ensureWebsiteIdColumn();
     const now = Math.floor(Date.now() / 1000);
     const { startTime, endTime } = this.normalizeScheduleWindow(data);
+    const storagePayload = await this.buildStoragePayload(data);
+
+    if (!storagePayload.name || !storagePayload.url) {
+      throw new Error('请选择有效的网站');
+    }
 
     const [ result ] = await app.model.query(
-      `INSERT INTO uied_hot_recommendation (name, description, url, icon_url, page_slug, position, sort, is_show, start_time, end_time, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO uied_hot_recommendation (website_id, name, description, url, icon_url, page_slug, position, sort, is_show, start_time, end_time, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       {
         replacements: [
-          data.name,
-          data.description || '',
-          data.url,
-          data.iconUrl || null,
+          storagePayload.websiteId,
+          storagePayload.name,
+          storagePayload.description,
+          storagePayload.url,
+          storagePayload.iconUrl,
           data.pageSlug || null,
           data.position || 'hot',
           data.sortOrder || 0,
@@ -246,16 +409,21 @@ class HotRecommendationService extends Service {
    */
   async edit(data) {
     const { app } = this;
+    await this.ensureWebsiteIdColumn();
     const now = Math.floor(Date.now() / 1000);
     const { startTime, endTime } = this.normalizeScheduleWindow(data);
+    const storagePayload = await this.buildStoragePayload(data);
 
     const updates = [];
     const values = [];
 
-    if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name); }
-    if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description); }
-    if (data.url !== undefined) { updates.push('url = ?'); values.push(data.url); }
-    if (data.iconUrl !== undefined) { updates.push('icon_url = ?'); values.push(data.iconUrl); }
+    if (data.websiteId !== undefined || storagePayload.websiteId > 0) {
+      updates.push('website_id = ?'); values.push(storagePayload.websiteId);
+    }
+    if (data.name !== undefined || storagePayload.name) { updates.push('name = ?'); values.push(storagePayload.name || data.name || ''); }
+    if (data.description !== undefined) { updates.push('description = ?'); values.push(storagePayload.description); }
+    if (data.url !== undefined || storagePayload.url) { updates.push('url = ?'); values.push(storagePayload.url || data.url || ''); }
+    if (data.iconUrl !== undefined) { updates.push('icon_url = ?'); values.push(storagePayload.iconUrl); }
     if (data.pageSlug !== undefined) { updates.push('page_slug = ?'); values.push(data.pageSlug); }
     if (data.position !== undefined) { updates.push('position = ?'); values.push(data.position); }
     if (data.sortOrder !== undefined) { updates.push('sort = ?'); values.push(data.sortOrder); }
@@ -294,6 +462,7 @@ class HotRecommendationService extends Service {
    */
   async getActive(position, limit = 20) {
     const { app } = this;
+    await this.ensureWebsiteIdColumn();
     const now = Math.floor(Date.now() / 1000);
 
     let whereClause = 'hr.is_delete = 0 AND hr.is_show = 1';
@@ -308,15 +477,23 @@ class HotRecommendationService extends Service {
       replacements.push(position);
     }
 
-    // LEFT JOIN uied_website 通过 URL 匹配，获取真实的 website_id 和 slug
+    // 优先通过 website_id 绑定网站，历史数据回退到 URL 匹配。
     const items = await app.model.query(
-      `SELECT hr.id, hr.name, hr.description, hr.url, hr.icon_url as iconUrl, 
+      `SELECT hr.id,
+              COALESCE(NULLIF(w.name, ''), hr.name) as name,
+              hr.description,
+              COALESCE(NULLIF(w.url, ''), hr.url) as url,
+              COALESCE(NULLIF(hr.icon_url, ''), NULLIF(w.icon_url, '')) as iconUrl,
               hr.page_slug as pageSlug, hr.position, hr.sort as 'order',
               hr.start_time as startTime, hr.end_time as endTime,
               hr.is_show as visible, hr.click_count as clickCount,
-              w.id as websiteId, w.slug as websiteSlug, w.tags as websiteTags
+              COALESCE(w.id, hr.website_id, 0) as websiteId,
+              w.slug as websiteSlug, w.tags as websiteTags
        FROM uied_hot_recommendation hr
-       LEFT JOIN uied_website w ON hr.url = w.url AND w.is_delete = 0
+       LEFT JOIN uied_website w
+         ON w.is_delete = 0
+        AND ((hr.website_id > 0 AND w.id = hr.website_id)
+          OR ((hr.website_id IS NULL OR hr.website_id = 0) AND w.url = hr.url))
        WHERE ${whereClause}
        ORDER BY hr.sort ASC, hr.id DESC
        LIMIT ?`,

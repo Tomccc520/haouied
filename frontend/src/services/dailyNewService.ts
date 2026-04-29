@@ -22,6 +22,8 @@ export interface DailyNewWebsiteItem {
   isHot?: boolean;
   isFeatured?: boolean;
   isNew?: boolean;
+  isPinned?: boolean;
+  sortOrder?: number;
   tags?: string[];
   category?: string;
   categorySlug?: string;

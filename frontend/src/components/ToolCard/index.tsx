@@ -207,7 +207,7 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
     <div className="tool-card-wrapper">
       <Card
         hoverable
-        className={`tool-item-card ${className} ${isFailed ? 'tool-item-card-failed' : ''}`}
+        className={`tool-item-card ${className} ${toolWeightTag ? 'tool-item-card-has-weight' : ''} ${isFailed ? 'tool-item-card-failed' : ''}`}
         onClick={onClick}
       >
         {/* 置顶标识 */}
@@ -223,29 +223,33 @@ const ToolCard: React.FC<ToolCardProps> = ({ tool, onClick, className = '', inde
             <span className="tool-item-failed-icon">!</span>
           </div>
         )}
+
+        {/* 站点权重角标 - 靠近卡片边框展示，不占用内容布局空间 */}
+        {toolWeightTag && (
+          <span
+            className={`tool-item-weight-badge tool-item-weight-badge--corner tool-item-weight-badge--${toolWeightTag.key}`}
+            title={`站点权重：${toolWeightTag.label}`}
+          >
+            <span className="tool-item-weight-badge__text">{toolWeightTag.label}</span>
+          </span>
+        )}
         
         {/* 左侧大图标 - 使用统一的 WebsiteFavicon 组件 */}
-        <div className={`tool-item-icon-large ${isFailed ? 'tool-item-icon-failed' : ''}`}>
-          <WebsiteFavicon
-            websiteUrl={tool?.url}
-            iconUrl={tool?.iconUrl || tool?.icon}
-            name={toolName}
-            size={44}
-            className={isFailed ? 'tool-icon-img-failed' : ''}
-          />
+        <div className="tool-item-leading">
+          <div className={`tool-item-icon-large ${isFailed ? 'tool-item-icon-failed' : ''}`}>
+            <WebsiteFavicon
+              websiteUrl={tool?.url}
+              iconUrl={tool?.iconUrl || tool?.icon}
+              name={toolName}
+              size={44}
+              className={isFailed ? 'tool-icon-img-failed' : ''}
+            />
+          </div>
         </div>
 
         {/* 右侧内容区域 - 标题、简介、标签 */}
         <div className="tool-item-content-right">
           <div className="tool-item-name-row">
-            {toolWeightTag && (
-              <span
-                className={`tool-item-weight-badge tool-item-weight-badge--${toolWeightTag.key}`}
-                title={`站点权重：${toolWeightTag.label}`}
-              >
-                <span className="tool-item-weight-badge__text">{toolWeightTag.label}</span>
-              </span>
-            )}
             <h4 className="tool-item-name">{toolName}</h4>
           </div>
           <p className="tool-item-description">{tool?.description || ''}</p>

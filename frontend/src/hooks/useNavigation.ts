@@ -32,6 +32,7 @@ export interface Tool {
   isFeatured?: boolean;
   isHot?: boolean;
   isPinned?: boolean; // 置顶标识
+  sortOrder?: number; // 后台排序值，数字越小越靠前
   tags: string[];
   weightTags?: string[]; // 站点权重标签（官方/推荐/企业认证）
   status?: 'active' | 'failed' | 'unchecked'; // 网站状态（监控功能）

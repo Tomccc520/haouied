@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS `uied_page_category` (
 CREATE TABLE IF NOT EXISTS `uied_hot_recommendation` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `old_id` varchar(50) DEFAULT NULL COMMENT '原SQLite cuid',
+  `website_id` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '关联网站ID',
   `name` varchar(200) NOT NULL DEFAULT '' COMMENT '网站名称',
   `description` text NOT NULL COMMENT '描述',
   `url` varchar(500) NOT NULL DEFAULT '' COMMENT '链接地址',
@@ -141,6 +142,7 @@ CREATE TABLE IF NOT EXISTS `uied_hot_recommendation` (
   `update_time` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '更新时间',
   `delete_time` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '删除时间',
   PRIMARY KEY (`id`),
+  KEY `idx_website_id` (`website_id`),
   KEY `page_slug` (`page_slug`),
   KEY `position` (`position`),
   KEY `is_show` (`is_show`)

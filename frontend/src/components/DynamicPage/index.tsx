@@ -986,6 +986,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
                     <SubCategoryTabs
                       subCategories={subCategories}
                       categorySlug={category.slug}
+                      allWebsites={categoryWebsites}
                       getWebsitesBySubCategory={getWebsitesBySubCategory}
                       onWebsiteClick={handleWebsiteClick}
                       mobileToolsGridStyle={mobileToolsGridStyle}
@@ -1040,6 +1041,7 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
 interface SubCategoryTabsProps {
   subCategories: SubCategory[];
   categorySlug?: string;
+  allWebsites?: Website[];
   getWebsitesBySubCategory: (id: string) => Website[];
   onWebsiteClick: (website: Website) => void;
   mobileToolsGridStyle?: React.CSSProperties;
@@ -1054,6 +1056,7 @@ interface SubCategoryTabsProps {
 const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   subCategories,
   categorySlug,
+  allWebsites = [],
   getWebsitesBySubCategory,
   onWebsiteClick,
   mobileToolsGridStyle,
@@ -1070,15 +1073,6 @@ const SubCategoryTabs: React.FC<SubCategoryTabsProps> = ({
   // 分页状态
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 12; // 每页显示12个
-  
-  // 获取所有子分类的网站
-  const allWebsites = useMemo(() => {
-    const websites: Website[] = [];
-    subCategories.forEach(sub => {
-      websites.push(...getWebsitesBySubCategory(sub.id));
-    });
-    return websites;
-  }, [subCategories, getWebsitesBySubCategory]);
   
   // 当前显示的网站（未分页）
   const filteredWebsites = useMemo(() => {

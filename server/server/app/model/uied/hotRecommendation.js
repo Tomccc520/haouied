@@ -25,6 +25,12 @@ module.exports = app => {
       allowNull: true,
       comment: '原 SQLite cuid',
     },
+    website_id: {
+      type: INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+      comment: '关联网站ID',
+    },
     name: {
       type: STRING(200),
       allowNull: false,

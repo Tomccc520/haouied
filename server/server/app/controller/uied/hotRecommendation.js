@@ -60,16 +60,17 @@ class HotRecommendationController extends baseController {
   async add() {
     const { ctx } = this;
     try {
-      const data = ctx.request.body;
-      if (!data.name || !data.url) {
-        return this.result({ code: 400, message: '名称和URL不能为空' });
+      const data = ctx.request.body || {};
+      const websiteId = Number.parseInt(String(data?.websiteId || 0), 10);
+      if ((!Number.isInteger(websiteId) || websiteId <= 0) && (!data.name || !data.url)) {
+        return this.result({ code: 400, message: '请先选择网站' });
       }
       const result = await ctx.service.uied.hotRecommendation.add(data);
       this.result({ data: result, message: '创建成功' });
     } catch (error) {
       ctx.logger.error('创建热门推荐失败:', error);
       const message = String(error?.message || '');
-      if (message.includes('结束时间不能早于开始时间')) {
+      if (message.includes('结束时间不能早于开始时间') || message.includes('请选择有效的网站')) {
         this.result({ code: 400, message });
         return;
       }
@@ -83,7 +84,7 @@ class HotRecommendationController extends baseController {
   async edit() {
     const { ctx } = this;
     try {
-      const data = ctx.request.body;
+      const data = ctx.request.body || {};
       if (!data.id) {
         return this.result({ code: 400, message: '缺少ID' });
       }
@@ -92,7 +93,7 @@ class HotRecommendationController extends baseController {
     } catch (error) {
       ctx.logger.error('更新热门推荐失败:', error);
       const message = String(error?.message || '');
-      if (message.includes('结束时间不能早于开始时间')) {
+      if (message.includes('结束时间不能早于开始时间') || message.includes('请选择有效的网站')) {
         this.result({ code: 400, message });
         return;
       }
