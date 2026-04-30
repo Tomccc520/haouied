@@ -3133,7 +3133,19 @@ class UserService extends Service {
 
     const submissionTable = 'uied_website_submission';
     const payOrderTable = 'uied_submission_pay_order';
+    if (typeof ctx.service.uied?.submission?.ensureFulfillmentSchema === 'function') {
+      await ctx.service.uied.submission.ensureFulfillmentSchema();
+    }
+    if (typeof ctx.service.uied?.submission?.ensurePayOrderTable === 'function') {
+      try {
+        await ctx.service.uied.submission.ensurePayOrderTable();
+      } catch (error) {
+        ctx.logger.warn('[user] 初始化投稿支付订单表失败，个人中心按无支付记录兜底:', error.message);
+      }
+    }
     const submissionColumns = await this.getTableColumns(submissionTable);
+    const payOrderColumns = await this.getTableColumns(payOrderTable);
+    const canJoinPayOrder = payOrderColumns.has('id') && payOrderColumns.has('submission_id');
     if (!submissionColumns.size) {
       return {
         lists: [],
@@ -3155,6 +3167,7 @@ class UserService extends Service {
     if (!user) throw new Error('用户不存在');
     const userEmail = String(user.email || '').trim();
     const ownership = this.buildSubmissionOwnershipWhereClause(submissionColumns, {
+      tableAlias: 's',
       userId: uid,
       userEmail,
     });
@@ -3172,17 +3185,34 @@ class UserService extends Service {
     const whereSqlList = [ ownership.clause ];
     const whereReplacements = [ ...ownership.replacements ];
     if (submissionColumns.has('is_delete')) {
-      whereSqlList.push('is_delete = 0');
+      whereSqlList.push('s.is_delete = 0');
     }
     if (status) {
-      whereSqlList.push('status = ?');
+      whereSqlList.push('s.status = ?');
       whereReplacements.push(status);
     }
+    if (payStatus) {
+      if (canJoinPayOrder && payOrderColumns.has('status')) {
+        whereSqlList.push('po.status = ?');
+        whereReplacements.push(payStatus);
+      } else {
+        whereSqlList.push('1 = 0');
+      }
+    }
     const whereSql = whereSqlList.join(' AND ');
+    const payOrderJoinSql = canJoinPayOrder
+      ? `LEFT JOIN ${payOrderTable} po
+           ON po.id = (
+             SELECT MAX(po2.id)
+             FROM ${payOrderTable} po2
+             WHERE po2.submission_id = s.id
+           )`
+      : '';
 
     const [ countRow ] = await app.model.query(
       `SELECT COUNT(*) AS total
-       FROM ${submissionTable}
+       FROM ${submissionTable} s
+       ${payOrderJoinSql}
        WHERE ${whereSql}`,
       {
         replacements: whereReplacements,
@@ -3190,19 +3220,35 @@ class UserService extends Service {
       }
     );
 
-    const selectFields = [ 'id', 'name', 'description', 'url', 'status' ];
-    if (submissionColumns.has('service_type')) selectFields.push('service_type');
-    if (submissionColumns.has('service_meta')) selectFields.push('service_meta');
-    if (submissionColumns.has('reject_reason')) selectFields.push('reject_reason');
-    if (submissionColumns.has('reviewed_at')) selectFields.push('reviewed_at');
-    if (submissionColumns.has('submitter_email')) selectFields.push('submitter_email');
-    selectFields.push('create_time', 'update_time');
+    const selectFields = [ 's.id', 's.name', 's.description', 's.url', 's.status' ];
+    if (submissionColumns.has('service_type')) selectFields.push('s.service_type');
+    if (submissionColumns.has('service_meta')) selectFields.push('s.service_meta');
+    if (submissionColumns.has('reject_reason')) selectFields.push('s.reject_reason');
+    if (submissionColumns.has('reviewed_at')) selectFields.push('s.reviewed_at');
+    if (submissionColumns.has('submitter_email')) selectFields.push('s.submitter_email');
+    if (submissionColumns.has('fulfillment_status')) selectFields.push('s.fulfillment_status');
+    if (submissionColumns.has('fulfillment_note')) selectFields.push('s.fulfillment_note');
+    if (submissionColumns.has('fulfilled_at')) selectFields.push('s.fulfilled_at');
+    if (submissionColumns.has('related_website_id')) selectFields.push('s.related_website_id');
+    if (submissionColumns.has('related_banner_id')) selectFields.push('s.related_banner_id');
+    selectFields.push('s.create_time', 's.update_time');
+    if (canJoinPayOrder) {
+      selectFields.push(payOrderColumns.has('order_no') ? 'po.order_no AS pay_order_no' : "'' AS pay_order_no");
+      selectFields.push(payOrderColumns.has('pay_channel') ? 'po.pay_channel AS pay_channel' : "'' AS pay_channel");
+      selectFields.push(payOrderColumns.has('amount') ? 'po.amount AS pay_amount' : '0 AS pay_amount');
+      selectFields.push(payOrderColumns.has('status') ? 'po.status AS pay_status' : "'' AS pay_status");
+      selectFields.push(payOrderColumns.has('pay_url') ? 'po.pay_url AS pay_url' : "'' AS pay_url");
+      selectFields.push(payOrderColumns.has('pay_time') ? 'po.pay_time AS pay_time' : '0 AS pay_time');
+      selectFields.push(payOrderColumns.has('expire_time') ? 'po.expire_time AS expire_time' : '0 AS expire_time');
+      selectFields.push(payOrderColumns.has('update_time') ? 'po.update_time AS pay_update_time' : '0 AS pay_update_time');
+    }
 
     const rows = await app.model.query(
       `SELECT ${selectFields.join(', ')}
-       FROM ${submissionTable}
+       FROM ${submissionTable} s
+       ${payOrderJoinSql}
        WHERE ${whereSql}
-       ORDER BY create_time DESC, id DESC
+       ORDER BY s.create_time DESC, s.id DESC
        LIMIT ? OFFSET ?`,
       {
         replacements: [ ...whereReplacements, pageSize, offset ],
@@ -3210,53 +3256,20 @@ class UserService extends Service {
       }
     );
 
-    const submissionIds = (Array.isArray(rows) ? rows : [])
-      .map(item => Number(item?.id || 0))
-      .filter(Boolean);
-
-    const payOrderMap = new Map();
-    const payOrderColumns = await this.getTableColumns(payOrderTable);
-    if (payOrderColumns.size && submissionIds.length > 0) {
-      const payRows = await app.model.query(
-        `SELECT submission_id, order_no, pay_channel, amount, status, pay_url, pay_time, expire_time, update_time
-         FROM ${payOrderTable}
-         WHERE submission_id IN (?)
-         ORDER BY id DESC`,
-        {
-          replacements: [ submissionIds ],
-          type: app.Sequelize.QueryTypes.SELECT,
-        }
-      );
-      (Array.isArray(payRows) ? payRows : []).forEach(item => {
-        const sid = Number(item?.submission_id || 0);
-        if (!sid || payOrderMap.has(sid)) return;
-        payOrderMap.set(sid, {
-          payOrderNo: String(item?.order_no || ''),
-          payChannel: String(item?.pay_channel || ''),
-          payAmount: Number(item?.amount || 0),
-          payStatus: String(item?.status || ''),
-          payUrl: String(item?.pay_url || ''),
-          payTime: Number(item?.pay_time || 0),
-          expireTime: Number(item?.expire_time || 0),
-          payUpdateTime: Number(item?.update_time || 0),
-        });
-      });
-    }
-
-    let lists = (Array.isArray(rows) ? rows : []).map(item => {
+    const lists = (Array.isArray(rows) ? rows : []).map(item => {
       const serviceMeta = (() => {
         if (!submissionColumns.has('service_meta')) return null;
         return safeJsonParse(item?.service_meta, null);
       })();
-      const payOrder = payOrderMap.get(Number(item?.id || 0)) || {
-        payOrderNo: '',
-        payChannel: '',
-        payAmount: 0,
-        payStatus: '',
-        payUrl: '',
-        payTime: 0,
-        expireTime: 0,
-        payUpdateTime: 0,
+      const payOrder = {
+        payOrderNo: String(item?.pay_order_no || ''),
+        payChannel: String(item?.pay_channel || ''),
+        payAmount: Number(item?.pay_amount || 0),
+        payStatus: String(item?.pay_status || ''),
+        payUrl: String(item?.pay_url || ''),
+        payTime: Number(item?.pay_time || 0),
+        expireTime: Number(item?.expire_time || 0),
+        payUpdateTime: Number(item?.pay_update_time || 0),
       };
       const normalizedPayStatus = String(payOrder.payStatus || '').trim();
       return {
@@ -3270,6 +3283,13 @@ class UserService extends Service {
           ? String(item?.service_type || 'submission')
           : 'submission',
         serviceMeta,
+        fulfillmentStatus: submissionColumns.has('fulfillment_status')
+          ? String(item?.fulfillment_status || 'pending_review')
+          : 'pending_review',
+        fulfillmentNote: submissionColumns.has('fulfillment_note') ? String(item?.fulfillment_note || '') : '',
+        fulfilledAt: submissionColumns.has('fulfilled_at') ? Number(item?.fulfilled_at || 0) : 0,
+        relatedWebsiteId: submissionColumns.has('related_website_id') ? Number(item?.related_website_id || 0) : 0,
+        relatedBannerId: submissionColumns.has('related_banner_id') ? Number(item?.related_banner_id || 0) : 0,
         submitterEmail: String(item?.submitter_email || ''),
         createdAt: Number(item?.create_time || 0),
         reviewedAt: Number(item?.reviewed_at || 0),
@@ -3278,10 +3298,6 @@ class UserService extends Service {
         canContinuePay: normalizedPayStatus === 'created' && Boolean(String(payOrder.payUrl || '').trim()),
       };
     });
-
-    if (payStatus) {
-      lists = lists.filter(item => String(item?.payStatus || '') === payStatus);
-    }
 
     return {
       lists,

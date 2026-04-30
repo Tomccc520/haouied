@@ -315,6 +315,7 @@ module.exports = app => {
   router.all('/api/uied/submission/pendingCount', controller.uied.submission.pendingCount);
   router.all('/api/uied/submission/approve', controller.uied.submission.approve);
   router.all('/api/uied/submission/reject', controller.uied.submission.reject);
+  router.all('/api/uied/submission/fulfill', controller.uied.submission.fulfill);
   router.all('/api/uied/submission/edit', controller.uied.submission.edit);
   router.all('/api/uied/submission/del', controller.uied.submission.del);
   router.all('/api/uied/submission/reconcilePayOrders', controller.uied.submission.reconcilePayOrders);

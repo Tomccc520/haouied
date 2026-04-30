@@ -70,6 +70,249 @@ class SubmissionService extends Service {
   }
 
   /**
+   * 兼容历史库：补齐投稿履约字段与履约日志表，支撑付费后待履约、人工履约和追踪。
+   */
+  async ensureFulfillmentSchema() {
+    if (this._fulfillmentSchemaReady) return;
+    const { app } = this;
+    try {
+      const columns = await app.model.query('SHOW COLUMNS FROM uied_website_submission', {
+        type: app.Sequelize.QueryTypes.SELECT,
+      });
+      const columnSet = new Set((Array.isArray(columns) ? columns : []).map(item => String(item.Field || '').toLowerCase()));
+      const alterSqlList = [];
+      if (!columnSet.has('reviewed_at')) {
+        alterSqlList.push("ADD COLUMN reviewed_at int unsigned NOT NULL DEFAULT 0 COMMENT '审核时间' AFTER status");
+      }
+      if (!columnSet.has('reject_reason')) {
+        const rejectReasonAfterColumn = columnSet.has('reviewed_at') ? 'reviewed_at' : 'status';
+        alterSqlList.push(`ADD COLUMN reject_reason text COMMENT '拒绝原因' AFTER \`${rejectReasonAfterColumn}\``);
+      }
+      const fulfillmentAfterColumn = columnSet.has('service_meta') ? 'service_meta' : 'status';
+      if (!columnSet.has('fulfillment_status')) {
+        alterSqlList.push(`ADD COLUMN fulfillment_status varchar(32) NOT NULL DEFAULT 'pending_review' COMMENT '履约状态: pending_review/pending_payment/pending_fulfillment/fulfilled/rejected' AFTER \`${fulfillmentAfterColumn}\``);
+      }
+      if (!columnSet.has('fulfillment_note')) {
+        alterSqlList.push("ADD COLUMN fulfillment_note varchar(255) DEFAULT NULL COMMENT '履约备注' AFTER fulfillment_status");
+      }
+      if (!columnSet.has('fulfilled_at')) {
+        alterSqlList.push("ADD COLUMN fulfilled_at int unsigned NOT NULL DEFAULT 0 COMMENT '履约完成时间' AFTER fulfillment_note");
+      }
+      if (!columnSet.has('related_website_id')) {
+        alterSqlList.push("ADD COLUMN related_website_id int unsigned NOT NULL DEFAULT 0 COMMENT '关联收录网站ID' AFTER fulfilled_at");
+      }
+      if (!columnSet.has('related_banner_id')) {
+        alterSqlList.push("ADD COLUMN related_banner_id int unsigned NOT NULL DEFAULT 0 COMMENT '关联广告位ID' AFTER related_website_id");
+      }
+      if (alterSqlList.length > 0) {
+        await app.model.query(
+          `ALTER TABLE uied_website_submission ${alterSqlList.join(', ')}`,
+          { type: app.Sequelize.QueryTypes.RAW }
+        );
+        app.__uiedSubmissionColumnSet = null;
+        app.__uiedSubmissionColumnSetAt = 0;
+      }
+
+      await app.model.query(
+        `CREATE TABLE IF NOT EXISTS uied_submission_fulfillment_log (
+          id int unsigned NOT NULL AUTO_INCREMENT,
+          submission_id int unsigned NOT NULL DEFAULT 0,
+          order_no varchar(64) DEFAULT NULL,
+          action varchar(32) NOT NULL DEFAULT '',
+          from_status varchar(32) DEFAULT NULL,
+          to_status varchar(32) NOT NULL DEFAULT '',
+          note varchar(255) DEFAULT NULL,
+          operator_id int unsigned NOT NULL DEFAULT 0,
+          create_time int unsigned NOT NULL DEFAULT 0,
+          PRIMARY KEY (id),
+          KEY idx_submission_id (submission_id),
+          KEY idx_order_no (order_no),
+          KEY idx_to_status (to_status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='投稿服务履约日志表'`,
+        { type: app.Sequelize.QueryTypes.RAW }
+      );
+      const reviewedAtColumn = columnSet.has('reviewed_at') ? 'reviewed_at' : 'update_time';
+      await app.model.query(
+        `UPDATE uied_website_submission
+         SET fulfillment_status = 'fulfilled',
+             fulfillment_note = COALESCE(fulfillment_note, '历史审核通过记录'),
+             fulfilled_at = IF(${reviewedAtColumn} > 0, ${reviewedAtColumn}, update_time)
+         WHERE status = 'approved'
+           AND fulfillment_status = 'pending_review'`,
+        { type: app.Sequelize.QueryTypes.UPDATE }
+      );
+      await app.model.query(
+        `UPDATE uied_website_submission
+         SET fulfillment_status = 'rejected',
+             fulfillment_note = COALESCE(fulfillment_note, reject_reason)
+         WHERE status = 'rejected'
+           AND fulfillment_status = 'pending_review'`,
+        { type: app.Sequelize.QueryTypes.UPDATE }
+      );
+      this._fulfillmentSchemaReady = true;
+    } catch (error) {
+      this.ctx.logger.warn('[submission] 补齐履约字段失败，继续使用基础审核流程:', error.message);
+      this._fulfillmentSchemaReady = false;
+    }
+  }
+
+  /**
+   * 规范化履约状态，避免写入不可识别状态。
+   */
+  normalizeFulfillmentStatus(status = '') {
+    const text = String(status || '').trim().toLowerCase();
+    const allowSet = new Set([ 'pending_review', 'pending_payment', 'pending_fulfillment', 'fulfilled', 'rejected' ]);
+    return allowSet.has(text) ? text : 'pending_review';
+  }
+
+  /**
+   * 判断是否来自 /submit 免费收录入口，后端会强制剥离所有付费加购。
+   */
+  isFreeSubmissionEntry(data = {}) {
+    const entryMode = String(data?.entryMode || data?.serviceMeta?.entryMode || '').trim().toLowerCase();
+    return entryMode === 'free_submission';
+  }
+
+  /**
+   * 判断是否来自 /submit/services 商业服务入口，商业入口必须承载付费基础服务或增值服务。
+   */
+  isCommercialServiceEntry(data = {}) {
+    const entryMode = String(data?.entryMode || data?.serviceMeta?.entryMode || '').trim().toLowerCase();
+    return entryMode === 'commercial_service';
+  }
+
+  /**
+   * 安全解析投稿服务扩展信息。
+   */
+  parseServiceMeta(rawValue = null) {
+    if (!rawValue) return null;
+    if (typeof rawValue === 'object') return rawValue;
+    try {
+      const parsed = JSON.parse(String(rawValue || ''));
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * 写入履约日志，便于后台追踪付费服务处理过程。
+   */
+  async appendFulfillmentLog(submissionId, payload = {}) {
+    const { app } = this;
+    const id = Number(submissionId || 0);
+    if (!id) return;
+    try {
+      await this.ensureFulfillmentSchema();
+      await app.model.query(
+        `INSERT INTO uied_submission_fulfillment_log
+         (submission_id, order_no, action, from_status, to_status, note, operator_id, create_time)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        {
+          replacements: [
+            id,
+            String(payload.orderNo || '').trim() || null,
+            String(payload.action || 'update').trim().slice(0, 32),
+            payload.fromStatus ? this.normalizeFulfillmentStatus(payload.fromStatus) : null,
+            this.normalizeFulfillmentStatus(payload.toStatus),
+            String(payload.note || '').trim().slice(0, 255) || null,
+            Math.max(0, Number(payload.operatorId || 0)),
+            Math.floor(Date.now() / 1000),
+          ],
+          type: app.Sequelize.QueryTypes.INSERT,
+        }
+      );
+    } catch (error) {
+      this.ctx.logger.warn('[submission] 写入履约日志失败:', error.message);
+    }
+  }
+
+  /**
+   * 更新投稿履约状态，同时写入履约日志。
+   */
+  async updateSubmissionFulfillment(submissionId, data = {}) {
+    const { app } = this;
+    const id = Number(submissionId || 0);
+    if (!id) return;
+    await this.ensureFulfillmentSchema();
+    const columns = await this.getSubmissionColumnSet();
+    if (!columns.has('fulfillment_status')) return;
+    const [ current ] = await app.model.query(
+      'SELECT fulfillment_status FROM uied_website_submission WHERE id = ? LIMIT 1',
+      { replacements: [ id ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    const fromStatus = String(current?.fulfillment_status || '');
+    const toStatus = this.normalizeFulfillmentStatus(data.status || fromStatus || 'pending_review');
+    const now = Math.floor(Date.now() / 1000);
+    const updates = [ 'fulfillment_status = ?', 'update_time = ?' ];
+    const replacements = [ toStatus, now ];
+    if (columns.has('fulfillment_note') && data.note !== undefined) {
+      updates.push('fulfillment_note = ?');
+      replacements.push(String(data.note || '').trim().slice(0, 255) || null);
+    }
+    if (columns.has('fulfilled_at')) {
+      updates.push('fulfilled_at = ?');
+      replacements.push(toStatus === 'fulfilled' ? (Number(data.fulfilledAt || 0) || now) : Number(data.fulfilledAt || 0));
+    }
+    if (columns.has('related_website_id') && data.relatedWebsiteId !== undefined) {
+      updates.push('related_website_id = ?');
+      replacements.push(Math.max(0, Number(data.relatedWebsiteId || 0)));
+    }
+    if (columns.has('related_banner_id') && data.relatedBannerId !== undefined) {
+      updates.push('related_banner_id = ?');
+      replacements.push(Math.max(0, Number(data.relatedBannerId || 0)));
+    }
+    replacements.push(id);
+    await app.model.query(
+      `UPDATE uied_website_submission SET ${updates.join(', ')} WHERE id = ?`,
+      { replacements, type: app.Sequelize.QueryTypes.UPDATE }
+    );
+    await this.appendFulfillmentLog(id, {
+      orderNo: data.orderNo,
+      action: data.action || 'update',
+      fromStatus,
+      toStatus,
+      note: data.note,
+      operatorId: data.operatorId,
+    });
+  }
+
+  /**
+   * 获取某条投稿最近一笔支付订单，用于审核前校验支付状态。
+   */
+  async getLatestPayOrderBySubmissionId(submissionId) {
+    const { app } = this;
+    const id = Number(submissionId || 0);
+    if (!id) return null;
+    await this.ensurePayOrderTable();
+    const [ row ] = await app.model.query(
+      `SELECT order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_time
+       FROM uied_submission_pay_order
+       WHERE submission_id = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      { replacements: [ id ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    if (!row) return null;
+    return {
+      orderNo: String(row.order_no || ''),
+      submissionId: Number(row.submission_id || 0),
+      serviceType: String(row.service_type || ''),
+      payChannel: String(row.pay_channel || ''),
+      amount: Number(row.amount || 0),
+      priceSnapshot: (() => {
+        try {
+          return row.price_snapshot ? JSON.parse(row.price_snapshot) : null;
+        } catch (error) {
+          return null;
+        }
+      })(),
+      status: String(row.status || ''),
+      payTime: Number(row.pay_time || 0),
+    };
+  }
+
+  /**
    * 标准化服务类型
    */
   normalizeServiceType(serviceType) {
@@ -88,6 +331,10 @@ class SubmissionService extends Service {
    */
   normalizeServiceMeta(serviceMeta) {
     if (!serviceMeta || typeof serviceMeta !== 'object') return null;
+    const rawEntryMode = String(serviceMeta.entryMode || '').trim().toLowerCase();
+    const entryMode = rawEntryMode === 'free_submission'
+      ? 'free_submission'
+      : (rawEntryMode === 'commercial_service' ? 'commercial_service' : '');
     const plan = String(serviceMeta.plan || '').trim();
     const budget = String(serviceMeta.budget || '').trim();
     const target = String(serviceMeta.target || '').trim();
@@ -112,9 +359,10 @@ class SubmissionService extends Service {
       || bannerPositions.length > 0
       || bannerStartTime > 0
       || bannerEndTime > 0
+      || entryMode
     );
     if (!hasAnyContent) return null;
-    return { plan, budget, target, contact, addons, bannerPositions, bannerStartTime, bannerEndTime };
+    return { entryMode, plan, budget, target, contact, addons, bannerPositions, bannerStartTime, bannerEndTime };
   }
 
   /**
@@ -123,6 +371,19 @@ class SubmissionService extends Service {
   buildFallbackDescription(description, serviceType, serviceMeta) {
     const baseDescription = String(description || '').trim();
     if (!serviceMeta) {
+      return baseDescription;
+    }
+    const hasOperationContent = Boolean(
+      serviceMeta.plan
+      || serviceMeta.budget
+      || serviceMeta.target
+      || serviceMeta.contact
+      || (Array.isArray(serviceMeta.addons) && serviceMeta.addons.length > 0)
+      || (Array.isArray(serviceMeta.bannerPositions) && serviceMeta.bannerPositions.length > 0)
+      || Number(serviceMeta.bannerStartTime || 0) > 0
+      || Number(serviceMeta.bannerEndTime || 0) > 0
+    );
+    if (!hasOperationContent) {
       return baseDescription;
     }
     const lines = [
@@ -654,6 +915,19 @@ class SubmissionService extends Service {
   }
 
   /**
+   * 从支付价格快照提取已购买且已启用的权益，避免前端伪造 service_meta 直接获得置顶/Banner。
+   */
+  resolvePaidAddonKeys(latestPayOrder = null, fallbackAddonKeys = []) {
+    const snapshotAddons = Array.isArray(latestPayOrder?.priceSnapshot?.addons)
+      ? latestPayOrder.priceSnapshot.addons
+      : [];
+    const sourceKeys = snapshotAddons.length > 0
+      ? snapshotAddons.map(item => item?.key)
+      : fallbackAddonKeys;
+    return this.normalizeAddonKeys(sourceKeys);
+  }
+
+  /**
    * 校验 Banner 位排期冲突，避免同一广告位在同时间窗被重复售卖。
    */
   async checkBannerSlotAvailability(serviceMeta = null) {
@@ -724,6 +998,9 @@ class SubmissionService extends Service {
   async createPayOrder(data = {}) {
     const { app, ctx } = this;
     const serviceType = this.normalizeServiceType(data.serviceType || 'submission');
+    if (this.isFreeSubmissionEntry(data)) {
+      throw new Error('免费收录入口不创建支付订单，请直接提交');
+    }
     const payChannel = this.normalizePayChannel(data.payChannel);
     if (!payChannel) {
       throw new Error('请选择支付渠道');
@@ -737,12 +1014,20 @@ class SubmissionService extends Service {
     if (serviceConfig?.enabled === false) {
       throw new Error('当前服务暂未开启');
     }
-    const addonKeys = this.normalizeAddonKeys(
+    const requestedAddonKeys = this.normalizeAddonKeys(
       data?.serviceMeta?.addons || data?.addons || []
     );
-    const pricing = this.resolveSubmissionPricing(config, addonKeys);
+    const pricing = this.resolveSubmissionPricing(config, requestedAddonKeys);
     const amount = pricing.amount;
     const enabledAddons = pricing.enabledAddons;
+    const enabledAddonKeys = enabledAddons.map(item => item.key);
+    const disabledRequestedAddons = requestedAddonKeys.filter(key => !enabledAddonKeys.includes(key));
+    if (disabledRequestedAddons.length > 0) {
+      throw new Error('所选增值服务暂未开启，请刷新页面后重新选择');
+    }
+    if (amount <= 0 && enabledAddonKeys.length === 0 && pricing.submissionMode === 'free') {
+      throw new Error('收录与增值服务页至少需要选择一个增值服务；免费收录请使用 /submit');
+    }
     if (amount > 0 && paymentConfig?.enabled !== true) {
       throw new Error('支付功能未开启，请联系管理员');
     }
@@ -755,16 +1040,17 @@ class SubmissionService extends Service {
 
     const normalizedServiceMeta = this.normalizeServiceMeta({
       ...(data?.serviceMeta || {}),
+      entryMode: 'commercial_service',
       plan: data?.serviceMeta?.plan || data?.promotionPlan || data?.plan || '',
       budget: data?.serviceMeta?.budget || data?.promotionBudget || data?.budget || '',
       target: data?.serviceMeta?.target || data?.promotionTarget || data?.target || '',
       contact: data?.serviceMeta?.contact || data?.promotionContact || data?.contact || '',
-      addons: addonKeys,
+      addons: enabledAddonKeys,
       bannerPositions: data?.serviceMeta?.bannerPositions || data?.bannerPositions || [],
       bannerStartTime: data?.serviceMeta?.bannerStartTime || data?.bannerStartTime || 0,
       bannerEndTime: data?.serviceMeta?.bannerEndTime || data?.bannerEndTime || 0,
     });
-    if (addonKeys.includes('banner_slot')) {
+    if (enabledAddonKeys.includes('banner_slot')) {
       if (!Array.isArray(normalizedServiceMeta?.bannerPositions) || normalizedServiceMeta.bannerPositions.length === 0) {
         throw new Error('购买 Banner 位时，请至少选择一个投放位置');
       }
@@ -782,104 +1068,118 @@ class SubmissionService extends Service {
 
     const submitPayload = {
       ...data,
+      entryMode: 'commercial_service',
       serviceType,
       serviceMeta: normalizedServiceMeta,
       _allowPaidSubmissionInsert: amount > 0,
     };
-    const submissionResult = await this.submit(submitPayload);
-    const submissionId = Number(submissionResult?.id || 0);
-    if (!submissionId) {
-      throw new Error('创建投稿记录失败');
-    }
-
-    await this.ensurePayOrderTable();
-    const now = Math.floor(Date.now() / 1000);
-    const orderNo = `SUBP${Date.now()}${this.randomString(6).toUpperCase()}`;
-    const expireMinutes = Number(paymentConfig?.orderExpireMinutes || 30);
-    const expireTime = now + Math.max(5, Math.min(180, expireMinutes)) * 60;
-    const addonTitle = enabledAddons.map(item => String(item.config?.label || '')).filter(Boolean).join(' + ');
-    const subject = addonTitle
-      ? `${String(pricing.serviceConfig?.label || '付费提交收录').trim()} + ${addonTitle}`
-      : (String(pricing.serviceConfig?.label || '付费提交收录').trim() || '付费提交收录');
-    const body = String(data?.name || data?.url || '').trim().slice(0, 120);
-
-    let payUrl = '';
-    let rawResponse = null;
-    let status = 'created';
-    const priceSnapshot = this.buildPayOrderPriceSnapshot(
-      pricing.serviceConfig,
-      enabledAddons,
-      normalizedServiceMeta,
-      amount
-    );
-    if (amount <= 0) {
-      status = 'free';
-    } else if (payChannel === 'alipay') {
-      const alipayConfig = {
-        ...(paymentConfig?.alipay || {}),
-        notifyUrl: this.buildNotifyUrl(
-          paymentConfig?.notifyBaseUrl,
-          '/api/submissions/pay/notify/alipay',
-          paymentConfig?.alipay?.notifyUrl
-        ),
-      };
-      payUrl = this.buildAlipayPayUrl({ orderNo, amount, subject, body, expireMinutes }, alipayConfig);
-    } else if (payChannel === 'wechat') {
-      const wechatConfig = {
-        ...(paymentConfig?.wechat || {}),
-        notifyUrl: this.buildNotifyUrl(
-          paymentConfig?.notifyBaseUrl,
-          '/api/submissions/pay/notify/wechat',
-          paymentConfig?.wechat?.notifyUrl
-        ),
-      };
-      const wechatResult = await this.buildWechatPayUrl({
-        orderNo,
-        amount,
-        subject,
-        body,
-        clientIp: ctx.ip || ctx.request.ip || '127.0.0.1',
-        referer: ctx.get('origin') || '',
-      }, wechatConfig);
-      payUrl = wechatResult.payUrl;
-      rawResponse = wechatResult.rawResponse || null;
-    }
-
-    await app.model.query(
-      `INSERT INTO uied_submission_pay_order
-       (order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, raw_response, expire_time, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      {
-        replacements: [
-          orderNo,
-          submissionId,
-          serviceType,
-          payChannel,
-          Number(amount.toFixed(2)),
-          JSON.stringify(priceSnapshot),
-          status,
-          payUrl || null,
-          rawResponse ? JSON.stringify(rawResponse) : null,
-          amount > 0 ? expireTime : 0,
-          now,
-          now,
-        ],
-        type: app.Sequelize.QueryTypes.INSERT,
+    let submissionId = 0;
+    try {
+      const submissionResult = await this.submit(submitPayload);
+      submissionId = Number(submissionResult?.id || 0);
+      if (!submissionId) {
+        throw new Error('创建投稿记录失败');
       }
-    );
 
-    return {
-      orderNo,
-      submissionId,
-      serviceType,
-      payChannel,
-      amount: Number(amount.toFixed(2)),
-      status,
-      payUrl: payUrl || '',
-      expireTime: amount > 0 ? expireTime : 0,
-      priceSnapshot,
-      message: amount > 0 ? '支付订单创建成功' : '已提交成功（免费服务）',
-    };
+      await this.ensurePayOrderTable();
+      const now = Math.floor(Date.now() / 1000);
+      const orderNo = `SUBP${Date.now()}${this.randomString(6).toUpperCase()}`;
+      const expireMinutes = Number(paymentConfig?.orderExpireMinutes || 30);
+      const expireTime = now + Math.max(5, Math.min(180, expireMinutes)) * 60;
+      const addonTitle = enabledAddons.map(item => String(item.config?.label || '')).filter(Boolean).join(' + ');
+      const subject = addonTitle
+        ? `${String(pricing.serviceConfig?.label || '付费提交收录').trim()} + ${addonTitle}`
+        : (String(pricing.serviceConfig?.label || '付费提交收录').trim() || '付费提交收录');
+      const body = String(data?.name || data?.url || '').trim().slice(0, 120);
+
+      let payUrl = '';
+      let rawResponse = null;
+      let status = 'created';
+      const priceSnapshot = this.buildPayOrderPriceSnapshot(
+        pricing.serviceConfig,
+        enabledAddons,
+        normalizedServiceMeta,
+        amount
+      );
+      if (amount <= 0) {
+        status = 'free';
+      } else if (payChannel === 'alipay') {
+        const alipayConfig = {
+          ...(paymentConfig?.alipay || {}),
+          notifyUrl: this.buildNotifyUrl(
+            paymentConfig?.notifyBaseUrl,
+            '/api/submissions/pay/notify/alipay',
+            paymentConfig?.alipay?.notifyUrl
+          ),
+        };
+        payUrl = this.buildAlipayPayUrl({ orderNo, amount, subject, body, expireMinutes }, alipayConfig);
+      } else if (payChannel === 'wechat') {
+        const wechatConfig = {
+          ...(paymentConfig?.wechat || {}),
+          notifyUrl: this.buildNotifyUrl(
+            paymentConfig?.notifyBaseUrl,
+            '/api/submissions/pay/notify/wechat',
+            paymentConfig?.wechat?.notifyUrl
+          ),
+        };
+        const wechatResult = await this.buildWechatPayUrl({
+          orderNo,
+          amount,
+          subject,
+          body,
+          clientIp: ctx.ip || ctx.request.ip || '127.0.0.1',
+          referer: ctx.get('origin') || '',
+        }, wechatConfig);
+        payUrl = wechatResult.payUrl;
+        rawResponse = wechatResult.rawResponse || null;
+      }
+
+      await app.model.query(
+        `INSERT INTO uied_submission_pay_order
+         (order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, raw_response, expire_time, create_time, update_time)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        {
+          replacements: [
+            orderNo,
+            submissionId,
+            serviceType,
+            payChannel,
+            Number(amount.toFixed(2)),
+            JSON.stringify(priceSnapshot),
+            status,
+            payUrl || null,
+            rawResponse ? JSON.stringify(rawResponse) : null,
+            amount > 0 ? expireTime : 0,
+            now,
+            now,
+          ],
+          type: app.Sequelize.QueryTypes.INSERT,
+        }
+      );
+
+      return {
+        orderNo,
+        submissionId,
+        serviceType,
+        payChannel,
+        amount: Number(amount.toFixed(2)),
+        status,
+        payUrl: payUrl || '',
+        expireTime: amount > 0 ? expireTime : 0,
+        priceSnapshot,
+        message: amount > 0 ? '支付订单创建成功' : '已提交成功（免费服务）',
+      };
+    } catch (error) {
+      if (submissionId > 0) {
+        await app.model.query(
+          'DELETE FROM uied_website_submission WHERE id = ? AND status = ?',
+          { replacements: [ submissionId, 'pending' ], type: app.Sequelize.QueryTypes.DELETE }
+        ).catch(deleteError => {
+          ctx.logger.warn('[submission] 下单失败后清理投稿失败:', deleteError.message);
+        });
+      }
+      throw error;
+    }
   }
 
   /**
@@ -974,6 +1274,14 @@ class SubmissionService extends Service {
         type: app.Sequelize.QueryTypes.UPDATE,
       }
     );
+    if (Number(currentOrder.submissionId || 0) > 0 && Number(currentOrder.amount || 0) > 0) {
+      await this.updateSubmissionFulfillment(currentOrder.submissionId, {
+        status: 'pending_fulfillment',
+        orderNo: no,
+        action: 'pay_success',
+        note: '支付成功，等待审核与履约',
+      });
+    }
     return await this.getPayOrderStatus(no);
   }
 
@@ -1466,10 +1774,19 @@ class SubmissionService extends Service {
   async submit(data) {
     const { app } = this;
     await this.ensureSubmitterUserIdColumn();
+    await this.ensureFulfillmentSchema();
     const now = Math.floor(Date.now() / 1000);
     const serviceType = this.normalizeServiceType(data.serviceType);
-    const serviceMeta = this.normalizeServiceMeta(data.serviceMeta);
-    const addonKeys = this.normalizeAddonKeys(serviceMeta?.addons || data?.addons || []);
+    const isFreeEntry = this.isFreeSubmissionEntry(data);
+    const isCommercialEntry = this.isCommercialServiceEntry(data);
+    const rawServiceMeta = data.serviceMeta && typeof data.serviceMeta === 'object' ? data.serviceMeta : {};
+    const serviceMeta = this.normalizeServiceMeta({
+      ...rawServiceMeta,
+      entryMode: isFreeEntry ? 'free_submission' : (rawServiceMeta.entryMode || data.entryMode || ''),
+      addons: isFreeEntry ? [] : (rawServiceMeta.addons || data?.addons || []),
+      bannerPositions: isFreeEntry ? [] : (rawServiceMeta.bannerPositions || data?.bannerPositions || []),
+    });
+    const addonKeys = isFreeEntry ? [] : this.normalizeAddonKeys(serviceMeta?.addons || data?.addons || []);
     const columns = await this.getSubmissionColumnSet();
     const config = serviceType === 'submission'
       ? await this.getSubmissionServiceConfig()
@@ -1484,7 +1801,7 @@ class SubmissionService extends Service {
       throw new Error('当前服务暂未开启');
     }
 
-    if (addonKeys.includes('banner_slot')) {
+    if (!isFreeEntry && addonKeys.includes('banner_slot')) {
       if (!Array.isArray(serviceMeta?.bannerPositions) || serviceMeta.bannerPositions.length === 0) {
         throw new Error('购买 Banner 位时，请至少选择一个投放位置');
       }
@@ -1509,6 +1826,18 @@ class SubmissionService extends Service {
       if (checkResult.exists) {
         throw new Error(checkResult.message);
       }
+    }
+    if (
+      serviceType === 'submission'
+      && pricing
+      && isCommercialEntry
+      && !isFreeEntry
+      && addonKeys.length === 0
+      && pricing.amount <= 0
+      && pricing.submissionMode === 'free'
+      && data._allowPaidSubmissionInsert !== true
+    ) {
+      throw new Error('收录与增值服务页至少需要选择一个增值服务；免费收录请使用 /submit');
     }
     if (
       serviceType === 'submission'
@@ -1541,6 +1870,14 @@ class SubmissionService extends Service {
     if (columns.has('tags')) insertPayload.tags = data.tags || null;
     if (columns.has('service_type')) insertPayload.service_type = serviceType;
     if (columns.has('service_meta')) insertPayload.service_meta = serviceMeta ? JSON.stringify(serviceMeta) : null;
+    if (columns.has('fulfillment_status')) {
+      insertPayload.fulfillment_status = serviceType === 'submission' && pricing
+        ? (pricing.amount > 0 || (isCommercialEntry && !isFreeEntry) ? 'pending_payment' : 'pending_review')
+        : 'pending_review';
+    }
+    if (columns.has('fulfillment_note')) {
+      insertPayload.fulfillment_note = isFreeEntry ? '免费收录提交，等待人工审核' : null;
+    }
 
     const columnNames = Object.keys(insertPayload);
     const placeholders = columnNames.map(() => '?');
@@ -1565,10 +1902,20 @@ class SubmissionService extends Service {
    */
   async getStatus(id) {
     const { app } = this;
+    await this.ensureFulfillmentSchema();
+    const columns = await this.getSubmissionColumnSet();
+    const selectFields = [
+      'id',
+      'name',
+      'url',
+      'status',
+      columns.has('reject_reason') ? 'reject_reason as rejectReason' : "'' as rejectReason",
+      'create_time as createdAt',
+      columns.has('reviewed_at') ? 'reviewed_at as reviewedAt' : '0 as reviewedAt',
+    ];
 
     const [ submission ] = await app.model.query(
-      `SELECT id, name, url, status, reject_reason as rejectReason, 
-              create_time as createdAt, reviewed_at as reviewedAt
+      `SELECT ${selectFields.join(', ')}
        FROM uied_website_submission WHERE id = ?`,
       { replacements: [ id ], type: app.Sequelize.QueryTypes.SELECT }
     );
@@ -1582,6 +1929,7 @@ class SubmissionService extends Service {
   async list({ page = 1, pageSize = 20, status, url, serviceType }) {
     const { app } = this;
     const offset = (page - 1) * pageSize;
+    await this.ensureFulfillmentSchema();
     const columns = await this.getSubmissionColumnSet();
 
     let whereClause = '1=1';
@@ -1600,8 +1948,16 @@ class SubmissionService extends Service {
     }
     const normalizedServiceType = this.normalizeServiceType(serviceType);
     if (serviceType && columns.has('service_type')) {
-      whereClause += ' AND service_type = ?';
-      replacements.push(normalizedServiceType);
+      if (
+        [ 'top_recommendation', 'banner_slot' ].includes(normalizedServiceType)
+        && columns.has('service_meta')
+      ) {
+        whereClause += ' AND service_type = ? AND service_meta LIKE ?';
+        replacements.push('submission', `%"${normalizedServiceType}"%`);
+      } else {
+        whereClause += ' AND service_type = ?';
+        replacements.push(normalizedServiceType);
+      }
     }
 
     const [ countResult ] = await app.model.query(
@@ -1670,12 +2026,15 @@ class SubmissionService extends Service {
           if (!columns.has('service_meta')) return null;
           const raw = s.service_meta;
           if (!raw) return null;
-          try {
-            return JSON.parse(raw);
-          } catch (error) {
-            return null;
-          }
+          return this.parseServiceMeta(raw);
         })(),
+        fulfillmentStatus: columns.has('fulfillment_status')
+          ? this.normalizeFulfillmentStatus(s.fulfillment_status)
+          : 'pending_review',
+        fulfillmentNote: columns.has('fulfillment_note') ? String(s.fulfillment_note || '') : '',
+        fulfilledAt: columns.has('fulfilled_at') ? Number(s.fulfilled_at || 0) : 0,
+        relatedWebsiteId: columns.has('related_website_id') ? Number(s.related_website_id || 0) : 0,
+        relatedBannerId: columns.has('related_banner_id') ? Number(s.related_banner_id || 0) : 0,
         ...(payOrderMap.get(Number(s.id || 0)) || {
           payOrderNo: '',
           payChannel: '',
@@ -1712,6 +2071,8 @@ class SubmissionService extends Service {
   async approve(id, categoryId) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    await this.ensureFulfillmentSchema();
+    const columns = await this.getSubmissionColumnSet();
 
     // 获取提交记录
     const [ submission ] = await app.model.query(
@@ -1732,11 +2093,37 @@ class SubmissionService extends Service {
       throw new Error('请选择分类');
     }
 
+    const latestPayOrder = await this.getLatestPayOrderBySubmissionId(id);
+    if (
+      latestPayOrder
+      && Number(latestPayOrder.amount || 0) > 0
+      && ![ 'paid', 'free' ].includes(String(latestPayOrder.status || '').trim())
+    ) {
+      throw new Error('该投稿存在未支付订单，请先完成支付或手动补单后再审核通过');
+    }
+
+    const serviceMeta = this.parseServiceMeta(submission.service_meta);
+    const addonKeys = this.resolvePaidAddonKeys(latestPayOrder, this.normalizeAddonKeys(serviceMeta?.addons || []));
+    const isCommercialSubmission = serviceMeta?.entryMode === 'commercial_service' || String(submission.fulfillment_status || '') === 'pending_payment';
+    if (isCommercialSubmission && addonKeys.length > 0 && !latestPayOrder) {
+      throw new Error('该商业服务投稿缺少支付订单，请重新提交或联系技术处理');
+    }
+    if (
+      isCommercialSubmission
+      && latestPayOrder
+      && Number(latestPayOrder.amount || 0) > 0
+      && String(latestPayOrder.status || '').trim() !== 'paid'
+    ) {
+      throw new Error('该投稿订单未支付，不能审核通过');
+    }
+    const needTopRecommendation = addonKeys.includes('top_recommendation');
+    const needBannerFulfillment = addonKeys.includes('banner_slot');
+
     // 创建网站
-    await app.model.query(
+    const result = await app.model.query(
       `INSERT INTO uied_website 
-       (name, description, url, icon_url, category_id, tags, is_new, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+       (name, description, url, icon_url, category_id, tags, is_new, is_featured, is_pinned, sort, create_time, update_time)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
       {
         replacements: [
           submission.name,
@@ -1745,20 +2132,70 @@ class SubmissionService extends Service {
           submission.icon_url,
           finalCategoryId,
           submission.tags || '',
+          needTopRecommendation ? 1 : 0,
+          needTopRecommendation ? 1 : 0,
+          needTopRecommendation ? 0 : 10,
           now,
           now,
         ],
         type: app.Sequelize.QueryTypes.INSERT,
       }
     );
+    let websiteId = Array.isArray(result) ? result[0] : result;
+    if (Array.isArray(websiteId)) {
+      websiteId = websiteId[0];
+    }
+    websiteId = Number(websiteId || 0);
 
     // 更新提交状态
+    const fulfillmentStatus = needBannerFulfillment ? 'pending_fulfillment' : 'fulfilled';
+    const fulfillmentNote = needBannerFulfillment
+      ? '审核通过，等待 Banner 排期履约'
+      : (needTopRecommendation ? '审核通过，基础收录与置顶推荐已自动履约' : '审核通过，基础收录已自动履约');
+    const updates = [ "status = 'approved'", 'update_time = ?' ];
+    const replacements = [ now ];
+    if (columns.has('reviewed_at')) {
+      updates.push('reviewed_at = ?');
+      replacements.push(now);
+    }
+    if (columns.has('category_id')) {
+      updates.push('category_id = ?');
+      replacements.push(finalCategoryId);
+    }
+    if (columns.has('fulfillment_status')) {
+      updates.push('fulfillment_status = ?');
+      replacements.push(fulfillmentStatus);
+    }
+    if (columns.has('fulfillment_note')) {
+      updates.push('fulfillment_note = ?');
+      replacements.push(fulfillmentNote);
+    }
+    if (columns.has('fulfilled_at')) {
+      updates.push('fulfilled_at = ?');
+      replacements.push(fulfillmentStatus === 'fulfilled' ? now : 0);
+    }
+    if (columns.has('related_website_id')) {
+      updates.push('related_website_id = ?');
+      replacements.push(websiteId);
+    }
+    replacements.push(id);
     await app.model.query(
-      "UPDATE uied_website_submission SET status = 'approved', reviewed_at = ?, update_time = ? WHERE id = ?",
-      { replacements: [ now, now, id ], type: app.Sequelize.QueryTypes.UPDATE }
+      `UPDATE uied_website_submission SET ${updates.join(', ')} WHERE id = ?`,
+      { replacements, type: app.Sequelize.QueryTypes.UPDATE }
     );
+    await this.appendFulfillmentLog(id, {
+      orderNo: latestPayOrder?.orderNo || '',
+      action: 'approve',
+      fromStatus: submission.fulfillment_status || '',
+      toStatus: fulfillmentStatus,
+      note: fulfillmentNote,
+    });
 
-    return { message: '审核通过，网站已添加' };
+    return {
+      message: needBannerFulfillment ? '审核通过，网站已添加，Banner 等待履约' : '审核通过，网站已添加并完成履约',
+      websiteId,
+      fulfillmentStatus,
+    };
   }
 
   /**
@@ -1767,10 +2204,18 @@ class SubmissionService extends Service {
   async reject(id, reason) {
     const { app } = this;
     const now = Math.floor(Date.now() / 1000);
+    await this.ensureFulfillmentSchema();
+    const columns = await this.getSubmissionColumnSet();
 
     // 检查提交记录
+    const selectFields = [ 'status' ];
+    if (columns.has('fulfillment_status')) {
+      selectFields.push('fulfillment_status');
+    } else {
+      selectFields.push("'pending_review' AS fulfillment_status");
+    }
     const [ submission ] = await app.model.query(
-      'SELECT status FROM uied_website_submission WHERE id = ?',
+      `SELECT ${selectFields.join(', ')} FROM uied_website_submission WHERE id = ?`,
       { replacements: [ id ], type: app.Sequelize.QueryTypes.SELECT }
     );
 
@@ -1782,12 +2227,86 @@ class SubmissionService extends Service {
       throw new Error('该提交已被处理');
     }
 
+    const finalReason = String(reason || '不符合收录标准').trim();
+    const updates = [ "status = 'rejected'", 'update_time = ?' ];
+    const replacements = [ now ];
+    if (columns.has('reject_reason')) {
+      updates.push('reject_reason = ?');
+      replacements.push(finalReason);
+    }
+    if (columns.has('reviewed_at')) {
+      updates.push('reviewed_at = ?');
+      replacements.push(now);
+    }
+    if (columns.has('fulfillment_status')) {
+      updates.push("fulfillment_status = 'rejected'");
+    }
+    if (columns.has('fulfillment_note')) {
+      updates.push('fulfillment_note = ?');
+      replacements.push(finalReason);
+    }
+    replacements.push(id);
     await app.model.query(
-      "UPDATE uied_website_submission SET status = 'rejected', reject_reason = ?, reviewed_at = ?, update_time = ? WHERE id = ?",
-      { replacements: [ reason || '不符合收录标准', now, now, id ], type: app.Sequelize.QueryTypes.UPDATE }
+      `UPDATE uied_website_submission SET ${updates.join(', ')} WHERE id = ?`,
+      { replacements, type: app.Sequelize.QueryTypes.UPDATE }
     );
+    await this.appendFulfillmentLog(id, {
+      action: 'reject',
+      fromStatus: submission.fulfillment_status || '',
+      toStatus: 'rejected',
+      note: finalReason,
+    });
 
     return { message: '已拒绝' };
+  }
+
+  /**
+   * 人工标记服务履约完成，主要用于 Banner 排期、定制沟通等无法自动完成的加购服务。
+   */
+  async fulfill(id, note = '', operatorId = 0) {
+    const { app } = this;
+    const submissionId = Number(id || 0);
+    if (!submissionId) {
+      throw new Error('缺少提交ID');
+    }
+    await this.ensureFulfillmentSchema();
+    const columns = await this.getSubmissionColumnSet();
+    const selectFields = [ 'id', 'status' ];
+    if (columns.has('fulfillment_status')) {
+      selectFields.push('fulfillment_status');
+    } else {
+      selectFields.push("'pending_review' AS fulfillment_status");
+    }
+    const [ submission ] = await app.model.query(
+      `SELECT ${selectFields.join(', ')} FROM uied_website_submission WHERE id = ? LIMIT 1`,
+      { replacements: [ submissionId ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    if (!submission) {
+      throw new Error('未找到提交记录');
+    }
+    if (submission.status === 'rejected') {
+      throw new Error('已拒绝的投稿不能标记履约');
+    }
+    if (submission.status !== 'approved') {
+      throw new Error('请先审核通过后再标记履约');
+    }
+    const latestPayOrder = await this.getLatestPayOrderBySubmissionId(submissionId);
+    if (
+      latestPayOrder
+      && Number(latestPayOrder.amount || 0) > 0
+      && ![ 'paid', 'free' ].includes(String(latestPayOrder.status || '').trim())
+    ) {
+      throw new Error('该投稿订单未支付，不能标记履约');
+    }
+    const fulfillmentNote = String(note || '').trim().slice(0, 255) || '人工确认服务已履约';
+    await this.updateSubmissionFulfillment(submissionId, {
+      status: 'fulfilled',
+      orderNo: latestPayOrder?.orderNo || '',
+      action: 'manual_fulfill',
+      note: fulfillmentNote,
+      operatorId,
+    });
+    return { message: '已标记履约完成', fulfillmentStatus: 'fulfilled' };
   }
 
   /**

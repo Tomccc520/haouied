@@ -405,6 +405,25 @@ class SubmissionController extends baseController {
   }
 
   /**
+   * 标记投稿服务已履约（后台管理员）。
+   */
+  async fulfill() {
+    const { ctx } = this;
+    try {
+      const { id, note } = ctx.request.body || {};
+      if (!id) {
+        return this.result({ code: 400, message: '缺少提交ID' });
+      }
+      const operatorId = Number(ctx.session?.admin_id || 0);
+      const result = await ctx.service.uied.submission.fulfill(parseInt(id), note, operatorId);
+      this.result({ data: result, message: '已标记履约完成' });
+    } catch (error) {
+      ctx.logger.error('标记履约失败:', error);
+      this.result({ code: 400, message: error.message });
+    }
+  }
+
+  /**
    * 删除提交记录
    */
   async del() {

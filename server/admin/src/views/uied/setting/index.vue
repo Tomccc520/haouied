@@ -2428,8 +2428,8 @@
 
                         <el-divider content-position="left">基础提交收录</el-divider>
                         <p class="section-desc">
-                            这里可以直接切换“免费收录 / 付费收录”模式。免费模式下基础收录按 0 元展示并直接提交，
-                            置顶推荐与 Banner 加购仍可单独收费。
+                            /submit 固定作为免费收录入口；/submit/services 用于收录与增值服务加购。
+                            这里保留模式配置用于历史兼容，新客户默认按免费收录交付。
                         </p>
                         <el-form-item label="开启服务">
                             <el-switch v-model="submissionServiceData.submitEnabled" />
@@ -2446,8 +2446,8 @@
                         <el-alert
                             :title="submissionServiceData.submitMode === 'free' ? '当前为免费收录模式' : '当前为付费收录模式'"
                             :description="submissionServiceData.submitMode === 'free'
-                                ? '前台基础收录会显示为免费提交；若勾选置顶推荐或 Banner 位，则仅对加购部分收费。'
-                                : '前台基础收录会按这里设置的价格创建支付订单；用户完成付款后才进入审核流程。'"
+                                ? '/submit 会固定显示免费提交；/submit/services 可继续叠加置顶推荐或 Banner 位。'
+                                : '历史兼容模式：/submit/services 会按这里设置的基础服务价创建订单；/submit 仍固定免费。'"
                             :type="submissionServiceData.submitMode === 'free' ? 'success' : 'info'"
                             :closable="false"
                             show-icon
@@ -3505,7 +3505,7 @@ const homepageData = reactive({
     dailyNewDisplayPlacements: ['nav_quick_entry'],
     dailyNewDisplaySort: 86,
     dailyNewDisplayOpenInNewTab: false,
-    dailyNewDefaultDays: 1,
+    dailyNewDefaultDays: 7,
     dailyNewPageKicker: 'Daily Fresh',
     dailyNewPageTitle: '每日上新网址',
     dailyNewPageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
@@ -4116,30 +4116,30 @@ const submissionServiceLoading = ref(false)
 const defaultSubmissionServiceData = {
     enabled: true,
     pageEyebrow: 'Website Submission',
-    pageTitle: '提交网站',
-    pageSubtitle: '基础收录支持免费或付费模式切换，并可按需加购置顶推荐与 Banner 运营位。',
-    pageDescription: '提交后进入审核与收录流程，基础收录可由后台切换为免费或付费，加购项用于新品上线与运营推广。',
+    pageTitle: '网站收录',
+    pageSubtitle: '免费收录与商业增值服务分离：基础提交走网站收录，置顶推荐与 Banner 曝光在服务页加购。',
+    pageDescription: '提交后进入审核与收录流程，商业服务页用于新品上线、首页曝光与短期活动冲刺，可按需购买置顶推荐和 Banner 运营位。',
     heroHighlightsText: '人工审核收录\n支持置顶推荐与 Banner 加购\n个人中心可追踪进度',
     containerMaxWidth: 1280,
     pricingTitle: '收录与增值服务',
     processTitle: '服务流程',
     processDescription: '从提交资料、创建订单到人工审核上线，整条链路都可以按后台配置推进。',
-    processStepsText: '填写站点资料|提交网址、分类、简介与基础联系方式。\n选择服务方案|基础收录可由后台配置为免费或付费，可按需叠加置顶推荐或 Banner 位。\n支付与审核|若当前为付费模式或勾选收费加购，系统会创建订单；完成后进入人工审核与排期。\n收录上线|审核通过后正式上线展示，并可在个人中心查看记录。',
+    processStepsText: '填写站点资料|提交网址、分类、简介与基础联系方式。\n选择服务方案|免费收录走 /submit；商业服务页用于选择置顶推荐或 Banner 位。\n支付与审核|勾选收费加购后系统会创建订单；完成支付后进入人工审核与排期。\n收录上线|审核通过后正式上线展示，并可在个人中心查看记录。',
     submitNoticeTitle: '提交须知',
-    submitNoticeText: '请确保提交的网站内容合法合规，且能稳定访问。\n基础收录与加购项统一在本页确认；若当前模式为付费，会自动创建订单。\n置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。\n如果涉及排期或活动推广，请填写有效联系方式便于沟通。',
+    submitNoticeText: '请确保提交的网站内容合法合规，且能稳定访问。\n免费基础收录请使用 /submit；本页主要用于置顶推荐、Banner 位等增值服务下单。\n置顶推荐和 Banner 位属于附加曝光，不替代收录审核标准。\n如果涉及排期或活动推广，请填写有效联系方式便于沟通。',
     faqTitle: '常见问题',
     closedTitle: '提交服务暂未开放',
     closedDescription: '当前站点已暂停新的提交与收录申请，请稍后再试或联系运营团队。',
     closedButtonText: '返回首页',
     closedButtonUrl: '/',
     submitEnabled: true,
-    submitMode: 'paid',
-    submitLabel: '付费提交收录',
+    submitMode: 'free',
+    submitLabel: '免费提交收录',
     submitBadge: '基础服务',
     submitDescription: '提交后进入人工审核、信息完善与正式收录流程，是所有投稿的基础服务。',
     submitPrice: 39,
     submitOriginalPrice: 59,
-    submitCtaText: '提交并支付',
+    submitCtaText: '免费提交',
     submitFeaturesText: '站点进入人工审核与分类收录流程\n支持 AI 补全站点信息与基础内容优化\n审核通过后进入站内搜索与列表展示',
     topEnabled: true,
     topLabel: '置顶推荐加购',
@@ -4707,6 +4707,7 @@ const loadAllSettings = async (silent = false) => {
     try {
         const [settings] = await Promise.all([uiedPublicSettings(), loadHomepagePageOptions(true)])
         if (settings) applyPublicSettings(settings)
+        await Promise.all([loadSubmissionService(), loadPaymentConfig()])
         refreshSnapshot()
         if (!silent) feedback.msgSuccess('配置已刷新')
     } catch (error) {

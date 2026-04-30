@@ -1212,6 +1212,18 @@ const SubmissionList: React.FC = () => {
   };
 
   /**
+   * 统一履约状态文案，帮助用户区分“已支付”和“运营已处理”。
+   */
+  const resolveFulfillmentStatus = (item: any) => {
+    const value = String(item?.fulfillmentStatus || '').trim().toLowerCase();
+    if (value === 'fulfilled') return { label: '已履约', tone: 1 };
+    if (value === 'pending_fulfillment') return { label: '待履约', tone: 0 };
+    if (value === 'pending_payment') return { label: '待支付', tone: 0 };
+    if (value === 'rejected') return { label: '已终止', tone: 2 };
+    return { label: '待审核', tone: 0 };
+  };
+
+  /**
    * 统一投放单支付渠道文案
    */
   const resolvePayChannelLabel = (value: any) => {
@@ -1247,7 +1259,7 @@ const SubmissionList: React.FC = () => {
    * 跳转到提交页继续创建投放
    */
   const handleGoSubmit = () => {
-    navigate('/submit');
+    navigate('/submit/services');
   };
 
   /**
@@ -1299,7 +1311,11 @@ const SubmissionList: React.FC = () => {
         payStatus: String(data?.status || ''),
         payUrl: String(data?.payUrl || ''),
         payTime: Number(data?.payTime || 0),
+        fulfillmentStatus: String(data?.fulfillmentStatus || data?.submission?.fulfillmentStatus || ''),
+        fulfillmentNote: String(data?.fulfillmentNote || data?.submission?.fulfillmentNote || ''),
+        fulfilledAt: Number(data?.fulfilledAt || data?.submission?.fulfilledAt || 0),
       });
+      await loadSubmissions();
       setActionMessage('支付状态已刷新');
     } catch (error: any) {
       setActionMessage(error?.message || '刷新失败，请稍后重试');
@@ -1432,6 +1448,7 @@ const SubmissionList: React.FC = () => {
               {list.map(item => {
                 const reviewState = resolveSubmissionStatus(item);
                 const payState = resolveSubmissionPayStatus(item);
+                const fulfillmentState = resolveFulfillmentStatus(item);
                 const bannerPositions = resolveBannerPositions(item?.serviceMeta);
                 return (
                   <div key={`submission-${item.id}`} className="list-item list-item--rich">
@@ -1440,6 +1457,7 @@ const SubmissionList: React.FC = () => {
                         <div className="item-title">{item.name || item.url || `投稿#${item.id}`}</div>
                         <span className={`status-badge status-${reviewState.tone}`}>{reviewState.label}</span>
                         <span className={`status-badge status-${payState.tone}`}>{payState.label}</span>
+                        <span className={`status-badge status-${fulfillmentState.tone}`}>{fulfillmentState.label}</span>
                       </div>
                       <div className="item-meta">
                         <span>编号：#{Number(item.id || 0)}</span>
@@ -1458,6 +1476,13 @@ const SubmissionList: React.FC = () => {
                         <div className="item-meta" style={{ marginTop: 6 }}>
                           {item?.serviceMeta?.plan && <span>投放方向：{String(item.serviceMeta.plan)}</span>}
                           {bannerPositions.length > 0 && <span>Banner位：{bannerPositions.join('、')}</span>}
+                        </div>
+                      )}
+                      {(String(item.fulfillmentNote || '').trim() || Number(item.fulfilledAt || 0) > 0 || Number(item.relatedWebsiteId || 0) > 0) && (
+                        <div className="item-meta" style={{ marginTop: 6 }}>
+                          {String(item.fulfillmentNote || '').trim() && <span>履约说明：{String(item.fulfillmentNote)}</span>}
+                          {Number(item.fulfilledAt || 0) > 0 && <span>履约时间：{formatUserDate(item.fulfilledAt, '-')}</span>}
+                          {Number(item.relatedWebsiteId || 0) > 0 && <span>收录ID：#{Number(item.relatedWebsiteId)}</span>}
                         </div>
                       )}
                       <div className="item-meta" style={{ marginTop: 8 }}>

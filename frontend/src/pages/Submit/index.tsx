@@ -74,8 +74,9 @@ interface SubmissionPayOrderPayload {
   serviceType?: ServiceType;
   payChannel?: PayChannel;
   amount?: number;
-  status?: 'created' | 'paid' | 'free';
+  status?: 'created' | 'paid' | 'free' | 'closed';
   payUrl?: string;
+  payTime?: number;
   message?: string;
 }
 
@@ -218,8 +219,8 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   enabled: true,
   pageEyebrow: 'Website Submission',
   pageTitle: '网站收录',
-  pageSubtitle: '基础收录支持免费或付费模式切换，并可按需加购置顶推荐与 Banner 运营位。',
-  pageDescription: '提交后进入审核与收录流程，基础收录可由后台切换为免费或付费，加购项用于新品发布、首页曝光与短期活动冲刺。',
+  pageSubtitle: '免费收录与商业增值服务分离：基础提交走网站收录，置顶推荐与 Banner 曝光在服务页加购。',
+  pageDescription: '提交后进入审核与收录流程，商业服务页用于新品发布、首页曝光与短期活动冲刺，可按需购买置顶推荐和 Banner 运营位。',
   heroHighlights: [ '人工审核收录', '支持置顶推荐与 Banner 加购', '个人中心可追踪进度' ],
   containerMaxWidth: 1320,
   pricingTitle: '服务与加购',
@@ -227,14 +228,14 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   processDescription: '从填写资料到支付审核再到正式上线，整条链路都可在后台跟踪。',
   processSteps: [
     { title: '填写资料', description: '提交网址、分类、简介与联系方式。', enabled: true, sort: 10 },
-    { title: '选择服务', description: '基础收录可由后台配置为免费或付费，可按需加购置顶推荐或 Banner 位。', enabled: true, sort: 20 },
-    { title: '支付审核', description: '若当前为付费模式或勾选收费加购，系统会创建订单；完成后进入人工审核排期。', enabled: true, sort: 30 },
+    { title: '选择服务', description: '免费收录走 /submit；商业服务页用于选择置顶推荐或 Banner 位。', enabled: true, sort: 20 },
+    { title: '支付审核', description: '勾选收费加购后系统会创建订单；完成支付后进入人工审核排期。', enabled: true, sort: 30 },
     { title: '正式上线', description: '审核通过后上架展示，并在个人中心可查看记录。', enabled: true, sort: 40 },
   ],
   submitNoticeTitle: '提交须知',
   submitNotices: [
     '请确保提交的网站内容合法、健康，且可正常访问。',
-    '基础收录与运营加购统一在本页确认；若当前模式为付费，会自动创建订单。',
+    '免费基础收录请使用 /submit；本页主要用于置顶推荐、Banner 位等增值服务下单。',
     'Banner 位和置顶推荐属于附加曝光，不替代审核标准。',
     '提交后如需补充排期，请在联系方式里留下可联络方式。',
   ],
@@ -246,13 +247,13 @@ const DEFAULT_SUBMISSION_PUBLIC_CONFIG: SubmissionPublicConfig = {
   submitService: {
     enabled: true,
     key: 'submission',
-    mode: 'paid',
-    label: '付费提交收录',
+    mode: 'free',
+    label: '免费提交收录',
     badge: '基础服务',
-    description: '站点提交后进入审核、补充、收录与站内搜索曝光流程。',
+    description: '提交后进入人工审核、信息完善与正式收录流程，当前站点基础收录免费开放。',
     price: 39,
     originalPrice: 59,
-    ctaText: '提交并支付',
+    ctaText: '免费提交',
     features: [ '站点基础信息审核', '收录到分类页与搜索', '支持后续人工优化建议' ],
   },
   topRecommendAddon: {
@@ -805,6 +806,7 @@ const SubmitPage: React.FC = () => {
   const [submitResult, setSubmitResult] = useState<SubmitResultState | null>(null);
   const [submissionConfig, setSubmissionConfig] = useState<SubmissionPublicConfig>(DEFAULT_SUBMISSION_PUBLIC_CONFIG);
   const [payChannel, setPayChannel] = useState<PayChannel>('alipay');
+  const [payPollingOrderNo, setPayPollingOrderNo] = useState('');
   const [allowDuplicateSubmit, setAllowDuplicateSubmit] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [urlCheckResult, setUrlCheckResult] = useState<{
@@ -903,7 +905,8 @@ const SubmitPage: React.FC = () => {
   const isFreeSubmitMode = submitService.mode === 'free';
   const isServiceLanding = location.pathname.startsWith('/submit/services');
   const useSimpleFreeFlow = !isServiceLanding;
-  const isFreeEntryUnavailable = useSimpleFreeFlow && !isFreeSubmitMode;
+  const isFreeEntryUnavailable = false;
+  const requiresCommercialAddon = !useSimpleFreeFlow && isFreeSubmitMode && selectedAddonOptions.length === 0;
 
   const bannerPositionGroups = useMemo<BannerPositionGroup[]>(() => {
     const keyword = bannerPositionKeyword.trim().toLowerCase();
@@ -937,12 +940,12 @@ const SubmitPage: React.FC = () => {
   }, [bannerPositionKeyword, bannerPositionOptions]);
 
   const totalPrice = useMemo(
-    () => submitService.price + selectedAddonOptions.reduce((sum, item) => sum + item.price, 0),
-    [selectedAddonOptions, submitService.price],
+    () => (useSimpleFreeFlow ? 0 : submitService.price + selectedAddonOptions.reduce((sum, item) => sum + item.price, 0)),
+    [selectedAddonOptions, submitService.price, useSimpleFreeFlow],
   );
   const isSubmissionClosed = !submissionConfig.enabled || !submitService.enabled;
 
-  const shouldRequirePayment = totalPrice > 0;
+  const shouldRequirePayment = !useSimpleFreeFlow && totalPrice > 0;
   const displayPageTitle = useMemo(() => {
     const configuredTitle = String(submissionConfig.pageTitle || '').trim();
     if (!configuredTitle || configuredTitle === '提交网站' || configuredTitle === '网站收录') {
@@ -980,7 +983,7 @@ const SubmitPage: React.FC = () => {
     return {
       heroActionText: '进入投放表单',
       pricingTitle: '商业投放方案',
-      pricingDescription: '这套模式面向付费投放与运营合作，基础收录作为商业提报入口，再组合置顶与 Banner 提升曝光。',
+      pricingDescription: '这套模式面向付费投放与运营合作，免费收录走基础入口，本页通过置顶与 Banner 资源提升曝光。',
       processTitle: '商业投放流程',
       processDescription: '提交商业资料后统一创建订单，完成支付进入排期与审核，再按投放方案上线。',
       summaryEyebrow: '商业投放',
@@ -991,7 +994,7 @@ const SubmitPage: React.FC = () => {
       overviewTitle: '商业投放权益',
       overviewDescription: '这套模式更像运营投放单，强调预算、资源位与上线节奏，适合新品发布和品牌曝光。',
       overviewItems: [
-        '基础收录会作为商业合作入口，提交后统一生成投放订单并进入处理流程。',
+        '免费收录请走 /submit；本页选择增值服务后生成投放订单并进入处理流程。',
         '置顶推荐与 Banner 资源位可组合购买，用于首页或频道页的额外曝光。',
         '支付完成后进入排期与沟通阶段，适合新品上线、活动推广与集中曝光。',
       ],
@@ -1011,12 +1014,14 @@ const SubmitPage: React.FC = () => {
       };
     }
     return {
-      title: '当前为收录与增值服务页',
+      title: requiresCommercialAddon ? '请选择增值服务' : '当前为收录与增值服务页',
       description: shouldRequirePayment
         ? '基础收录与已选加购会统一创建支付订单，完成付款后进入审核流程。'
-        : '当前配置无需支付，可直接提交。',
+        : (requiresCommercialAddon
+          ? '基础收录已拆到免费入口；请至少选择一个增值服务后再提交商业投放单。'
+          : '当前配置无需支付，可直接提交。'),
     };
-  }, [isFreeEntryUnavailable, shouldRequirePayment, useSimpleFreeFlow]);
+  }, [isFreeEntryUnavailable, requiresCommercialAddon, shouldRequirePayment, useSimpleFreeFlow]);
 
   /**
    * 当后台未自定义标题时，按当前模式输出更贴合的默认标题。
@@ -1042,18 +1047,20 @@ const SubmitPage: React.FC = () => {
   const heroTotalValue = useMemo(() => {
     if (isSubmissionClosed) return '暂停开放';
     if (useSimpleFreeFlow) return isFreeEntryUnavailable ? '未开启' : '已开启';
+    if (requiresCommercialAddon) return '待选择';
     if (shouldRequirePayment) return formatPrice(totalPrice);
     return formatPrice(totalPrice);
-  }, [isFreeEntryUnavailable, isSubmissionClosed, shouldRequirePayment, totalPrice, useSimpleFreeFlow]);
+  }, [isFreeEntryUnavailable, isSubmissionClosed, requiresCommercialAddon, shouldRequirePayment, totalPrice, useSimpleFreeFlow]);
   const submitActionText = useMemo(() => {
     if (useSimpleFreeFlow) return '提交收录申请';
+    if (requiresCommercialAddon) return '选择增值服务';
     if (shouldRequirePayment) {
       return submitService.mode === 'free'
         ? '提交并支付'
         : (submitService.ctaText || '提交并支付');
     }
     return submitService.ctaText || (submitService.mode === 'free' ? '免费提交' : '提交并支付');
-  }, [shouldRequirePayment, submitService.ctaText, submitService.mode, useSimpleFreeFlow]);
+  }, [requiresCommercialAddon, shouldRequirePayment, submitService.ctaText, submitService.mode, useSimpleFreeFlow]);
 
   const paymentChannelOptions = useMemo<PayChannelOption[]>(
     () => [
@@ -1111,11 +1118,23 @@ const SubmitPage: React.FC = () => {
       },
       {
         label: '支付状态',
-        value: shouldRequirePayment ? (submissionConfig.payment.enabled ? '已开启' : '待配置') : '无需支付',
-        hint: submissionConfig.payment.enabled ? '完成支付后进入排期与审核' : '需到支付中心补齐参数',
+        value: requiresCommercialAddon ? '待选服务' : (shouldRequirePayment ? (submissionConfig.payment.enabled ? '已开启' : '待配置') : '无需支付'),
+        hint: requiresCommercialAddon
+          ? '请选择置顶推荐或 Banner 位后继续'
+          : (submissionConfig.payment.enabled ? '完成支付后进入排期与审核' : '需到支付中心补齐参数'),
       },
     ];
-  }, [addonOptions.length, isFreeEntryUnavailable, shouldRequirePayment, submissionConfig.payment.enabled, submitService.price, submitService.title, useSimpleFreeFlow]);
+  }, [addonOptions.length, isFreeEntryUnavailable, requiresCommercialAddon, shouldRequirePayment, submissionConfig.payment.enabled, submitService.price, submitService.title, useSimpleFreeFlow]);
+
+  const commercialBaseTitle = !useSimpleFreeFlow && isFreeSubmitMode
+    ? '基础收录资料（随增值服务提交）'
+    : submitService.title;
+  const commercialBaseDescription = !useSimpleFreeFlow && isFreeSubmitMode
+    ? '免费基础收录请使用网站收录入口；本页用于置顶推荐、Banner 投放等增值服务下单。'
+    : submitService.description;
+  const commercialBasePriceText = !useSimpleFreeFlow && isFreeSubmitMode
+    ? '按加购计费'
+    : formatPrice(submitService.price);
 
   /**
    * 统一提取 API 错误文案，兼容 message/msg/error 三种结构。
@@ -1219,6 +1238,57 @@ const SubmitPage: React.FC = () => {
     return Boolean(opened);
   }, []);
 
+  /**
+   * 预打开可控空白支付窗口，避免异步创建订单后被浏览器拦截。
+   */
+  const preOpenPayWindow = useCallback((): Window | null => {
+    try {
+      return window.open('', '_blank');
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  /**
+   * 查询支付订单状态，并把支付结果同步到当前结果卡片。
+   */
+  const refreshPayOrderStatus = useCallback(async (orderNo: string): Promise<string> => {
+    const normalizedOrderNo = String(orderNo || '').trim();
+    if (!normalizedOrderNo) return '';
+    try {
+      const res = await api.get('/submissions/pay/status', { params: { orderNo: normalizedOrderNo } });
+      const data = unwrapApiResponse<SubmissionPayOrderPayload>(res.data, {});
+      const status = String(data.status || '');
+      if (status === 'paid' || status === 'free') {
+        setSubmitResult((prev) => ({
+          success: true,
+          id: data.submissionId ? String(data.submissionId) : prev?.id,
+          orderNo: normalizedOrderNo,
+          isPayment: false,
+          payUrl: undefined,
+          message: status === 'paid'
+            ? '支付已确认，服务已进入待审核与待履约流程。'
+            : '提交成功！当前配置无需支付。',
+        }));
+        setPayPollingOrderNo('');
+      } else if (status === 'closed') {
+        setSubmitResult((prev) => ({
+          success: false,
+          id: data.submissionId ? String(data.submissionId) : prev?.id,
+          orderNo: normalizedOrderNo,
+          isPayment: false,
+          payUrl: undefined,
+          message: '支付订单已关闭，请重新提交并创建订单。',
+        }));
+        setPayPollingOrderNo('');
+      }
+      return status;
+    } catch (error) {
+      debugLog.error('查询支付状态失败:', error);
+      return '';
+    }
+  }, []);
+
   useEffect(() => {
     fetchSubmissionConfig();
     fetchCategories();
@@ -1267,6 +1337,52 @@ const SubmitPage: React.FC = () => {
       setPayChannel(availablePayChannels[0].value);
     }
   }, [availablePayChannels, payChannel, shouldRequirePayment]);
+
+  /**
+   * 支付回跳后自动识别订单号，避免用户回到页面后不知道是否已经支付成功。
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    const orderNo = String(params.get('orderNo') || params.get('out_trade_no') || '').trim();
+    const payResult = String(params.get('payResult') || params.get('trade_status') || params.get('result') || '').trim();
+    if (!orderNo) return;
+    setSubmitResult({
+      success: true,
+      orderNo,
+      isPayment: true,
+      message: payResult
+        ? '已返回网站，正在确认支付结果...'
+        : '已识别支付订单，正在确认支付结果...',
+    });
+    setPayPollingOrderNo(orderNo);
+    refreshPayOrderStatus(orderNo);
+    navigate(`${location.pathname}${location.hash || ''}`, { replace: true });
+  }, [location.hash, location.pathname, location.search, navigate, refreshPayOrderStatus]);
+
+  /**
+   * 创建支付订单后在当前页面轮询状态，支付成功自动进入个人中心可追踪的记录状态。
+   */
+  useEffect(() => {
+    const orderNo = String(payPollingOrderNo || '').trim();
+    if (!orderNo) return undefined;
+    let cancelled = false;
+    let timer: number | undefined;
+    let attempts = 0;
+    const poll = async () => {
+      if (cancelled) return;
+      attempts += 1;
+      const status = await refreshPayOrderStatus(orderNo);
+      if (cancelled || [ 'paid', 'free', 'closed' ].includes(status) || attempts >= 40) {
+        return;
+      }
+      timer = window.setTimeout(poll, attempts <= 3 ? 2500 : 5000);
+    };
+    timer = window.setTimeout(poll, 2500);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [payPollingOrderNo, refreshPayOrderStatus]);
 
   useEffect(() => {
     const allowedAddonKeys = new Set(addonOptions.map((item) => item.key as AddonKey));
@@ -1500,12 +1616,16 @@ const SubmitPage: React.FC = () => {
    * 构建提交/下单所需 payload，统一普通提交和支付订单入参。
    */
   const buildSubmitPayload = useCallback(() => {
+    const entryMode = useSimpleFreeFlow ? 'free_submission' : 'commercial_service';
+    const selectedAddons = useSimpleFreeFlow ? [] : formData.selectedAddons;
+    const bannerPositions = useSimpleFreeFlow ? [] : formData.bannerPositions;
     const addonPlan = getAddonPlanLabel(
-      formData.selectedAddons,
+      selectedAddons,
       addonOptions,
       useSimpleFreeFlow ? '网站收录' : '基础收录',
     );
     return {
+      entryMode,
       serviceType: 'submission' as const,
       name: formData.name.trim(),
       description: formData.description.trim(),
@@ -1517,12 +1637,13 @@ const SubmitPage: React.FC = () => {
       iconUrl: iconUrl || undefined,
       allowDuplicate: allowDuplicateSubmit,
       serviceMeta: {
+        entryMode,
         plan: addonPlan || formData.promotionPlan || (useSimpleFreeFlow ? '网站收录' : '基础收录'),
         budget: formData.promotionBudget.trim(),
         target: formData.promotionTarget.trim(),
         contact: formData.promotionContact.trim(),
-        addons: formData.selectedAddons,
-        bannerPositions: formData.bannerPositions,
+        addons: selectedAddons,
+        bannerPositions,
       },
     };
   }, [addonOptions, allowDuplicateSubmit, formData, iconUrl, useSimpleFreeFlow]);
@@ -1535,10 +1656,6 @@ const SubmitPage: React.FC = () => {
 
     if (isSubmissionClosed) {
       setSubmitResult({ success: false, message: '基础提交服务暂未开放' });
-      return;
-    }
-    if (isFreeEntryUnavailable) {
-      setSubmitResult({ success: false, message: '当前未开启网站收录，请前往“收录与增值服务”页面继续。' });
       return;
     }
     if (!formData.name.trim() || !formData.url.trim()) {
@@ -1557,6 +1674,15 @@ const SubmitPage: React.FC = () => {
       setSubmitResult({ success: false, message: '购买 Banner 位时，请至少选择一个投放位置' });
       return;
     }
+    if (requiresCommercialAddon) {
+      setSubmitResult({
+        success: false,
+        message: addonOptions.length > 0
+          ? '收录与增值服务页至少需要选择一个置顶推荐或 Banner 增值服务；免费收录请使用 /submit。'
+          : '当前未开启增值服务，请先到后台开启加购项或将基础服务切换为付费模式。',
+      });
+      return;
+    }
     if (shouldRequirePayment && !submissionConfig.payment.enabled) {
       setSubmitResult({ success: false, message: '支付通道未开启，请联系管理员' });
       return;
@@ -1571,7 +1697,7 @@ const SubmitPage: React.FC = () => {
       /**
        * 先预开支付窗口，降低浏览器对异步 window.open 的拦截概率。
        */
-      preOpenedPayWindow = window.open('', '_blank', 'noopener,noreferrer');
+      preOpenedPayWindow = preOpenPayWindow();
     }
     setLoading(true);
     try {
@@ -1607,6 +1733,9 @@ const SubmitPage: React.FC = () => {
               ? '支付订单已创建，已为您打开支付页面，请完成付款。'
               : '支付订单已创建，请点击“继续支付”完成付款。'),
         });
+        if (data.orderNo && data.status !== 'free') {
+          setPayPollingOrderNo(String(data.orderNo));
+        }
         return;
       }
 
@@ -1813,19 +1942,19 @@ const SubmitPage: React.FC = () => {
                       <div className="submit-service-card__eyebrow">
                         {submitService.badge || '基础服务'} · 收录与增值服务
                       </div>
-                      <h3>{submitService.title}</h3>
+                        <h3>{commercialBaseTitle}</h3>
                     </div>
                   </div>
-                  <p className="submit-service-card__desc">{submitService.description}</p>
+                    <p className="submit-service-card__desc">{commercialBaseDescription}</p>
                   <div className={`submit-service-card__mode-note ${isFreeSubmitMode ? 'is-free' : 'is-paid'}`}>
                     <strong>{submitModeSummary.title}</strong>
                     <p>{submitModeSummary.description}</p>
                   </div>
                   <div className="submit-service-card__price">
-                    <strong>{formatPrice(submitService.price)}</strong>
-                    {submitService.originalPrice > submitService.price ? (
-                      <span>{formatPrice(submitService.originalPrice)}</span>
-                    ) : null}
+                      <strong>{commercialBasePriceText}</strong>
+                      {!isFreeSubmitMode && submitService.originalPrice > submitService.price ? (
+                        <span>{formatPrice(submitService.originalPrice)}</span>
+                      ) : null}
                   </div>
                   <ul className="submit-feature-list">
                     {submitService.highlights.map((text) => (
@@ -2374,8 +2503,8 @@ const SubmitPage: React.FC = () => {
                   </div>
 
                   <div className="submit-summary__line">
-                    <span>{submitService.title}</span>
-                    <strong>{formatPrice(submitService.price)}</strong>
+                      <span>{commercialBaseTitle}</span>
+                      <strong>{commercialBasePriceText}</strong>
                   </div>
 
                   {selectedAddonOptions.map((item) => (

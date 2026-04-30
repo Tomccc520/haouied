@@ -61,8 +61,8 @@
                 <el-table-column label="名称" prop="name" width="150" />
                 <el-table-column label="服务类型" prop="serviceType" width="170">
                     <template #default="{ row }">
-                        <el-tag :type="getServiceTypeTagType(row.serviceType)">
-                            {{ getServiceTypeLabel(row.serviceType) }}
+                        <el-tag :type="getServiceTypeTagType(row)">
+                            {{ getServiceTypeLabel(row) }}
                         </el-tag>
                     </template>
                 </el-table-column>
@@ -71,10 +71,10 @@
                 <el-table-column label="支付" width="160">
                     <template #default="{ row }">
                         <el-tag v-if="row.payStatus === 'paid'" type="success">已支付</el-tag>
-                        <el-tag v-else-if="row.payStatus === 'created'" type="warning">待支付</el-tag>
-                        <el-tag v-else-if="row.payStatus === 'closed'" type="danger"
-                            >已关闭</el-tag
+                        <el-tag v-else-if="row.payStatus === 'created'" type="warning"
+                            >待支付</el-tag
                         >
+                        <el-tag v-else-if="row.payStatus === 'closed'" type="danger">已关闭</el-tag>
                         <el-tag v-else-if="row.payStatus === 'free'" type="info">免费</el-tag>
                         <span v-else class="text-muted">-</span>
                     </template>
@@ -83,7 +83,19 @@
                     <template #default="{ row }">
                         <div class="text-xs">
                             <div>{{ row.payChannel || '-' }}</div>
-                            <div class="text-muted">{{ Number(row.payAmount || 0).toFixed(2) }}</div>
+                            <div class="text-muted">
+                                {{ Number(row.payAmount || 0).toFixed(2) }}
+                            </div>
+                        </div>
+                    </template>
+                </el-table-column>
+                <el-table-column label="履约" width="160">
+                    <template #default="{ row }">
+                        <el-tag :type="getFulfillmentStatusType(row.fulfillmentStatus)">
+                            {{ getFulfillmentStatusLabel(row.fulfillmentStatus) }}
+                        </el-tag>
+                        <div v-if="row.fulfillmentNote" class="text-muted text-xs mt-1">
+                            {{ row.fulfillmentNote }}
                         </div>
                     </template>
                 </el-table-column>
@@ -97,10 +109,10 @@
                 <el-table-column label="提交时间" prop="createdAt" width="170">
                     <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
                 </el-table-column>
-                <el-table-column label="操作" width="260" fixed="right">
+                <el-table-column label="操作" width="320" fixed="right">
                     <template #default="{ row }">
                         <template v-if="row.status === 'pending'">
-                            <el-button type="success" link @click="handleApprove(row)"
+                            <el-button type="success" link @click="handleOpenApprove(row)"
                                 >通过</el-button
                             >
                             <el-button type="danger" link @click="handleReject(row)"
@@ -113,6 +125,17 @@
                             link
                             @click="handleReconcilePayOrders(row.payOrderNo)"
                             >补单</el-button
+                        >
+                        <el-button
+                            v-if="
+                                row.status === 'approved' &&
+                                row.fulfillmentStatus === 'pending_fulfillment' &&
+                                !isPaidOrderUnpaid(row)
+                            "
+                            type="success"
+                            link
+                            @click="handleFulfill(row)"
+                            >标记履约</el-button
                         >
                         <el-button type="primary" link @click="handleView(row)">查看</el-button>
                         <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
@@ -136,7 +159,7 @@
                     detailData.submitterName
                 }}</el-descriptions-item>
                 <el-descriptions-item label="服务类型">{{
-                    getServiceTypeLabel(detailData.serviceType)
+                    getServiceTypeLabel(detailData)
                 }}</el-descriptions-item>
                 <el-descriptions-item v-if="detailData.serviceMeta?.target" label="推广目标">{{
                     detailData.serviceMeta.target
@@ -144,9 +167,11 @@
                 <el-descriptions-item v-if="detailData.serviceMeta?.budget" label="预算区间">{{
                     detailData.serviceMeta.budget
                 }}</el-descriptions-item>
-                <el-descriptions-item v-if="detailData.serviceMeta?.addons?.length" label="加购项">{{
-                    detailData.serviceMeta.addons.join(' / ')
-                }}</el-descriptions-item>
+                <el-descriptions-item
+                    v-if="detailData.serviceMeta?.addons?.length"
+                    label="加购项"
+                    >{{ detailData.serviceMeta.addons.join(' / ') }}</el-descriptions-item
+                >
                 <el-descriptions-item
                     v-if="detailData.serviceMeta?.bannerPositions?.length"
                     label="Banner位置"
@@ -164,10 +189,69 @@
                         getStatusLabel(detailData.status)
                     }}</el-tag>
                 </el-descriptions-item>
+                <el-descriptions-item label="履约状态">
+                    <el-tag :type="getFulfillmentStatusType(detailData.fulfillmentStatus)">
+                        {{ getFulfillmentStatusLabel(detailData.fulfillmentStatus) }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item v-if="detailData.fulfillmentNote" label="履约备注">{{
+                    detailData.fulfillmentNote
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="detailData.relatedWebsiteId" label="关联网站ID">{{
+                    detailData.relatedWebsiteId
+                }}</el-descriptions-item>
+                <el-descriptions-item v-if="detailData.fulfilledAt" label="履约完成时间">{{
+                    formatTime(detailData.fulfilledAt)
+                }}</el-descriptions-item>
                 <el-descriptions-item v-if="detailData.rejectReason" label="拒绝原因">{{
                     detailData.rejectReason
                 }}</el-descriptions-item>
             </el-descriptions>
+        </el-dialog>
+
+        <!-- 审核通过弹窗 -->
+        <el-dialog v-model="showApprove" title="审核通过" width="460px">
+            <el-alert
+                v-if="currentApproveRow && isPaidOrderUnpaid(currentApproveRow)"
+                title="该投稿存在待支付订单，请先补单或确认支付后再通过审核。"
+                type="warning"
+                show-icon
+                :closable="false"
+                class="mb-4"
+            />
+            <el-form :model="approveForm" label-width="96px">
+                <el-form-item label="审核分类" required>
+                    <el-select
+                        v-model="approveForm.categoryId"
+                        placeholder="请选择收录分类"
+                        filterable
+                        style="width: 100%"
+                    >
+                        <el-option
+                            v-for="item in categoryOptions"
+                            :key="item.id"
+                            :label="formatCategoryOptionLabel(item)"
+                            :value="item.id"
+                        />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="支付状态">
+                    <el-tag :type="getPayStatusType(currentApproveRow?.payStatus)">
+                        {{ getPayStatusLabel(currentApproveRow?.payStatus) }}
+                    </el-tag>
+                </el-form-item>
+                <el-form-item label="履约说明">
+                    <div class="text-muted">
+                        置顶推荐会自动写入前台网站置顶/推荐字段；Banner 位审核通过后进入待履约，需要运营排期后手动标记。
+                    </div>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showApprove = false">取消</el-button>
+                <el-button type="primary" :loading="approveLoading" @click="confirmApprove"
+                    >确认通过</el-button
+                >
+            </template>
         </el-dialog>
 
         <!-- 拒绝原因弹窗 -->
@@ -206,6 +290,11 @@ const { pager, getLists, resetPage, resetParams, lists, loading } = usePaging({
 
 const showDetail = ref(false)
 const detailData = ref<any>({})
+const showApprove = ref(false)
+const approveLoading = ref(false)
+const currentApproveRow = ref<any>(null)
+const approveForm = reactive({ categoryId: undefined as number | undefined })
+const categoryOptions = ref<any[]>([])
 const showReject = ref(false)
 const rejectReason = ref('')
 const currentRejectId = ref<number | null>(null)
@@ -218,6 +307,20 @@ const statusLabelMap: Record<SubmissionStatus, string> = {
     pending: '待审核',
     approved: '已通过',
     rejected: '已拒绝'
+}
+const fulfillmentStatusLabelMap: Record<string, string> = {
+    pending_review: '待审核',
+    pending_payment: '待支付',
+    pending_fulfillment: '待履约',
+    fulfilled: '已履约',
+    rejected: '已终止'
+}
+const fulfillmentStatusTypeMap: Record<string, TagType> = {
+    pending_review: 'warning',
+    pending_payment: 'warning',
+    pending_fulfillment: 'warning',
+    fulfilled: 'success',
+    rejected: 'danger'
 }
 
 /**
@@ -233,28 +336,117 @@ const getStatusLabel = (status: string) =>
     statusLabelMap[status as SubmissionStatus] || status || '-'
 
 /**
+ * 获取支付状态文案
+ */
+const getPayStatusLabel = (status?: string) => {
+    const value = String(status || '').trim()
+    if (value === 'paid') return '已支付'
+    if (value === 'created') return '待支付'
+    if (value === 'closed') return '已关闭'
+    if (value === 'free') return '免费'
+    return value || '-'
+}
+
+/**
+ * 获取支付状态标签样式
+ */
+const getPayStatusType = (status?: string): TagType => {
+    const value = String(status || '').trim()
+    if (value === 'paid') return 'success'
+    if (value === 'created') return 'warning'
+    if (value === 'closed') return 'danger'
+    if (value === 'free') return 'info'
+    return 'info'
+}
+
+/**
+ * 获取履约状态文案
+ */
+const getFulfillmentStatusLabel = (status?: string) => {
+    const value = String(status || 'pending_review').trim()
+    return fulfillmentStatusLabelMap[value] || value || '-'
+}
+
+/**
+ * 获取履约状态标签样式
+ */
+const getFulfillmentStatusType = (status?: string): TagType => {
+    const value = String(status || 'pending_review').trim()
+    return fulfillmentStatusTypeMap[value] || 'info'
+}
+
+/**
  * 获取服务类型文案
  */
-const getServiceTypeLabel = (serviceType: string) =>
-    serviceType === 'top_recommendation'
-        ? '置顶推荐加购'
-        : serviceType === 'banner_slot'
-            ? 'Banner 位加购'
-            : serviceType === 'paid_boost'
-                ? '置顶推荐加购'
-            : '付费提交收录'
+const getServiceTypeLabel = (row: any) => {
+    const serviceType = String(row?.serviceType || '').trim()
+    const serviceMeta = row?.serviceMeta || {}
+    const addonLabels = Array.isArray(serviceMeta?.addons)
+        ? serviceMeta.addons
+              .map((item: string) =>
+                  item === 'top_recommendation'
+                      ? '置顶'
+                      : item === 'banner_slot'
+                      ? 'Banner'
+                      : ''
+              )
+              .filter(Boolean)
+        : []
+    if (serviceType === 'top_recommendation' || serviceType === 'paid_boost') return '置顶推荐加购'
+    if (serviceType === 'banner_slot') return 'Banner 位加购'
+    if (addonLabels.length > 0) return `收录与增值服务（${addonLabels.join('+')}）`
+    return serviceMeta?.entryMode === 'commercial_service' ? '收录与增值服务' : '免费网站收录'
+}
 
 /**
  * 获取服务类型标签样式
  */
-const getServiceTypeTagType = (serviceType: string): TagType =>
-    serviceType === 'banner_slot'
-        ? 'danger'
-        : serviceType === 'top_recommendation' || serviceType === 'paid_boost'
-            ? 'warning'
-            : 'success'
+const getServiceTypeTagType = (row: any): TagType => {
+    const serviceType = String(row?.serviceType || '').trim()
+    const addonList = Array.isArray(row?.serviceMeta?.addons) ? row.serviceMeta.addons : []
+    if (serviceType === 'banner_slot' || addonList.includes('banner_slot')) return 'danger'
+    if (
+        serviceType === 'top_recommendation' ||
+        serviceType === 'paid_boost' ||
+        addonList.includes('top_recommendation') ||
+        row?.serviceMeta?.entryMode === 'commercial_service'
+    ) {
+        return 'warning'
+    }
+    return 'success'
+}
 
 const formatTime = (ts: number) => (ts ? new Date(ts * 1000).toLocaleString('zh-CN') : '-')
+
+/**
+ * 判断付费投稿是否仍未完成支付
+ */
+const isPaidOrderUnpaid = (row: any) => {
+    return Number(row?.payAmount || 0) > 0 && !['paid', 'free'].includes(String(row?.payStatus || ''))
+}
+
+/**
+ * 格式化分类选项，保留父级 ID 线索便于运营辨认。
+ */
+const formatCategoryOptionLabel = (item: any) => {
+    const parentId = Number(item?.parentId || 0)
+    return parentId > 0 ? `${item.name}（父级#${parentId}）` : String(item?.name || '')
+}
+
+/**
+ * 加载审核分类选项
+ */
+const loadCategoryOptions = async () => {
+    const result = await request.get({ url: '/uied/category/all' })
+    const list = Array.isArray(result) ? result : result?.lists || []
+    categoryOptions.value = list
+        .map((item: any) => ({
+            id: Number(item?.id || 0),
+            name: String(item?.name || '').trim(),
+            parentId: Number(item?.parentId || 0)
+        }))
+        .filter((item: any) => item.id && item.name)
+}
 
 /**
  * 打开站点设置中的投稿与支付配置标签
@@ -311,11 +503,15 @@ const handleReconcilePayOrders = async (defaultOrderNo = '') => {
         }
         if (!orderNo) {
             try {
-                const limitRes: any = await feedback.prompt('请输入批量扫描数量（1-100）', '手动补单', {
-                    inputValue: '20',
-                    inputPattern: /^(100|[1-9]?\d)$/,
-                    inputErrorMessage: '请输入 1-100 的整数'
-                })
+                const limitRes: any = await feedback.prompt(
+                    '请输入批量扫描数量（1-100）',
+                    '手动补单',
+                    {
+                        inputValue: '20',
+                        inputPattern: /^(100|[1-9]?\d)$/,
+                        inputErrorMessage: '请输入 1-100 的整数'
+                    }
+                )
                 limit = Math.max(1, Math.min(100, Number(limitRes?.value || 20)))
             } catch (error) {
                 return
@@ -344,16 +540,72 @@ const handleView = (row: any) => {
 }
 
 /**
- * 审核通过提交
+ * 打开审核通过弹窗，要求运营明确选择前台分类。
  */
-const handleApprove = async (row: any) => {
+const handleOpenApprove = async (row: any) => {
+    if (isPaidOrderUnpaid(row)) {
+        feedback.msgWarning('该投稿订单未支付，请先补单或确认支付后再审核')
+        return
+    }
+    currentApproveRow.value = row
+    approveForm.categoryId = row.categoryId ? Number(row.categoryId) : undefined
+    if (categoryOptions.value.length === 0) {
+        await loadCategoryOptions()
+    }
+    showApprove.value = true
+}
+
+/**
+ * 确认审核通过并写入分类，后端会再次拦截未支付订单。
+ */
+const confirmApprove = async () => {
+    const row = currentApproveRow.value
+    if (!row?.id) {
+        feedback.msgWarning('提交记录不存在，请刷新后重试')
+        return
+    }
+    if (!approveForm.categoryId) {
+        feedback.msgWarning('请选择审核分类')
+        return
+    }
+    if (isPaidOrderUnpaid(row)) {
+        feedback.msgWarning('该投稿订单未支付，请先补单或确认支付后再审核')
+        return
+    }
+    approveLoading.value = true
     try {
-        await feedback.confirm('确定通过该提交吗？')
+        await request.post({
+            url: '/uied/submission/approve',
+            params: { id: row.id, categoryId: approveForm.categoryId }
+        })
+        feedback.msgSuccess('审核通过')
+        showApprove.value = false
+        getLists()
+    } finally {
+        approveLoading.value = false
+    }
+}
+
+/**
+ * 人工标记履约完成，适用于 Banner 排期或线下服务处理完毕后的收口。
+ */
+const handleFulfill = async (row: any) => {
+    if (isPaidOrderUnpaid(row)) {
+        feedback.msgWarning('该投稿订单未支付，不能标记履约')
+        return
+    }
+    let note = '人工确认服务已履约'
+    try {
+        const promptRes: any = await feedback.prompt('请输入履约备注', '标记履约', {
+            inputValue: note,
+            inputPlaceholder: '例如：Banner 已排期上线 / 置顶已确认'
+        })
+        note = String(promptRes?.value || '').trim() || note
     } catch (error) {
         return
     }
-    await request.post({ url: '/uied/submission/approve', params: { id: row.id } })
-    feedback.msgSuccess('审核通过')
+    await request.post({ url: '/uied/submission/fulfill', params: { id: row.id, note } })
+    feedback.msgSuccess('已标记履约完成')
     getLists()
 }
 
@@ -403,5 +655,6 @@ const handleDelete = async (id: number) => {
     getLists()
 }
 
+loadCategoryOptions().catch(() => {})
 getLists()
 </script>

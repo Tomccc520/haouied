@@ -133,14 +133,14 @@
                                 placeholder="移动端折叠区域展示的简短文案"
                             />
                         </el-form-item>
-                        <el-divider content-position="left">提交网站按钮</el-divider>
+                        <el-divider content-position="left">网站收录按钮</el-divider>
                         <el-form-item label="显示按钮">
                             <el-switch v-model="footerAboutData.showSubmitButton" />
                         </el-form-item>
                         <el-form-item label="按钮文字" v-if="footerAboutData.showSubmitButton">
                             <el-input
                                 v-model="footerAboutData.submitButtonText"
-                                placeholder="例如：提交网站"
+                                placeholder="例如：网站收录"
                             />
                         </el-form-item>
                         <el-form-item label="按钮链接" v-if="footerAboutData.showSubmitButton">
@@ -151,6 +151,26 @@
                         </el-form-item>
                         <el-form-item label="新窗口打开" v-if="footerAboutData.showSubmitButton">
                             <el-switch v-model="footerAboutData.submitButtonNewWindow" />
+                        </el-form-item>
+
+                        <el-divider content-position="left">收录与增值服务按钮</el-divider>
+                        <el-form-item label="显示按钮">
+                            <el-switch v-model="footerAboutData.showServiceButton" />
+                        </el-form-item>
+                        <el-form-item label="按钮文字" v-if="footerAboutData.showServiceButton">
+                            <el-input
+                                v-model="footerAboutData.serviceButtonText"
+                                placeholder="例如：收录与增值服务"
+                            />
+                        </el-form-item>
+                        <el-form-item label="按钮链接" v-if="footerAboutData.showServiceButton">
+                            <el-input
+                                v-model="footerAboutData.serviceButtonUrl"
+                                placeholder="/submit/services 或 https://example.com/services"
+                            />
+                        </el-form-item>
+                        <el-form-item label="新窗口打开" v-if="footerAboutData.showServiceButton">
+                            <el-switch v-model="footerAboutData.serviceButtonNewWindow" />
                         </el-form-item>
 
                         <el-divider content-position="left">更新记录按钮</el-divider>
@@ -169,10 +189,7 @@
                                 placeholder="/changelog 或 https://example.com/changelog"
                             />
                         </el-form-item>
-                        <el-form-item
-                            label="新窗口打开"
-                            v-if="footerAboutData.showChangelogButton"
-                        >
+                        <el-form-item label="新窗口打开" v-if="footerAboutData.showChangelogButton">
                             <el-switch v-model="footerAboutData.changelogButtonNewWindow" />
                         </el-form-item>
 
@@ -392,9 +409,13 @@ const getDefaultFooterAboutConfig = () => ({
         'UIED设计导航汇集优质设计工具与资源，涵盖UI/UX设计、平面设计、AI设计工具、三维设计等多个领域。提供Figma、Sketch、Adobe等专业设计软件资源，包含设计灵感、素材库、配色工具、字体资源、图标库等。为设计师提供一站式设计工具导航服务，助力提升设计效率与创作灵感。',
     mobileDescription: 'UIED设计导航汇集优质设计工具与资源，为设计师提供一站式工具导航服务',
     showSubmitButton: true,
-    submitButtonText: '提交网站',
+    submitButtonText: '网站收录',
     submitButtonUrl: '/submit',
-    submitButtonNewWindow: true,
+    submitButtonNewWindow: false,
+    showServiceButton: true,
+    serviceButtonText: '收录与增值服务',
+    serviceButtonUrl: '/submit/services',
+    serviceButtonNewWindow: false,
     showChangelogButton: true,
     changelogButtonText: '更新记录',
     changelogButtonUrl: '/changelog',
@@ -466,6 +487,10 @@ const handleSaveFooterAbout = async () => {
             submitButtonText: String(footerAboutData.submitButtonText || '').trim(),
             submitButtonUrl: String(footerAboutData.submitButtonUrl || '').trim(),
             submitButtonNewWindow: Boolean(footerAboutData.submitButtonNewWindow),
+            showServiceButton: Boolean(footerAboutData.showServiceButton),
+            serviceButtonText: String(footerAboutData.serviceButtonText || '').trim(),
+            serviceButtonUrl: String(footerAboutData.serviceButtonUrl || '').trim(),
+            serviceButtonNewWindow: Boolean(footerAboutData.serviceButtonNewWindow),
             showChangelogButton: Boolean(footerAboutData.showChangelogButton),
             changelogButtonText: String(footerAboutData.changelogButtonText || '').trim(),
             changelogButtonUrl: String(footerAboutData.changelogButtonUrl || '').trim(),

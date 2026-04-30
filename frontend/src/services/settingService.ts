@@ -59,6 +59,10 @@ export interface FooterAboutConfig {
   submitButtonText: string;
   submitButtonUrl: string;
   submitButtonNewWindow: boolean;
+  showServiceButton: boolean;
+  serviceButtonText: string;
+  serviceButtonUrl: string;
+  serviceButtonNewWindow: boolean;
   showChangelogButton: boolean;
   changelogButtonText: string;
   changelogButtonUrl: string;
@@ -97,13 +101,48 @@ export const settingService = {
       showSubmitButton: true,
       submitButtonText: '网站收录',
       submitButtonUrl: '/submit',
-      submitButtonNewWindow: true,
+      submitButtonNewWindow: false,
+      showServiceButton: true,
+      serviceButtonText: '收录与增值服务',
+      serviceButtonUrl: '/submit/services',
+      serviceButtonNewWindow: false,
       showChangelogButton: true,
       changelogButtonText: '更新记录',
       changelogButtonUrl: '/changelog',
       changelogButtonNewWindow: true,
     };
-    return unwrapApiResponse<FooterAboutConfig>(response.data, fallback);
+    const data = unwrapApiResponse<Partial<FooterAboutConfig>>(response.data, fallback);
+    const normalizeText = (value: unknown, fallbackValue: string) => {
+      const text = String(value ?? '').trim();
+      return text || fallbackValue;
+    };
+    const normalizeBoolean = (value: unknown, fallbackValue: boolean) => {
+      if (value === undefined || value === null || value === '') return fallbackValue;
+      if (typeof value === 'boolean') return value;
+      const text = String(value).trim().toLowerCase();
+      if ([ '1', 'true', 'yes', 'on' ].includes(text)) return true;
+      if ([ '0', 'false', 'no', 'off' ].includes(text)) return false;
+      return fallbackValue;
+    };
+    return {
+      ...fallback,
+      ...data,
+      aboutTitle: normalizeText(data.aboutTitle, fallback.aboutTitle),
+      aboutDescription: normalizeText(data.aboutDescription, fallback.aboutDescription),
+      mobileDescription: normalizeText(data.mobileDescription, fallback.mobileDescription),
+      showSubmitButton: normalizeBoolean(data.showSubmitButton, fallback.showSubmitButton),
+      submitButtonText: normalizeText(data.submitButtonText, fallback.submitButtonText),
+      submitButtonUrl: normalizeText(data.submitButtonUrl, fallback.submitButtonUrl),
+      submitButtonNewWindow: normalizeBoolean(data.submitButtonNewWindow, fallback.submitButtonNewWindow),
+      showServiceButton: normalizeBoolean(data.showServiceButton, fallback.showServiceButton),
+      serviceButtonText: normalizeText(data.serviceButtonText, fallback.serviceButtonText),
+      serviceButtonUrl: normalizeText(data.serviceButtonUrl, fallback.serviceButtonUrl),
+      serviceButtonNewWindow: normalizeBoolean(data.serviceButtonNewWindow, fallback.serviceButtonNewWindow),
+      showChangelogButton: normalizeBoolean(data.showChangelogButton, fallback.showChangelogButton),
+      changelogButtonText: normalizeText(data.changelogButtonText, fallback.changelogButtonText),
+      changelogButtonUrl: normalizeText(data.changelogButtonUrl, fallback.changelogButtonUrl),
+      changelogButtonNewWindow: normalizeBoolean(data.changelogButtonNewWindow, fallback.changelogButtonNewWindow),
+    };
   },
 
   // 获取友情链接
