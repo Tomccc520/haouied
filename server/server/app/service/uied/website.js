@@ -266,6 +266,73 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 将日期转换为网站点击日统计表使用的 YYYYMMDD 数字格式。
+   * @param {Date} date 日期对象
+   * @return {number} 统计日期
+   */
+  buildWebsiteClickMetricDate(date = new Date()) {
+    return Number.parseInt(
+      `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`,
+      10
+    );
+  }
+
+  /**
+   * 获取网站自动点击汇总，来自前台/后台点击埋点的按日聚合数据。
+   * @param {number|string} websiteId 网站ID
+   * @return {Promise<{currentMonthClicks:number,recent30DayClicks:number,recent7DayClicks:number}>} 点击汇总
+   */
+  async getWebsiteClickSummary(websiteId) {
+    const { app } = this;
+    const normalizedWebsiteId = Number.parseInt(String(websiteId || 0), 10);
+    if (!Number.isInteger(normalizedWebsiteId) || normalizedWebsiteId <= 0) {
+      return {
+        currentMonthClicks: 0,
+        recent30DayClicks: 0,
+        recent7DayClicks: 0,
+      };
+    }
+    await this.ensureWebsiteClickDailyTable();
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const recent30Start = new Date(now);
+    recent30Start.setDate(now.getDate() - 29);
+    const recent7Start = new Date(now);
+    recent7Start.setDate(now.getDate() - 6);
+
+    const monthStartMetricDate = this.buildWebsiteClickMetricDate(monthStart);
+    const recent30StartMetricDate = this.buildWebsiteClickMetricDate(recent30Start);
+    const recent7StartMetricDate = this.buildWebsiteClickMetricDate(recent7Start);
+    const minMetricDate = Math.min(monthStartMetricDate, recent30StartMetricDate, recent7StartMetricDate);
+
+    const [ row ] = await app.model.query(
+      `SELECT
+          COALESCE(SUM(CASE WHEN metric_date >= ? THEN click_count ELSE 0 END), 0) AS currentMonthClicks,
+          COALESCE(SUM(CASE WHEN metric_date >= ? THEN click_count ELSE 0 END), 0) AS recent30DayClicks,
+          COALESCE(SUM(CASE WHEN metric_date >= ? THEN click_count ELSE 0 END), 0) AS recent7DayClicks
+       FROM uied_website_click_daily
+       WHERE website_id = ? AND metric_date >= ?`,
+      {
+        replacements: [
+          monthStartMetricDate,
+          recent30StartMetricDate,
+          recent7StartMetricDate,
+          normalizedWebsiteId,
+          minMetricDate,
+        ],
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    return {
+      currentMonthClicks: Number(row?.currentMonthClicks || 0),
+      recent30DayClicks: Number(row?.recent30DayClicks || 0),
+      recent7DayClicks: Number(row?.recent7DayClicks || 0),
+    };
+  }
+
+  /**
    * 保存网站与分类的关联关系（全量覆盖）。
    * @param {number} websiteId 网站ID
    * @param {number[]} categoryIds 分类ID列表
@@ -1181,10 +1248,20 @@ class WebsiteService extends Service {
     if (!website) return null;
 
     let trafficMetrics = null;
+    let clickMetrics = {
+      currentMonthClicks: 0,
+      recent30DayClicks: 0,
+      recent7DayClicks: 0,
+    };
     try {
       trafficMetrics = await this.ctx.service.uied.websiteTrafficMetric.getByWebsiteId(website.id);
     } catch (error) {
       this.ctx.logger.warn('[uied.website.detail] 获取网站访问数据失败，忽略:', error.message);
+    }
+    try {
+      clickMetrics = await this.getWebsiteClickSummary(website.id);
+    } catch (error) {
+      this.ctx.logger.warn('[uied.website.detail] 获取网站点击汇总失败，忽略:', error.message);
     }
 
     // 转换字段名和类型
@@ -1222,6 +1299,7 @@ class WebsiteService extends Service {
       thumbnail: website.thumbnail,
       visitBtnText: website.visit_btn_text,
       trafficMetrics,
+      clickMetrics,
       status: normalizedStatus,
       statusReason: String(website.status_message || website.check_error || '').trim(),
       lastCheckedAt: (() => {

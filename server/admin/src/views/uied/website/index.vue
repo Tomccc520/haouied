@@ -31,8 +31,10 @@
                     <el-select
                         class="w-[200px]"
                         v-model="queryParams.categoryId"
+                        filterable
                         clearable
-                        placeholder="全部分类"
+                        placeholder="搜索/选择分类"
+                        no-data-text="未匹配到分类"
                         @change="resetPage"
                     >
                         <el-option
@@ -409,111 +411,148 @@
         <el-drawer
             v-model="websiteDetailDrawerVisible"
             title="网站详情与点击数据"
-            size="720px"
+            class="website-detail-drawer"
+            size="900px"
             destroy-on-close
         >
             <el-skeleton v-if="websiteDetailDrawerLoading" :rows="10" animated />
             <template v-else-if="websiteDetailData">
-                <el-descriptions :column="2" border>
-                    <el-descriptions-item label="网站ID">
-                        {{ websiteDetailData.id || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="网站名称">
-                        {{ websiteDetailData.name || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="固定链接">
-                        {{ websiteDetailData.slug || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="状态">
-                        <el-tag :type="getWebsiteStatusTagType(websiteDetailData.status)" size="small">
-                            {{ getWebsiteStatusLabel(websiteDetailData.status) }}
-                        </el-tag>
-                    </el-descriptions-item>
-                    <el-descriptions-item label="分类" :span="2">
-                        {{ getDetailCategoryText(websiteDetailData) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="网站URL" :span="2">
-                        <a
-                            :href="websiteDetailData.url"
-                            target="_blank"
-                            class="text-primary hover:underline"
-                            @click.prevent="handleOpenWebsiteUrl(websiteDetailData)"
-                        >
-                            {{ websiteDetailData.url || '-' }}
-                        </a>
-                    </el-descriptions-item>
-                    <el-descriptions-item label="前端路径">
-                        {{ getFrontendPath(websiteDetailData) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="前端访问">
-                        <a
-                            :href="getFrontendUrl(websiteDetailData)"
-                            target="_blank"
-                            class="text-primary hover:underline"
-                            @click.prevent="handleOpenFrontendLink(websiteDetailData)"
-                        >
-                            打开页面
-                        </a>
-                    </el-descriptions-item>
-                    <el-descriptions-item label="创建时间">
-                        {{ formatUnixDateTime(websiteDetailData.createdAt) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="更新时间">
-                        {{ formatUnixDateTime(websiteDetailData.updatedAt) }}
-                    </el-descriptions-item>
-                </el-descriptions>
+                <div class="website-detail-panel">
+                    <section class="website-detail-hero">
+                        <div class="website-detail-hero__content">
+                            <div class="website-detail-hero__eyebrow">
+                                WEBSITE #{{ websiteDetailData.id || '-' }}
+                            </div>
+                            <h2 class="website-detail-hero__title">
+                                {{ websiteDetailData.name || '未命名网站' }}
+                            </h2>
+                            <div class="website-detail-hero__meta">
+                                <el-tag :type="getWebsiteStatusTagType(websiteDetailData.status)" effect="dark">
+                                    {{ getWebsiteStatusLabel(websiteDetailData.status) }}
+                                </el-tag>
+                                <span>{{ getDetailCategoryText(websiteDetailData) }}</span>
+                                <span>固定链接：{{ websiteDetailData.slug || '-' }}</span>
+                            </div>
+                        </div>
+                        <div class="website-detail-hero__actions">
+                            <el-button type="primary" @click="handleOpenFrontendLink(websiteDetailData)">
+                                打开前端页
+                            </el-button>
+                            <el-button plain @click="handleOpenWebsiteUrl(websiteDetailData)">
+                                访问原站
+                            </el-button>
+                        </div>
+                    </section>
 
-                <el-divider content-position="left">点击与流量</el-divider>
-                <el-descriptions :column="2" border>
-                    <el-descriptions-item label="总点击量">
-                        {{ formatIntegerCount(websiteDetailData.clickCount) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="月访问量">
-                        {{ formatIntegerCount(websiteDetailData.trafficMetrics?.monthlyVisits) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="平均访问时长">
-                        {{ formatDurationLabel(websiteDetailData.trafficMetrics?.avgVisitDurationSeconds) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="每次访问页数">
-                        {{ formatFloatValue(websiteDetailData.trafficMetrics?.pagesPerVisit) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="跳出率">
-                        {{ formatPercentValue(websiteDetailData.trafficMetrics?.bounceRate) }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="数据来源">
-                        {{ websiteDetailData.trafficMetrics?.dataSource || '-' }}
-                    </el-descriptions-item>
-                </el-descriptions>
+                    <section class="website-detail-link-card">
+                        <div class="website-detail-link-card__item">
+                            <span>网站 URL</span>
+                            <a
+                                :href="websiteDetailData.url"
+                                target="_blank"
+                                @click.prevent="handleOpenWebsiteUrl(websiteDetailData)"
+                            >
+                                {{ websiteDetailData.url || '-' }}
+                            </a>
+                        </div>
+                        <div class="website-detail-link-card__item">
+                            <span>前端路径</span>
+                            <a
+                                :href="getFrontendUrl(websiteDetailData)"
+                                target="_blank"
+                                @click.prevent="handleOpenFrontendLink(websiteDetailData)"
+                            >
+                                {{ getFrontendPath(websiteDetailData) }}
+                            </a>
+                        </div>
+                        <div class="website-detail-link-card__time">
+                            创建：{{ formatUnixDateTime(websiteDetailData.createdAt) }}
+                            <br />
+                            更新：{{ formatUnixDateTime(websiteDetailData.updatedAt) }}
+                        </div>
+                    </section>
 
-                <el-divider content-position="left">来源占比</el-divider>
-                <el-descriptions :column="2" border>
-                    <el-descriptions-item
-                        v-for="sourceItem in resolveTrafficSourceItems(websiteDetailData.trafficMetrics?.sourceBreakdown)"
-                        :key="sourceItem.key"
-                        :label="sourceItem.label"
-                    >
-                        {{ sourceItem.value }}
-                    </el-descriptions-item>
-                </el-descriptions>
+                    <section class="website-detail-section">
+                        <div class="website-detail-section__head">
+                            <div>
+                                <h3>点击与流量</h3>
+                                <p>点击量为系统自动埋点；访问时长、跳出率与来源占比为后台录入数据。</p>
+                            </div>
+                            <el-tag effect="plain" type="success">自动点击 + 手动流量</el-tag>
+                        </div>
+                        <div class="website-metric-grid">
+                            <div
+                                v-for="metric in getWebsiteDetailMetricCards(websiteDetailData)"
+                                :key="metric.key"
+                                class="website-metric-card"
+                                :class="`website-metric-card--${metric.tone}`"
+                            >
+                                <span class="website-metric-card__label">{{ metric.label }}</span>
+                                <strong>{{ metric.value }}</strong>
+                                <small>{{ metric.helper }}</small>
+                            </div>
+                        </div>
+                    </section>
 
-                <el-divider content-position="left">SEO 与正文</el-divider>
-                <el-descriptions :column="1" border>
-                    <el-descriptions-item label="SEO 标题">
-                        {{ websiteDetailData.seoTitle || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="SEO 描述">
-                        {{ websiteDetailData.seoDescription || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="SEO 关键词">
-                        {{ websiteDetailData.seoKeywords || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="简介描述">
-                        {{ websiteDetailData.description || '-' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item label="正文长度">
-                        {{ getDetailContentLengthLabel(websiteDetailData.detailContent) }}
-                    </el-descriptions-item>
-                </el-descriptions>
+                    <section class="website-detail-section">
+                        <div class="website-detail-section__head">
+                            <div>
+                                <h3>来源占比</h3>
+                                <p>
+                                    {{ hasTrafficMetricData(websiteDetailData.trafficMetrics)
+                                        ? '展示后台录入或第三方估算的渠道百分比。'
+                                        : '暂未录入来源占比，官网真实来源需要接入独立统计脚本。' }}
+                                </p>
+                            </div>
+                            <el-tag :type="getTrafficDataSourceTagType(websiteDetailData.trafficMetrics)" effect="plain">
+                                {{ getTrafficDataSourceLabel(websiteDetailData.trafficMetrics) }}
+                            </el-tag>
+                        </div>
+                        <div class="website-source-list">
+                            <div
+                                v-for="sourceItem in resolveTrafficSourceItems(websiteDetailData.trafficMetrics?.sourceBreakdown)"
+                                :key="sourceItem.key"
+                                class="website-source-list__row"
+                            >
+                                <div class="website-source-list__label">
+                                    <span>{{ sourceItem.label }}</span>
+                                    <strong>{{ sourceItem.value }}</strong>
+                                </div>
+                                <el-progress
+                                    :percentage="sourceItem.percent"
+                                    :stroke-width="8"
+                                    :show-text="false"
+                                    :color="sourceItem.color"
+                                />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="website-detail-section website-detail-section--two">
+                        <div class="website-seo-card">
+                            <h3>SEO 信息</h3>
+                            <dl>
+                                <dt>SEO 标题</dt>
+                                <dd>{{ websiteDetailData.seoTitle || '-' }}</dd>
+                                <dt>SEO 描述</dt>
+                                <dd>{{ websiteDetailData.seoDescription || '-' }}</dd>
+                                <dt>SEO 关键词</dt>
+                                <dd>{{ websiteDetailData.seoKeywords || '-' }}</dd>
+                            </dl>
+                        </div>
+                        <div class="website-seo-card">
+                            <h3>内容完整度</h3>
+                            <dl>
+                                <dt>简介描述</dt>
+                                <dd>{{ websiteDetailData.description || '-' }}</dd>
+                                <dt>正文长度</dt>
+                                <dd>{{ getDetailContentLengthLabel(websiteDetailData.detailContent) }}</dd>
+                                <dt>数据备注</dt>
+                                <dd>{{ websiteDetailData.trafficMetrics?.remark || '-' }}</dd>
+                            </dl>
+                        </div>
+                    </section>
+                </div>
             </template>
             <el-empty v-else description="暂无网站详情数据" />
         </el-drawer>
@@ -611,7 +650,9 @@
                     <el-form-item label="主分类" required>
                         <el-select
                             v-model="batchImportForm.primaryCategoryId"
-                            placeholder="请选择主分类"
+                            placeholder="搜索/选择主分类"
+                            filterable
+                            no-data-text="暂无已选分类"
                             :disabled="
                                 selectedBatchImportCategoryOptions.length === 0 || batchImportLoading
                             "
@@ -877,10 +918,12 @@
                         class="ml-3 w-[420px]"
                         multiple
                         filterable
+                        :reserve-keyword="false"
                         clearable
                         collapse-tags
                         collapse-tags-tooltip
-                        placeholder="选择目标分类（第一项为主分类）"
+                        placeholder="搜索/选择目标分类（第一项为主分类）"
+                        no-data-text="未匹配到分类"
                         :disabled="!batchMoveForm.applyCategory || batchMoveLoading"
                     >
                         <el-option
@@ -1054,6 +1097,16 @@ const formatIntegerCount = (value: unknown): string => {
 }
 
 /**
+ * 格式化可选整数统计值，未录入数据不强行显示 0。
+ */
+const formatOptionalIntegerCount = (value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '-'
+    const parsed = Number.parseInt(String(value), 10)
+    if (!Number.isFinite(parsed) || parsed < 0) return '-'
+    return parsed.toLocaleString('zh-CN')
+}
+
+/**
  * 格式化时间戳（秒/毫秒）为中文日期时间文本。
  */
 const formatUnixDateTime = (value: unknown): string => {
@@ -1097,6 +1150,109 @@ const formatDurationLabel = (seconds: unknown): string => {
     const remainSeconds = safeSeconds % 60
     if (minutes <= 0) return `${remainSeconds} 秒`
     return `${minutes} 分 ${remainSeconds} 秒`
+}
+
+/**
+ * 判断访问数据是否已录入，用于详情看板显示数据口径。
+ */
+const hasTrafficMetricData = (trafficMetrics: any): boolean => {
+    if (!trafficMetrics || typeof trafficMetrics !== 'object') return false
+    const sourceBreakdown = trafficMetrics.sourceBreakdown || {}
+    const sourceTotal = Object.values(sourceBreakdown).reduce(
+        (sum: number, value: any) => sum + (Number(value) > 0 ? Number(value) : 0),
+        0
+    )
+    return [
+        trafficMetrics.monthlyVisits,
+        trafficMetrics.avgVisitDurationSeconds,
+        trafficMetrics.pagesPerVisit,
+        trafficMetrics.bounceRate
+    ].some((value) => Number(value) > 0) || sourceTotal > 0 || Boolean(String(trafficMetrics.remark || '').trim())
+}
+
+/**
+ * 输出访问数据来源标签文案，避免运营误认为所有指标都来自自动埋点。
+ */
+const getTrafficDataSourceLabel = (trafficMetrics: any): string => {
+    if (!hasTrafficMetricData(trafficMetrics)) return '未录入'
+    const source = String(trafficMetrics?.dataSource || 'manual').trim().toLowerCase()
+    if (source === 'api') return '第三方估算'
+    if (source === 'ops') return '运营标注'
+    return '手动录入'
+}
+
+/**
+ * 根据访问数据来源返回标签类型。
+ */
+const getTrafficDataSourceTagType = (trafficMetrics: any) => {
+    if (!hasTrafficMetricData(trafficMetrics)) return 'info'
+    const source = String(trafficMetrics?.dataSource || 'manual').trim().toLowerCase()
+    if (source === 'api') return 'warning'
+    if (source === 'ops') return 'success'
+    return ''
+}
+
+/**
+ * 从百分比字段提取数值，供进度条使用。
+ */
+const getTrafficSourcePercent = (value: unknown): number => {
+    if (value === null || value === undefined || value === '') return 0
+    const numericValue = Number(String(value).replace(/%/g, ''))
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return 0
+    return Math.min(Math.max(Number(numericValue.toFixed(2)), 0), 100)
+}
+
+/**
+ * 汇总详情抽屉 KPI 卡片数据，统一标注自动统计与手动录入口径。
+ */
+const getWebsiteDetailMetricCards = (website: any) => {
+    const clickMetrics = website?.clickMetrics || {}
+    const trafficMetrics = website?.trafficMetrics || {}
+    const trafficSourceLabel = getTrafficDataSourceLabel(trafficMetrics)
+    return [
+        {
+            key: 'total-clicks',
+            label: '总点击量',
+            value: formatIntegerCount(website?.clickCount),
+            helper: '自动埋点累计',
+            tone: 'blue'
+        },
+        {
+            key: 'month-clicks',
+            label: '本月点击',
+            value: formatIntegerCount(clickMetrics.currentMonthClicks),
+            helper: '按日点击表汇总',
+            tone: 'green'
+        },
+        {
+            key: 'recent-clicks',
+            label: '近30日点击',
+            value: formatIntegerCount(clickMetrics.recent30DayClicks),
+            helper: '自动点击趋势',
+            tone: 'orange'
+        },
+        {
+            key: 'monthly-visits',
+            label: '月访问量',
+            value: formatOptionalIntegerCount(trafficMetrics.monthlyVisits),
+            helper: `${trafficSourceLabel}数据`,
+            tone: 'violet'
+        },
+        {
+            key: 'duration',
+            label: '平均访问时长',
+            value: formatDurationLabel(trafficMetrics.avgVisitDurationSeconds),
+            helper: `${trafficSourceLabel}数据`,
+            tone: 'cyan'
+        },
+        {
+            key: 'bounce-rate',
+            label: '跳出率',
+            value: formatPercentValue(trafficMetrics.bounceRate),
+            helper: `${trafficSourceLabel}数据`,
+            tone: 'red'
+        }
+    ]
 }
 
 const queryParams = reactive({
@@ -1629,18 +1785,21 @@ const getDetailContentLengthLabel = (detailContent: unknown): string => {
  */
 const resolveTrafficSourceItems = (sourceBreakdown: any) => {
     const sourceMap = [
-        { key: 'direct', label: '直接访问' },
-        { key: 'organicSearch', label: '自然搜索' },
-        { key: 'email', label: '邮件' },
-        { key: 'referral', label: '外链推荐' },
-        { key: 'social', label: '社交媒体' },
-        { key: 'displayAds', label: '广告投放' },
-        { key: 'others', label: '其他' }
+        { key: 'direct', label: '直接访问', color: '#2563eb' },
+        { key: 'organicSearch', label: '自然搜索', color: '#16a34a' },
+        { key: 'email', label: '邮件', color: '#0891b2' },
+        { key: 'referral', label: '外链推荐', color: '#f97316' },
+        { key: 'social', label: '社交媒体', color: '#7c3aed' },
+        { key: 'displayAds', label: '广告投放', color: '#dc2626' },
+        { key: 'others', label: '其他', color: '#64748b' }
     ]
+    const sourceData = sourceBreakdown && typeof sourceBreakdown === 'object' ? sourceBreakdown : {}
     return sourceMap.map((item) => ({
         key: item.key,
         label: item.label,
-        value: formatPercentValue(sourceBreakdown?.[item.key])
+        color: item.color,
+        percent: getTrafficSourcePercent(sourceData?.[item.key]),
+        value: formatPercentValue(sourceData?.[item.key])
     }))
 }
 
@@ -2206,5 +2365,302 @@ getLists()
 
 .website-quick-filters__type-select {
     width: 170px;
+}
+
+:deep(.website-detail-drawer .el-drawer__body) {
+    padding: 0;
+    background:
+        radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.12), transparent 32%),
+        linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+}
+
+.website-detail-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px;
+}
+
+.website-detail-hero {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    overflow: hidden;
+    padding: 24px;
+    border-radius: 24px;
+    color: #ffffff;
+    background:
+        radial-gradient(circle at 85% 12%, rgba(255, 255, 255, 0.28), transparent 30%),
+        linear-gradient(135deg, #0f172a 0%, #1e3a8a 54%, #0369a1 100%);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+}
+
+.website-detail-hero::after {
+    position: absolute;
+    right: -64px;
+    bottom: -86px;
+    width: 220px;
+    height: 220px;
+    content: '';
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.website-detail-hero__content,
+.website-detail-hero__actions {
+    position: relative;
+    z-index: 1;
+}
+
+.website-detail-hero__eyebrow {
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.website-detail-hero__title {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.website-detail-hero__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-top: 16px;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.website-detail-hero__meta span {
+    padding: 5px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.website-detail-hero__actions {
+    display: flex;
+    gap: 10px;
+    white-space: nowrap;
+}
+
+.website-detail-link-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 210px;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.website-detail-link-card__item,
+.website-detail-link-card__time {
+    min-width: 0;
+}
+
+.website-detail-link-card__item span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.website-detail-link-card__item a {
+    display: block;
+    overflow: hidden;
+    font-weight: 700;
+    color: #1d4ed8;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.website-detail-link-card__time {
+    padding-left: 14px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #64748b;
+    border-left: 1px solid #e2e8f0;
+}
+
+.website-detail-section {
+    padding: 18px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.website-detail-section__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.website-detail-section__head h3,
+.website-seo-card h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.website-detail-section__head p {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.website-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.website-metric-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 124px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #f8fafc;
+}
+
+.website-metric-card::after {
+    position: absolute;
+    right: -28px;
+    bottom: -30px;
+    width: 92px;
+    height: 92px;
+    content: '';
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.1;
+}
+
+.website-metric-card__label {
+    display: block;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.website-metric-card strong {
+    display: block;
+    margin-top: 10px;
+    font-size: 28px;
+    font-weight: 850;
+    line-height: 1.1;
+    color: #0f172a;
+}
+
+.website-metric-card small {
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.website-metric-card--blue {
+    color: #2563eb;
+}
+
+.website-metric-card--green {
+    color: #16a34a;
+}
+
+.website-metric-card--orange {
+    color: #f97316;
+}
+
+.website-metric-card--violet {
+    color: #7c3aed;
+}
+
+.website-metric-card--cyan {
+    color: #0891b2;
+}
+
+.website-metric-card--red {
+    color: #dc2626;
+}
+
+.website-source-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 20px;
+}
+
+.website-source-list__label {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.website-source-list__label strong {
+    color: #0f172a;
+}
+
+.website-detail-section--two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.website-seo-card {
+    min-width: 0;
+    padding: 16px;
+    border-radius: 18px;
+    background: #f8fafc;
+}
+
+.website-seo-card dl {
+    margin: 14px 0 0;
+}
+
+.website-seo-card dt {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.website-seo-card dd {
+    margin: 4px 0 0;
+    overflow-wrap: anywhere;
+    color: #0f172a;
+}
+
+@media (max-width: 900px) {
+    .website-detail-hero,
+    .website-detail-section__head {
+        flex-direction: column;
+    }
+
+    .website-detail-link-card,
+    .website-metric-grid,
+    .website-source-list,
+    .website-detail-section--two {
+        grid-template-columns: 1fr;
+    }
+
+    .website-detail-link-card__time {
+        padding-top: 12px;
+        padding-left: 0;
+        border-top: 1px solid #e2e8f0;
+        border-left: 0;
+    }
 }
 </style>
