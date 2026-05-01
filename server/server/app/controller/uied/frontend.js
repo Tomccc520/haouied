@@ -512,7 +512,8 @@ class FrontendController extends Controller {
       ctx.body = {};
     } catch (error) {
       ctx.logger.error('记录点击失败:', error);
-      ctx.status = 500;
+      const message = String(error?.message || '记录点击失败');
+      ctx.status = message.includes('不存在') ? 404 : message.includes('无效') ? 400 : 500;
       ctx.body = { error: error.message };
     }
   }

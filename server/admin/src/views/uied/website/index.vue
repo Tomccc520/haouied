@@ -412,7 +412,7 @@
             v-model="websiteDetailDrawerVisible"
             title="网站详情与点击数据"
             class="website-detail-drawer"
-            size="900px"
+            size="min(900px, 100vw)"
             destroy-on-close
         >
             <el-skeleton v-if="websiteDetailDrawerLoading" :rows="10" animated />
@@ -508,7 +508,7 @@
                                 {{ getTrafficDataSourceLabel(websiteDetailData.trafficMetrics) }}
                             </el-tag>
                         </div>
-                        <div class="website-source-list">
+                        <div v-if="hasTrafficSourceBreakdown(websiteDetailData.trafficMetrics)" class="website-source-list">
                             <div
                                 v-for="sourceItem in resolveTrafficSourceItems(websiteDetailData.trafficMetrics?.sourceBreakdown)"
                                 :key="sourceItem.key"
@@ -526,6 +526,11 @@
                                 />
                             </div>
                         </div>
+                        <el-empty
+                            v-else
+                            :image-size="76"
+                            description="暂未录入来源占比"
+                        />
                     </section>
 
                     <section class="website-detail-section website-detail-section--two">
@@ -560,7 +565,7 @@
         <el-dialog
             v-model="batchImportDialogVisible"
             title="批量导入网址"
-            width="760px"
+            width="min(760px, calc(100vw - 24px))"
             :close-on-click-modal="!batchImportLoading"
             :close-on-press-escape="!batchImportLoading"
             :show-close="!batchImportLoading"
@@ -902,7 +907,7 @@
         <el-dialog
             v-model="batchMoveDialogVisible"
             title="批量移动网站分类/标签"
-            width="700px"
+            width="min(700px, calc(100vw - 24px))"
             destroy-on-close
         >
             <el-alert
@@ -1171,6 +1176,14 @@ const hasTrafficMetricData = (trafficMetrics: any): boolean => {
 }
 
 /**
+ * 判断来源占比是否有有效录入，避免空数据渲染一组 0% 进度条。
+ */
+const hasTrafficSourceBreakdown = (trafficMetrics: any): boolean => {
+    const sourceBreakdown = trafficMetrics?.sourceBreakdown || {}
+    return Object.values(sourceBreakdown).some((value: any) => Number(value) > 0)
+}
+
+/**
  * 输出访问数据来源标签文案，避免运营误认为所有指标都来自自动埋点。
  */
 const getTrafficDataSourceLabel = (trafficMetrics: any): string => {
@@ -1209,6 +1222,14 @@ const getWebsiteDetailMetricCards = (website: any) => {
     const clickMetrics = website?.clickMetrics || {}
     const trafficMetrics = website?.trafficMetrics || {}
     const trafficSourceLabel = getTrafficDataSourceLabel(trafficMetrics)
+    const hasDailyClickMetrics = clickMetrics.hasRecentDailyMetrics !== false
+    const historicalTotalClicks = formatIntegerCount(
+        clickMetrics.historicalTotalClicks ?? website?.clickCount
+    )
+    const dailyClickFallbackHelper =
+        Number(clickMetrics.historicalTotalClicks ?? website?.clickCount ?? 0) > 0
+            ? `旧数据无日统计，历史累计 ${historicalTotalClicks}`
+            : '暂无日统计'
     return [
         {
             key: 'total-clicks',
@@ -1220,15 +1241,15 @@ const getWebsiteDetailMetricCards = (website: any) => {
         {
             key: 'month-clicks',
             label: '本月点击',
-            value: formatIntegerCount(clickMetrics.currentMonthClicks),
-            helper: '按日点击表汇总',
+            value: hasDailyClickMetrics ? formatIntegerCount(clickMetrics.currentMonthClicks) : '-',
+            helper: hasDailyClickMetrics ? '按日点击表汇总' : dailyClickFallbackHelper,
             tone: 'green'
         },
         {
             key: 'recent-clicks',
             label: '近30日点击',
-            value: formatIntegerCount(clickMetrics.recent30DayClicks),
-            helper: '自动点击趋势',
+            value: hasDailyClickMetrics ? formatIntegerCount(clickMetrics.recent30DayClicks) : '-',
+            helper: hasDailyClickMetrics ? '自动点击趋势' : dailyClickFallbackHelper,
             tone: 'orange'
         },
         {
@@ -1533,13 +1554,19 @@ const handleBatchImportSelectAllFiltered = (onlyLeaf: boolean) => {
         .filter((item: any) => !onlyLeaf || leafCategoryIdSet.value.has(Number(item?.id || 0)))
         .map((item: any) => Number(item?.id || 0))
         .filter((item: number) => Number.isInteger(item) && item > 0)
-    const normalized = Array.from(new Set(candidates))
-    batchImportForm.categoryIds = normalized
-    if (normalized.length === 0) {
+    if (candidates.length === 0) {
         feedback.msgWarning(onlyLeaf ? '当前筛选结果没有末级分类可选' : '当前筛选结果没有可选分类')
         return
     }
-    feedback.msgSuccess(onlyLeaf ? `已选择 ${normalized.length} 个末级分类` : `已选择 ${normalized.length} 个分类`)
+    const previous = normalizeCategoryIdSelection(batchImportForm.categoryIds)
+    const normalized = Array.from(new Set([ ...previous, ...candidates ]))
+    batchImportForm.categoryIds = normalized
+    const addedCount = normalized.length - previous.length
+    feedback.msgSuccess(
+        onlyLeaf
+            ? `已追加 ${addedCount} 个末级分类，当前共 ${normalized.length} 个`
+            : `已追加 ${addedCount} 个分类，当前共 ${normalized.length} 个`
+    )
 }
 
 /**
@@ -1572,6 +1599,14 @@ const normalizeSearchKeyword = (value: unknown): string =>
         .replace(/\s+/g, ' ')
 
 /**
+ * 规范化分类父级 ID，兼容历史数据中的 0、null、undefined 根节点写法。
+ */
+const normalizeCategoryParentId = (value: unknown): number | null => {
+    const parentId = Number.parseInt(String(value ?? 0), 10)
+    return Number.isInteger(parentId) && parentId > 0 ? parentId : null
+}
+
+/**
  * 构建带层级缩进的分类下拉选项，便于后台筛选父子分类
  */
 const buildCategoryOptions = (categories: any[]) => {
@@ -1584,7 +1619,7 @@ const buildCategoryOptions = (categories: any[]) => {
 
     categories.forEach((item) => {
         nodeMap.set(item.id, item)
-        const parentId = item.parentId ?? null
+        const parentId = normalizeCategoryParentId(item.parentId)
         if (!parentMap.has(parentId)) parentMap.set(parentId, [])
         parentMap.get(parentId)?.push(item)
     })
@@ -1598,7 +1633,7 @@ const buildCategoryOptions = (categories: any[]) => {
         const current = nodeMap.get(categoryId)
         if (!current) return ''
         if (depth > categories.length + 2) return String(current.name || '')
-        const parentId = current.parentId ?? null
+        const parentId = normalizeCategoryParentId(current.parentId)
         const currentName = String(current.name || '')
         const pathLabel =
             parentId && nodeMap.has(parentId)
@@ -1640,12 +1675,12 @@ const buildCategoryOptions = (categories: any[]) => {
     }
 
     walk(null, 0)
-    walk(undefined, 0)
 
     // 兜底：异常 parentId 数据仍然可选，避免后台无法筛选
     categories.forEach((item) => {
         if (visited.has(item.id)) return
-        const hasParent = item.parentId && nodeMap.has(item.parentId)
+        const parentId = normalizeCategoryParentId(item.parentId)
+        const hasParent = parentId && nodeMap.has(parentId)
         options.push(createOptionItem(item, 0, Boolean(hasParent)))
     })
 
@@ -1759,6 +1794,7 @@ const handleSelectionChange = (rows: any[]) => {
 const websiteDetailDrawerVisible = ref(false)
 const websiteDetailDrawerLoading = ref(false)
 const websiteDetailData = ref<any | null>(null)
+let websiteDetailRequestSerial = 0
 
 /**
  * 汇总站点详情分类文案，便于抽屉内集中展示。
@@ -1807,16 +1843,20 @@ const resolveTrafficSourceItems = (sourceBreakdown: any) => {
  * 打开网站详情侧边抽屉并拉取后端完整数据。
  */
 const handleOpenDetailDrawer = async (row: any) => {
+    const requestSerial = ++websiteDetailRequestSerial
     websiteDetailDrawerVisible.value = true
     websiteDetailDrawerLoading.value = true
     websiteDetailData.value = null
     try {
         const detailRes = await uiedWebsiteDetail({ id: row.id })
+        if (requestSerial !== websiteDetailRequestSerial) return
         websiteDetailData.value = detailRes || row || null
     } catch (error: any) {
+        if (requestSerial !== websiteDetailRequestSerial) return
         feedback.msgError(error?.msg || error?.message || '获取网站详情失败')
         websiteDetailData.value = row || null
     } finally {
+        if (requestSerial !== websiteDetailRequestSerial) return
         websiteDetailDrawerLoading.value = false
     }
 }

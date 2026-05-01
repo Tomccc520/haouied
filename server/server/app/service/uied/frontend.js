@@ -89,18 +89,23 @@ class FrontendService extends Service {
 
   /**
    * 计算“最近 N 天”起始日期（YYYYMMDD）。
+   * 统一使用 Asia/Shanghai，避免生产机时区不同导致热门标签窗口偏移。
    * @param {number} windowDays 窗口天数
    * @return {number}
    */
   resolveMetricDateLowerBound(windowDays = 7) {
     const safeWindowDays = this.normalizeHotSearchNumber(windowDays, 7, 1, 30);
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - (safeWindowDays - 1));
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return Number.parseInt(`${yyyy}${mm}${dd}`, 10);
+    const date = new Date(Date.now() - (safeWindowDays - 1) * 86400000);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date).reduce((result, item) => {
+      if (item.type !== 'literal') result[item.type] = item.value;
+      return result;
+    }, {});
+    return Number.parseInt(`${parts.year}${parts.month}${parts.day}`, 10);
   }
 
   /**
@@ -189,8 +194,9 @@ class FrontendService extends Service {
    * 确保网站点击日表存在（用于热门搜索标签的 7 天窗口统计）。
    */
   async ensureWebsiteClickDailyTable() {
-    if (this._websiteClickDailyTableReady) return;
     const { app } = this;
+    const cacheKey = '__uiedWebsiteClickDailyTableReady__';
+    if (app[cacheKey] === true) return;
     await app.model.query(
       `CREATE TABLE IF NOT EXISTS \`uied_website_click_daily\` (
         \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -206,7 +212,7 @@ class FrontendService extends Service {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站点击日统计表'`,
       { type: app.Sequelize.QueryTypes.RAW }
     );
-    this._websiteClickDailyTableReady = true;
+    app[cacheKey] = true;
   }
 
   /**

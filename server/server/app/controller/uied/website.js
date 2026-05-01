@@ -399,7 +399,8 @@ class WebsiteController extends baseController {
   async click() {
     const { ctx } = this;
     try {
-      const { id } = ctx.request.body;
+      const source = ctx.request.method === 'GET' ? (ctx.query || {}) : (ctx.request.body || {});
+      const { id } = source;
       if (!id) {
         return this.result({ code: 400, message: '缺少网站ID' });
       }
@@ -407,6 +408,10 @@ class WebsiteController extends baseController {
       this.result({ message: '成功' });
     } catch (error) {
       ctx.logger.error('增加点击次数失败:', error);
+      const message = String(error?.message || '').trim();
+      if (message.includes('无效') || message.includes('不存在')) {
+        return this.result({ code: 400, message });
+      }
       this.result({ code: 500, message: '操作失败' });
     }
   }

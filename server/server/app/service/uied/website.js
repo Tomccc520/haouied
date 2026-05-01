@@ -219,8 +219,9 @@ class WebsiteService extends Service {
    * 确保网站点击日统计表存在（用于热门搜索标签 7 天热度计算）。
    */
   async ensureWebsiteClickDailyTable() {
-    if (this._websiteClickDailyTableReady) return;
     const { app } = this;
+    const cacheKey = '__uiedWebsiteClickDailyTableReady__';
+    if (app[cacheKey] === true) return;
     await app.model.query(
       `CREATE TABLE IF NOT EXISTS \`uied_website_click_daily\` (
         \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -236,7 +237,7 @@ class WebsiteService extends Service {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站点击日统计表'`,
       { type: app.Sequelize.QueryTypes.RAW }
     );
-    this._websiteClickDailyTableReady = true;
+    app[cacheKey] = true;
   }
 
   /**
@@ -249,11 +250,7 @@ class WebsiteService extends Service {
     if (!Number.isInteger(normalizedWebsiteId) || normalizedWebsiteId <= 0) return;
     await this.ensureWebsiteClickDailyTable();
     const now = Math.floor(Date.now() / 1000);
-    const date = new Date();
-    const metricDate = Number.parseInt(
-      `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`,
-      10
-    );
+    const metricDate = this.buildWebsiteClickMetricDate(new Date());
     await app.model.query(
       `INSERT INTO uied_website_click_daily (website_id, metric_date, click_count, create_time, update_time)
        VALUES (?, ?, 1, ?, ?)
@@ -267,47 +264,73 @@ class WebsiteService extends Service {
 
   /**
    * 将日期转换为网站点击日统计表使用的 YYYYMMDD 数字格式。
+   * 统一使用 Asia/Shanghai，避免服务器时区差异造成统计边界漂移。
    * @param {Date} date 日期对象
    * @return {number} 统计日期
    */
   buildWebsiteClickMetricDate(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date).reduce((result, item) => {
+      if (item.type !== 'literal') result[item.type] = item.value;
+      return result;
+    }, {});
     return Number.parseInt(
-      `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`,
+      `${parts.year}${parts.month}${parts.day}`,
       10
     );
   }
 
   /**
+   * 基于北京时间生成偏移后的统计日期。
+   * @param {number} offsetDays 相对今天的偏移天数
+   * @return {number} 统计日期
+   */
+  buildWebsiteClickMetricDateByOffset(offsetDays = 0) {
+    return this.buildWebsiteClickMetricDate(new Date(Date.now() + Number(offsetDays || 0) * 86400000));
+  }
+
+  /**
+   * 生成北京时间本月第一天的统计日期。
+   * @return {number} 统计日期
+   */
+  buildWebsiteClickCurrentMonthStartMetricDate() {
+    const today = String(this.buildWebsiteClickMetricDate(new Date()));
+    return Number.parseInt(`${today.slice(0, 6)}01`, 10);
+  }
+
+  /**
    * 获取网站自动点击汇总，来自前台/后台点击埋点的按日聚合数据。
    * @param {number|string} websiteId 网站ID
-   * @return {Promise<{currentMonthClicks:number,recent30DayClicks:number,recent7DayClicks:number}>} 点击汇总
+   * @param {number|string} totalClickCount 历史总点击，用于旧库无日统计时提示口径
+   * @return {Promise<{currentMonthClicks:number,recent30DayClicks:number,recent7DayClicks:number,hasRecentDailyMetrics:boolean,historicalTotalClicks:number}>} 点击汇总
    */
-  async getWebsiteClickSummary(websiteId) {
+  async getWebsiteClickSummary(websiteId, totalClickCount = 0) {
     const { app } = this;
     const normalizedWebsiteId = Number.parseInt(String(websiteId || 0), 10);
+    const normalizedTotalClickCount = Math.max(0, Number.parseInt(String(totalClickCount || 0), 10) || 0);
     if (!Number.isInteger(normalizedWebsiteId) || normalizedWebsiteId <= 0) {
       return {
         currentMonthClicks: 0,
         recent30DayClicks: 0,
         recent7DayClicks: 0,
+        hasRecentDailyMetrics: false,
+        historicalTotalClicks: normalizedTotalClickCount,
       };
     }
     await this.ensureWebsiteClickDailyTable();
 
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const recent30Start = new Date(now);
-    recent30Start.setDate(now.getDate() - 29);
-    const recent7Start = new Date(now);
-    recent7Start.setDate(now.getDate() - 6);
-
-    const monthStartMetricDate = this.buildWebsiteClickMetricDate(monthStart);
-    const recent30StartMetricDate = this.buildWebsiteClickMetricDate(recent30Start);
-    const recent7StartMetricDate = this.buildWebsiteClickMetricDate(recent7Start);
+    const monthStartMetricDate = this.buildWebsiteClickCurrentMonthStartMetricDate();
+    const recent30StartMetricDate = this.buildWebsiteClickMetricDateByOffset(-29);
+    const recent7StartMetricDate = this.buildWebsiteClickMetricDateByOffset(-6);
     const minMetricDate = Math.min(monthStartMetricDate, recent30StartMetricDate, recent7StartMetricDate);
 
     const [ row ] = await app.model.query(
       `SELECT
+          COUNT(*) AS dailyRows,
           COALESCE(SUM(CASE WHEN metric_date >= ? THEN click_count ELSE 0 END), 0) AS currentMonthClicks,
           COALESCE(SUM(CASE WHEN metric_date >= ? THEN click_count ELSE 0 END), 0) AS recent30DayClicks,
           COALESCE(SUM(CASE WHEN metric_date >= ? THEN click_count ELSE 0 END), 0) AS recent7DayClicks
@@ -329,6 +352,8 @@ class WebsiteService extends Service {
       currentMonthClicks: Number(row?.currentMonthClicks || 0),
       recent30DayClicks: Number(row?.recent30DayClicks || 0),
       recent7DayClicks: Number(row?.recent7DayClicks || 0),
+      hasRecentDailyMetrics: Number(row?.dailyRows || 0) > 0,
+      historicalTotalClicks: normalizedTotalClickCount,
     };
   }
 
@@ -1259,7 +1284,7 @@ class WebsiteService extends Service {
       this.ctx.logger.warn('[uied.website.detail] 获取网站访问数据失败，忽略:', error.message);
     }
     try {
-      clickMetrics = await this.getWebsiteClickSummary(website.id);
+      clickMetrics = await this.getWebsiteClickSummary(website.id, website.click_count);
     } catch (error) {
       this.ctx.logger.warn('[uied.website.detail] 获取网站点击汇总失败，忽略:', error.message);
     }
@@ -1888,8 +1913,18 @@ class WebsiteService extends Service {
   async incrementClick(id) {
     const { app } = this;
     const normalizedId = Number.parseInt(String(id || 0), 10);
+    if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+      throw new Error('网站ID无效');
+    }
+    const [ existing ] = await app.model.query(
+      'SELECT id FROM uied_website WHERE id = ? AND is_delete = 0 LIMIT 1',
+      { replacements: [ normalizedId ], type: app.Sequelize.QueryTypes.SELECT }
+    );
+    if (!existing) {
+      throw new Error('网站不存在');
+    }
     await app.model.query(
-      'UPDATE uied_website SET click_count = click_count + 1 WHERE id = ?',
+      'UPDATE uied_website SET click_count = click_count + 1 WHERE id = ? AND is_delete = 0',
       { replacements: [ normalizedId ], type: app.Sequelize.QueryTypes.UPDATE }
     );
     try {

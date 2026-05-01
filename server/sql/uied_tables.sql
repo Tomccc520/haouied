@@ -68,6 +68,20 @@ CREATE TABLE IF NOT EXISTS `uied_website` (
   KEY `status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='UIED网站表';
 
+-- 网站点击日统计表
+CREATE TABLE IF NOT EXISTS `uied_website_click_daily` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `website_id` bigint(20) unsigned NOT NULL COMMENT '网站ID',
+  `metric_date` int(10) unsigned NOT NULL COMMENT '统计日期(YYYYMMDD)',
+  `click_count` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '当日点击数',
+  `create_time` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '创建时间',
+  `update_time` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_website_date` (`website_id`,`metric_date`),
+  KEY `idx_metric_date` (`metric_date`),
+  KEY `idx_website_date` (`website_id`,`metric_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网站点击日统计表';
+
 
 -- 页面配置表
 CREATE TABLE IF NOT EXISTS `uied_page` (
