@@ -70,6 +70,7 @@ interface SubmissionPayload {
 
 interface SubmissionPayOrderPayload {
   orderNo?: string;
+  statusToken?: string;
   submissionId?: string | number;
   serviceType?: ServiceType;
   payChannel?: PayChannel;
@@ -908,6 +909,49 @@ const SubmitPage: React.FC = () => {
   const isFreeEntryUnavailable = false;
   const requiresCommercialAddon = !useSimpleFreeFlow && isFreeSubmitMode && selectedAddonOptions.length === 0;
 
+  /**
+   * 生成订单状态查询凭证的浏览器本地缓存 Key。
+   */
+  const getPayOrderStatusTokenStorageKey = useCallback((orderNo: string) => {
+    return `uied_submission_pay_status_token:${String(orderNo || '').trim()}`;
+  }, []);
+
+  /**
+   * 保存订单状态查询凭证，原窗口与预打开支付窗口都写入，避免支付回跳后丢失轮询凭证。
+   */
+  const persistPayOrderStatusToken = useCallback((orderNo: string, statusToken: string, targetWindow?: Window | null) => {
+    const normalizedOrderNo = String(orderNo || '').trim();
+    const normalizedToken = String(statusToken || '').trim();
+    if (!normalizedOrderNo || !normalizedToken || typeof window === 'undefined') return;
+    const storageKey = getPayOrderStatusTokenStorageKey(normalizedOrderNo);
+    try {
+      window.sessionStorage.setItem(storageKey, normalizedToken);
+    } catch (error) {
+      debugLog.warn('保存支付状态查询凭证失败:', error);
+    }
+    if (targetWindow && !targetWindow.closed) {
+      try {
+        targetWindow.sessionStorage.setItem(storageKey, normalizedToken);
+      } catch (error) {
+        debugLog.warn('同步支付窗口查询凭证失败:', error);
+      }
+    }
+  }, [getPayOrderStatusTokenStorageKey]);
+
+  /**
+   * 读取订单状态查询凭证，公开状态接口必须携带该凭证。
+   */
+  const getPayOrderStatusToken = useCallback((orderNo: string) => {
+    const normalizedOrderNo = String(orderNo || '').trim();
+    if (!normalizedOrderNo || typeof window === 'undefined') return '';
+    try {
+      return window.sessionStorage.getItem(getPayOrderStatusTokenStorageKey(normalizedOrderNo)) || '';
+    } catch (error) {
+      debugLog.warn('读取支付状态查询凭证失败:', error);
+      return '';
+    }
+  }, [getPayOrderStatusTokenStorageKey]);
+
   const bannerPositionGroups = useMemo<BannerPositionGroup[]>(() => {
     const keyword = bannerPositionKeyword.trim().toLowerCase();
     const groupTitleMap: Record<string, string> = {
@@ -1255,8 +1299,21 @@ const SubmitPage: React.FC = () => {
   const refreshPayOrderStatus = useCallback(async (orderNo: string): Promise<string> => {
     const normalizedOrderNo = String(orderNo || '').trim();
     if (!normalizedOrderNo) return '';
+    const statusToken = getPayOrderStatusToken(normalizedOrderNo);
+    if (!statusToken) {
+      setSubmitResult((prev) => ({
+        success: false,
+        id: prev?.id,
+        orderNo: normalizedOrderNo,
+        isPayment: false,
+        payUrl: undefined,
+        message: '支付状态查询凭证已失效，请在原下单页面等待自动确认，或联系管理员核对订单。',
+      }));
+      setPayPollingOrderNo('');
+      return '';
+    }
     try {
-      const res = await api.get('/submissions/pay/status', { params: { orderNo: normalizedOrderNo } });
+      const res = await api.get('/submissions/pay/status', { params: { orderNo: normalizedOrderNo, statusToken } });
       const data = unwrapApiResponse<SubmissionPayOrderPayload>(res.data, {});
       const status = String(data.status || '');
       if (status === 'paid' || status === 'free') {
@@ -1287,7 +1344,7 @@ const SubmitPage: React.FC = () => {
       debugLog.error('查询支付状态失败:', error);
       return '';
     }
-  }, []);
+  }, [getPayOrderStatusToken]);
 
   useEffect(() => {
     fetchSubmissionConfig();
@@ -1707,6 +1764,11 @@ const SubmitPage: React.FC = () => {
           payChannel,
         });
         const data = unwrapApiResponse<SubmissionPayOrderPayload>(res.data, {});
+        const orderNo = data.orderNo ? String(data.orderNo) : '';
+        const statusToken = data.statusToken ? String(data.statusToken) : '';
+        if (orderNo && statusToken) {
+          persistPayOrderStatusToken(orderNo, statusToken, preOpenedPayWindow);
+        }
         clearDraft();
         const payUrl = String(data.payUrl || '').trim();
         let opened = false;
@@ -1724,7 +1786,7 @@ const SubmitPage: React.FC = () => {
         setSubmitResult({
           success: true,
           id: data.submissionId ? String(data.submissionId) : undefined,
-          orderNo: data.orderNo ? String(data.orderNo) : undefined,
+          orderNo: orderNo || undefined,
           payUrl: payUrl || undefined,
           isPayment: data.status !== 'free',
           message: data.status === 'free'
@@ -1733,8 +1795,8 @@ const SubmitPage: React.FC = () => {
               ? '支付订单已创建，已为您打开支付页面，请完成付款。'
               : '支付订单已创建，请点击“继续支付”完成付款。'),
         });
-        if (data.orderNo && data.status !== 'free') {
-          setPayPollingOrderNo(String(data.orderNo));
+        if (orderNo && data.status !== 'free') {
+          setPayPollingOrderNo(orderNo);
         }
         return;
       }

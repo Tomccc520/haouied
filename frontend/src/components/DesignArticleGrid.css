@@ -391,10 +391,56 @@
   flex-shrink: 0; /* 防止图片容器被压缩 */
 }
 
+.design-article-grid-container .article-badge-list {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0;
+  pointer-events: none;
+}
+
+.design-article-grid-container .article-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.25rem;
+  padding: 0 0.45rem;
+  border-radius: 0.5rem 0 0.5rem 0;
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  box-shadow: none;
+}
+
+.design-article-grid-container .article-badge.is-featured {
+  background: #111827;
+}
+
+.design-article-grid-container .article-badge.is-hot {
+  background: #ff6b00;
+}
+
+.design-article-grid-container .article-badge.is-new {
+  background: #1d8f5f;
+}
+
 /* 移动端图片容器优化 */
 @media (max-width: 768px) {
   .design-article-grid-container .article-image-container {
     padding-top: 50%; /* 移动端使用更小的宽高比 */
+  }
+
+  .design-article-grid-container .article-badge {
+    min-height: 1.1rem;
+    padding: 0 0.36rem;
+    font-size: 0.5625rem;
   }
 }
 

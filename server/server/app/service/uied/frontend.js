@@ -383,16 +383,16 @@ class FrontendService extends Service {
 
     return pages.map(p => ({
       ...p,
-        searchEnabled: p.searchEnabled === 1,
-        showBanner: p.showBanner === 1,
-        showHotRecommendations: p.showHotRecommendations === 1,
-        latestUpdatesSectionTitle: p.latestUpdatesSectionTitle,
-        latestUpdatesMoreText: p.latestUpdatesMoreText,
-        latestUpdatesLoadingText: p.latestUpdatesLoadingText,
-        latestUpdatesEmptyText: p.latestUpdatesEmptyText,
-        hotRecommendationsTitle: p.hotRecommendationsTitle,
-        showCategories: p.showCategories === 1,
-        showSidebar: p.showSidebar === 1,
+      searchEnabled: p.searchEnabled === 1,
+      showBanner: p.showBanner === 1,
+      showHotRecommendations: p.showHotRecommendations === 1,
+      latestUpdatesSectionTitle: p.latestUpdatesSectionTitle,
+      latestUpdatesMoreText: p.latestUpdatesMoreText,
+      latestUpdatesLoadingText: p.latestUpdatesLoadingText,
+      latestUpdatesEmptyText: p.latestUpdatesEmptyText,
+      hotRecommendationsTitle: p.hotRecommendationsTitle,
+      showCategories: p.showCategories === 1,
+      showSidebar: p.showSidebar === 1,
       hotSearchTags: p.hotSearchTags ? this.safeJsonParse(p.hotSearchTags, []) : [],
       hotSearchMode: this.normalizeHotSearchMode(p.hotSearchMode),
       hotSearchFixedCount: this.normalizeHotSearchNumber(p.hotSearchFixedCount, 4, 0, 20),
@@ -1261,16 +1261,7 @@ class FrontendService extends Service {
         `(w.id = ? OR w.old_id = ?) AND w.is_delete = 0${statusCondition}`,
         [ normalizedIdOrSlug, normalizedIdOrSlug ]
       );
-      /**
-       * 兼容历史链接与状态探测场景：
-       * 若仅因状态过滤未命中，则降级为“按 id/old_id 仅校验未删除”。
-       */
-      if (!website && !includeUnpublished) {
-        website = await queryWebsiteDetail(
-          '(w.id = ? OR w.old_id = ?) AND w.is_delete = 0',
-          [ normalizedIdOrSlug, normalizedIdOrSlug ]
-        );
-      }
+      if (!website) return null;
     }
 
     if (!website) {
@@ -1278,12 +1269,6 @@ class FrontendService extends Service {
         `w.slug = ? AND w.is_delete = 0${statusCondition}`,
         [ normalizedIdOrSlug ]
       );
-      if (!website && !includeUnpublished) {
-        website = await queryWebsiteDetail(
-          'w.slug = ? AND w.is_delete = 0',
-          [ normalizedIdOrSlug ]
-        );
-      }
     }
 
     if (!website) return null;
@@ -1690,7 +1675,7 @@ class FrontendService extends Service {
   async buildSeoPrerenderManifest(options = {}) {
     const { app, ctx } = this;
     const now = Math.floor(Date.now() / 1000);
-    const normalizeOriginText = (value) => String(value || '').trim().replace(/\/+$/, '');
+    const normalizeOriginText = value => String(value || '').trim().replace(/\/+$/, '');
     const requestOrigin = normalizeOriginText(ctx?.request?.origin || '');
     const siteOrigin = normalizeOriginText(
       options.siteOrigin
@@ -2037,18 +2022,18 @@ class FrontendService extends Service {
     const aliasMap = {
       official: 'official',
       'weight:official': 'official',
-      '官网': 'official',
-      '官方': 'official',
+      官网: 'official',
+      官方: 'official',
       recommended: 'recommended',
       recommend: 'recommended',
       'weight:recommended': 'recommended',
-      '推荐': 'recommended',
+      推荐: 'recommended',
       enterprise_verified: 'enterprise_verified',
       enterpriseverified: 'enterprise_verified',
       enterprise: 'enterprise_verified',
       verified_enterprise: 'enterprise_verified',
       'weight:enterprise_verified': 'enterprise_verified',
-      '企业认证': 'enterprise_verified',
+      企业认证: 'enterprise_verified',
     };
     return aliasMap[raw] || '';
   }

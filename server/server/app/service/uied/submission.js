@@ -876,6 +876,9 @@ class SubmissionService extends Service {
     if (!columnSet.has('expire_time')) {
       alterSqlList.push('ADD COLUMN expire_time int unsigned NOT NULL DEFAULT 0 COMMENT \'订单过期时间\' AFTER pay_time');
     }
+    if (!columnSet.has('status_token')) {
+      alterSqlList.push('ADD COLUMN status_token varchar(64) DEFAULT NULL COMMENT \'前端订单状态查询凭证\' AFTER order_no');
+    }
     if (alterSqlList.length > 0) {
       await app.model.query(
         `ALTER TABLE uied_submission_pay_order ${alterSqlList.join(', ')}`,
@@ -883,6 +886,14 @@ class SubmissionService extends Service {
       );
     }
     this._payOrderColumnsReady = true;
+  }
+
+  /**
+   * 创建支付状态查询凭证，避免公开接口仅凭订单号泄露订单状态。
+   * @return {string} 查询凭证
+   */
+  createPayOrderStatusToken() {
+    return crypto.randomBytes(24).toString('hex');
   }
 
   /**
@@ -1084,6 +1095,7 @@ class SubmissionService extends Service {
       await this.ensurePayOrderTable();
       const now = Math.floor(Date.now() / 1000);
       const orderNo = `SUBP${Date.now()}${this.randomString(6).toUpperCase()}`;
+      const statusToken = this.createPayOrderStatusToken();
       const expireMinutes = Number(paymentConfig?.orderExpireMinutes || 30);
       const expireTime = now + Math.max(5, Math.min(180, expireMinutes)) * 60;
       const addonTitle = enabledAddons.map(item => String(item.config?.label || '')).filter(Boolean).join(' + ');
@@ -1136,11 +1148,12 @@ class SubmissionService extends Service {
 
       await app.model.query(
         `INSERT INTO uied_submission_pay_order
-         (order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, raw_response, expire_time, create_time, update_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (order_no, status_token, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, raw_response, expire_time, create_time, update_time)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         {
           replacements: [
             orderNo,
+            statusToken,
             submissionId,
             serviceType,
             payChannel,
@@ -1159,6 +1172,7 @@ class SubmissionService extends Service {
 
       return {
         orderNo,
+        statusToken,
         submissionId,
         serviceType,
         payChannel,
@@ -1192,22 +1206,37 @@ class SubmissionService extends Service {
     if (!no) {
       throw new Error('缺少订单号');
     }
+    /**
+     * 先读取订单并校验访问凭证，再做补单查询，避免公开接口被未授权触发补单动作。
+     */
+    const loadOrderRow = async () => {
+      const [ row ] = await app.model.query(
+        `SELECT id, order_no, status_token, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, transaction_id,
+                raw_response, notify_retry_count, last_reconcile_time, reconcile_note, pay_time, expire_time, create_time, update_time
+         FROM uied_submission_pay_order
+         WHERE order_no = ?
+         LIMIT 1`,
+        { replacements: [ no ], type: app.Sequelize.QueryTypes.SELECT }
+      );
+      return row || null;
+    };
+    let row = await loadOrderRow();
+    if (!row) return null;
+    if (options.requireAccess === true) {
+      const expectedToken = String(row.status_token || '').trim();
+      const inputToken = String(options.statusToken || '').trim();
+      if (!expectedToken || !inputToken || inputToken !== expectedToken) {
+        throw new Error('订单访问凭证无效');
+      }
+    }
     if (options.reconcileIfPending === true) {
       await this.reconcilePendingOrders({
         orderNo: no,
         limit: 1,
         source: 'status_poll',
       });
+      row = await loadOrderRow() || row;
     }
-    const [ row ] = await app.model.query(
-      `SELECT id, order_no, submission_id, service_type, pay_channel, amount, price_snapshot, status, pay_url, transaction_id,
-              raw_response, notify_retry_count, last_reconcile_time, reconcile_note, pay_time, expire_time, create_time, update_time
-       FROM uied_submission_pay_order
-       WHERE order_no = ?
-       LIMIT 1`,
-      { replacements: [ no ], type: app.Sequelize.QueryTypes.SELECT }
-    );
-    if (!row) return null;
     return {
       id: Number(row.id || 0),
       orderNo: String(row.order_no || ''),

@@ -14,6 +14,16 @@ const Service = require('egg').Service;
 
 class WebsiteService extends Service {
   /**
+   * 生成前台公开可见的网站状态 SQL 条件，兼容历史 normal 与空状态。
+   * @param {string} alias 表别名
+   * @return {string} SQL 条件片段
+   */
+  getPublicWebsiteStatusCondition(alias = '') {
+    const prefix = alias ? `${alias}.` : '';
+    return `(${prefix}status IS NULL OR ${prefix}status = '' OR ${prefix}status IN ('active', 'normal'))`;
+  }
+
+  /**
    * 判断是否为可降级的库结构兼容错误。
    * @param {Error} error 异常对象
    * @return {boolean} 是否兼容错误
@@ -47,6 +57,37 @@ class WebsiteService extends Service {
   }
 
   /**
+   * 递归收集分类及所有后代分类 ID，避免深层子分类筛选漏数据。
+   * @param {number[]} rootIds 根分类 ID 列表
+   * @return {Promise<number[]>} 根分类与后代分类 ID
+   */
+  async collectCategoryTreeIds(rootIds = []) {
+    const { app } = this;
+    const collected = new Set(
+      (Array.isArray(rootIds) ? rootIds : [])
+        .map(id => Number.parseInt(String(id || 0), 10))
+        .filter(id => Number.isInteger(id) && id > 0)
+    );
+    let pending = Array.from(collected);
+    while (pending.length > 0) {
+      const childRows = await app.model.query(
+        'SELECT id FROM uied_category WHERE parent_id IN (?) AND is_delete = 0',
+        {
+          replacements: [ pending ],
+          type: app.Sequelize.QueryTypes.SELECT,
+        }
+      );
+      const childIds = (Array.isArray(childRows) ? childRows : [])
+        .map(item => Number.parseInt(String(item?.id || 0), 10))
+        .filter(id => Number.isInteger(id) && id > 0 && !collected.has(id));
+      childIds.forEach(id => collected.add(id));
+      pending = childIds;
+    }
+    return Array.from(collected);
+  }
+
+
+  /**
    * 安全解析网站标签 JSON，避免脏数据导致接口报错
    * @param {unknown} source 标签字段原始值
    * @return {string[]} 标签列表
@@ -65,18 +106,18 @@ class WebsiteService extends Service {
     const aliasMap = {
       official: 'official',
       'weight:official': 'official',
-      '官网': 'official',
-      '官方': 'official',
+      官网: 'official',
+      官方: 'official',
       recommended: 'recommended',
       recommend: 'recommended',
       'weight:recommended': 'recommended',
-      '推荐': 'recommended',
+      推荐: 'recommended',
       enterprise_verified: 'enterprise_verified',
       enterpriseverified: 'enterprise_verified',
       enterprise: 'enterprise_verified',
       verified_enterprise: 'enterprise_verified',
       'weight:enterprise_verified': 'enterprise_verified',
-      '企业认证': 'enterprise_verified',
+      企业认证: 'enterprise_verified',
     };
     return aliasMap[raw] || '';
   }
@@ -1077,17 +1118,7 @@ class WebsiteService extends Service {
     if (categoryIdList.length > 0) {
       let effectiveCategoryIds = [ ...categoryIdList ];
       if (includeChildren) {
-        const childRows = await app.model.query(
-          'SELECT id FROM uied_category WHERE parent_id IN (?) AND is_delete = 0',
-          {
-            replacements: [ categoryIdList ],
-            type: app.Sequelize.QueryTypes.SELECT,
-          }
-        );
-        const childIds = (Array.isArray(childRows) ? childRows : [])
-          .map(item => Number.parseInt(String(item?.id || 0), 10))
-          .filter(item => Number.isInteger(item) && item > 0);
-        effectiveCategoryIds = Array.from(new Set([ ...effectiveCategoryIds, ...childIds ]));
+        effectiveCategoryIds = await this.collectCategoryTreeIds(categoryIdList);
       }
       const placeholders = effectiveCategoryIds.map(() => '?').join(',');
       whereClause += ` AND (
@@ -1917,14 +1948,18 @@ class WebsiteService extends Service {
       throw new Error('网站ID无效');
     }
     const [ existing ] = await app.model.query(
-      'SELECT id FROM uied_website WHERE id = ? AND is_delete = 0 LIMIT 1',
+      `SELECT id FROM uied_website
+       WHERE id = ? AND is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()}
+       LIMIT 1`,
       { replacements: [ normalizedId ], type: app.Sequelize.QueryTypes.SELECT }
     );
     if (!existing) {
       throw new Error('网站不存在');
     }
     await app.model.query(
-      'UPDATE uied_website SET click_count = click_count + 1 WHERE id = ? AND is_delete = 0',
+      `UPDATE uied_website
+       SET click_count = click_count + 1
+       WHERE id = ? AND is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()}`,
       { replacements: [ normalizedId ], type: app.Sequelize.QueryTypes.UPDATE }
     );
     try {

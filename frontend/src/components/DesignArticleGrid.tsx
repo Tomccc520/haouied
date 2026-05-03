@@ -48,6 +48,25 @@ interface RankItem {
   tags?: string[];
 }
 
+interface ArticleBadge {
+  key: string;
+  text: string;
+  tone: 'featured' | 'hot' | 'new';
+}
+
+/**
+ * 根据后端运营字段生成文章卡片角标，保证官方/热门/新收录能被前端明确消费。
+ * @param article 文章卡片数据
+ * @returns 角标列表
+ */
+export const resolveArticleBadges = (article: Pick<RankItem, 'isFeatured' | 'isHot' | 'isNew'>): ArticleBadge[] => {
+  const badges: ArticleBadge[] = [];
+  if (article.isFeatured) badges.push({ key: 'featured', text: '官方', tone: 'featured' });
+  if (article.isHot) badges.push({ key: 'hot', text: '热', tone: 'hot' });
+  if (article.isNew) badges.push({ key: 'new', text: '新', tone: 'new' });
+  return badges;
+};
+
 // 子分类选项接口
 interface TagOption {
   key: string;
@@ -959,60 +978,72 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       '#9E9E9E'  // 第8名及以后 - 灰色
     ];
     
-    return articles.slice(0, effectiveLimit).map((article, index) => (
-      <motion.div 
-        key={article.id} 
-        className="article-card" 
-        onClick={() => window.open(article.link, '_blank', 'noopener,noreferrer')}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ 
-          duration: 0.3,
-          delay: index * 0.05, // 减少延迟时间
-          ease: "easeOut"
-        }}
-        style={{ cursor: "pointer" }}
-      >
-        <div className="article-image-container">
-          {article.thumbnail ? (
-            <motion.img
-              alt={article.name || '文章图片'}
-              src={article.thumbnail ? getImageUrl(article.thumbnail) : undefined}
-              className="article-image"
-              onError={handleImageError}
-              loading="lazy"
-              initial={{ opacity: 0, scale: 1.05 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: index * 0.02 }}
-            />
-          ) : (
-            <div className="article-image-placeholder"></div>
-          )}
-        </div>
-        <div className="article-content">
-          <h3 className="article-title" title={article.name}>
-            <motion.span 
-              className="article-rank"
-              style={{ 
-                backgroundColor: index < rankColors.length ? rankColors[index] : '#9E9E9E'
-              }}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ 
-                duration: 0.25,
-                delay: index * 0.05 + 0.1,
-                type: "spring",
-                stiffness: 200
-              }}
-            >
-              No.{index + 1}
-            </motion.span>
-            <span className="article-title-text">{article.name}</span>
-          </h3>
-        </div>
-      </motion.div>
-    ));
+    return articles.slice(0, effectiveLimit).map((article, index) => {
+      const badges = resolveArticleBadges(article);
+      return (
+        <motion.div
+          key={article.id}
+          className="article-card"
+          onClick={() => window.open(article.link, '_blank', 'noopener,noreferrer')}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{
+            duration: 0.3,
+            delay: index * 0.05, // 减少延迟时间
+            ease: "easeOut"
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          <div className="article-image-container">
+            {badges.length > 0 ? (
+              <div className="article-badge-list" aria-label="文章运营标识">
+                {badges.map((badge) => (
+                  <span key={badge.key} className={`article-badge is-${badge.tone}`}>
+                    {badge.text}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {article.thumbnail ? (
+              <motion.img
+                alt={article.name || '文章图片'}
+                src={article.thumbnail ? getImageUrl(article.thumbnail) : undefined}
+                className="article-image"
+                onError={handleImageError}
+                loading="lazy"
+                initial={{ opacity: 0, scale: 1.05 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: index * 0.02 }}
+              />
+            ) : (
+              <div className="article-image-placeholder"></div>
+            )}
+          </div>
+          <div className="article-content">
+            <h3 className="article-title" title={article.name}>
+              <motion.span
+                className="article-rank"
+                style={{
+                  backgroundColor: index < rankColors.length ? rankColors[index] : '#9E9E9E'
+                }}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{
+                  duration: 0.25,
+                  delay: index * 0.05 + 0.1,
+                  type: "spring",
+                  stiffness: 200
+                }}
+              >
+                No.{index + 1}
+              </motion.span>
+              <span className="article-title-text">{article.name}</span>
+            </h3>
+          </div>
+        </motion.div>
+      );
+    });
   };
 
   // 骨架屏加载中

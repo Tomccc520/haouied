@@ -75,6 +75,36 @@ interface RankingItem {
 }
 
 /**
+ * 将后台榜单数据转换为首页推荐区结构，保持后端运营标识原样生效。
+ * @param data 后台榜单数据
+ * @returns 首页推荐区条目
+ */
+export const mapRankingBoardItemsForHome = (data: RankingBoardData[]): RankingItem[] => {
+  // 优先展示 "editor_pick" 或 "today_hot"
+  const targetKey = 'editor_pick';
+  const fallbackKey = 'today_hot';
+
+  const board = data.find(b => b.key === targetKey)
+    || data.find(b => b.key === fallbackKey)
+    || data[0];
+
+  if (!board || !board.items) return [];
+
+  return board.items.map((item) => ({
+    id: String(item.id),
+    name: item.name,
+    description: item.description,
+    url: item.url,
+    iconUrl: item.iconUrl || '',
+    viewCount: item.viewCount || 0,
+    score: item.score || 0,
+    isNew: item.isNew,
+    isHot: item.isHot,
+    isFeatured: item.isFeatured,
+  }));
+};
+
+/**
  * 首页组件
  * @returns 首页JSX元素
  */
@@ -169,28 +199,7 @@ const Home: React.FC = () => {
    * 将后台榜单数据转换为首页推荐区结构
    */
   const mapRankingData = useCallback((data: RankingBoardData[]): RankingItem[] => {
-    // 优先展示 "editor_pick" 或 "today_hot"
-    const targetKey = 'editor_pick';
-    const fallbackKey = 'today_hot';
-    
-    const board = data.find(b => b.key === targetKey) || 
-                  data.find(b => b.key === fallbackKey) || 
-                  data[0];
-
-    if (!board || !board.items) return [];
-
-    return board.items.map((item, index) => ({
-      id: String(item.id),
-      name: item.name,
-      description: item.description,
-      url: item.url,
-      iconUrl: item.iconUrl || '',
-      viewCount: item.viewCount || 0,
-      score: item.score || 0,
-      isNew: item.isNew,
-      isHot: item.isHot,
-      isFeatured: index < 3,
-    }));
+    return mapRankingBoardItemsForHome(data);
   }, []);
 
   /**

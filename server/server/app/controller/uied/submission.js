@@ -121,17 +121,24 @@ class SubmissionController extends baseController {
   async payOrderStatus() {
     const { ctx } = this;
     try {
-      const { orderNo } = ctx.query;
+      const { orderNo, statusToken } = ctx.query;
       if (!orderNo) {
         return this.result({ code: 400, message: '缺少订单号' });
       }
-      const data = await ctx.service.uied.submission.getPayOrderStatus(orderNo, { reconcileIfPending: true });
+      const data = await ctx.service.uied.submission.getPayOrderStatus(orderNo, {
+        reconcileIfPending: true,
+        requireAccess: true,
+        statusToken,
+      });
       if (!data) {
         return this.result({ code: 404, message: '订单不存在' });
       }
       this.result({ data });
     } catch (error) {
       ctx.logger.error('查询投稿支付订单状态失败:', error);
+      if (String(error?.message || '').includes('订单访问凭证无效')) {
+        return this.result({ code: 403, message: '订单访问凭证无效，请刷新下单页面后重试' });
+      }
       this.result({ code: 500, message: error.message || '查询失败' });
     }
   }
