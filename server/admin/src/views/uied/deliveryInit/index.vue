@@ -24,6 +24,9 @@
                         >
                             导出客户包
                         </el-button>
+                        <el-button :loading="doctorLoading" @click="handleDoctorCheck">
+                            发布自检
+                        </el-button>
                         <el-button :loading="previewLoading" @click="handlePreview"
                             >刷新预览</el-button
                         >
@@ -39,6 +42,98 @@
                 :closable="false"
                 class="mb-4"
             />
+            <div class="delivery-doctor-panel">
+                <div class="delivery-doctor-panel__header">
+                    <div>
+                        <div class="delivery-doctor-panel__eyebrow">Release Doctor</div>
+                        <div class="delivery-doctor-panel__title">客户交付发布自检</div>
+                        <div class="delivery-doctor-panel__desc">
+                            检查运行环境、授权状态、数据库关键表、基础配置、上传目录与发布文件，不会写入数据库。
+                        </div>
+                    </div>
+                    <div class="delivery-doctor-panel__summary">
+                        <div
+                            class="delivery-doctor-panel__score"
+                            :class="`is-${doctorSummary.level || 'unknown'}`"
+                        >
+                            {{ doctorSummary.score ?? '--' }}
+                        </div>
+                        <div class="delivery-doctor-panel__summary-text">
+                            <span>通过 {{ doctorSummary.pass ?? 0 }}</span>
+                            <span>警告 {{ doctorSummary.warn ?? 0 }}</span>
+                            <span>失败 {{ doctorSummary.fail ?? 0 }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="doctorData" class="delivery-doctor-panel__body">
+                    <div class="delivery-doctor-panel__meta">
+                        <span>版本：{{ doctorData?.environment?.version || '-' }}</span>
+                        <span
+                            >环境：{{
+                                doctorData?.environment?.eggEnv ||
+                                doctorData?.environment?.nodeEnv ||
+                                '-'
+                            }}</span
+                        >
+                        <span>上传目录：{{ doctorData?.environment?.uploadsDir || '-' }}</span>
+                    </div>
+                    <el-collapse class="delivery-doctor-panel__collapse">
+                        <el-collapse-item
+                            v-for="group in groupedDoctorChecks"
+                            :key="group.key"
+                            :name="group.key"
+                        >
+                            <template #title>
+                                <div class="delivery-doctor-panel__group-title">
+                                    <span>{{ group.label }}</span>
+                                    <el-tag size="small" type="success"
+                                        >通过 {{ group.pass }}</el-tag
+                                    >
+                                    <el-tag size="small" type="warning"
+                                        >警告 {{ group.warn }}</el-tag
+                                    >
+                                    <el-tag size="small" type="danger"
+                                        >失败 {{ group.fail }}</el-tag
+                                    >
+                                </div>
+                            </template>
+                            <div class="delivery-doctor-panel__checks">
+                                <div
+                                    v-for="item in group.items"
+                                    :key="item.key"
+                                    class="delivery-doctor-panel__check"
+                                >
+                                    <el-tag
+                                        :type="getDoctorStatusTagType(item.status)"
+                                        size="small"
+                                    >
+                                        {{ getDoctorStatusLabel(item.status) }}
+                                    </el-tag>
+                                    <div class="delivery-doctor-panel__check-main">
+                                        <div class="delivery-doctor-panel__check-title">
+                                            {{ item.title }}
+                                        </div>
+                                        <div class="delivery-doctor-panel__check-message">
+                                            {{ item.message }}
+                                        </div>
+                                        <div
+                                            v-if="item.suggestion"
+                                            class="delivery-doctor-panel__check-suggestion"
+                                        >
+                                            建议：{{ item.suggestion }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </el-collapse-item>
+                    </el-collapse>
+                    <div class="delivery-doctor-panel__commands">
+                        <div>服务器命令：{{ doctorData?.commands?.backend || '-' }}</div>
+                        <div>初始化 SQL：{{ doctorData?.commands?.starterSql || '-' }}</div>
+                    </div>
+                </div>
+                <el-empty v-else description="点击“发布自检”检查当前交付环境" />
+            </div>
             <el-form :model="formData" label-width="150px" class="max-w-[980px]">
                 <el-form-item label="初始化模板">
                     <div class="delivery-profile-selector">
@@ -341,9 +436,10 @@
  * @author UIED技术团队
  * @createDate 2026.2.20
  */
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import feedback from '@/utils/feedback'
 import {
+    uiedDeliveryInitDoctor,
     uiedDeliveryProfileManageList,
     uiedDeliveryProfileList,
     uiedDeliveryProfileSave,
@@ -358,12 +454,63 @@ const profileManageSaving = ref(false)
 const previewLoading = ref(false)
 const executeLoading = ref(false)
 const exportLoading = ref(false)
+const doctorLoading = ref(false)
 const featureOverridesText = ref('{}')
 const previewData = ref<any>(null)
 const executeResult = ref<any>(null)
+const doctorData = ref<any>(null)
 const profileOptions = ref<any[]>([])
 const profileManageRows = ref<any[]>([])
 const baseProfileOptions = ref<any[]>([])
+
+const doctorGroupLabels: Record<string, string> = {
+    runtime: '运行环境',
+    license: '授权校验',
+    database: '数据库表',
+    config: '基础配置',
+    files: '发布文件'
+}
+
+const doctorSummary = computed(() => {
+    return (
+        doctorData.value?.summary || {
+            pass: 0,
+            warn: 0,
+            fail: 0,
+            total: 0,
+            score: null,
+            level: 'unknown'
+        }
+    )
+})
+
+/**
+ * 按分组整理发布自检结果，便于后台折叠查看。
+ */
+const groupedDoctorChecks = computed(() => {
+    const checks = Array.isArray(doctorData.value?.checks) ? doctorData.value.checks : []
+    const groupMap = new Map<string, any>()
+    checks.forEach((item: any) => {
+        const key = String(item?.group || 'other')
+        if (!groupMap.has(key)) {
+            groupMap.set(key, {
+                key,
+                label: doctorGroupLabels[key] || key,
+                items: [],
+                pass: 0,
+                warn: 0,
+                fail: 0
+            })
+        }
+        const group = groupMap.get(key)
+        group.items.push(item)
+        if (item?.status === 'pass') group.pass += 1
+        if (item?.status === 'warn') group.warn += 1
+        if (item?.status === 'fail') group.fail += 1
+    })
+    const order = ['runtime', 'license', 'database', 'config', 'files']
+    return Array.from(groupMap.values()).sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key))
+})
 
 const formData = reactive({
     profile: 'commercial_default',
@@ -705,6 +852,58 @@ const renderEnabledModules = (modules: Record<string, boolean>) => {
 }
 
 /**
+ * 获取发布自检状态标签类型。
+ */
+const getDoctorStatusTagType = (status: string) => {
+    if (status === 'pass') return 'success'
+    if (status === 'warn') return 'warning'
+    if (status === 'fail') return 'danger'
+    return 'info'
+}
+
+/**
+ * 获取发布自检状态中文文案。
+ */
+const getDoctorStatusLabel = (status: string) => {
+    if (status === 'pass') return '通过'
+    if (status === 'warn') return '警告'
+    if (status === 'fail') return '失败'
+    return '未知'
+}
+
+/**
+ * 执行发布自检，只读取当前环境与数据库状态，不做写入。
+ */
+const runDoctorCheck = async (silent = false) => {
+    doctorLoading.value = true
+    try {
+        const data = await uiedDeliveryInitDoctor()
+        doctorData.value = data || null
+        const fail = Number(data?.summary?.fail || 0)
+        const warn = Number(data?.summary?.warn || 0)
+        if (silent) return
+        if (fail > 0) {
+            feedback.msgError(`发布自检发现 ${fail} 个失败项`)
+        } else if (warn > 0) {
+            feedback.msgWarning(`发布自检发现 ${warn} 个警告项`)
+        } else {
+            feedback.msgSuccess('发布自检通过')
+        }
+    } catch (error: any) {
+        feedback.msgError(error?.message || '发布自检失败')
+    } finally {
+        doctorLoading.value = false
+    }
+}
+
+/**
+ * 手动执行发布自检，并显示检查结果提示。
+ */
+const handleDoctorCheck = async () => {
+    await runDoctorCheck(false)
+}
+
+/**
  * 拉取初始化预览结果
  */
 const handlePreview = async () => {
@@ -776,6 +975,7 @@ const handleExportPackage = async () => {
  */
 const initializePage = async () => {
     await loadProfileOptions()
+    await runDoctorCheck(true)
     await handlePreview()
 }
 
@@ -794,6 +994,159 @@ onMounted(() => {
 .delivery-profile-tip {
     font-size: 12px;
     color: var(--el-text-color-secondary);
+}
+
+.delivery-doctor-panel {
+    margin-bottom: 18px;
+    padding: 18px;
+    border: 1px solid rgba(30, 64, 175, 0.1);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+}
+
+.delivery-doctor-panel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.delivery-doctor-panel__eyebrow {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--el-color-primary);
+}
+
+.delivery-doctor-panel__title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.delivery-doctor-panel__desc {
+    max-width: 760px;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #667085;
+}
+
+.delivery-doctor-panel__summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 220px;
+    justify-content: flex-end;
+}
+
+.delivery-doctor-panel__score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #1d4ed8;
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.delivery-doctor-panel__score.is-ready {
+    color: #047857;
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.delivery-doctor-panel__score.is-attention {
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.14);
+}
+
+.delivery-doctor-panel__score.is-risk {
+    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.12);
+}
+
+.delivery-doctor-panel__summary-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #667085;
+}
+
+.delivery-doctor-panel__body {
+    margin-top: 16px;
+}
+
+.delivery-doctor-panel__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #667085;
+}
+
+.delivery-doctor-panel__group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    font-weight: 600;
+}
+
+.delivery-doctor-panel__checks {
+    display: grid;
+    gap: 10px;
+}
+
+.delivery-doctor-panel__check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.delivery-doctor-panel__check-main {
+    min-width: 0;
+}
+
+.delivery-doctor-panel__check-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.delivery-doctor-panel__check-message {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #667085;
+}
+
+.delivery-doctor-panel__check-suggestion {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #b45309;
+}
+
+.delivery-doctor-panel__commands {
+    display: grid;
+    gap: 4px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.04);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #475467;
 }
 
 .delivery-profile-grid {
@@ -844,6 +1197,15 @@ onMounted(() => {
 @media (max-width: 1200px) {
     .delivery-profile-grid {
         grid-template-columns: 1fr;
+    }
+
+    .delivery-doctor-panel__header {
+        flex-direction: column;
+    }
+
+    .delivery-doctor-panel__summary {
+        width: 100%;
+        justify-content: flex-start;
     }
 }
 </style>

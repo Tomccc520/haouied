@@ -383,6 +383,8 @@ module.exports = options => {
       'uied:delivery:profile:save': [ 'uied:setting:save' ],
       'uied:delivery:init:preview': [ 'uied:setting:get' ],
       'uied:delivery:init:execute': [ 'uied:setting:save' ],
+      'uied:delivery:init:doctor': [ 'uied:setting:get' ],
+      'uied:delivery:doctor': [ 'uied:setting:get' ],
       'uied:delivery:package:export': [ 'uied:setting:get' ],
       // 商业版：升级中心默认复用站点设置权限（最终以“仅超级管理员 + 操作密码”双重校验）
       'uied:upgrade:config:get': [ 'uied:setting:get' ],

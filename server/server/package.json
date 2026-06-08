@@ -56,6 +56,7 @@
         "stop": "egg-scripts stop --title=egg-server-vue-admin-serve",
         "dev": "egg-bin dev --port=8002",
         "preflight:commercial": "node ../../scripts/commercial-preflight-check.js",
+        "release:doctor": "node ../../scripts/release-doctor.js",
         "fake": "node ./initTableData.js",
         "debug": "egg-bin debug",
         "test": "npm run lint -- --fix && npm run test-local",

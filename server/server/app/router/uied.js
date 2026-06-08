@@ -206,6 +206,7 @@ module.exports = app => {
   router.all('/api/uied/delivery/profile/save', controller.uied.deliveryInit.profileSave);
   router.all('/api/uied/delivery/init/preview', controller.uied.deliveryInit.preview);
   router.all('/api/uied/delivery/init/execute', controller.uied.deliveryInit.execute);
+  router.all('/api/uied/delivery/init/doctor', controller.uied.deliveryInit.doctor);
   router.all('/api/uied/delivery/package/export', controller.uied.deliveryInit.exportPackage);
 
   // ==================== 升级中心 ====================

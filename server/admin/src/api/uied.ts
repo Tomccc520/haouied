@@ -659,6 +659,11 @@ export function uiedDeliveryInitExecute(params: any) {
     return request.post({ url: '/uied/delivery/init/execute', params })
 }
 
+// 获取交付发布自检结果
+export function uiedDeliveryInitDoctor() {
+    return request.get({ url: '/uied/delivery/init/doctor' })
+}
+
 // 导出客户交付包
 export function uiedDeliveryPackageExport(params?: any) {
     return request.get({ url: '/uied/delivery/package/export', params })

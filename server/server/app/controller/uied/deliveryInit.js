@@ -92,6 +92,20 @@ class DeliveryInitController extends baseController {
   }
 
   /**
+   * 获取客户交付发布自检结果（只读检查）
+   */
+  async doctor() {
+    const { ctx } = this;
+    try {
+      const data = await ctx.service.uied.deliveryInit.doctor();
+      this.result({ data });
+    } catch (error) {
+      ctx.logger.error('获取交付发布自检失败:', error);
+      this.result({ code: 500, message: error.message || '获取发布自检失败' });
+    }
+  }
+
+  /**
    * 导出客户交付包（站点配置 + 分类标签 + license + feature）
    */
   async exportPackage() {

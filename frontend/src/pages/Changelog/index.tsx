@@ -70,6 +70,9 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'fix', scope: 'backend', text: '【签名兜底】签名校验失败时新增本地授权文件载荷比对兜底，并在通过后回写远端验签摘要，提升授权链路稳定性。' },
       { type: 'fix', scope: 'frontend', text: '【首页文章Tab】修复 `design-article-grid` 子分类切换竞态：快速切换标签时仅保留最后一次请求结果，解决第二个标签内容错位。' },
       { type: 'improve', scope: 'frontend', text: '【移动端交互】`design-article-grid-container` 小屏横向列表统一隐藏滚动条（Chrome/Safari/Firefox），保留手势滑动，减少视觉干扰。' },
+      { type: 'feature', scope: 'fullstack', text: '【交付发布自检】交付初始化向导新增“发布自检”面板，后台可直接检查授权状态、数据库关键表、上传目录、基础配置与发布文件完整性，减少客户部署后反复排查。' },
+      { type: 'feature', scope: 'backend', text: '【客户初始化 SQL】新增 `server/sql/customer/starter.sql` 干净初始化数据包，补齐站点基础信息、首页/投稿/页脚配置、基础分类与交付初始化菜单，适合新客户安装后快速起站。' },
+      { type: 'improve', scope: 'backend', text: '【发布命令】新增 `npm run release:doctor` / `node scripts/release-doctor.js` 本地交付包自检，打包前可检查源码、后台构建产物、初始化 SQL 与授权文件边界。' },
     ],
   },
   {

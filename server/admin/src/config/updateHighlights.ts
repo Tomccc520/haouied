@@ -34,6 +34,17 @@ export const ADMIN_UPDATE_GROUP_LABELS: Record<AdminUpdateHighlightItem['group']
  */
 export const ADMIN_UPDATE_HIGHLIGHTS: AdminUpdateHighlightItem[] = [
     {
+        id: 'delivery-release-doctor',
+        version: CURRENT_ADMIN_UPDATE_VERSION,
+        group: 'delivery',
+        title: '交付发布自检',
+        description:
+            '交付初始化向导新增发布自检面板，可检查授权、数据库、上传目录、基础配置与发布文件，减少客户部署排障成本。',
+        routePath: '/uied/delivery-init',
+        badgePaths: ['/uied/delivery-init'],
+        actionText: '前往交付自检'
+    },
+    {
         id: 'license-center',
         version: CURRENT_ADMIN_UPDATE_VERSION,
         group: 'delivery',

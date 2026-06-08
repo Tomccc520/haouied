@@ -10,7 +10,10 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const Service = require('egg').Service;
+const uploadsPathUtil = require('../../util/uploadsPathUtil');
 const DELIVERY_PROFILE_CATALOG_SETTING_KEY = 'deliveryProfileCatalog';
 
 class DeliveryInitService extends Service {
@@ -1204,6 +1207,353 @@ class DeliveryInitService extends Service {
        ORDER BY ${orderBy}`,
       { type: this.app.Sequelize.QueryTypes.SELECT }
     );
+  }
+
+  /**
+   * 读取表数据总数，失败时降级为不可用状态。
+   * @param {string} tableName 表名
+   * @param {string} whereSql 查询条件
+   * @param {Array<any>} replacements 查询参数
+   * @return {Promise<{available:boolean,count:number,error:string}>} 统计结果
+   */
+  async safeCount(tableName, whereSql = '1=1', replacements = []) {
+    try {
+      const [ row ] = await this.app.model.query(
+        `SELECT COUNT(*) AS total FROM \`${tableName}\` WHERE ${whereSql}`,
+        { replacements, type: this.app.Sequelize.QueryTypes.SELECT }
+      );
+      return {
+        available: true,
+        count: Number(row?.total || 0),
+        error: '',
+      };
+    } catch (error) {
+      this.ctx.logger.warn(`[deliveryInit] safeCount(${tableName}) 降级: ${error.message}`);
+      return {
+        available: false,
+        count: 0,
+        error: String(error?.message || 'count_failed'),
+      };
+    }
+  }
+
+  /**
+   * 检查文件或目录是否存在且可访问。
+   * @param {string} targetPath 目标路径
+   * @param {boolean} writable 是否要求可写
+   * @return {{exists:boolean,writable:boolean,error:string,path:string}} 文件状态
+   */
+  checkPathAccess(targetPath, writable = false) {
+    const result = {
+      path: String(targetPath || ''),
+      exists: false,
+      writable: false,
+      error: '',
+    };
+    try {
+      fs.accessSync(targetPath, fs.constants.R_OK);
+      result.exists = true;
+      if (writable) {
+        fs.accessSync(targetPath, fs.constants.W_OK);
+        result.writable = true;
+      } else {
+        result.writable = true;
+      }
+    } catch (error) {
+      result.error = String(error?.message || 'path_access_failed');
+    }
+    return result;
+  }
+
+  /**
+   * 生成发布自检检查项。
+   * @param {string} group 检查分组
+   * @param {string} key 检查键
+   * @param {'pass'|'warn'|'fail'} status 检查状态
+   * @param {string} title 检查标题
+   * @param {string} message 检查说明
+   * @param {string} suggestion 处理建议
+   * @return {Record<string, string>} 检查项
+   */
+  makeDoctorCheck(group, key, status, title, message, suggestion = '') {
+    return {
+      group,
+      key,
+      status,
+      title,
+      message,
+      suggestion,
+    };
+  }
+
+  /**
+   * 检查指定配置键是否已写入数据库。
+   * @param {string} key 配置键
+   * @param {string} title 展示标题
+   * @return {Promise<Record<string, string>>} 检查项
+   */
+  async checkSettingKey(key, title) {
+    try {
+      const value = await this.ctx.service.uied.setting.get(key);
+      const exists = value !== null && value !== undefined && value !== '';
+      return exists
+        ? this.makeDoctorCheck('config', `setting:${key}`, 'pass', title, '配置已存在')
+        : this.makeDoctorCheck(
+          'config',
+          `setting:${key}`,
+          'warn',
+          title,
+          '配置未写入或为空',
+          '可在后台站点设置中保存一次，或执行 server/sql/customer/starter.sql。'
+        );
+    } catch (error) {
+      return this.makeDoctorCheck(
+        'config',
+        `setting:${key}`,
+        'warn',
+        title,
+        `读取配置失败：${String(error?.message || 'unknown')}`,
+        '请确认 uied_site_setting 表结构已导入。'
+      );
+    }
+  }
+
+  /**
+   * 检查关键数据表是否可用并统计数量。
+   * @return {Promise<Array<Record<string, string>>>} 检查项列表
+   */
+  async buildDoctorDatabaseChecks() {
+    const tableChecks = [
+      { table: 'uied_site_info', title: '站点信息表', min: 1 },
+      { table: 'uied_site_setting', title: '站点配置表', min: 1 },
+      { table: 'uied_category', title: '网站分类表', min: 1 },
+      { table: 'uied_website', title: '网站数据表', min: 0 },
+      { table: 'uied_article', title: '文章数据表', min: 0 },
+      { table: 'uied_website_submission', title: '投稿表', min: 0 },
+      { table: 'uied_submission_fulfillment_log', title: '投稿履约日志表', min: 0 },
+      { table: 'uied_upgrade_task', title: '升级任务表', min: 0 },
+    ];
+    const result = [];
+    for (const item of tableChecks) {
+      const countResult = await this.safeCount(item.table, '1=1');
+      if (!countResult.available) {
+        result.push(this.makeDoctorCheck(
+          'database',
+          `table:${item.table}`,
+          'fail',
+          item.title,
+          `表不可查询：${countResult.error}`,
+          '请先导入 install.sql 和对应补丁 SQL。'
+        ));
+        continue;
+      }
+      if (Number(item.min || 0) > 0 && countResult.count < item.min) {
+        result.push(this.makeDoctorCheck(
+          'database',
+          `table:${item.table}`,
+          'warn',
+          item.title,
+          `表可用，但当前数据量为 ${countResult.count}`,
+          '建议执行 server/sql/customer/starter.sql 或通过交付初始化向导写入基础数据。'
+        ));
+        continue;
+      }
+      result.push(this.makeDoctorCheck(
+        'database',
+        `table:${item.table}`,
+        'pass',
+        item.title,
+        `表可查询，当前 ${countResult.count} 条`
+      ));
+    }
+    return result;
+  }
+
+  /**
+   * 检查运行环境、上传目录和关键发布文件。
+   * @return {Array<Record<string, string>>} 检查项列表
+   */
+  buildDoctorRuntimeChecks() {
+    const baseDir = this.app.baseDir;
+    const uploadsDir = uploadsPathUtil.resolveUploadsAbsoluteDir(this.app);
+    const adminIndexPath = path.resolve(baseDir, '..', 'frontend', 'index.html');
+    const starterSqlPath = path.resolve(baseDir, '..', 'sql', 'customer', 'starter.sql');
+    const uploadAccess = this.checkPathAccess(uploadsDir, true);
+    const adminIndexAccess = this.checkPathAccess(adminIndexPath, false);
+    const starterSqlAccess = this.checkPathAccess(starterSqlPath, false);
+    const checks = [
+      uploadAccess.exists && uploadAccess.writable
+        ? this.makeDoctorCheck('runtime', 'path:uploads', 'pass', '上传目录', `上传目录可读写：${uploadsDir}`)
+        : this.makeDoctorCheck(
+          'runtime',
+          'path:uploads',
+          'fail',
+          '上传目录',
+          `上传目录不可用：${uploadAccess.error || uploadsDir}`,
+          '请配置 UIED_UPLOADS_ABS_DIR，并确保 Docker/宝塔运行用户有读写权限。'
+        ),
+      adminIndexAccess.exists
+        ? this.makeDoctorCheck('files', 'file:admin-index', 'pass', '后台构建入口', 'server/frontend/index.html 存在')
+        : this.makeDoctorCheck(
+          'files',
+          'file:admin-index',
+          'warn',
+          '后台构建入口',
+          'server/frontend/index.html 不存在',
+          '如果本次只部署后端可忽略；完整客户包需要包含后台构建产物。'
+        ),
+      starterSqlAccess.exists
+        ? this.makeDoctorCheck('files', 'file:starter-sql', 'pass', '客户初始化 SQL', 'server/sql/customer/starter.sql 存在')
+        : this.makeDoctorCheck(
+          'files',
+          'file:starter-sql',
+          'warn',
+          '客户初始化 SQL',
+          'server/sql/customer/starter.sql 不存在',
+          '请重新打包最新版源码。'
+        ),
+    ];
+
+    const env = this.app.config.env || process.env.EGG_SERVER_ENV || process.env.NODE_ENV || '';
+    checks.push(
+      String(env).toLowerCase() === 'prod'
+        ? this.makeDoctorCheck('runtime', 'env:prod', 'pass', '运行环境', `当前环境：${env}`)
+        : this.makeDoctorCheck(
+          'runtime',
+          'env:prod',
+          'warn',
+          '运行环境',
+          `当前环境：${env || 'unknown'}`,
+          '生产部署建议使用 EGG_SERVER_ENV=prod 或对应 Docker 生产配置。'
+        )
+    );
+    return checks;
+  }
+
+  /**
+   * 构建授权相关检查项。
+   * @param {Record<string, any>} licenseInfo 授权信息
+   * @return {Array<Record<string, string>>} 检查项列表
+   */
+  buildDoctorLicenseChecks(licenseInfo = {}) {
+    const remoteConfig = this.ctx.service.uied.licenseCenter.getLicenseActivateRemoteConfig();
+    const localLicenseCandidates = this.ctx.service.uied.licenseCenter.resolveLocalLicenseFilePathCandidates();
+    const localLicenseExists = localLicenseCandidates.some(item => fs.existsSync(item));
+    return [
+      licenseInfo.isActive
+        ? this.makeDoctorCheck(
+          'license',
+          'license:active',
+          'pass',
+          '授权状态',
+          `授权已生效：${String(licenseInfo.effectiveEdition || 'free').toUpperCase()}`
+        )
+        : this.makeDoctorCheck(
+          'license',
+          'license:active',
+          'warn',
+          '授权状态',
+          `授权未生效：${licenseInfo.status || 'unknown'}`,
+          '客户部署后请在授权中心激活授权码，或将 .license 文件放到 server/licenses。'
+        ),
+      licenseInfo.signatureRequired
+        ? (licenseInfo.isSignatureValid
+          ? this.makeDoctorCheck('license', 'license:signature', 'pass', '许可证签名', `签名有效（${licenseInfo.signatureVerifyMode || 'unknown'}）`)
+          : this.makeDoctorCheck(
+            'license',
+            'license:signature',
+            'fail',
+            '许可证签名',
+            '签名无效或缺少远端验签缓存',
+            '请确认授权文件来自 fsuied.com，或检查授权中心激活密钥配置。'
+          ))
+        : this.makeDoctorCheck('license', 'license:signature', 'warn', '许可证签名', '当前未强制签名校验'),
+      localLicenseExists
+        ? this.makeDoctorCheck('license', 'license:file', 'pass', '本地授权文件', '已检测到本地 .license 文件')
+        : this.makeDoctorCheck(
+          'license',
+          'license:file',
+          'warn',
+          '本地授权文件',
+          '未检测到本地 .license 文件',
+          '通用源码包可以不包含授权文件；客户部署后放入 server/licenses 即可。'
+        ),
+      remoteConfig.token || remoteConfig.signSecret
+        ? this.makeDoctorCheck('license', 'license:remote-auth', 'pass', '授权中心鉴权', '远端授权激活鉴权已配置（未展示密钥）')
+        : this.makeDoctorCheck(
+          'license',
+          'license:remote-auth',
+          'warn',
+          '授权中心鉴权',
+          '未配置远端授权中心鉴权 Token 或 API 签名密钥',
+          '如需后台按授权码激活，请配置 UIED_LICENSE_ACTIVATE_TOKEN 或 UIED_LICENSE_API_SIGN_SECRET。'
+        ),
+    ];
+  }
+
+  /**
+   * 汇总发布自检结果。
+   * @param {Array<Record<string, string>>} checks 检查项
+   * @return {{pass:number,warn:number,fail:number,total:number,score:number,level:string}} 汇总
+   */
+  summarizeDoctorChecks(checks = []) {
+    const pass = checks.filter(item => item.status === 'pass').length;
+    const warn = checks.filter(item => item.status === 'warn').length;
+    const fail = checks.filter(item => item.status === 'fail').length;
+    const score = Math.max(0, 100 - fail * 25 - warn * 8);
+    return {
+      pass,
+      warn,
+      fail,
+      total: checks.length,
+      score,
+      level: fail > 0 ? 'risk' : (warn > 2 ? 'attention' : 'ready'),
+    };
+  }
+
+  /**
+   * 获取客户交付发布自检结果（只读，不写数据库）。
+   * @return {Promise<Record<string, any>>} 自检结果
+   */
+  async doctor() {
+    const licenseInfo = await this.ctx.service.uied.licenseCenter.getLicenseInfo().catch(error => ({
+      status: `license_error:${String(error?.message || 'unknown')}`,
+      isActive: false,
+      isSignatureValid: false,
+      signatureRequired: true,
+      effectiveEdition: 'free',
+    }));
+    const configChecks = await Promise.all([
+      this.checkSettingKey('homepageConfig', '首页配置'),
+      this.checkSettingKey('pageGlobalConfig', '页面全局配置'),
+      this.checkSettingKey('submissionServiceConfig', '投稿与增值服务配置'),
+      this.checkSettingKey('footerAboutConfig', '页脚按钮配置'),
+      this.checkSettingKey('deliveryProfileCatalog', '交付模板目录'),
+    ]);
+    const checks = [
+      ...this.buildDoctorRuntimeChecks(),
+      ...this.buildDoctorLicenseChecks(licenseInfo),
+      ...await this.buildDoctorDatabaseChecks(),
+      ...configChecks,
+    ];
+    return {
+      generatedAt: Math.floor(Date.now() / 1000),
+      summary: this.summarizeDoctorChecks(checks),
+      checks,
+      environment: {
+        nodeEnv: process.env.NODE_ENV || '',
+        eggEnv: this.app.config.env || process.env.EGG_SERVER_ENV || '',
+        baseDir: this.app.baseDir,
+        uploadsDir: uploadsPathUtil.resolveUploadsAbsoluteDir(this.app),
+        publicUrl: this.app.config.publicUrl || '',
+        version: this.app.config.version || '',
+      },
+      commands: {
+        backend: 'cd server/server && npm run release:doctor',
+        starterSql: 'mysql --default-character-set=utf8mb4 -u <user> -p <database> < server/sql/customer/starter.sql',
+        licenseFile: '将授权文件放入 server/licenses/*.license 后重启后端或重新进入授权中心刷新',
+      },
+    };
   }
 
   /**
