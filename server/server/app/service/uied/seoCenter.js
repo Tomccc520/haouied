@@ -259,7 +259,7 @@ class SeoCenterService extends Service {
     return list
       .map((item, index) => {
         const id = this.normalizeString(item?.id || '') || this.createId();
-        const from = this.normalizeRedirectFromPath(item?.from || '/');
+        const from = this.normalizeRedirectFromPath(item?.from || '');
         const toRaw = this.normalizeString(item?.to || '/');
         const to = /^https?:\/\//i.test(toRaw)
           ? toRaw
@@ -275,12 +275,14 @@ class SeoCenterService extends Service {
   }
 
   /**
-   * 规范化重定向来源路径（统一去除尾斜杠，根路径保留 /）
+   * 规范化重定向来源路径（统一去除尾斜杠，空值保留为空，根路径保留 /）
    * @param {unknown} pathValue 来源路径
    * @return {string} 规范化来源路径
    */
   normalizeRedirectFromPath(pathValue) {
-    const normalizedPath = this.normalizePath(pathValue || '/');
+    const raw = this.normalizeString(pathValue || '');
+    if (!raw) return '';
+    const normalizedPath = this.normalizePath(raw);
     if (normalizedPath === '/') return '/';
     const cleaned = normalizedPath.replace(/\/+$/, '');
     return cleaned || '/';
@@ -302,7 +304,17 @@ class SeoCenterService extends Service {
   validateRedirectRules(rules = []) {
     const sourceMap = new Map();
     for (const rule of Array.isArray(rules) ? rules : []) {
-      const fromPath = this.normalizeRedirectFromPath(rule?.from || '/');
+      const fromPath = this.normalizeRedirectFromPath(rule?.from || '');
+      if (!fromPath || fromPath === '/') {
+        const error = new Error('来源路径不能为空，也不能配置为根路径 /');
+        error.code = 'SEO_REDIRECT_FROM_INVALID';
+        throw error;
+      }
+      if (!this.normalizeString(rule?.to || '')) {
+        const error = new Error(`目标地址不能为空：${fromPath}`);
+        error.code = 'SEO_REDIRECT_TO_INVALID';
+        throw error;
+      }
       const fromKey = this.buildRedirectFromKey(fromPath);
       if (!fromKey) continue;
       const existing = sourceMap.get(fromKey);
@@ -1893,41 +1905,42 @@ class SeoCenterService extends Service {
       errorMessage = String(error?.message || '自动任务执行失败');
       throw error;
     } finally {
-      if (!started) return;
-      const finishedAt = new Date().toISOString();
-      const durationMs = Math.max(0, Date.now() - startedMs);
-      const finalSuccess = resultEntry?.success === true;
-      const finalError = finalSuccess
-        ? ''
-        : (errorMessage || (resultEntry?.results || [])
-          .filter(item => item.success !== true)
-          .map(item => item.errorMessage || item.summary || '')
-          .filter(Boolean)
-          .join('；'));
+      if (started) {
+        const finishedAt = new Date().toISOString();
+        const durationMs = Math.max(0, Date.now() - startedMs);
+        const finalSuccess = resultEntry?.success === true;
+        const finalError = finalSuccess
+          ? ''
+          : (errorMessage || (resultEntry?.results || [])
+            .filter(item => item.success !== true)
+            .map(item => item.errorMessage || item.summary || '')
+            .filter(Boolean)
+            .join('；'));
 
-      await this.saveAutoTaskState({
-        running: false,
-        lastRunAt: finishedAt,
-        lastCompletedAt: finishedAt,
-        lastDurationMs: durationMs,
-        lastTaskType: taskType,
-        lastTrigger: trigger,
-        nextRunAt: this.buildNextAutoTaskRunAt(
-          finishedAt,
-          Number(autoTask.intervalMinutes || 30),
-          autoTask.enabled === true
-        ),
-        lastError: finalError,
-        lastResult: resultEntry ? {
-          success: resultEntry.success === true,
-          taskCount: Number(resultEntry.taskCount || 0),
-          successCount: Number(resultEntry.successCount || 0),
-          failedCount: Number(resultEntry.failedCount || 0),
-          finishedAt,
-        } : null,
-      }).catch(err => {
-        this.ctx.logger.error('[seoCenter] 保存自动任务状态失败: %s', err?.message || err);
-      });
+        await this.saveAutoTaskState({
+          running: false,
+          lastRunAt: finishedAt,
+          lastCompletedAt: finishedAt,
+          lastDurationMs: durationMs,
+          lastTaskType: taskType,
+          lastTrigger: trigger,
+          nextRunAt: this.buildNextAutoTaskRunAt(
+            finishedAt,
+            Number(autoTask.intervalMinutes || 30),
+            autoTask.enabled === true
+          ),
+          lastError: finalError,
+          lastResult: resultEntry ? {
+            success: resultEntry.success === true,
+            taskCount: Number(resultEntry.taskCount || 0),
+            successCount: Number(resultEntry.successCount || 0),
+            failedCount: Number(resultEntry.failedCount || 0),
+            finishedAt,
+          } : null,
+        }).catch(err => {
+          this.ctx.logger.error('[seoCenter] 保存自动任务状态失败: %s', err?.message || err);
+        });
+      }
     }
   }
 
@@ -2042,7 +2055,8 @@ class SeoCenterService extends Service {
 
     for (const rule of rules) {
       if (!rule?.enabled) continue;
-      const from = this.buildRedirectFromKey(rule.from || '/');
+      const from = this.buildRedirectFromKey(rule.from || '');
+      if (!from || from === '/') continue;
       if (from !== path) continue;
       const type = String(rule.type || '301') === '302' ? 302 : 301;
       let target = String(rule.to || '/').trim();

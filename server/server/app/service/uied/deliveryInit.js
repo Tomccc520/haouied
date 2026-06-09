@@ -15,6 +15,18 @@ const path = require('path');
 const Service = require('egg').Service;
 const uploadsPathUtil = require('../../util/uploadsPathUtil');
 const DELIVERY_PROFILE_CATALOG_SETTING_KEY = 'deliveryProfileCatalog';
+const DEFAULT_OPERATION_REDIRECTS = [
+  {
+    id: 'uied_redirect_xingliu',
+    from: '/xingliu',
+    to: 'https://www.xingliu.art/?souceid=005903&utm=cg&cgv=dqndprwn2z',
+    type: '302',
+    enabled: true,
+    preserveQuery: false,
+    sort: 10,
+    note: '星流推广短链',
+  },
+];
 
 class DeliveryInitService extends Service {
   /**
@@ -130,6 +142,14 @@ class DeliveryInitService extends Service {
    */
   getProfileCatalog() {
     return this.getBaseProfileCatalog();
+  }
+
+  /**
+   * 获取默认运营短链配置，供初始化模板和 starter SQL 保持同一交付口径。
+   * @return {Array<Record<string, any>>} 默认短链规则列表
+   */
+  getDefaultOperationRedirects() {
+    return this.deepClone(DEFAULT_OPERATION_REDIRECTS);
   }
 
   /**
@@ -353,6 +373,9 @@ class DeliveryInitService extends Service {
           userAgreementUrl: `${agreementBase}/user-agreement`,
           copyrightAgreementText: '版权协议',
           copyrightAgreementUrl: `${agreementBase}/copyright-agreement`,
+        },
+        seoCenterConfig: {
+          redirects: this.getDefaultOperationRedirects(),
         },
       },
       websiteCategories: [
@@ -1523,13 +1546,25 @@ class DeliveryInitService extends Service {
       signatureRequired: true,
       effectiveEdition: 'free',
     }));
-    const configChecks = await Promise.all([
-      this.checkSettingKey('homepageConfig', '首页配置'),
-      this.checkSettingKey('pageGlobalConfig', '页面全局配置'),
-      this.checkSettingKey('submissionServiceConfig', '投稿与增值服务配置'),
-      this.checkSettingKey('footerAboutConfig', '页脚按钮配置'),
-      this.checkSettingKey('deliveryProfileCatalog', '交付模板目录'),
-    ]);
+    const configKeyChecks = [
+      [ 'homepageConfig', '首页配置' ],
+      [ 'pageGlobalConfig', '页面全局配置' ],
+      [ 'searchConfig', '搜索配置' ],
+      [ 'appearanceConfig', '外观配置' ],
+      [ 'cardStyleConfig', '卡片样式配置' ],
+      [ 'sidebarConfig', '侧栏配置' ],
+      [ 'exitModalConfig', '外链弹窗配置' ],
+      [ 'detailPageConfig', '详情页配置' ],
+      [ 'articleConfig', '文章配置' ],
+      [ 'articleTopicsConfig', '文章专题配置' ],
+      [ 'submissionServiceConfig', '投稿与增值服务配置' ],
+      [ 'footerAboutConfig', '页脚按钮配置' ],
+      [ 'seoCenterConfig', 'SEO中心配置' ],
+      [ 'deliveryProfileCatalog', '交付模板目录' ],
+    ];
+    const configChecks = await Promise.all(
+      configKeyChecks.map(([ key, label ]) => this.checkSettingKey(key, label))
+    );
     const checks = [
       ...this.buildDoctorRuntimeChecks(),
       ...this.buildDoctorLicenseChecks(licenseInfo),
@@ -1557,12 +1592,49 @@ class DeliveryInitService extends Service {
   }
 
   /**
-   * 导出客户交付包（站点配置 + 分类标签 + license + feature）
+   * 构建脱敏授权快照，默认不导出真实授权码与签名，避免通用客户包泄露授权信息。
+   * @param {Record<string, any>} licenseInfo 当前授权信息
+   * @param {boolean} includeLicense 是否包含真实授权字段
+   * @return {Record<string, any>} 授权快照
+   */
+  buildExportLicenseSnapshot(licenseInfo = {}, includeLicense = false) {
+    if (!includeLicense) {
+      return {
+        included: false,
+        edition: licenseInfo.effectiveEdition || licenseInfo.edition || 'free',
+        status: licenseInfo.status || licenseInfo.rawStatus || 'unknown',
+        message: '通用客户包默认不包含真实授权码、域名白名单与签名；请客户部署后放入授权文件或在授权中心激活。',
+      };
+    }
+    return {
+      included: true,
+      edition: licenseInfo.edition,
+      status: licenseInfo.status,
+      rawStatus: licenseInfo.rawStatus,
+      licenseKey: licenseInfo.licenseKey,
+      customerName: licenseInfo.customerName,
+      companyName: licenseInfo.companyName,
+      contactEmail: licenseInfo.contactEmail,
+      domainLimit: licenseInfo.domainLimit,
+      domainWhitelist: licenseInfo.domainWhitelist,
+      issuedAt: licenseInfo.issuedAt,
+      expiresAt: licenseInfo.expiresAt,
+      note: licenseInfo.note,
+      signVersion: licenseInfo.signVersion,
+      signature: licenseInfo.signature,
+    };
+  }
+
+  /**
+   * 导出客户交付包（站点配置 + 分类标签 + 可选授权/功能开关）
    */
   async exportCustomerPackage(input = {}) {
     const options = {
       includeWebsiteData: this.parseBoolean(input.includeWebsiteData, false),
       includeArticleData: this.parseBoolean(input.includeArticleData, false),
+      includeLicense: this.parseBoolean(input.includeLicense, false),
+      includeFeatureOverrides: this.parseBoolean(input.includeFeatureOverrides, false),
+      includeCommercialMode: this.parseBoolean(input.includeCommercialMode, true),
     };
     const settingKeys = [
       'homepageConfig',
@@ -1575,6 +1647,10 @@ class DeliveryInitService extends Service {
       'detailPageConfig',
       'articleConfig',
       'articleTopicsConfig',
+      'footerAboutConfig',
+      'submissionServiceConfig',
+      'deliveryProfileCatalog',
+      'seoCenterConfig',
     ];
     const settings = {};
     for (const key of settingKeys) {
@@ -1600,9 +1676,9 @@ class DeliveryInitService extends Service {
           websiteTags: true,
           articleCategories: true,
           articleTags: true,
-          license: true,
-          featureOverrides: true,
-          commercialMode: true,
+          license: options.includeLicense,
+          featureOverrides: options.includeFeatureOverrides,
+          commercialMode: options.includeCommercialMode,
           websiteData: options.includeWebsiteData,
           articleData: options.includeArticleData,
         },
@@ -1617,24 +1693,9 @@ class DeliveryInitService extends Service {
         categories: articleCategories,
         tags: articleTags,
       },
-      license: {
-        edition: licenseInfo.edition,
-        status: licenseInfo.status,
-        rawStatus: licenseInfo.rawStatus,
-        licenseKey: licenseInfo.licenseKey,
-        customerName: licenseInfo.customerName,
-        companyName: licenseInfo.companyName,
-        contactEmail: licenseInfo.contactEmail,
-        domainLimit: licenseInfo.domainLimit,
-        domainWhitelist: licenseInfo.domainWhitelist,
-        issuedAt: licenseInfo.issuedAt,
-        expiresAt: licenseInfo.expiresAt,
-        note: licenseInfo.note,
-        signVersion: licenseInfo.signVersion,
-        signature: licenseInfo.signature,
-      },
-      featureOverrides,
-      commercialMode,
+      license: this.buildExportLicenseSnapshot(licenseInfo, options.includeLicense),
+      featureOverrides: options.includeFeatureOverrides ? featureOverrides : {},
+      commercialMode: options.includeCommercialMode ? commercialMode : {},
     };
 
     if (options.includeWebsiteData) {

@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const REPORT_DIR = path.join(PROJECT_ROOT, 'docs', 'API', 'reports');
@@ -54,6 +55,19 @@ function exists(targetPath) {
  */
 function rel(targetPath) {
   return path.relative(PROJECT_ROOT, targetPath).replace(/\\/g, '/');
+}
+
+/**
+ * 安全读取项目内文本文件。
+ * @param {string} relativePath 文件相对路径
+ * @returns {string} 文件内容
+ */
+function readText(relativePath) {
+  try {
+    return fs.readFileSync(path.join(PROJECT_ROOT, relativePath), 'utf8');
+  } catch (error) {
+    return '';
+  }
 }
 
 /**
@@ -165,6 +179,156 @@ function readPackage(relativePath) {
 }
 
 /**
+ * 递归收集目录内匹配文件，避免真实授权文件藏在子目录里被打包。
+ * @param {string} dir 起始目录
+ * @param {(filePath:string)=>boolean} predicate 匹配函数
+ * @param {string[]} output 收集结果
+ * @returns {string[]} 文件列表
+ */
+function collectFilesRecursive(dir, predicate, output = []) {
+  if (!exists(dir)) return output;
+  const stat = fs.statSync(dir);
+  if (!stat.isDirectory()) return output;
+  fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
+    const target = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectFilesRecursive(target, predicate, output);
+      return;
+    }
+    if (entry.isFile() && predicate(target)) {
+      output.push(target);
+    }
+  });
+  return output;
+}
+
+/**
+ * 去重并保持原始顺序。
+ * @param {string[]} items 原始列表
+ * @returns {string[]} 去重列表
+ */
+function uniqueList(items = []) {
+  return Array.from(new Set(items.filter(Boolean)));
+}
+
+/**
+ * 判断授权字段是否仍是占位模板值。
+ * @param {any} value 待检测字段
+ * @returns {boolean} 是否为安全占位值
+ */
+function isPlaceholderLicenseValue(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return true;
+  return /REPLACE-ME|YOUR_|EXAMPLE|DEMO|PLACEHOLDER|待填写|示例/i.test(text);
+}
+
+/**
+ * 解析客户授权 JSON 文本里的敏感字段风险。
+ * @param {string} content 授权 JSON 内容
+ * @returns {string[]} 风险说明列表
+ */
+function detectCustomerLicenseJsonContentRisks(content) {
+  const risks = [];
+  try {
+    const data = JSON.parse(content);
+    const licenseKey = data.licenseKey || data.license_key || '';
+    const signature = data.signature || '';
+    const domains = data.domainWhitelist || data.domain_whitelist || data.domains || [];
+    if (!isPlaceholderLicenseValue(licenseKey)) risks.push('包含真实授权码');
+    if (!isPlaceholderLicenseValue(signature) && /^[a-f0-9]{32,}$/i.test(String(signature))) risks.push('包含授权签名');
+    if (Array.isArray(domains) && domains.some(item => !isPlaceholderLicenseValue(item))) risks.push('包含域名白名单');
+    [ 'customerName', 'companyName', 'contactEmail' ].forEach(key => {
+      if (!isPlaceholderLicenseValue(data[key])) risks.push(`包含客户字段 ${key}`);
+    });
+  } catch (error) {
+    if (/"signature"\s*:\s*"[a-f0-9]{32,}"/i.test(content)) risks.push('包含授权签名');
+    if (/"licenseKey"\s*:\s*"UIED-(?![^"]*REPLACE-ME)[^"]+"/i.test(content)) risks.push('包含真实授权码');
+    if (/"domainWhitelist"\s*:\s*\[\s*"[^"]+"/i.test(content) && !/REPLACE-ME|EXAMPLE|DEMO/i.test(content)) {
+      risks.push('包含域名白名单');
+    }
+  }
+  return uniqueList(risks);
+}
+
+/**
+ * 解析客户授权 JSON 模板里的敏感字段风险。
+ * @param {string} filePath 授权 JSON 路径
+ * @returns {string[]} 风险说明列表
+ */
+function detectCustomerLicenseJsonRisks(filePath) {
+  try {
+    return detectCustomerLicenseJsonContentRisks(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    return [ '文件无法读取' ];
+  }
+}
+
+/**
+ * 判断文件是否是需要检查的发布压缩包。
+ * @param {string} filePath 文件路径
+ * @returns {boolean} 是否为发布压缩包
+ */
+function isReleaseArchive(filePath) {
+  return /\.(zip|tgz|tar\.gz|tar)$/i.test(filePath);
+}
+
+/**
+ * 使用系统工具列出压缩包内部文件。
+ * @param {string} filePath 压缩包路径
+ * @returns {string[]} 文件列表
+ */
+function listArchiveEntries(filePath) {
+  const lower = filePath.toLowerCase();
+  try {
+    if (lower.endsWith('.zip')) {
+      return childProcess.execFileSync('unzip', [ '-Z1', filePath ], { encoding: 'utf8' })
+        .split(/\r?\n/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+    if (lower.endsWith('.tgz') || lower.endsWith('.tar.gz')) {
+      return childProcess.execFileSync('tar', [ '-tzf', filePath ], { encoding: 'utf8' })
+        .split(/\r?\n/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+    if (lower.endsWith('.tar')) {
+      return childProcess.execFileSync('tar', [ '-tf', filePath ], { encoding: 'utf8' })
+        .split(/\r?\n/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+  } catch (error) {
+    return [];
+  }
+  return [];
+}
+
+/**
+ * 读取压缩包内单个文件内容。
+ * @param {string} filePath 压缩包路径
+ * @param {string} entryName 内部文件路径
+ * @returns {string} 文件内容
+ */
+function readArchiveEntry(filePath, entryName) {
+  const lower = filePath.toLowerCase();
+  try {
+    if (lower.endsWith('.zip')) {
+      return childProcess.execFileSync('unzip', [ '-p', filePath, entryName ], { encoding: 'utf8' });
+    }
+    if (lower.endsWith('.tgz') || lower.endsWith('.tar.gz')) {
+      return childProcess.execFileSync('tar', [ '-xOzf', filePath, entryName ], { encoding: 'utf8' });
+    }
+    if (lower.endsWith('.tar')) {
+      return childProcess.execFileSync('tar', [ '-xOf', filePath, entryName ], { encoding: 'utf8' });
+    }
+  } catch (error) {
+    return '';
+  }
+  return '';
+}
+
+/**
  * 检查 npm 脚本是否包含交付自检命令。
  * @returns {Array<Record<string, string>>} 检查结果
  */
@@ -198,6 +362,112 @@ function checkPackageScripts() {
 }
 
 /**
+ * 检查客户初始化 SQL 是否带上当前运营短链默认值。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkStarterSqlDefaults() {
+  const content = readText('server/sql/customer/starter.sql');
+  if (!content) {
+    return [
+      makeCheck(
+        'delivery',
+        'starter:readable',
+        'fail',
+        '客户初始化 SQL 默认值',
+        '无法读取 server/sql/customer/starter.sql',
+        '请确认客户初始化 SQL 已随源码包交付。'
+      ),
+    ];
+  }
+  const hasSeoConfig = /['"]seoCenterConfig['"]/.test(content);
+  const hasXingliu = /\/xingliu/.test(content)
+    && /https:\/\/www\.xingliu\.art\/\?souceid=005903&utm=cg&cgv=dqndprwn2z/.test(content);
+  const patchContent = readText('server/sql/patch_2026_0609_seo_xingliu_redirect.sql');
+  const hasXingliuPatch = /\/xingliu/.test(patchContent)
+    && /INSERT INTO `uied_site_setting`/.test(patchContent)
+    && /LOCATE\('\[', `value`, LOCATE\('"redirects"', `value`\)\)/.test(patchContent);
+  return [
+    hasSeoConfig
+      ? makeCheck('delivery', 'starter:seo-config', 'pass', 'SEO 默认配置', 'starter.sql 已包含 seoCenterConfig')
+      : makeCheck(
+        'delivery',
+        'starter:seo-config',
+        'warn',
+        'SEO 默认配置',
+        'starter.sql 未包含 seoCenterConfig',
+        '新客户导入后需要手动配置 SEO 中心短链。'
+      ),
+    hasXingliu
+      ? makeCheck('delivery', 'starter:xingliu-shortlink', 'pass', '星流运营短链', 'starter.sql 已内置 /xingliu -> 星流推广链接')
+      : makeCheck(
+        'delivery',
+        'starter:xingliu-shortlink',
+        'warn',
+        '星流运营短链',
+        'starter.sql 未内置 /xingliu 短链',
+        '如需默认带运营短链，请补齐 seoCenterConfig.redirects。'
+      ),
+    hasXingliuPatch
+      ? makeCheck('delivery', 'patch:xingliu-shortlink', 'pass', '老客户短链补丁', '已提供 /xingliu 短链补丁 SQL，老客户可选择执行')
+      : makeCheck(
+        'delivery',
+        'patch:xingliu-shortlink',
+        'warn',
+        '老客户短链补丁',
+        '未检测到 /xingliu 短链补丁 SQL',
+        '建议提供单独 patch，避免用 starter.sql 覆盖已有客户配置。'
+      ),
+  ];
+}
+
+/**
+ * 检查客户包导出边界，避免默认导出真实授权或通过 GET 泄露敏感查询参数。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkDeliveryExportBoundary() {
+  const serviceContent = readText('server/server/app/service/uied/deliveryInit.js');
+  const adminApiContent = readText('server/admin/src/api/uied.ts');
+  const adminPageContent = readText('server/admin/src/views/uied/deliveryInit/index.vue');
+  const defaultLicenseSafe = /includeLicense:\s*this\.parseBoolean\(input\.includeLicense,\s*false\)/.test(serviceContent)
+    && /buildExportLicenseSnapshot/.test(serviceContent);
+  const adminPostExport = /request\.post\(\{\s*url:\s*['"]\/uied\/delivery\/package\/export['"]/.test(adminApiContent);
+  const adminExplicitNoLicense = /includeLicense:\s*false/.test(adminPageContent)
+    && /includeFeatureOverrides:\s*false/.test(adminPageContent);
+  return [
+    defaultLicenseSafe
+      ? makeCheck('delivery', 'export:license-safe-default', 'pass', '客户包授权脱敏', '导出客户包默认不包含真实授权码与签名')
+      : makeCheck(
+        'delivery',
+        'export:license-safe-default',
+        'fail',
+        '客户包授权脱敏',
+        '导出客户包默认可能包含真实授权码或签名',
+        '请将 includeLicense 默认值改为 false，并输出脱敏授权快照。'
+      ),
+    adminPostExport
+      ? makeCheck('delivery', 'export:post', 'pass', '客户包导出请求', '后台导出客户包使用 POST，避免敏感字段进入 URL')
+      : makeCheck(
+        'delivery',
+        'export:post',
+        'warn',
+        '客户包导出请求',
+        '后台导出客户包未使用 POST',
+        '建议使用 POST，避免授权码等字段进入浏览器历史、代理日志或 Nginx 访问日志。'
+      ),
+    adminExplicitNoLicense
+      ? makeCheck('delivery', 'export:admin-no-license', 'pass', '后台导出默认项', '后台导出按钮明确不导出授权与功能覆盖')
+      : makeCheck(
+        'delivery',
+        'export:admin-no-license',
+        'warn',
+        '后台导出默认项',
+        '后台导出按钮未显式关闭授权/功能覆盖',
+        '请确认通用客户包不带真实授权与客户私有功能开关。'
+      ),
+  ];
+}
+
+/**
  * 检查授权文件交付边界，避免把真实许可证误打进通用源码包。
  * @returns {Array<Record<string, string>>} 检查结果
  */
@@ -208,10 +478,7 @@ function checkLicenseBoundary() {
   ];
   const licenseFiles = [];
   licenseDirs.forEach(dir => {
-    if (!exists(dir)) return;
-    fs.readdirSync(dir)
-      .filter(name => /\.license$/i.test(name))
-      .forEach(name => licenseFiles.push(path.join(dir, name)));
+    collectFilesRecursive(dir, filePath => /\.license$/i.test(filePath), licenseFiles);
   });
   if (licenseFiles.length > 0) {
     return [
@@ -232,6 +499,172 @@ function checkLicenseBoundary() {
       'pass',
       '本地授权文件',
       '未发现真实 .license 文件，适合制作通用源码包'
+    ),
+  ];
+}
+
+/**
+ * 检查客户授权 JSON 模板，避免旧打包链路把已签名授权模板带进通用交付包。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkCustomerLicenseJsonBoundary() {
+  const candidateDirs = [
+    path.join(PROJECT_ROOT, 'license'),
+    path.join(PROJECT_ROOT, 'licenses'),
+    path.join(PROJECT_ROOT, 'release'),
+    path.join(PROJECT_ROOT, 'releases'),
+    path.join(PROJECT_ROOT, 'dist'),
+    path.join(PROJECT_ROOT, 'packages'),
+    path.join(PROJECT_ROOT, 'server', 'license'),
+    path.join(PROJECT_ROOT, 'server', 'licenses'),
+    path.join(PROJECT_ROOT, 'server', 'server', 'license'),
+    path.join(PROJECT_ROOT, 'server', 'server', 'licenses'),
+  ];
+  const jsonFiles = [];
+  candidateDirs.forEach(dir => {
+    collectFilesRecursive(dir, filePath => path.basename(filePath).toLowerCase() === 'customer-license.json', jsonFiles);
+  });
+  const uniqueFiles = uniqueList(jsonFiles);
+  if (!uniqueFiles.length) {
+    return [
+      makeCheck('license', 'license:customer-json', 'pass', '客户授权 JSON', '未发现 customer-license.json，通用包无已签名授权模板风险'),
+    ];
+  }
+  const riskItems = uniqueFiles
+    .map(filePath => ({ filePath, risks: detectCustomerLicenseJsonRisks(filePath) }))
+    .filter(item => item.risks.length > 0);
+  if (riskItems.length > 0) {
+    return [
+      makeCheck(
+        'license',
+        'license:customer-json',
+        'fail',
+        '客户授权 JSON',
+        `检测到 ${riskItems.length} 个 customer-license.json 含敏感授权字段：${riskItems.slice(0, 3).map(item => `${rel(item.filePath)}(${item.risks.join('/')})`).join(', ')}`,
+        '通用客户包只能保留 REPLACE-ME 占位模板；真实授权文件请客户部署后单独放入 server/licenses。'
+      ),
+    ];
+  }
+  return [
+    makeCheck(
+      'license',
+      'license:customer-json',
+      'warn',
+      '客户授权 JSON',
+      `发现 ${uniqueFiles.length} 个 customer-license.json，占位字段检查通过`,
+      '请确认这些文件仅作为模板交付，不包含真实客户信息。'
+    ),
+  ];
+}
+
+/**
+ * 收集需要检查的发布压缩包，避免真实授权被打入 zip/tgz 后绕过文件扫描。
+ * @param {boolean} scanReleaseArchives 是否扫描历史 release 目录
+ * @returns {string[]} 压缩包路径列表
+ */
+function collectReleaseArchives(scanReleaseArchives = false) {
+  const candidateDirs = scanReleaseArchives
+    ? [
+      path.join(PROJECT_ROOT, 'release'),
+      path.join(PROJECT_ROOT, 'releases'),
+      path.join(PROJECT_ROOT, 'dist'),
+      path.join(PROJECT_ROOT, 'packages'),
+    ]
+    : [];
+  const archiveFiles = [];
+  candidateDirs.forEach(dir => {
+    collectFilesRecursive(dir, filePath => isReleaseArchive(filePath), archiveFiles);
+  });
+  fs.readdirSync(PROJECT_ROOT, { withFileTypes: true }).forEach(entry => {
+    const target = path.join(PROJECT_ROOT, entry.name);
+    if (entry.isFile() && isReleaseArchive(target)) {
+      archiveFiles.push(target);
+    }
+  });
+  return uniqueList(archiveFiles);
+}
+
+/**
+ * 检查发布压缩包内部是否包含真实授权文件或已签名授权模板。
+ * @param {Record<string, boolean>} options 检查选项
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkArchiveLicenseBoundary(options = {}) {
+  const archiveFiles = collectReleaseArchives(options.scanReleaseArchives === true);
+  if (!archiveFiles.length) {
+    return [
+      makeCheck(
+        'license',
+        'license:archive-files',
+        'pass',
+        '压缩包授权文件',
+        options.scanReleaseArchives === true
+          ? '未发现待检查的发布压缩包'
+          : '未发现根目录发布压缩包；如需深扫 release 目录，请追加 --scan-release-archives'
+      ),
+    ];
+  }
+
+  const riskItems = [];
+  const templateItems = [];
+  archiveFiles.forEach(archivePath => {
+    const entries = listArchiveEntries(archivePath);
+    if (!entries.length) {
+      riskItems.push(`${rel(archivePath)}(无法读取压缩包目录)`);
+      return;
+    }
+    entries.forEach(entryName => {
+      const baseName = path.basename(entryName).toLowerCase();
+      if (/\.license$/i.test(baseName)) {
+        riskItems.push(`${rel(archivePath)}:${entryName}(包含 .license 文件)`);
+        return;
+      }
+      if (baseName !== 'customer-license.json') return;
+      const content = readArchiveEntry(archivePath, entryName);
+      if (!content) {
+        riskItems.push(`${rel(archivePath)}:${entryName}(无法读取授权模板内容)`);
+        return;
+      }
+      const risks = detectCustomerLicenseJsonContentRisks(content);
+      if (risks.length > 0) {
+        riskItems.push(`${rel(archivePath)}:${entryName}(${risks.join('/')})`);
+        return;
+      }
+      templateItems.push(`${rel(archivePath)}:${entryName}`);
+    });
+  });
+
+  if (riskItems.length > 0) {
+    return [
+      makeCheck(
+        'license',
+        'license:archive-files',
+        'fail',
+        '压缩包授权文件',
+        `检测到 ${riskItems.length} 个压缩包授权风险：${riskItems.slice(0, 3).join(', ')}`,
+        '请重新打包，通用源码包不要包含 .license 或已填写/已签名的 customer-license.json。'
+      ),
+    ];
+  }
+  if (templateItems.length > 0) {
+    return [
+      makeCheck(
+        'license',
+        'license:archive-files',
+        'warn',
+        '压缩包授权文件',
+        `压缩包内发现 ${templateItems.length} 个 customer-license.json，占位字段检查通过`,
+        '请确认这些模板只保留 REPLACE-ME 占位内容。'
+      ),
+    ];
+  }
+  return [
+    makeCheck(
+      'license',
+      'license:archive-files',
+      'pass',
+      '压缩包授权文件',
+      `已检查 ${archiveFiles.length} 个压缩包，未发现授权文件风险`
     ),
   ];
 }
@@ -296,11 +729,16 @@ function writeReport(report) {
  */
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  const scanReleaseArchives = args['scan-release-archives'] === true;
   const checks = [
     ...checkRequiredFiles(),
     ...checkAdminBuildAssets(),
     ...checkPackageScripts(),
+    ...checkStarterSqlDefaults(),
+    ...checkDeliveryExportBoundary(),
     ...checkLicenseBoundary(),
+    ...checkCustomerLicenseJsonBoundary(),
+    ...checkArchiveLicenseBoundary({ scanReleaseArchives }),
     ...checkProductionConfig(),
   ];
   const report = {
@@ -311,6 +749,8 @@ function main() {
     commands: {
       backend: 'cd server/server && npm run release:doctor',
       staticScript: 'node scripts/release-doctor.js',
+      archiveScan: 'node scripts/release-doctor.js --scan-release-archives',
+      customerSourcePackage: 'scripts/build-customer-source-package.sh --version 1.1.3',
       starterSql: 'mysql --default-character-set=utf8mb4 -u <user> -p <database> < server/sql/customer/starter.sql',
     },
     reportFile: rel(REPORT_FILE),

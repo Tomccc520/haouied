@@ -666,7 +666,7 @@ export function uiedDeliveryInitDoctor() {
 
 // 导出客户交付包
 export function uiedDeliveryPackageExport(params?: any) {
-    return request.get({ url: '/uied/delivery/package/export', params })
+    return request.post({ url: '/uied/delivery/package/export', params })
 }
 
 // ==================== 升级中心 ====================

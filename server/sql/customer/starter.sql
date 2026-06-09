@@ -65,6 +65,7 @@ ORDER BY `id` ASC
 LIMIT 1;
 
 -- 2) 公开配置：按 key 幂等写入，客户可在后台继续修改。
+-- 注意：重复执行时只补空值，不覆盖客户已经在后台调整过的 JSON 配置。
 INSERT INTO `uied_site_setting` (`key`, `value`, `description`, `create_time`, `update_time`)
 VALUES
 (
@@ -110,6 +111,13 @@ VALUES
   @now_ts
 ),
 (
+  'seoCenterConfig',
+  '{"redirects":[{"id":"uied_redirect_xingliu","from":"/xingliu","to":"https://www.xingliu.art/?souceid=005903&utm=cg&cgv=dqndprwn2z","type":"302","enabled":true,"preserveQuery":false,"sort":10,"note":"星流推广短链"}]}',
+  'SEO中心与运营短链配置',
+  @now_ts,
+  @now_ts
+),
+(
   'deliveryProfileCatalog',
   '[{"key":"commercial_default","name":"商业交付默认模板","description":"通用商业导航模板，适合标准售卖交付。","recommendedEdition":"pro","sort":10,"enabled":true,"baseProfile":"commercial_default","builtin":true},{"key":"ai_navigation","name":"AI 导航模板","description":"偏 AI 工具聚合场景，强调 AI 搜索与效率工具。","recommendedEdition":"pro","sort":20,"enabled":true,"baseProfile":"ai_navigation","builtin":true},{"key":"design_navigation","name":"设计导航模板","description":"偏 UI/UX 与灵感素材场景，强化设计分类与标签。","recommendedEdition":"pro","sort":30,"enabled":true,"baseProfile":"design_navigation","builtin":true},{"key":"tools_navigation","name":"工具导航模板","description":"偏效率与开发工具场景，适合通用工具站售卖。","recommendedEdition":"pro","sort":40,"enabled":true,"baseProfile":"tools_navigation","builtin":true}]',
   '交付初始化模板目录',
@@ -117,11 +125,12 @@ VALUES
   @now_ts
 )
 ON DUPLICATE KEY UPDATE
-  `value` = VALUES(`value`),
-  `description` = VALUES(`description`),
-  `update_time` = @now_ts;
+  `update_time` = IF(COALESCE(`value`, '') = '', @now_ts, `update_time`),
+  `value` = IF(COALESCE(`value`, '') = '', VALUES(`value`), `value`),
+  `description` = IF(COALESCE(`description`, '') = '', VALUES(`description`), `description`);
 
 -- 3) 初始分类：只写少量通用分类，客户可后台继续调整。
+-- 重复执行时不覆盖客户已调整的分类名称、图标、颜色、排序和显示状态。
 INSERT INTO `uied_category`
 (`name`, `slug`, `icon`, `color`, `description`, `parent_id`, `sort`, `is_show`, `is_delete`, `create_time`, `update_time`, `delete_time`)
 VALUES
@@ -130,16 +139,14 @@ VALUES
 ('效率协作', 'productivity', 'Tool', '#16a34a', '办公协作、项目管理与自动化工具', NULL, 30, 1, 0, @now_ts, @now_ts, 0),
 ('开发工具', 'dev-tools', 'Code', '#0ea5e9', '前端、后端、部署与工程效率工具', NULL, 40, 1, 0, @now_ts, @now_ts, 0)
 ON DUPLICATE KEY UPDATE
-  `name` = VALUES(`name`),
-  `icon` = VALUES(`icon`),
-  `color` = VALUES(`color`),
-  `description` = VALUES(`description`),
-  `sort` = VALUES(`sort`),
-  `is_show` = 1,
-  `is_delete` = 0,
-  `update_time` = @now_ts;
+  `name` = IF(COALESCE(`name`, '') = '', VALUES(`name`), `name`),
+  `icon` = IF(COALESCE(`icon`, '') = '', VALUES(`icon`), `icon`),
+  `color` = IF(COALESCE(`color`, '') = '', VALUES(`color`), `color`),
+  `description` = IF(COALESCE(`description`, '') = '', VALUES(`description`), `description`),
+  `update_time` = `update_time`;
 
 -- 4) 初始页面配置。
+-- 重复执行时不覆盖客户已调整的页面标题、频道文案、开关和主题色。
 INSERT INTO `uied_page`
 (`name`, `slug`, `type`, `icon`, `description`, `sort`, `is_show`, `hero_title`, `hero_highlight_text`, `hero_subtitle`, `hero_bg_type`, `hero_bg_value`, `hero_display_mode`, `search_placeholder`, `search_enabled`, `show_banner`, `show_hot_recommendations`, `show_categories`, `show_sidebar`, `theme_color`, `is_delete`, `create_time`, `update_time`, `delete_time`)
 VALUES
@@ -147,16 +154,19 @@ VALUES
 ('AI 工具', 'ai', 'category', 'AI', 'AI 工具频道', 20, 1, 'AI 工具导航', 'AI', '发现高质量 AI 产品、模型与工作流工具。', 'default', '', 'search', '搜索 AI 工具', 1, 1, 1, 1, 1, '#7c3aed', 0, @now_ts, @now_ts, 0),
 ('设计资源', 'design', 'category', 'Design', '设计资源频道', 30, 1, '设计资源导航', '设计', '聚合 UI/UX、灵感、素材和设计系统资源。', 'default', '', 'search', '搜索设计资源', 1, 1, 1, 1, 1, '#1677ff', 0, @now_ts, @now_ts, 0)
 ON DUPLICATE KEY UPDATE
-  `name` = VALUES(`name`),
-  `type` = VALUES(`type`),
-  `icon` = VALUES(`icon`),
-  `description` = VALUES(`description`),
-  `sort` = VALUES(`sort`),
-  `is_show` = 1,
-  `is_delete` = 0,
-  `update_time` = @now_ts;
+  `name` = IF(COALESCE(`name`, '') = '', VALUES(`name`), `name`),
+  `type` = IF(COALESCE(`type`, '') = '', VALUES(`type`), `type`),
+  `icon` = IF(COALESCE(`icon`, '') = '', VALUES(`icon`), `icon`),
+  `description` = IF(COALESCE(`description`, '') = '', VALUES(`description`), `description`),
+  `hero_title` = IF(COALESCE(`hero_title`, '') = '', VALUES(`hero_title`), `hero_title`),
+  `hero_highlight_text` = IF(COALESCE(`hero_highlight_text`, '') = '', VALUES(`hero_highlight_text`), `hero_highlight_text`),
+  `hero_subtitle` = IF(COALESCE(`hero_subtitle`, '') = '', VALUES(`hero_subtitle`), `hero_subtitle`),
+  `search_placeholder` = IF(COALESCE(`search_placeholder`, '') = '', VALUES(`search_placeholder`), `search_placeholder`),
+  `theme_color` = IF(COALESCE(`theme_color`, '') = '', VALUES(`theme_color`), `theme_color`),
+  `update_time` = `update_time`;
 
 -- 5) 后台交付初始化菜单与按钮权限，保证客户导入后能直接使用。
+-- 重复执行时不覆盖客户已调整的菜单名称、排序和显示状态；缺字段时才补齐。
 INSERT INTO `la_system_auth_menu`
 (`id`, `pid`, `menu_type`, `menu_name`, `menu_icon`, `menu_sort`, `perms`, `paths`, `component`, `selected`, `params`, `is_cache`, `is_show`, `is_disable`, `create_time`, `update_time`)
 VALUES
@@ -167,19 +177,16 @@ VALUES
 (898, 894, 'A', '模板管理', '', 13, 'uied:delivery:profile:save', '', '', '', '', 0, 1, 0, @now_ts, @now_ts),
 (899, 894, 'A', '发布自检', '', 14, 'uied:delivery:doctor', '', '', '', '', 0, 1, 0, @now_ts, @now_ts)
 ON DUPLICATE KEY UPDATE
-  `pid` = VALUES(`pid`),
-  `menu_type` = VALUES(`menu_type`),
-  `menu_name` = VALUES(`menu_name`),
-  `menu_icon` = VALUES(`menu_icon`),
-  `menu_sort` = VALUES(`menu_sort`),
-  `perms` = VALUES(`perms`),
-  `paths` = VALUES(`paths`),
-  `component` = VALUES(`component`),
-  `selected` = VALUES(`selected`),
-  `is_cache` = VALUES(`is_cache`),
-  `is_show` = VALUES(`is_show`),
-  `is_disable` = VALUES(`is_disable`),
-  `update_time` = @now_ts;
+  `pid` = `pid`,
+  `menu_type` = IF(COALESCE(`menu_type`, '') = '', VALUES(`menu_type`), `menu_type`),
+  `menu_name` = IF(COALESCE(`menu_name`, '') = '', VALUES(`menu_name`), `menu_name`),
+  `menu_icon` = IF(COALESCE(`menu_icon`, '') = '', VALUES(`menu_icon`), `menu_icon`),
+  `perms` = IF(COALESCE(`perms`, '') = '', VALUES(`perms`), `perms`),
+  `paths` = IF(COALESCE(`paths`, '') = '', VALUES(`paths`), `paths`),
+  `component` = IF(COALESCE(`component`, '') = '', VALUES(`component`), `component`),
+  `selected` = IF(COALESCE(`selected`, '') = '', VALUES(`selected`), `selected`),
+  `params` = IF(COALESCE(`params`, '') = '', VALUES(`params`), `params`),
+  `update_time` = `update_time`;
 
 INSERT INTO `la_system_auth_perm` (`id`, `role_id`, `menu_id`)
 SELECT REPLACE(UUID(), '-', ''), 1, m.id

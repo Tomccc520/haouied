@@ -869,7 +869,7 @@ const isPlainObject = (value: unknown): value is Record<string, any> => {
 /**
  * 深拷贝（JSON 结构），用于避免响应对象和表单对象引用互相污染。
  */
-const cloneJson = <T>(value: T): T => {
+function cloneJson<T>(value: T): T {
     return JSON.parse(JSON.stringify(value))
 }
 
@@ -942,9 +942,38 @@ const collectDuplicateRedirectFromPaths = (rules: any[]): string[] => {
 }
 
 /**
+ * 收集无效短链规则，避免空来源或根路径把首页重定向出去。
+ */
+const collectInvalidRedirectRules = (rules: any[]): string[] => {
+    const invalidList: string[] = []
+    ;(Array.isArray(rules) ? rules : []).forEach((rule, index) => {
+        const rowLabel = `第 ${index + 1} 条`
+        const normalizedPath = normalizeRedirectFromPath(rule?.from)
+        const target = String(rule?.to || '').trim()
+        if (!normalizedPath) {
+            invalidList.push(`${rowLabel}来源路径不能为空`)
+            return
+        }
+        if (normalizedPath === '/') {
+            invalidList.push(`${rowLabel}来源路径不能为 /`)
+        }
+        if (!target) {
+            invalidList.push(`${rowLabel}目标地址不能为空`)
+        }
+    })
+    return invalidList
+}
+
+/**
  * 校验短链来源路径是否重复，重复时提示并阻断保存。
  */
 const validateRedirectRulesBeforeSave = (): boolean => {
+    const invalidRules = collectInvalidRedirectRules(configForm.redirects as any[])
+    if (invalidRules.length > 0) {
+        activeTab.value = 'redirects'
+        feedback.msgError(invalidRules.slice(0, 3).join('；'))
+        return false
+    }
     const duplicatePaths = collectDuplicateRedirectFromPaths(configForm.redirects as any[])
     if (duplicatePaths.length === 0) return true
     activeTab.value = 'redirects'
@@ -1093,7 +1122,15 @@ const removeRedirectRule = (index: number) => {
  */
 const handleRedirectFromBlur = (row: any, index: number) => {
     const normalizedPath = normalizeRedirectFromPath(row?.from)
-    if (!normalizedPath) return
+    if (!normalizedPath) {
+        row.from = ''
+        return
+    }
+    if (normalizedPath === '/') {
+        row.from = ''
+        feedback.msgError('短链来源路径不能为 /，否则会影响首页访问')
+        return
+    }
     row.from = normalizedPath
     const list = Array.isArray(configForm.redirects) ? configForm.redirects : []
     const duplicatedIndex = list.findIndex((item, itemIndex) => {

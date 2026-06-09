@@ -62,9 +62,14 @@ const repoIconMap = {
 const localChangelogData: ChangelogRelease[] = [
   {
     version: '1.1.3',
-    date: '2026-04-19',
-    title: '正式版1.1.3：授权稳态增强与首页体验修复',
+    date: '2026-06-09',
+    title: '正式版1.1.3：授权稳态、运营短链与交付安全自检',
     changes: [
+      { type: 'feature', scope: 'fullstack', text: '【运营短链】新客户初始化默认内置 `/xingliu` 运营短链，跳转到星流推广链接；老客户新增 MySQL 5.6 兼容 SQL 补丁，只在缺失时追加规则，不覆盖已有 SEO 配置。' },
+      { type: 'fix', scope: 'backend', text: '【短链安全】SEO 中心短链来源路径禁止保存为空或 `/`，后端匹配时也会跳过根路径，避免误配置导致首页整站跳转。' },
+      { type: 'improve', scope: 'backend', text: '【客户包导出】后台客户包导出改为 POST，默认不导出真实授权、域名白名单、签名和功能覆盖，降低通用源码包泄漏客户授权信息的风险。' },
+      { type: 'feature', scope: 'backend', text: '【客户源码包】新增 `scripts/build-customer-source-package.sh`，统一生成客户源码 `.tgz` 与 SHA256，自动排除 `node_modules`、`release`、本地授权文件、`.env`、密钥、日志和数据库备份。' },
+      { type: 'improve', scope: 'backend', text: '【发布自检】`release-doctor` 新增 `customer-license.json` 与 `.zip/.tgz` 压缩包内部授权风险检查（支持 `--scan-release-archives` 深扫 release 目录）、老客户短链补丁检查与更多前台关键配置项检查，交付前能更早发现风险。' },
       { type: 'fix', scope: 'backend', text: '【授权激活】修复未激活场景下登录接口被误拦截问题：商业激活守卫放行 `/api/system/login` 与 `/api/system/login/captcha`，避免后台无法重新登录进入授权中心。' },
       { type: 'improve', scope: 'backend', text: '【授权文件兼容】本地授权读取支持目录自动发现任意 `.license` 文件（兼容 `licenses` / `license` 目录与自定义文件名），降低客户部署时因目录名不一致导致的激活失败。' },
       { type: 'fix', scope: 'backend', text: '【签名兜底】签名校验失败时新增本地授权文件载荷比对兜底，并在通过后回写远端验签摘要，提升授权链路稳定性。' },

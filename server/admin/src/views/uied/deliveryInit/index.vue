@@ -947,9 +947,11 @@ const handleExportPackage = async () => {
     exportLoading.value = true
     try {
         const data = await uiedDeliveryPackageExport({
-            ...buildPayload(),
             includeWebsiteData: false,
-            includeArticleData: false
+            includeArticleData: false,
+            includeLicense: false,
+            includeFeatureOverrides: false,
+            includeCommercialMode: true
         })
         const filename = `uied_customer_package_${Date.now()}.json`
         const content = JSON.stringify(data || {}, null, 2)
