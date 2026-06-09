@@ -57,8 +57,8 @@ UIED-NAV 客户源码包构建脚本
   -h, --help            显示帮助
 
 说明:
-  - 会排除 node_modules、release、.git、本地授权文件、.env、密钥、日志和本地数据库备份。
-  - 会生成 .tgz 与 .sha256，并检查包内不包含 .license / customer-license.json / .env / 密钥文件。
+  - 会排除 node_modules、release、.git、根目录 data、运行时导出数据、本地授权文件、.env、密钥、日志和本地数据库备份。
+  - 会生成 .tgz 与 .sha256，并检查包内不包含 .license / customer-license.json / .env / 密钥文件 / 数据库备份 / 历史导出数据。
 EOF
 }
 
@@ -137,6 +137,7 @@ sync_source_to_stage() {
     --exclude '*/node_modules/' \
     --exclude 'release/' \
     --exclude 'output/' \
+    --exclude '/data/' \
     --exclude 'coverage/' \
     --exclude 'test-results/' \
     --exclude 'frontend/test-results/' \
@@ -154,12 +155,19 @@ sync_source_to_stage() {
     --exclude '*.log' \
     --exclude 'server/server/run/' \
     --exclude 'server/server/logs/' \
+    --exclude 'server/server/exports/*.json' \
     --exclude 'server/server/typings/' \
     --exclude 'docs/API/reports/*.json' \
+    --exclude 'docs/API/1.0.7版本客户安装部署指引-2026-03-17.md' \
+    --exclude 'docs/部署文档/生产部署SOP-hao.uied.cn.md' \
     --exclude 'uied_nav_prod_*.sql' \
     --exclude 'uied_ainav_*.sql' \
     --exclude 'uied_nav_mysql56_compatible_*.sql' \
     --exclude '*_mysql_data_*.sql' \
+    --exclude '*mysql_backup*.sql' \
+    --exclude '*backup*.sql' \
+    --exclude '*dump*.sql' \
+    --exclude '*.sql.gz' \
     --exclude 'tmp.*.spec.js' \
     "$ROOT_DIR/" "$STAGE_DIR/"
 }
@@ -171,26 +179,68 @@ write_package_manifest() {
 
 - 生成时间：$(date '+%Y-%m-%d %H:%M:%S')
 - 包类型：customer-source
-- 默认排除：node_modules、release、.git、本地授权文件、.env、密钥、日志、数据库备份
+- 默认排除：node_modules、release、.git、根目录 data、运行时导出数据、本地授权文件、.env、密钥、日志、数据库备份
 
 ## 部署提醒
 
 1. 客户部署后再放入授权文件：\`server/licenses/*.license\`。
 2. 新客户可执行：\`server/sql/customer/starter.sql\`。
 3. 老客户只补星流短链可执行：\`server/sql/patch_2026_0609_seo_xingliu_redirect.sql\`。
-4. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
+4. 客户站不要配置签发端密钥，不要开启本地自签：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
+5. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
+EOF
+}
+
+# 覆盖源码包根安装说明，避免客户被旧开发文档或签发端密钥说明误导。
+write_customer_install_docs() {
+  cat > "$STAGE_DIR/INSTALL.md" <<EOF
+# UIED-NAV ${VERSION} 客户安装入口
+
+本文件是客户源码包的安装入口。源码内历史开发文档仅供研发参考，客户部署请以本文和外层交付包里的 \`INSTALL-GUIDE-HAO-UIED-v${VERSION}-CUSTOMER.md\` 为准。
+
+## 快速步骤
+
+1. 解压源码包：\`tar -xzf uied-nav-${VERSION}-customer-source.tgz\`。
+2. 创建 MySQL 数据库，字符集使用 \`utf8mb4\`。
+3. 全新安装依次导入：
+   - \`server/sql/install.sql\`
+   - \`server/sql/uied_tables.sql\`
+   - \`server/sql/customer/starter.sql\`
+4. 安装并启动后端：进入 \`server/server\` 执行 \`npm install --production\` 和 \`npm run start\`。
+5. 构建前台：进入 \`frontend\` 执行 \`npm install\` 和 \`npm run build\`。
+6. 构建后台：进入 \`server/admin\` 执行 \`npm install\` 和 \`npm run build\`。
+7. Nginx 将 \`/api\` 反代到 \`127.0.0.1:8002\`，\`/admin/\` 指向后台静态目录，根路径指向前台静态目录。
+
+## 授权说明
+
+- 通用客户源码包不包含真实 \`.license\` 文件。
+- 客户部署后通过后台授权中心激活授权码，或按交付约定放入正式授权文件。
+- 客户站必须保持 \`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
+- 客户站不要配置签发端密钥；签发密钥只属于授权中心，不属于客户站部署参数。
+
+## 安全边界
+
+- 本包已排除本地授权、\`.env\`、密钥、日志、根目录 \`data/\`、运行时导出 JSON 和数据库备份。
+- 如果客户已有正式数据，执行 SQL 前必须先备份数据库。
 EOF
 }
 
 # 创建 tgz 包和 sha256 校验文件。
 create_archive() {
+  local package_name
+  local sha_name
+  package_name="$(basename "$PACKAGE_FILE")"
+  sha_name="$(basename "$SHA_FILE")"
   log_info "创建客户源码包: $PACKAGE_FILE"
   mkdir -p "$OUTPUT_DIR"
   tar -czf "$PACKAGE_FILE" -C "$WORK_DIR" "$PACKAGE_ROOT"
-  shasum -a 256 "$PACKAGE_FILE" > "$SHA_FILE"
+  (
+    cd "$OUTPUT_DIR"
+    shasum -a 256 "$package_name" > "$sha_name"
+  )
 }
 
-# 检查归档文件内是否仍包含敏感授权或本地配置文件。
+# 检查归档文件内是否仍包含敏感授权、本地配置或数据库备份文件。
 verify_archive_safe() {
   local list_file
   list_file="$WORK_DIR/archive-list.txt"
@@ -201,7 +251,13 @@ verify_archive_safe() {
     grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/' "$list_file" | head -n 20
     exit 1
   fi
-  log_ok "归档安全检查通过：未发现授权文件、customer-license.json、.env、pem/key"
+
+  if grep -E '^[^/]+/data/|^[^/]+/server/server/exports/[^/]+\.json$|(^|/)([^/]*mysql_backup[^/]*|[^/]*backup[^/]*|[^/]*dump[^/]*|[^/]*mysql_data[^/]*|uied_nav_prod_[^/]*)\.sql(\.gz)?$|(^|/)export_[0-9]{8}[^/]*\.json$' "$list_file" >/dev/null; then
+    log_err "客户包内仍发现本地数据备份或导出文件风险："
+    grep -E '^[^/]+/data/|^[^/]+/server/server/exports/[^/]+\.json$|(^|/)([^/]*mysql_backup[^/]*|[^/]*backup[^/]*|[^/]*dump[^/]*|[^/]*mysql_data[^/]*|uied_nav_prod_[^/]*)\.sql(\.gz)?$|(^|/)export_[0-9]{8}[^/]*\.json$' "$list_file" | head -n 20
+    exit 1
+  fi
+  log_ok "归档安全检查通过：未发现授权文件、customer-license.json、.env、pem/key、数据库备份、运行时导出数据"
 }
 
 # 主流程入口。
@@ -213,6 +269,7 @@ main() {
   cleanup_workdir
   sync_source_to_stage
   write_package_manifest
+  write_customer_install_docs
   create_archive
   verify_archive_safe
   cleanup_workdir

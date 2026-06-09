@@ -468,6 +468,62 @@ function checkDeliveryExportBoundary() {
 }
 
 /**
+ * 检查客户源码包构建脚本是否排除本地数据备份，避免把历史数据库导出交付给客户。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkCustomerSourcePackageScriptBoundary() {
+  const scriptContent = readText('scripts/build-customer-source-package.sh');
+  if (!scriptContent) {
+    return [
+      makeCheck(
+        'delivery',
+        'package-script:data-boundary',
+        'fail',
+        '客户源码包数据边界',
+        '无法读取 scripts/build-customer-source-package.sh',
+        '请恢复客户源码包构建脚本后再发包。'
+      ),
+    ];
+  }
+  const excludesRootData = /--exclude ['"]\/data\/['"]/.test(scriptContent);
+  const excludesBackupSql = /\*mysql_backup\*\.sql/.test(scriptContent)
+    && /\*backup\*\.sql/.test(scriptContent)
+    && /\*dump\*\.sql/.test(scriptContent)
+    && /\*\.sql\.gz/.test(scriptContent);
+  const verifiesArchiveData = /\^\[\^\/\]\+\/data\//.test(scriptContent)
+    && /mysql_backup/.test(scriptContent)
+    && /export_\[0-9\]\{8\}/.test(scriptContent)
+    && /server\/server\/exports/.test(scriptContent);
+  const excludesRuntimeExports = /--exclude ['"]server\/server\/exports\/\*\.json['"]/.test(scriptContent);
+  const writesCustomerInstall = /write_customer_install_docs/.test(scriptContent)
+    && /客户站不要配置签发端密钥/.test(scriptContent);
+  const writesRelativeSha = /basename "\$PACKAGE_FILE"/.test(scriptContent)
+    && /cd "\$OUTPUT_DIR"/.test(scriptContent)
+    && /shasum -a 256 "\$package_name" > "\$sha_name"/.test(scriptContent);
+  if (excludesRootData && excludesBackupSql && excludesRuntimeExports && verifiesArchiveData && writesCustomerInstall && writesRelativeSha) {
+    return [
+      makeCheck(
+        'delivery',
+        'package-script:data-boundary',
+        'pass',
+        '客户源码包数据边界',
+        '构建脚本已排除根目录 data、运行时导出数据与数据库备份，归档后复查，覆盖客户安装入口，并生成相对路径 SHA256'
+      ),
+    ];
+  }
+  return [
+    makeCheck(
+      'delivery',
+      'package-script:data-boundary',
+      'fail',
+      '客户源码包数据边界',
+      '构建脚本缺少根目录 data、运行时导出数据、数据库备份、归档复查、客户安装入口或相对路径 SHA256 规则',
+      '请确保客户源码包不包含 data/mysql_backup*.sql、server/server/exports/*.json、export_*.json、*_mysql_data_*.sql 等本地数据文件，且校验文件不暴露本机绝对路径。'
+    ),
+  ];
+}
+
+/**
  * 检查授权文件交付边界，避免把真实许可证误打进通用源码包。
  * @returns {Array<Record<string, string>>} 检查结果
  */
@@ -670,6 +726,75 @@ function checkArchiveLicenseBoundary(options = {}) {
 }
 
 /**
+ * 判断压缩包条目是否属于本地数据备份或导出文件。
+ * @param {string} entryName 压缩包内路径
+ * @returns {boolean} 是否敏感
+ */
+function isSensitiveDataArchiveEntry(entryName) {
+  const normalized = String(entryName || '').replace(/\\/g, '/');
+  const baseName = path.basename(normalized);
+  return /^[^/]+\/data\//.test(normalized)
+    || /^[^/]+\/server\/server\/exports\/[^/]+\.json$/i.test(normalized)
+    || /(^|\/)([^/]*mysql_backup[^/]*|[^/]*backup[^/]*|[^/]*dump[^/]*|[^/]*mysql_data[^/]*|uied_nav_prod_[^/]*)\.sql(\.gz)?$/i.test(normalized)
+    || /^export_[0-9]{8}[^/]*\.json$/i.test(baseName);
+}
+
+/**
+ * 检查发布压缩包内部是否包含本地数据库备份或导出文件。
+ * @param {Record<string, boolean>} options 检查选项
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkArchiveDataBoundary(options = {}) {
+  const archiveFiles = collectReleaseArchives(options.scanReleaseArchives === true);
+  if (!archiveFiles.length) {
+    return [
+      makeCheck(
+        'delivery',
+        'archive:data-files',
+        'pass',
+        '压缩包本地数据文件',
+        options.scanReleaseArchives === true
+          ? '未发现待检查的发布压缩包'
+          : '未发现根目录发布压缩包；如需深扫 release 目录，请追加 --scan-release-archives'
+      ),
+    ];
+  }
+
+  const riskItems = [];
+  archiveFiles.forEach(archivePath => {
+    const entries = listArchiveEntries(archivePath);
+    if (!entries.length) return;
+    entries.forEach(entryName => {
+      if (isSensitiveDataArchiveEntry(entryName)) {
+        riskItems.push(`${rel(archivePath)}:${entryName}`);
+      }
+    });
+  });
+
+  if (riskItems.length > 0) {
+    return [
+      makeCheck(
+        'delivery',
+        'archive:data-files',
+        'fail',
+        '压缩包本地数据文件',
+        `检测到 ${riskItems.length} 个压缩包本地数据文件风险：${riskItems.slice(0, 3).join(', ')}`,
+        '请重新打包，通用源码包不要包含根目录 data、数据库备份或历史导出文件。'
+      ),
+    ];
+  }
+  return [
+    makeCheck(
+      'delivery',
+      'archive:data-files',
+      'pass',
+      '压缩包本地数据文件',
+      `已检查 ${archiveFiles.length} 个压缩包，未发现本地数据文件风险`
+    ),
+  ];
+}
+
+/**
  * 检查生产配置示例是否保持环境变量化。
  * @returns {Array<Record<string, string>>} 检查结果
  */
@@ -736,9 +861,11 @@ function main() {
     ...checkPackageScripts(),
     ...checkStarterSqlDefaults(),
     ...checkDeliveryExportBoundary(),
+    ...checkCustomerSourcePackageScriptBoundary(),
     ...checkLicenseBoundary(),
     ...checkCustomerLicenseJsonBoundary(),
     ...checkArchiveLicenseBoundary({ scanReleaseArchives }),
+    ...checkArchiveDataBoundary({ scanReleaseArchives }),
     ...checkProductionConfig(),
   ];
   const report = {
