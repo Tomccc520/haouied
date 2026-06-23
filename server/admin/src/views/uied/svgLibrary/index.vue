@@ -45,7 +45,9 @@
                             <div class="svg-library-page__preview-summary">
                                 共 {{ categorySvgLibraryTotal }} 个图标
                                 <span
-                                    v-if="categorySvgLibraryPreviewCount !== categorySvgLibraryTotal"
+                                    v-if="
+                                        categorySvgLibraryPreviewCount !== categorySvgLibraryTotal
+                                    "
                                     class="svg-library-page__preview-summary-sub"
                                 >
                                     （当前筛选 {{ categorySvgLibraryPreviewCount }} 个）
@@ -84,7 +86,9 @@
                                     <div class="svg-library-page__preview-label">
                                         {{ item.label }}
                                     </div>
-                                    <div class="svg-library-page__preview-key">svg:{{ item.key }}</div>
+                                    <div class="svg-library-page__preview-key">
+                                        svg:{{ item.key }}
+                                    </div>
                                 </div>
                                 <div class="svg-library-page__preview-actions">
                                     <el-button link type="primary" v-copy="item.svg">
@@ -93,7 +97,11 @@
                                     <el-button link type="info" v-copy="`svg:${item.key}`">
                                         复制Key
                                     </el-button>
-                                    <el-button link type="danger" @click="removeCategorySvgItem(item.key)">
+                                    <el-button
+                                        link
+                                        type="danger"
+                                        @click="removeCategorySvgItem(item.key)"
+                                    >
                                         移除
                                     </el-button>
                                 </div>
@@ -149,7 +157,11 @@
                                         placeholder="可选：图标名称（用于展示）"
                                         clearable
                                     />
-                                    <el-button type="primary" :loading="pasteLoading" @click="handleAddSvgFromCode">
+                                    <el-button
+                                        type="primary"
+                                        :loading="pasteLoading"
+                                        @click="handleAddSvgFromCode"
+                                    >
                                         添加到图标库
                                     </el-button>
                                 </div>
@@ -160,7 +172,8 @@
                                     placeholder="把复制的 SVG 代码粘贴到这里，例如：<svg ...>...</svg>"
                                 />
                                 <p class="svg-library-page__paste-tip">
-                                    不填 key 时会自动生成 uied_ 前缀命名；若 key 重复会自动追加后缀。支持从整段内容中自动提取第一个 SVG。
+                                    不填 key 时会自动生成 uied_ 前缀命名；若 key
+                                    重复会自动追加后缀。支持从整段内容中自动提取第一个 SVG。
                                 </p>
                             </div>
                         </el-form-item>
@@ -250,11 +263,11 @@ const normalizeCategorySvgLibrary = (value: unknown): CategorySvgLibraryItem[] =
     const rows = Array.isArray(source)
         ? source
         : source && typeof source === 'object'
-          ? Object.keys(source as Record<string, unknown>).map((key) => ({
-                key,
-                svg: (source as Record<string, unknown>)[key]
-            }))
-          : []
+        ? Object.keys(source as Record<string, unknown>).map((key) => ({
+              key,
+              svg: (source as Record<string, unknown>)[key]
+          }))
+        : []
     return rows
         .map((item: any, index: number) => {
             const key = String(item?.key || '')
@@ -265,7 +278,10 @@ const normalizeCategorySvgLibrary = (value: unknown): CategorySvgLibraryItem[] =
             if (!key) return null
             const svg = sanitizeSvgMarkup(item?.svg)
             if (!svg) return null
-            const label = String(item?.label || key).trim().slice(0, 40) || key
+            const label =
+                String(item?.label || key)
+                    .trim()
+                    .slice(0, 40) || key
             const sort = Number.isFinite(Number(item?.sort)) ? Number(item.sort) : index + 1
             return { key, label, svg, sort }
         })
@@ -307,7 +323,11 @@ const syncRecentSvgKeys = (list: CategorySvgLibraryItem[]) => {
  */
 const markRecentSvgKeys = (keys: string[]) => {
     const normalized = keys
-        .map((key) => String(key || '').trim().toLowerCase())
+        .map((key) =>
+            String(key || '')
+                .trim()
+                .toLowerCase()
+        )
         .filter(Boolean)
     const merged = [...normalized, ...recentSvgKeys.value]
     recentSvgKeys.value = Array.from(new Set(merged)).slice(0, 20)
@@ -381,7 +401,11 @@ const generateUniqueSvgLibraryKey = (
     currentList: CategorySvgLibraryItem[]
 ): string => {
     const existingKeySet = new Set(
-        (currentList || []).map((item) => String(item?.key || '').trim().toLowerCase())
+        (currentList || []).map((item) =>
+            String(item?.key || '')
+                .trim()
+                .toLowerCase()
+        )
     )
     if (!existingKeySet.has(baseKey)) return baseKey
     for (let index = 2; index <= 9999; index += 1) {
@@ -395,12 +419,16 @@ const generateUniqueSvgLibraryKey = (
  * 根据用户输入（手动 key/label 或代码）生成图标库条目基础信息。
  */
 const resolveSvgMeta = (rawCode: string): { key: string; label: string } => {
-    const sanitizedManualKey = ensureSvgLibraryKeyPrefix(String(pasteSvgKey.value || '')
+    const sanitizedManualKey = ensureSvgLibraryKeyPrefix(
+        String(pasteSvgKey.value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, '')
+            .slice(0, 40)
+    )
+    const sanitizedLabel = String(pasteSvgLabel.value || '')
         .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, '')
-        .slice(0, 40))
-    const sanitizedLabel = String(pasteSvgLabel.value || '').trim().slice(0, 40)
+        .slice(0, 40)
     const codeBasedKey = buildSvgKeyFromFileName(
         sanitizedLabel || `svg_${String(rawCode.length || 0)}`
     )
@@ -582,8 +610,12 @@ const categorySvgLibraryPreview = computed(() => {
         if (previewOnlyRecent.value && !recentSvgKeys.value.includes(item.key)) return false
         if (!keyword) return true
         return (
-            String(item.key || '').toLowerCase().includes(keyword) ||
-            String(item.label || '').toLowerCase().includes(keyword)
+            String(item.key || '')
+                .toLowerCase()
+                .includes(keyword) ||
+            String(item.label || '')
+                .toLowerCase()
+                .includes(keyword)
         )
     })
 })
@@ -601,7 +633,8 @@ const categorySvgLibraryPreviewCount = computed(() => categorySvgLibraryPreview.
 /**
  * 判断图标是否属于最近新增集合，用于卡片高亮。
  */
-const isRecentSvgIcon = (key: string): boolean => recentSvgKeys.value.includes(String(key || '').trim())
+const isRecentSvgIcon = (key: string): boolean =>
+    recentSvgKeys.value.includes(String(key || '').trim())
 
 onMounted(() => {
     loadCategorySvgLibrary()
@@ -744,8 +777,8 @@ onMounted(() => {
     display: grid;
     grid-template-columns: 46px minmax(0, 1fr);
     grid-template-areas:
-        "icon meta"
-        "icon actions";
+        'icon meta'
+        'icon actions';
     align-items: center;
     gap: 8px 10px;
     border: 1px solid #ebeef5;

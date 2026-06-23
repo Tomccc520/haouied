@@ -40,7 +40,8 @@
                         <el-form-item label="列表页标题">
                             <el-input v-model="articleConfig.listPageTitle" />
                             <span class="form-tip"
-                                >作用于 `/articles` 默认页头标题和 SEO 标题；分类/标签专题页会优先显示对应专题标题。</span
+                                >作用于 `/articles` 默认页头标题和 SEO
+                                标题；分类/标签专题页会优先显示对应专题标题。</span
                             >
                         </el-form-item>
                         <el-form-item label="列表页描述">
@@ -50,7 +51,8 @@
                                 :rows="3"
                             />
                             <span class="form-tip"
-                                >作用于 `/articles` 默认页头描述和 SEO 描述；专题页会优先显示对应专题描述。</span
+                                >作用于 `/articles` 默认页头描述和 SEO
+                                描述；专题页会优先显示对应专题描述。</span
                             >
                         </el-form-item>
                         <el-form-item label="列表页封面图">
@@ -210,8 +212,7 @@
                                                 :disabled="
                                                     $index ===
                                                         articleConfig.detailSidebarModules.length -
-                                                            1 ||
-                                                    !articleConfig.detailSidebarEnabled
+                                                            1 || !articleConfig.detailSidebarEnabled
                                                 "
                                                 @click="moveSidebarModuleDown($index)"
                                             >

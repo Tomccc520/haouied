@@ -131,10 +131,14 @@
                                             type="primary"
                                             link
                                             :disabled="
-                                                $index === 0 ||
-                                                !articleConfig.detailSidebarEnabled
+                                                $index === 0 || !articleConfig.detailSidebarEnabled
                                             "
-                                            @click="moveItemUp(articleConfig.detailSidebarModules, $index)"
+                                            @click="
+                                                moveItemUp(
+                                                    articleConfig.detailSidebarModules,
+                                                    $index
+                                                )
+                                            "
                                         >
                                             上移
                                         </el-button>
@@ -147,7 +151,10 @@
                                                 !articleConfig.detailSidebarEnabled
                                             "
                                             @click="
-                                                moveItemDown(articleConfig.detailSidebarModules, $index)
+                                                moveItemDown(
+                                                    articleConfig.detailSidebarModules,
+                                                    $index
+                                                )
                                             "
                                         >
                                             下移
@@ -177,7 +184,10 @@
                     </el-form-item>
 
                     <el-form-item label="侧栏吸顶">
-                        <el-switch v-model="detailConfig.sidebarSticky" :disabled="!detailConfig.enabled" />
+                        <el-switch
+                            v-model="detailConfig.sidebarSticky"
+                            :disabled="!detailConfig.enabled"
+                        />
                     </el-form-item>
 
                     <el-form-item label="吸顶偏移">
@@ -191,13 +201,18 @@
                     </el-form-item>
 
                     <el-form-item label="链接新开窗口">
-                        <el-switch v-model="detailConfig.sidebarLinksNewWindow" :disabled="!detailConfig.enabled" />
+                        <el-switch
+                            v-model="detailConfig.sidebarLinksNewWindow"
+                            :disabled="!detailConfig.enabled"
+                        />
                     </el-form-item>
 
                     <el-form-item label="相关推荐标题">
                         <el-input
                             v-model="detailConfig.relatedTitle"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('related')"
+                            :disabled="
+                                !detailConfig.enabled || !isWebsiteSidebarModuleEnabled('related')
+                            "
                         />
                     </el-form-item>
 
@@ -206,14 +221,19 @@
                             v-model="detailConfig.relatedCount"
                             :min="1"
                             :max="20"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('related')"
+                            :disabled="
+                                !detailConfig.enabled || !isWebsiteSidebarModuleEnabled('related')
+                            "
                         />
                     </el-form-item>
 
                     <el-form-item label="热门网址标题">
                         <el-input
                             v-model="detailConfig.hotWebsitesTitle"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('hot_websites')"
+                            :disabled="
+                                !detailConfig.enabled ||
+                                !isWebsiteSidebarModuleEnabled('hot_websites')
+                            "
                         />
                     </el-form-item>
 
@@ -222,14 +242,19 @@
                             v-model="detailConfig.hotWebsitesCount"
                             :min="1"
                             :max="20"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('hot_websites')"
+                            :disabled="
+                                !detailConfig.enabled ||
+                                !isWebsiteSidebarModuleEnabled('hot_websites')
+                            "
                         />
                     </el-form-item>
 
                     <el-form-item label="推荐文章标题">
                         <el-input
                             v-model="detailConfig.articlesTitle"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('articles')"
+                            :disabled="
+                                !detailConfig.enabled || !isWebsiteSidebarModuleEnabled('articles')
+                            "
                         />
                     </el-form-item>
 
@@ -238,21 +263,27 @@
                             v-model="detailConfig.articlesCount"
                             :min="1"
                             :max="20"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('articles')"
+                            :disabled="
+                                !detailConfig.enabled || !isWebsiteSidebarModuleEnabled('articles')
+                            "
                         />
                     </el-form-item>
 
                     <el-form-item label="标签标题">
                         <el-input
                             v-model="detailConfig.tagsTitle"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('tags')"
+                            :disabled="
+                                !detailConfig.enabled || !isWebsiteSidebarModuleEnabled('tags')
+                            "
                         />
                     </el-form-item>
 
                     <el-form-item label="分类标题">
                         <el-input
                             v-model="detailConfig.categoryTitle"
-                            :disabled="!detailConfig.enabled || !isWebsiteSidebarModuleEnabled('category')"
+                            :disabled="
+                                !detailConfig.enabled || !isWebsiteSidebarModuleEnabled('category')
+                            "
                         />
                     </el-form-item>
 
@@ -279,7 +310,10 @@
                             </el-table-column>
                             <el-table-column label="启用" width="88" align="center">
                                 <template #default="{ row }">
-                                    <el-switch v-model="row.enabled" :disabled="!detailConfig.enabled" />
+                                    <el-switch
+                                        v-model="row.enabled"
+                                        :disabled="!detailConfig.enabled"
+                                    />
                                 </template>
                             </el-table-column>
                             <el-table-column label="操作" width="120" align="center">
@@ -300,7 +334,9 @@
                                                 $index === detailConfig.sidebarModules.length - 1 ||
                                                 !detailConfig.enabled
                                             "
-                                            @click="moveItemDown(detailConfig.sidebarModules, $index)"
+                                            @click="
+                                                moveItemDown(detailConfig.sidebarModules, $index)
+                                            "
                                         >
                                             下移
                                         </el-button>
@@ -442,7 +478,7 @@ const mergeModulesWithDefaults = (
 ): SidebarModuleItem[] => {
     const normalizedList = normalizeSidebarModules(list)
     const keySet = new Set(normalizedList.map((item) => item.key))
-    const merged = [ ...normalizedList ]
+    const merged = [...normalizedList]
     defaults.forEach((item) => {
         if (!keySet.has(item.key)) {
             merged.push({ ...item })

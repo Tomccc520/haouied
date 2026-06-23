@@ -70,7 +70,8 @@
                             </el-form-item>
                             <div class="nav-menu-quick-toolbar">
                                 <span class="nav-menu-quick-toolbar__count">
-                                    已选 {{ quickBuiltinKeys.length }} / {{ filteredBuiltinNavEntryOptions.length }}
+                                    已选 {{ quickBuiltinKeys.length }} /
+                                    {{ filteredBuiltinNavEntryOptions.length }}
                                 </span>
                                 <div class="nav-menu-quick-toolbar__actions">
                                     <el-button
@@ -81,11 +82,7 @@
                                     >
                                         全选
                                     </el-button>
-                                    <el-button
-                                        text
-                                        size="small"
-                                        @click="quickBuiltinKeys = []"
-                                    >
+                                    <el-button text size="small" @click="quickBuiltinKeys = []">
                                         清空
                                     </el-button>
                                 </div>
@@ -101,8 +98,12 @@
                                         :label="item.key"
                                     >
                                         <div class="nav-menu-quick-check-item">
-                                            <span class="nav-menu-quick-check-item__name">{{ item.label }}</span>
-                                            <span class="nav-menu-quick-check-item__path">{{ item.defaultPath }}</span>
+                                            <span class="nav-menu-quick-check-item__name">{{
+                                                item.label
+                                            }}</span>
+                                            <span class="nav-menu-quick-check-item__path">{{
+                                                item.defaultPath
+                                            }}</span>
                                         </div>
                                     </el-checkbox>
                                 </el-checkbox-group>
@@ -135,7 +136,8 @@
                             </el-form-item>
                             <div class="nav-menu-quick-toolbar">
                                 <span class="nav-menu-quick-toolbar__count">
-                                    已选 {{ quickCategoryIds.length }} / {{ filteredCategoryList.length }}
+                                    已选 {{ quickCategoryIds.length }} /
+                                    {{ filteredCategoryList.length }}
                                 </span>
                                 <div class="nav-menu-quick-toolbar__actions">
                                     <el-button
@@ -146,11 +148,7 @@
                                     >
                                         全选
                                     </el-button>
-                                    <el-button
-                                        text
-                                        size="small"
-                                        @click="quickCategoryIds = []"
-                                    >
+                                    <el-button text size="small" @click="quickCategoryIds = []">
                                         清空
                                     </el-button>
                                 </div>
@@ -166,7 +164,9 @@
                                         :label="item.id"
                                     >
                                         <div class="nav-menu-quick-check-item">
-                                            <span class="nav-menu-quick-check-item__name">{{ item.name }}</span>
+                                            <span class="nav-menu-quick-check-item__name">{{
+                                                item.name
+                                            }}</span>
                                             <span class="nav-menu-quick-check-item__path">
                                                 /category/{{ item.slug || item.id }}
                                             </span>
@@ -231,9 +231,7 @@
                     <div class="nav-menu-preview nav-menu-preview--full">
                         <div class="nav-menu-preview__header">
                             <div>
-                                <div class="nav-menu-preview__title">
-                                    前台菜单（可拖拽排序）
-                                </div>
+                                <div class="nav-menu-preview__title">前台菜单（可拖拽排序）</div>
                                 <div class="nav-menu-preview__desc">
                                     当前列表即为前台渲染顺序，拖拽后点击“保存排序”生效
                                 </div>
@@ -312,11 +310,7 @@
                                                         element.openInNewTab ? 'success' : 'info'
                                                     "
                                                 >
-                                                    {{
-                                                        element.openInNewTab
-                                                            ? '新窗口'
-                                                            : '本窗口'
-                                                    }}
+                                                    {{ element.openInNewTab ? '新窗口' : '本窗口' }}
                                                 </el-tag>
                                                 <el-button
                                                     type="primary"
@@ -366,9 +360,7 @@
                                                             >
                                                             <icon
                                                                 v-if="resolveMenuIcon(child.icon)"
-                                                                :name="
-                                                                    resolveMenuIcon(child.icon)
-                                                                "
+                                                                :name="resolveMenuIcon(child.icon)"
                                                                 :size="14"
                                                             />
                                                             <span
@@ -405,16 +397,10 @@
                                                                 >{{ child.url || '-' }}</span
                                                             >
                                                         </div>
-                                                        <div
-                                                            class="nav-menu-preview-item__actions"
-                                                        >
+                                                        <div class="nav-menu-preview-item__actions">
                                                             <el-tag size="small" effect="plain">
                                                                 排序
-                                                                {{
-                                                                    Number(
-                                                                        child.sortOrder || 0
-                                                                    )
-                                                                }}
+                                                                {{ Number(child.sortOrder || 0) }}
                                                             </el-tag>
                                                             <el-tag
                                                                 size="small"
@@ -448,9 +434,7 @@
                                                             <el-button
                                                                 type="danger"
                                                                 link
-                                                                @click.stop="
-                                                                    handleDelete(child.id)
-                                                                "
+                                                                @click.stop="handleDelete(child.id)"
                                                             >
                                                                 删除
                                                             </el-button>

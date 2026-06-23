@@ -101,7 +101,10 @@
                     </el-col>
                     <el-col :span="10">
                         <el-form-item label="入口路径">
-                            <el-input v-model="moduleForm.displayPath" placeholder="/p/hot?tab=rankings" />
+                            <el-input
+                                v-model="moduleForm.displayPath"
+                                placeholder="/p/hot?tab=rankings"
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :span="6">

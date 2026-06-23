@@ -105,7 +105,9 @@
                     </template>
                 </el-table-column>
                 <el-table-column label="网站数" width="100">
-                    <template #default="{ row }">{{ formatIntegerCount(row.websiteCount) }}</template>
+                    <template #default="{ row }">{{
+                        formatIntegerCount(row.websiteCount)
+                    }}</template>
                 </el-table-column>
                 <el-table-column label="浏览量" width="110">
                     <template #default="{ row }">{{ formatIntegerCount(row.clickCount) }}</template>
@@ -421,9 +423,7 @@ const buildCategoryPathMap = (rows: CategoryOption[]): Record<number, string> =>
         if (depth > rows.length + 2) return current.name
         const parentId = normalizeParentIdValue(current.parentId)
         const label =
-            parentId > 0
-                ? `${resolvePath(parentId, depth + 1)} / ${current.name}`
-                : current.name
+            parentId > 0 ? `${resolvePath(parentId, depth + 1)} / ${current.name}` : current.name
         cache.set(id, label)
         return label
     }
@@ -440,7 +440,7 @@ const buildCategoryPathMap = (rows: CategoryOption[]): Record<number, string> =>
  */
 const collectDescendantIds = (rootId: number): Set<number> => {
     const descendants = new Set<number>()
-    const queue = [ rootId ]
+    const queue = [rootId]
     while (queue.length > 0) {
         const current = Number(queue.shift() || 0)
         if (current <= 0) continue
@@ -503,7 +503,7 @@ const availableParentOptions = computed(() => {
  * 使用全量层级路径，便于按“父/子分类名”快速过滤定位。
  */
 const queryParentOptions = computed(() => {
-    return [ ...allCategories.value ].sort((a, b) => {
+    return [...allCategories.value].sort((a, b) => {
         const aLabel = String(a.pathLabel || a.name || '')
         const bLabel = String(b.pathLabel || b.name || '')
         return aLabel.localeCompare(bLabel, 'zh-Hans-CN')
@@ -553,7 +553,7 @@ const extractJsonPayload = (content: string): Record<string, any> | null => {
     const text = String(content || '').trim()
     if (!text) return null
     const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-    const candidates = [ codeMatch?.[1] || '', text ]
+    const candidates = [codeMatch?.[1] || '', text]
     for (const raw of candidates) {
         const trimmed = String(raw || '').trim()
         if (!trimmed) continue
@@ -602,7 +602,11 @@ const normalizeSeoKeywordsText = (value: unknown): string => {
 /**
  * 生成“分类 SEO”专用提示词。
  */
-const buildCategorySeoPrompt = (name: string, description: string, slug: string): string => `请根据以下分类信息生成适用于网站目录页的 SEO 内容。
+const buildCategorySeoPrompt = (
+    name: string,
+    description: string,
+    slug: string
+): string => `请根据以下分类信息生成适用于网站目录页的 SEO 内容。
 请直接返回 JSON，不要输出额外解释文字。
 
 分类名称：${name}
@@ -813,7 +817,9 @@ const handleBatchGenerateSeoByAi = async () => {
             const item = targets[index]
             const current = index + 1
             const total = targets.length
-            batchSeoProgressText.value = `批量生成中 ${current}/${total}：${String(item?.name || '')}`
+            batchSeoProgressText.value = `批量生成中 ${current}/${total}：${String(
+                item?.name || ''
+            )}`
             try {
                 const prompt = buildCategorySeoPrompt(
                     String(item?.name || '').trim(),

@@ -79,10 +79,7 @@
                 <div class="flex items-center justify-between">
                     <span class="font-medium">授权激活</span>
                     <div class="flex items-center gap-2">
-                        <el-button
-                            :loading="licenseLoading"
-                            @click="handleRefreshLicenseStatus"
-                        >
+                        <el-button :loading="licenseLoading" @click="handleRefreshLicenseStatus">
                             刷新状态
                         </el-button>
                         <el-button
@@ -212,22 +209,22 @@
                 <ol>
                     <li>
                         前往
-                        <a
-                            :href="supportInfo.productUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
+                        <a :href="supportInfo.productUrl" target="_blank" rel="noopener noreferrer">
                             {{ supportInfo.productUrl }}
                         </a>
                         购买 Pro / Enterprise 授权。
                     </li>
                     <li>在 fsuied.com 授权中心填写部署域名并提交绑定。</li>
-                    <li>将 fsuied.com 下发的授权文件放到 <code>server/licenses/my.license</code>。</li>
+                    <li>
+                        将 fsuied.com 下发的授权文件放到 <code>server/licenses/my.license</code>。
+                    </li>
                     <li>回到当前页面点击“文件激活”，成功后刷新后台。</li>
                     <li>激活成功后刷新后台，即可访问完整后台功能。</li>
                 </ol>
                 <p>
-                    如无法激活或提示禁用，请联系 QQ：{{ supportInfo.qqContact }}（官方群：{{ supportInfo.qqGroup }}）。
+                    如无法激活或提示禁用，请联系 QQ：{{ supportInfo.qqContact }}（官方群：{{
+                        supportInfo.qqGroup
+                    }}）。
                 </p>
             </div>
 
@@ -254,18 +251,18 @@
                 </p>
                 <p>
                     购买与改绑地址：
-                    <a
-                        :href="supportInfo.productUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
+                    <a :href="supportInfo.productUrl" target="_blank" rel="noopener noreferrer">
                         {{ supportInfo.productUrl }}
                     </a>
                 </p>
                 <ul>
                     <li>售后支持包含：程序使用咨询、BUG 处理、意见反馈。</li>
                     <li>售后不包含：二次开发、服务器运维、网站优化、环境部署等服务。</li>
-                    <li>如需人工支持，请联系 QQ：{{ supportInfo.qqContact }}，QQ群：{{ supportInfo.qqGroup }}。</li>
+                    <li>
+                        如需人工支持，请联系 QQ：{{ supportInfo.qqContact }}，QQ群：{{
+                            supportInfo.qqGroup
+                        }}。
+                    </li>
                 </ul>
             </div>
         </el-card>
@@ -348,7 +345,9 @@ const hasLicensePayload = computed(() => {
  * 运行态是否已完成激活（已付费 + 状态正常 + 域名校验通过）
  */
 const isActivatedRuntime = computed(() => {
-    const status = String(runtimeState.status || '').trim().toLowerCase()
+    const status = String(runtimeState.status || '')
+        .trim()
+        .toLowerCase()
     const isStatusActive = status === 'active'
     const isDomainPass = !runtimeState.domainEnforceEnabled || runtimeState.isDomainAuthorized
     return runtimeState.isPaidEdition && runtimeState.isActive && isStatusActive && isDomainPass
@@ -517,9 +516,10 @@ const resolveActivateErrorMessage = (error: any) => {
     const normalizedMessage = String(rawMessage || '').trim()
     const bindDomain = String(activateForm.bindDomain || runtimeState.runtimeDomain || '').trim()
     const domainMismatchByCode = code === 41002
-    const domainMismatchByText = /域名不匹配|未在授权白名单|domain[_\s-]?not[_\s-]?bound|domain_not_authorized/i.test(
-        normalizedMessage
-    )
+    const domainMismatchByText =
+        /域名不匹配|未在授权白名单|domain[_\s-]?not[_\s-]?bound|domain_not_authorized/i.test(
+            normalizedMessage
+        )
     if (domainMismatchByCode || domainMismatchByText) {
         if (bindDomain) {
             return `授权与域名不匹配：${bindDomain} 未在当前授权白名单，请到 fsuied.com 完成域名绑定后重试`
@@ -625,7 +625,9 @@ const runtimeInactiveAlertText = computed(() => {
  * 域名未授权提示文案（区分“超限”和“未在白名单”）
  */
 const runtimeDomainUnauthorizedAlertText = computed(() => {
-    const reason = String(runtimeState.domainReason || '').trim().toLowerCase()
+    const reason = String(runtimeState.domainReason || '')
+        .trim()
+        .toLowerCase()
     if (reason === 'domain_not_in_whitelist') {
         return '当前域名未在授权白名单，请先在 fsuied.com 绑定该域名后，回到本页重新激活授权。'
     }
@@ -637,7 +639,8 @@ const runtimeDomainUnauthorizedAlertText = computed(() => {
  */
 const resolveLicenseStatusTag = (status: string): ElTagType => {
     if (status === 'active') return 'success'
-    if (['invalid_signature', 'domain_limit_exceeded', 'domain_not_authorized'].includes(status)) return 'danger'
+    if (['invalid_signature', 'domain_limit_exceeded', 'domain_not_authorized'].includes(status))
+        return 'danger'
     if (['inactive', 'disabled'].includes(status)) return 'warning'
     return 'info'
 }

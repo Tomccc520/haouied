@@ -20,13 +20,24 @@
                     />
                 </el-form-item>
                 <el-form-item label="状态">
-                    <el-select v-model="queryParams.status" class="w-[140px]" placeholder="全部" clearable>
+                    <el-select
+                        v-model="queryParams.status"
+                        class="w-[140px]"
+                        placeholder="全部"
+                        clearable
+                    >
                         <el-option label="草稿" value="draft" />
                         <el-option label="已发布" value="published" />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="分类">
-                    <el-select v-model="queryParams.categoryId" class="w-[180px]" placeholder="全部" clearable filterable>
+                    <el-select
+                        v-model="queryParams.categoryId"
+                        class="w-[180px]"
+                        placeholder="全部"
+                        clearable
+                        filterable
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -70,7 +81,9 @@
                 <el-table-column label="协议" min-width="160">
                     <template #default="{ row }">
                         <el-tag effect="plain" size="small">{{ row.transportType || '-' }}</el-tag>
-                        <el-tag class="ml-2" type="info" effect="plain" size="small">{{ row.runtime || '-' }}</el-tag>
+                        <el-tag class="ml-2" type="info" effect="plain" size="small">{{
+                            row.runtime || '-'
+                        }}</el-tag>
                     </template>
                 </el-table-column>
                 <el-table-column label="状态" width="110">
@@ -82,7 +95,9 @@
                 </el-table-column>
                 <el-table-column label="推荐" width="90">
                     <template #default="{ row }">
-                        <el-tag v-if="Number(row.isRecommended) === 1" type="warning" effect="plain">推荐</el-tag>
+                        <el-tag v-if="Number(row.isRecommended) === 1" type="warning" effect="plain"
+                            >推荐</el-tag
+                        >
                         <span v-else>-</span>
                     </template>
                 </el-table-column>
@@ -119,11 +134,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import feedback from '@/utils/feedback'
 import { usePaging } from '@/hooks/usePaging'
-import {
-    uiedMcpList,
-    uiedMcpDelete,
-    uiedMcpCategoryAll,
-} from '@/api/uied'
+import { uiedMcpList, uiedMcpDelete, uiedMcpCategoryAll } from '@/api/uied'
 
 interface McpCategoryOption {
     id: number
@@ -135,14 +146,14 @@ const router = useRouter()
 const queryParams = reactive({
     keyword: '',
     status: '',
-    categoryId: '' as number | string,
+    categoryId: '' as number | string
 })
 
 const categoryOptions = ref<McpCategoryOption[]>([])
 
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedMcpList,
-    params: queryParams,
+    params: queryParams
 })
 
 /**
@@ -150,10 +161,12 @@ const { pager, getLists, resetPage, resetParams } = usePaging({
  */
 const loadCategoryOptions = async () => {
     const rows = await uiedMcpCategoryAll({})
-    categoryOptions.value = (Array.isArray(rows) ? rows : []).map((item: any) => ({
-        id: Number(item.id || 0),
-        name: String(item.name || ''),
-    })).filter((item) => item.id > 0 && item.name)
+    categoryOptions.value = (Array.isArray(rows) ? rows : [])
+        .map((item: any) => ({
+            id: Number(item.id || 0),
+            name: String(item.name || '')
+        }))
+        .filter((item) => item.id > 0 && item.name)
 }
 
 /**

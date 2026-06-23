@@ -2829,9 +2829,9 @@ const goWebsiteListWithRefresh = async () => {
     })
 }
 
-const handleBack = () => {
+const handleBack = async () => {
     persistWebsiteAddDraftStorage()
-    router.back()
+    await goWebsiteListWithRefresh()
 }
 
 // AI 悬浮菜单事件（编辑器选中文本 → AI 改写）

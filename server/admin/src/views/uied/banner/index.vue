@@ -20,7 +20,9 @@
                 <template #header>
                     <div class="flex items-center justify-between">
                         <span class="font-medium">广告位说明与快捷预览</span>
-                        <div class="text-xs text-gray-400">按页面场景配置后，可直接新窗口预览效果</div>
+                        <div class="text-xs text-gray-400">
+                            按页面场景配置后，可直接新窗口预览效果
+                        </div>
                     </div>
                 </template>
                 <div class="banner-ops-helper__grid">
@@ -139,21 +141,14 @@
                 <el-table-column label="ID" prop="id" width="80" />
                 <el-table-column label="类型" width="90">
                     <template #default="{ row }">
-                        <el-tag
-                            size="small"
-                            :type="resolveContentTypeTagType(row.contentType)"
-                        >
+                        <el-tag size="small" :type="resolveContentTypeTagType(row.contentType)">
                             {{ resolveContentTypeLabel(row.contentType) }}
                         </el-tag>
                     </template>
                 </el-table-column>
                 <el-table-column label="广告形态" min-width="140">
                     <template #default="{ row }">
-                        <el-tag
-                            size="small"
-                            :type="resolveBannerShapeTagType(row)"
-                            effect="plain"
-                        >
+                        <el-tag size="small" :type="resolveBannerShapeTagType(row)" effect="plain">
                             {{ resolveBannerShapeLabel(row) }}
                         </el-tag>
                     </template>
@@ -207,11 +202,7 @@
                         </div>
                     </template>
                 </el-table-column>
-                <el-table-column
-                    label="页面标识"
-                    prop="pageSlug"
-                    min-width="180"
-                >
+                <el-table-column label="页面标识" prop="pageSlug" min-width="180">
                     <template #default="{ row }">
                         <div class="banner-page-tags">
                             <el-tag
@@ -276,7 +267,10 @@
                             <el-input v-model="editData.title" placeholder="请输入标题" />
                         </el-form-item>
                         <el-form-item label="描述">
-                            <el-input v-model="editData.description" placeholder="广告描述（可选）" />
+                            <el-input
+                                v-model="editData.description"
+                                placeholder="广告描述（可选）"
+                            />
                         </el-form-item>
                     </div>
 
@@ -287,13 +281,21 @@
                         <div class="banner-form-group__tip">
                             {{ resolveBannerContentConfigTip(editData.contentType) }}
                         </div>
-                        <el-form-item v-if="editData.contentType === 'image'" label="图片" prop="image">
+                        <el-form-item
+                            v-if="editData.contentType === 'image'"
+                            label="图片"
+                            prop="image"
+                        >
                             <el-input
                                 v-model="editData.image"
                                 placeholder="图片URL（可接上传组件返回地址）"
                             />
                         </el-form-item>
-                        <el-form-item v-else-if="editData.contentType === 'html'" label="HTML代码" prop="htmlContent">
+                        <el-form-item
+                            v-else-if="editData.contentType === 'html'"
+                            label="HTML代码"
+                            prop="htmlContent"
+                        >
                             <el-input
                                 v-model="editData.htmlContent"
                                 type="textarea"
@@ -320,7 +322,9 @@
                                         :key="`page-banner-card-${index}`"
                                         class="page-banner-card-editor__item"
                                     >
-                                        <div class="page-banner-card-editor__item-title">卡片 {{ index + 1 }}</div>
+                                        <div class="page-banner-card-editor__item-title">
+                                            卡片 {{ index + 1 }}
+                                        </div>
                                         <el-form-item label="标题" label-width="60px">
                                             <el-input
                                                 v-model="card.title"
@@ -332,16 +336,26 @@
                                                 v-model="card.description"
                                                 type="textarea"
                                                 :rows="2"
-                                                :placeholder="`请输入第${index + 1}张卡片简介（可选）`"
+                                                :placeholder="`请输入第${
+                                                    index + 1
+                                                }张卡片简介（可选）`"
                                             />
                                         </el-form-item>
                                         <el-form-item label="链接" label-width="60px">
                                             <el-radio-group v-model="card.linkType">
-                                                <el-radio-button label="custom">自定义</el-radio-button>
-                                                <el-radio-button label="page">系统页面</el-radio-button>
+                                                <el-radio-button label="custom"
+                                                    >自定义</el-radio-button
+                                                >
+                                                <el-radio-button label="page"
+                                                    >系统页面</el-radio-button
+                                                >
                                             </el-radio-group>
                                         </el-form-item>
-                                        <el-form-item v-if="card.linkType === 'page'" label="页面" label-width="60px">
+                                        <el-form-item
+                                            v-if="card.linkType === 'page'"
+                                            label="页面"
+                                            label-width="60px"
+                                        >
                                             <el-select
                                                 v-model="card.linkPagePath"
                                                 filterable
@@ -361,13 +375,17 @@
                                         <el-form-item v-else label="链接" label-width="60px">
                                             <el-input
                                                 v-model="card.linkUrl"
-                                                :placeholder="`请输入第${index + 1}张卡片跳转链接（可选）`"
+                                                :placeholder="`请输入第${
+                                                    index + 1
+                                                }张卡片跳转链接（可选）`"
                                             />
                                         </el-form-item>
                                         <el-form-item label="角标" label-width="60px">
                                             <el-input
                                                 v-model="card.badgeText"
-                                                :placeholder="`请输入第${index + 1}张卡片角标（可选）`"
+                                                :placeholder="`请输入第${
+                                                    index + 1
+                                                }张卡片角标（可选）`"
                                             />
                                         </el-form-item>
                                     </div>
@@ -460,7 +478,11 @@
                                 关闭时默认全站生效；开启后可指定仅在部分导航页面展示。
                             </div>
                         </el-form-item>
-                        <el-form-item v-if="showPageScopeConfig && editData.enablePageScope" label="导航页面" prop="pageSlugList">
+                        <el-form-item
+                            v-if="showPageScopeConfig && editData.enablePageScope"
+                            label="导航页面"
+                            prop="pageSlugList"
+                        >
                             <el-select
                                 v-model="editData.pageSlugList"
                                 multiple
@@ -497,12 +519,17 @@
                 >
             </template>
         </el-drawer>
-
     </div>
 </template>
 
 <script lang="ts" setup name="uiedBanner">
-import { uiedBannerList, uiedBannerAdd, uiedBannerEdit, uiedBannerDelete, uiedPageAll } from '@/api/uied'
+import {
+    uiedBannerList,
+    uiedBannerAdd,
+    uiedBannerEdit,
+    uiedBannerDelete,
+    uiedPageAll
+} from '@/api/uied'
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -562,7 +589,15 @@ const FRONTEND_SYSTEM_PAGE_PATH_MAP: Record<string, string> = {
     submit: '/submit'
 }
 const SYSTEM_PAGE_SLUG_SET = new Set<string>(Object.keys(FRONTEND_SYSTEM_PAGE_PATH_MAP))
-const NAVIGATION_PAGE_SLUG_SET = new Set<string>(['uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font'])
+const NAVIGATION_PAGE_SLUG_SET = new Set<string>([
+    'uiux',
+    'ai',
+    'design',
+    '3d',
+    'ecommerce',
+    'interior',
+    'font'
+])
 const bannerPositionOptionGroups = [
     {
         label: '页面流量位',
@@ -711,7 +746,10 @@ const buildPageBannerCardItemsStorage = (items: PageBannerCardItem[]): string =>
     const normalized = normalizePageBannerCardItems(items).map((item) => ({
         title: item.title,
         description: item.description,
-        linkUrl: item.linkType === 'page' ? String(item.linkPagePath || '').trim() : String(item.linkUrl || '').trim(),
+        linkUrl:
+            item.linkType === 'page'
+                ? String(item.linkPagePath || '').trim()
+                : String(item.linkUrl || '').trim(),
         badgeText: item.badgeText
     }))
     return JSON.stringify({
@@ -724,11 +762,15 @@ const buildPageBannerCardItemsStorage = (items: PageBannerCardItem[]): string =>
  * 判断页面是否属于“导航页面”，用于广告显示页面范围选择。
  */
 const isNavigationPageOption = (page: any): boolean => {
-    const pageType = String(page?.type || '').trim().toLowerCase()
+    const pageType = String(page?.type || '')
+        .trim()
+        .toLowerCase()
     if (['navigation', 'nav', 'channel', 'home'].includes(pageType)) {
         return true
     }
-    const slug = String(page?.slug || '').trim().toLowerCase()
+    const slug = String(page?.slug || '')
+        .trim()
+        .toLowerCase()
     if (NAVIGATION_PAGE_SLUG_SET.has(slug)) return true
     return ['home', 'daily-hot', 'daily-new', 'rankings'].includes(slug)
 }
@@ -763,13 +805,17 @@ const bannerDisplayBuiltinPageOptions: BannerLinkOption[] = bannerPageOptions
  */
 const bannerDisplayPageOptions = computed<BannerLinkOption[]>(() => {
     const dedup = new Map<string, BannerLinkOption>()
-    ;[...bannerDisplayBuiltinPageOptions, ...bannerDisplayPageDynamicOptions.value].forEach((item) => {
-        const value = String(item?.value || '').trim().toLowerCase()
-        if (!value || value === 'all') return
-        if (!dedup.has(value)) {
-            dedup.set(value, { label: String(item?.label || value).trim() || value, value })
+    ;[...bannerDisplayBuiltinPageOptions, ...bannerDisplayPageDynamicOptions.value].forEach(
+        (item) => {
+            const value = String(item?.value || '')
+                .trim()
+                .toLowerCase()
+            if (!value || value === 'all') return
+            if (!dedup.has(value)) {
+                dedup.set(value, { label: String(item?.label || value).trim() || value, value })
+            }
         }
-    })
+    )
     return Array.from(dedup.values())
 })
 
@@ -833,7 +879,10 @@ const buildLegacyPageBannerCardItems = (row: any): PageBannerCardItem[] => {
     const rows = groupItemIds
         .map((id: number) => rawBannerRowMap.value.get(id))
         .filter((item: any) => Boolean(item))
-        .sort((a: any, b: any) => Number(a?.sortOrder || a?.sort || 0) - Number(b?.sortOrder || b?.sort || 0))
+        .sort(
+            (a: any, b: any) =>
+                Number(a?.sortOrder || a?.sort || 0) - Number(b?.sortOrder || b?.sort || 0)
+        )
     if (rows.length === 0) return createDefaultPageBannerCardItems()
     const cardItems = rows.slice(0, 4).map((item: any) => {
         const link = String(item?.linkUrl || item?.url || '').trim()
@@ -854,7 +903,9 @@ const buildLegacyPageBannerCardItems = (row: any): PageBannerCardItem[] => {
  * 将页面 slug 转换为前端可访问路径。
  */
 const resolveFrontendPathBySlug = (slug: unknown): string => {
-    const normalizedSlug = String(slug || '').trim().toLowerCase()
+    const normalizedSlug = String(slug || '')
+        .trim()
+        .toLowerCase()
     if (!normalizedSlug) return ''
     if (FRONTEND_SYSTEM_PAGE_PATH_MAP[normalizedSlug]) {
         return FRONTEND_SYSTEM_PAGE_PATH_MAP[normalizedSlug]
@@ -873,11 +924,7 @@ const normalizePositionList = (value: unknown): string[] => {
               .map((item) => item.trim())
               .filter(Boolean)
     return Array.from(
-        new Set(
-            source
-                .map((item) => normalizePositionAlias(String(item).trim()))
-                .filter(Boolean)
-        )
+        new Set(source.map((item) => normalizePositionAlias(String(item).trim())).filter(Boolean))
     )
 }
 
@@ -892,7 +939,11 @@ const normalizePageSlugList = (value: unknown): string[] => {
               .map((item) => item.trim())
               .filter(Boolean)
     const normalized = source
-        .map((item) => String(item || '').trim().toLowerCase())
+        .map((item) =>
+            String(item || '')
+                .trim()
+                .toLowerCase()
+        )
         .map((item) => {
             if (!item) return ''
             if (['/', 'index', 'uiux'].includes(item)) return 'home'
@@ -915,7 +966,11 @@ const normalizeSpecificPageSlugList = (value: unknown): string[] => {
               .map((item) => item.trim())
               .filter(Boolean)
     const normalized = source
-        .map((item) => String(item || '').trim().toLowerCase())
+        .map((item) =>
+            String(item || '')
+                .trim()
+                .toLowerCase()
+        )
         .map((item) => {
             if (!item) return ''
             if (['/', 'index', 'uiux'].includes(item)) return 'home'
@@ -929,8 +984,10 @@ const normalizeSpecificPageSlugList = (value: unknown): string[] => {
  * 渲染列表“位置/slot”列标签。
  */
 const resolvePositionLabels = (row: any): string[] => {
-    const values = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
-    if (values.length === 0) return [ '未设置' ]
+    const values = normalizePositionList(
+        row?.positionList?.length ? row.positionList : row?.position
+    )
+    if (values.length === 0) return ['未设置']
     return values.map((value) => bannerPositionLabelMap[value] || value)
 }
 
@@ -938,7 +995,9 @@ const resolvePositionLabels = (row: any): string[] => {
  * 规范化位置别名，统一映射到可识别位置。
  */
 function normalizePositionAlias(value: string): string {
-    const normalized = String(value || '').trim().toLowerCase()
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
     const aliasMap: Record<string, string> = {
         top: 'home',
         bottom: 'footer',
@@ -964,7 +1023,8 @@ const resolveSceneFromPosition = (position: string): string => {
     if (['global_strip'].includes(normalized)) return 'global_strip'
     if (['sidebar', 'detail_sidebar'].includes(normalized)) return 'sidebar'
     if (['footer'].includes(normalized)) return 'footer'
-    if (['detail', 'detail_top', 'detail_inline', 'detail_bottom'].includes(normalized)) return 'detail'
+    if (['detail', 'detail_top', 'detail_inline', 'detail_bottom'].includes(normalized))
+        return 'detail'
     return 'other'
 }
 
@@ -972,7 +1032,9 @@ const resolveSceneFromPosition = (position: string): string => {
  * 渲染列表“场景类型”标签。
  */
 const resolveSceneLabels = (row: any): string[] => {
-    const values = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
+    const values = normalizePositionList(
+        row?.positionList?.length ? row.positionList : row?.position
+    )
     if (values.length === 0) return [sceneLabelMap.other]
     const sceneSet = new Set<string>()
     values.forEach((position) => sceneSet.add(resolveSceneFromPosition(position)))
@@ -1006,8 +1068,12 @@ const resolveContentTypeTagType = (value: unknown): '' | 'success' | 'warning' |
  * 渲染“广告形态”标签文案，突出 page_banner 与普通广告的差异。
  */
 const resolveBannerShapeLabel = (row: any): string => {
-    const contentType = String(row?.contentType || 'image').trim().toLowerCase()
-    const positions = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
+    const contentType = String(row?.contentType || 'image')
+        .trim()
+        .toLowerCase()
+    const positions = normalizePositionList(
+        row?.positionList?.length ? row.positionList : row?.position
+    )
     const typeLabelMap: Record<string, string> = {
         image: '图片广告',
         text: '广告组件',
@@ -1028,8 +1094,12 @@ const resolveBannerShapeLabel = (row: any): string => {
  * 渲染“广告形态”标签颜色。
  */
 const resolveBannerShapeTagType = (row: any): '' | 'success' | 'warning' | 'info' | 'danger' => {
-    const contentType = String(row?.contentType || 'image').trim().toLowerCase()
-    const positions = normalizePositionList(row?.positionList?.length ? row.positionList : row?.position)
+    const contentType = String(row?.contentType || 'image')
+        .trim()
+        .toLowerCase()
+    const positions = normalizePositionList(
+        row?.positionList?.length ? row.positionList : row?.position
+    )
     if (!positions.includes(PAGE_BANNER_POSITION)) return 'info'
     if (contentType === 'html') return 'warning'
     if (contentType === 'text') return 'success'
@@ -1040,7 +1110,9 @@ const resolveBannerShapeTagType = (row: any): '' | 'success' | 'warning' | 'info
  * 按当前内容类型返回“内容配置”分组标题。
  */
 const resolveBannerContentConfigTitle = (contentType: unknown): string => {
-    const type = String(contentType || '').trim().toLowerCase()
+    const type = String(contentType || '')
+        .trim()
+        .toLowerCase()
     if (type === 'html') return 'HTML 广告配置'
     if (type === 'text') return '广告组件配置'
     return '图片广告配置'
@@ -1050,7 +1122,9 @@ const resolveBannerContentConfigTitle = (contentType: unknown): string => {
  * 按当前内容类型返回“内容配置”分组提示文案。
  */
 const resolveBannerContentConfigTip = (contentType: unknown): string => {
-    const type = String(contentType || '').trim().toLowerCase()
+    const type = String(contentType || '')
+        .trim()
+        .toLowerCase()
     if (type === 'html') {
         return '用于投放脚本/iframe/自定义代码片段，建议先在测试环境验证展示效果。'
     }
@@ -1064,7 +1138,9 @@ const resolveBannerContentConfigTip = (contentType: unknown): string => {
  * 按当前内容类型返回“链接配置”分组提示文案。
  */
 const resolveBannerLinkConfigTip = (contentType: unknown): string => {
-    const type = String(contentType || '').trim().toLowerCase()
+    const type = String(contentType || '')
+        .trim()
+        .toLowerCase()
     if (type === 'html') {
         return 'HTML 广告可不填跳转链接；如需跳转，请在链接类型中配置。'
     }
@@ -1075,7 +1151,9 @@ const resolveBannerLinkConfigTip = (contentType: unknown): string => {
  * 渲染列表“显示页面”列标签。
  */
 const resolvePageSlugLabels = (row: any): string[] => {
-    const values = normalizePageSlugList(row?.pageSlugList?.length ? row.pageSlugList : row?.pageSlug)
+    const values = normalizePageSlugList(
+        row?.pageSlugList?.length ? row.pageSlugList : row?.pageSlug
+    )
     if (values.includes('all')) return [bannerPageLabelMap.all || '全部页面（all）']
     return values.map((value) => bannerPageLabelMap[value] || value)
 }
@@ -1089,7 +1167,9 @@ const loadBannerDynamicPageOptions = async () => {
         const safeRows = Array.isArray(rows) ? rows : []
         const options = safeRows
             .map((item: any) => {
-                const slug = String(item?.slug || '').trim().toLowerCase()
+                const slug = String(item?.slug || '')
+                    .trim()
+                    .toLowerCase()
                 const name = String(item?.name || slug || '').trim()
                 if (!slug) return null
                 const frontendPath = resolveFrontendPathBySlug(slug)
@@ -1103,11 +1183,15 @@ const loadBannerDynamicPageOptions = async () => {
         bannerDynamicPageOptions.value = options
         bannerDisplayPageDynamicOptions.value = safeRows
             .filter((item: any) => {
-                const slug = String(item?.slug || '').trim().toLowerCase()
+                const slug = String(item?.slug || '')
+                    .trim()
+                    .toLowerCase()
                 return isNavigationPageOption(item) || SYSTEM_PAGE_SLUG_SET.has(slug)
             })
             .map((item: any) => {
-                const slug = String(item?.slug || '').trim().toLowerCase()
+                const slug = String(item?.slug || '')
+                    .trim()
+                    .toLowerCase()
                 const name = String(item?.name || slug || '').trim()
                 if (!slug || slug === 'all') return null
                 return {
@@ -1131,7 +1215,9 @@ const loadBannerDynamicPageOptions = async () => {
 /**
  * 根据已保存的链接 URL 推断当前编辑态（页面链接 / 自定义链接）。
  */
-const resolveBannerLinkState = (value: unknown): { linkType: 'custom' | 'page'; linkPagePath: string } => {
+const resolveBannerLinkState = (
+    value: unknown
+): { linkType: 'custom' | 'page'; linkPagePath: string } => {
     const linkUrl = String(value || '').trim()
     if (!linkUrl) {
         return { linkType: 'custom', linkPagePath: '' }
@@ -1181,7 +1267,7 @@ const editData = reactive({
     pageSlug: 'all',
     pageSlugList: ['all'] as string[],
     position: 'home',
-    positionList: [ 'home' ] as string[],
+    positionList: ['home'] as string[],
     pageBannerCardItems: createDefaultPageBannerCardItems() as PageBannerCardItem[],
     startTime: 0,
     endTime: 0,
@@ -1292,14 +1378,13 @@ const resetEditData = () =>
         pageSlug: 'all',
         pageSlugList: ['all'],
         position: 'home',
-        positionList: [ 'home' ],
+        positionList: ['home'],
         pageBannerCardItems: createDefaultPageBannerCardItems(),
         startTime: 0,
         endTime: 0,
         sortOrder: 0,
         isActive: true
     })
-    
 
 const handleAdd = () => {
     resetEditData()
@@ -1311,9 +1396,8 @@ const handleEdit = async (row: any) => {
         row?.positionList?.length ? row.positionList : row?.position
     )
     currentEditingBannerId.value = Number(row?.id || 0)
-    const normalizedEditablePositionList = normalizedPositionList.length > 0
-        ? normalizedPositionList
-        : ['home']
+    const normalizedEditablePositionList =
+        normalizedPositionList.length > 0 ? normalizedPositionList : ['home']
     const normalizedLinkUrl = String(row.linkUrl || row.url || '').trim()
     const linkState = resolveBannerLinkState(normalizedLinkUrl)
     const pageBannerCardItems = parsePageBannerCardItemsFromHtmlContent(row.htmlContent || '')
@@ -1327,14 +1411,18 @@ const handleEdit = async (row: any) => {
         contentType: row.contentType || 'image',
         htmlContent: row.htmlContent || '',
         pageSlug: row.pageSlug || 'all',
-        pageSlugList: normalizePageSlugList(row.pageSlugList?.length ? row.pageSlugList : row.pageSlug),
+        pageSlugList: normalizePageSlugList(
+            row.pageSlugList?.length ? row.pageSlugList : row.pageSlug
+        ),
         positionList: normalizedEditablePositionList,
         pageBannerCardItems
     })
     const isPageBannerTextRow =
         String(editData.contentType || '').toLowerCase() === 'text' &&
         normalizedEditablePositionList.includes(PAGE_BANNER_POSITION)
-    const hasValidCardItem = editData.pageBannerCardItems.some((item) => !isEmptyPageBannerCardItem(item))
+    const hasValidCardItem = editData.pageBannerCardItems.some(
+        (item) => !isEmptyPageBannerCardItem(item)
+    )
     if (isPageBannerTextRow && !hasValidCardItem) {
         try {
             await ensureRawBannerRowsLoaded()
@@ -1345,7 +1433,7 @@ const handleEdit = async (row: any) => {
     }
     editData.enablePageScope = !editData.pageSlugList.includes('all')
     if (editData.positionList.length === 0) {
-        editData.positionList = [ 'home' ]
+        editData.positionList = ['home']
     }
     showEdit.value = true
 }
@@ -1373,9 +1461,9 @@ const handleSubmit = async () => {
             const validCardItems = normalizedCardItems.filter((item) =>
                 Boolean(
                     item.title ||
-                    item.description ||
-                    (item.linkType === 'page' ? item.linkPagePath : item.linkUrl) ||
-                    item.badgeText
+                        item.description ||
+                        (item.linkType === 'page' ? item.linkPagePath : item.linkUrl) ||
+                        item.badgeText
                 )
             )
             if (validCardItems.length === 0) {
@@ -1401,9 +1489,10 @@ const handleSubmit = async () => {
     try {
         const editingId = Number(currentEditingBannerId.value || editData.id || 0)
         const positionList = normalizePositionList(editData.positionList)
-        const pageSlugList = showPageScopeConfig.value && editData.enablePageScope
-            ? normalizeSpecificPageSlugList(editData.pageSlugList)
-            : ['all']
+        const pageSlugList =
+            showPageScopeConfig.value && editData.enablePageScope
+                ? normalizeSpecificPageSlugList(editData.pageSlugList)
+                : ['all']
         const submitData = {
             ...editData,
             id: editingId,
@@ -1526,7 +1615,7 @@ watch(
         const normalized = normalizePositionList(value)
         const nextValue = normalized.length > 0 ? normalized : ['home']
         if (!isSameStringArray(editData.positionList, nextValue)) {
-            editData.positionList = [ ...nextValue ]
+            editData.positionList = [...nextValue]
         }
     }
 )

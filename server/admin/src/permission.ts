@@ -47,7 +47,9 @@ async function ensurePaidLicenseActivated(force = false): Promise<boolean> {
         try {
             const data = await uiedLicenseInfo()
             const activated = data?.isPaidEdition === true && data?.isActive === true
-            lastLicenseStatus = String(data?.status || '').trim().toLowerCase()
+            lastLicenseStatus = String(data?.status || '')
+                .trim()
+                .toLowerCase()
             lastLicenseNote = String(data?.note || '').trim()
             lastActivationState = activated
             lastActivationCheckedAt = Date.now()
@@ -71,10 +73,10 @@ function isActivationAllowedPath(path: string): boolean {
     const normalizedPath = String(path || '').trim()
     if (!normalizedPath) return false
     return (
-        normalizedPath === loginPath
-        || normalizedPath === PageEnum.ERROR_403
-        || normalizedPath === licenseCenterPath
-        || normalizedPath.startsWith('/uied/commercial-license/license-center')
+        normalizedPath === loginPath ||
+        normalizedPath === PageEnum.ERROR_403 ||
+        normalizedPath === licenseCenterPath ||
+        normalizedPath.startsWith('/uied/commercial-license/license-center')
     )
 }
 

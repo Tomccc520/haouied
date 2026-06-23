@@ -25,15 +25,14 @@
                     <div class="flex leading-9">
                         <div class="w-20 felx-none">获取渠道</div>
                         <div>
-                            <a
-                                :href="frontendOfficialUrl"
-                                target="_blank"
-                            >
+                            <a :href="frontendOfficialUrl" target="_blank">
                                 <el-button type="success" size="small">官网</el-button>
                             </a>
                             <a
                                 class="ml-3"
-                                :href="workbenchData.version.channel.docs || defaultChannelLinks.docs"
+                                :href="
+                                    workbenchData.version.channel.docs || defaultChannelLinks.docs
+                                "
                                 target="_blank"
                             >
                                 <el-button type="primary" size="small">文档</el-button>
@@ -43,8 +42,15 @@
                     <div class="flex leading-9 items-center">
                         <div class="w-20 flex-none">本版新增</div>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <span class="workbench-update-pill">本版 {{ adminUpdateCount }} 项</span>
-                            <el-button type="primary" plain size="small" @click="openAdminUpdateLog">
+                            <span class="workbench-update-pill"
+                                >本版 {{ adminUpdateCount }} 项</span
+                            >
+                            <el-button
+                                type="primary"
+                                plain
+                                size="small"
+                                @click="openAdminUpdateLog"
+                            >
                                 查看更新记录
                             </el-button>
                         </div>
@@ -416,8 +422,12 @@ const getData = async () => {
     workbenchData.visitorOption.series[0].data = []
 
     // 写入从后台拿来的数据
-    workbenchData.visitorOption.xAxis.data = Array.isArray(res?.visitor?.date) ? res.visitor.date : []
-    workbenchData.visitorOption.series[0].data = Array.isArray(res?.visitor?.list) ? res.visitor.list : []
+    workbenchData.visitorOption.xAxis.data = Array.isArray(res?.visitor?.date)
+        ? res.visitor.date
+        : []
+    workbenchData.visitorOption.series[0].data = Array.isArray(res?.visitor?.list)
+        ? res.visitor.list
+        : []
 }
 
 getData()
@@ -434,7 +444,7 @@ getData()
     font-size: 12px;
     font-weight: 600;
     color: #1d4ed8;
-    background: rgba(37, 99, 235, 0.10);
+    background: rgba(37, 99, 235, 0.1);
     border: 1px solid rgba(37, 99, 235, 0.14);
 }
 
@@ -506,7 +516,7 @@ getData()
         font-size: 10px;
         font-weight: 600;
         color: #1d4ed8;
-        background: rgba(37, 99, 235, 0.10);
+        background: rgba(37, 99, 235, 0.1);
         border: 1px solid rgba(37, 99, 235, 0.14);
     }
 

@@ -204,7 +204,10 @@
                     </el-col>
                     <el-col :span="10">
                         <el-form-item label="入口路径">
-                            <el-input v-model="globalForm.displayPath" placeholder="/p/hot?tab=daily-hot" />
+                            <el-input
+                                v-model="globalForm.displayPath"
+                                placeholder="/p/hot?tab=daily-hot"
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :span="6">
@@ -237,7 +240,10 @@
                     </el-col>
                     <el-col :span="12">
                         <el-form-item label="组件副标题">
-                            <el-input v-model="globalForm.componentSubtitle" placeholder="聚合全平台热点，实时更新" />
+                            <el-input
+                                v-model="globalForm.componentSubtitle"
+                                placeholder="聚合全平台热点，实时更新"
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :span="12">
@@ -257,7 +263,10 @@
                     </el-col>
                     <el-col :span="12">
                         <el-form-item label="加载提示">
-                            <el-input v-model="globalForm.loadingText" placeholder="热榜加载中..." />
+                            <el-input
+                                v-model="globalForm.loadingText"
+                                placeholder="热榜加载中..."
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :span="12">
@@ -267,7 +276,10 @@
                     </el-col>
                     <el-col :span="12">
                         <el-form-item label="失败提示">
-                            <el-input v-model="globalForm.errorText" placeholder="热榜数据加载失败，请稍后重试" />
+                            <el-input
+                                v-model="globalForm.errorText"
+                                placeholder="热榜数据加载失败，请稍后重试"
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :span="12">
@@ -287,7 +299,10 @@
                     </el-col>
                     <el-col :span="8">
                         <el-form-item label="平台外链文案">
-                            <el-input v-model="globalForm.platformLinkText" placeholder="访问平台" />
+                            <el-input
+                                v-model="globalForm.platformLinkText"
+                                placeholder="访问平台"
+                            />
                         </el-form-item>
                     </el-col>
                     <el-col :span="24">
@@ -627,21 +642,28 @@ const loadGlobalConfig = async () => {
         globalForm.displayMobile = data?.displayMobile !== false
         globalForm.displayOpenInNewTab = data?.displayOpenInNewTab === true
         globalForm.componentSubtitle =
-            String(data?.componentSubtitle || '聚合全平台热点，实时更新').trim() || '聚合全平台热点，实时更新'
+            String(data?.componentSubtitle || '聚合全平台热点，实时更新').trim() ||
+            '聚合全平台热点，实时更新'
         globalForm.pageEyebrow =
             String(data?.pageEyebrow || '全网热点速览').trim() || '全网热点速览'
-        globalForm.pageDescription = String(
-            data?.pageDescription ||
-                '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
-        ).trim() || '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
-        globalForm.loadingText = String(data?.loadingText || '热榜加载中...').trim() || '热榜加载中...'
+        globalForm.pageDescription =
+            String(
+                data?.pageDescription ||
+                    '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
+            ).trim() ||
+            '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。'
+        globalForm.loadingText =
+            String(data?.loadingText || '热榜加载中...').trim() || '热榜加载中...'
         globalForm.emptyText = String(data?.emptyText || '暂无数据').trim() || '暂无数据'
         globalForm.errorText =
-            String(data?.errorText || '热榜数据加载失败，请稍后重试').trim() || '热榜数据加载失败，请稍后重试'
+            String(data?.errorText || '热榜数据加载失败，请稍后重试').trim() ||
+            '热榜数据加载失败，请稍后重试'
         globalForm.retryText = String(data?.retryText || '重新加载').trim() || '重新加载'
         globalForm.refreshText = String(data?.refreshText || '刷新热榜').trim() || '刷新热榜'
-        globalForm.refreshingText = String(data?.refreshingText || '刷新中...').trim() || '刷新中...'
-        globalForm.platformLinkText = String(data?.platformLinkText || '访问平台').trim() || '访问平台'
+        globalForm.refreshingText =
+            String(data?.refreshingText || '刷新中...').trim() || '刷新中...'
+        globalForm.platformLinkText =
+            String(data?.platformLinkText || '访问平台').trim() || '访问平台'
     } finally {
         globalLoading.value = false
     }
@@ -723,17 +745,15 @@ const handleSaveGlobalConfig = async () => {
                 String(globalForm.componentSubtitle || '').trim() || '聚合全平台热点，实时更新',
             pageEyebrow: String(globalForm.pageEyebrow || '').trim() || '全网热点速览',
             pageDescription:
-                String(globalForm.pageDescription || '').trim()
-                || '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。',
+                String(globalForm.pageDescription || '').trim() ||
+                '保持卡片式阅读体验，按平台快速切换热点内容；支持后台配置默认平台与排序，适配运营入口分发。',
             loadingText: String(globalForm.loadingText || '').trim() || '热榜加载中...',
             emptyText: String(globalForm.emptyText || '').trim() || '暂无数据',
-            errorText:
-                String(globalForm.errorText || '').trim() || '热榜数据加载失败，请稍后重试',
+            errorText: String(globalForm.errorText || '').trim() || '热榜数据加载失败，请稍后重试',
             retryText: String(globalForm.retryText || '').trim() || '重新加载',
             refreshText: String(globalForm.refreshText || '').trim() || '刷新热榜',
             refreshingText: String(globalForm.refreshingText || '').trim() || '刷新中...',
-            platformLinkText:
-                String(globalForm.platformLinkText || '').trim() || '访问平台'
+            platformLinkText: String(globalForm.platformLinkText || '').trim() || '访问平台'
         })
         feedback.msgSuccess('全局配置保存成功')
     } finally {

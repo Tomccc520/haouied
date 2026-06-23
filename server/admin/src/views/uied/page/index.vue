@@ -45,7 +45,10 @@
             </div>
             <div v-else class="page-group-lock mb-4">
                 <span class="page-group-switch__label">当前分区</span>
-                <el-tag size="small" :type="queryParams.pageGroup === 'navigation' ? 'success' : 'info'">
+                <el-tag
+                    size="small"
+                    :type="queryParams.pageGroup === 'navigation' ? 'success' : 'info'"
+                >
                     {{ queryParams.pageGroup === 'navigation' ? '导航页面' : '系统页面' }}
                 </el-tag>
             </div>
@@ -82,8 +85,14 @@
                 <el-table-column label="别名" prop="slug" min-width="100" />
                 <el-table-column label="页面分组" width="110">
                     <template #default="{ row }">
-                        <el-tag size="small" :type="row.pageGroup === 'navigation' ? 'success' : 'info'">
-                            {{ row.pageGroupLabel || (row.pageGroup === 'navigation' ? '导航页面' : '系统页面') }}
+                        <el-tag
+                            size="small"
+                            :type="row.pageGroup === 'navigation' ? 'success' : 'info'"
+                        >
+                            {{
+                                row.pageGroupLabel ||
+                                (row.pageGroup === 'navigation' ? '导航页面' : '系统页面')
+                            }}
                         </el-tag>
                     </template>
                 </el-table-column>
@@ -94,7 +103,9 @@
                     show-overflow-tooltip
                 >
                     <template #default="{ row }">
-                        <span v-if="row.pageGroup === 'navigation'">{{ row.heroTitle || '-' }}</span>
+                        <span v-if="row.pageGroup === 'navigation'">{{
+                            row.heroTitle || '-'
+                        }}</span>
                         <span v-else class="text-gray-400">系统页无 Hero 模板</span>
                     </template>
                 </el-table-column>
@@ -141,7 +152,10 @@
                 </el-table-column>
                 <el-table-column label="操作" width="340" fixed="right">
                     <template #default="{ row }">
-                        <el-tooltip :content="`前端路径：${resolveFrontendPagePath(row)}`" placement="top">
+                        <el-tooltip
+                            :content="`前端路径：${resolveFrontendPagePath(row)}`"
+                            placement="top"
+                        >
                             <el-button type="primary" link @click="openFrontendPage(row)">
                                 查看前端
                             </el-button>
@@ -163,7 +177,9 @@
                             设计文章配置
                         </el-button>
                         <el-button
-                            v-if="row.pageGroup === 'custom' && resolveSystemPageSettingPathByRow(row)"
+                            v-if="
+                                row.pageGroup === 'custom' && resolveSystemPageSettingPathByRow(row)
+                            "
                             type="primary"
                             link
                             @click="openSystemPageSettingByRow(row)"
@@ -192,7 +208,13 @@
         <!-- 编辑弹窗 -->
         <el-dialog
             v-model="showEdit"
-            :title="editData.id ? (editData.type === 'navigation' ? '编辑导航页面' : '编辑系统页面') : '添加导航页面'"
+            :title="
+                editData.id
+                    ? editData.type === 'navigation'
+                        ? '编辑导航页面'
+                        : '编辑系统页面'
+                    : '添加导航页面'
+            "
             width="700px"
             top="5vh"
         >
@@ -210,7 +232,9 @@
                                 @input="handleSlugInput"
                             />
                             <div class="text-gray-400 text-xs mt-1">
-                                前台路径预览：<code>{{ resolveEditPreviewPath(editData.slug) }}</code>
+                                前台路径预览：<code>{{
+                                    resolveEditPreviewPath(editData.slug)
+                                }}</code>
                             </div>
                         </el-form-item>
                         <el-form-item label="页面分组">
@@ -264,12 +288,16 @@
                                 placeholder="标签1,标签2,标签3"
                             />
                             <div class="text-gray-400 text-xs mt-1">
-                                固定词（可选）：用于“固定词置顶 + 动态补齐”模式；多个标签用英文逗号分隔。
+                                固定词（可选）：用于“固定词置顶 +
+                                动态补齐”模式；多个标签用英文逗号分隔。
                             </div>
                         </el-form-item>
                         <el-form-item label="热词模式">
                             <el-select v-model="editData.hotSearchMode" class="w-100">
-                                <el-option label="固定词优先 + 动态补齐（推荐）" value="custom_then_dynamic" />
+                                <el-option
+                                    label="固定词优先 + 动态补齐（推荐）"
+                                    value="custom_then_dynamic"
+                                />
                                 <el-option label="仅固定词（后台手填）" value="custom_only" />
                                 <el-option label="仅动态词（按近期热度）" value="dynamic_only" />
                             </el-select>
@@ -278,26 +306,42 @@
                             </div>
                         </el-form-item>
                         <el-form-item label="固定词数量">
-                            <el-input-number v-model="editData.hotSearchFixedCount" :min="0" :max="20" />
+                            <el-input-number
+                                v-model="editData.hotSearchFixedCount"
+                                :min="0"
+                                :max="20"
+                            />
                             <div class="text-gray-400 text-xs mt-1">
                                 仅在“固定词优先 + 动态补齐”模式下生效，默认 4。
                             </div>
                         </el-form-item>
                         <el-form-item label="动态补齐数量">
-                            <el-input-number v-model="editData.hotSearchDynamicCount" :min="0" :max="20" />
+                            <el-input-number
+                                v-model="editData.hotSearchDynamicCount"
+                                :min="0"
+                                :max="20"
+                            />
                             <div class="text-gray-400 text-xs mt-1">
                                 仅在“固定词优先 + 动态补齐”或“仅动态词”模式下生效，默认 6。
                             </div>
                         </el-form-item>
                         <el-form-item label="统计窗口">
-                            <el-input-number v-model="editData.hotSearchWindowDays" :min="1" :max="30" />
+                            <el-input-number
+                                v-model="editData.hotSearchWindowDays"
+                                :min="1"
+                                :max="30"
+                            />
                             <span class="ml-2 text-xs text-gray-500">天</span>
                             <div class="text-gray-400 text-xs mt-1">
                                 动态热词按最近 N 天点击热度统计，默认 7 天。
                             </div>
                         </el-form-item>
                         <el-form-item label="最低阈值">
-                            <el-input-number v-model="editData.hotSearchMinScore" :min="1" :max="1000000" />
+                            <el-input-number
+                                v-model="editData.hotSearchMinScore"
+                                :min="1"
+                                :max="1000000"
+                            />
                             <div class="text-gray-400 text-xs mt-1">
                                 动态标签得分低于阈值时不展示，用于减少抖动与噪音词。
                             </div>
@@ -369,7 +413,11 @@
                     </el-tab-pane>
 
                     <!-- 页面配置 -->
-                    <el-tab-pane v-if="editData.type === 'navigation'" label="页面配置" name="config">
+                    <el-tab-pane
+                        v-if="editData.type === 'navigation'"
+                        label="页面配置"
+                        name="config"
+                    >
                         <el-form-item label="搜索占位符">
                             <el-input
                                 v-model="editData.searchPlaceholder"
@@ -473,7 +521,8 @@
                                 刷新分类/标签库
                             </el-button>
                             <span class="ml-2 text-xs text-gray-400">
-                                分类 {{ wordpressCategoryOptions.length }} 项，标签 {{ wordpressTagOptions.length }} 项
+                                分类 {{ wordpressCategoryOptions.length }} 项，标签
+                                {{ wordpressTagOptions.length }} 项
                             </span>
                         </el-form-item>
                         <el-form-item
@@ -679,7 +728,9 @@
                     </div>
                 </div>
                 <div class="page-category-config__panel">
-                    <div class="page-category-config__panel-title page-category-config__panel-title--with-action">
+                    <div
+                        class="page-category-config__panel-title page-category-config__panel-title--with-action"
+                    >
                         <span>已选分类（可排序）</span>
                         <el-button
                             v-if="categorySelectedRows.length > 0"
@@ -690,7 +741,10 @@
                             清空
                         </el-button>
                     </div>
-                    <div v-if="categorySelectedRows.length === 0" class="page-category-config__empty">
+                    <div
+                        v-if="categorySelectedRows.length === 0"
+                        class="page-category-config__empty"
+                    >
                         请在左侧勾选要展示的分类（建议按业务顺序排列）。
                     </div>
                     <div v-else class="page-category-config__selected-list">
@@ -700,7 +754,9 @@
                             class="page-category-config__selected-item"
                         >
                             <div class="page-category-config__selected-main">
-                                <span class="page-category-config__selected-index">{{ index + 1 }}</span>
+                                <span class="page-category-config__selected-index">{{
+                                    index + 1
+                                }}</span>
                                 <div class="page-category-config__selected-icon-wrap">
                                     <span
                                         v-if="resolveSvgIconMarkup(item.icon)"
@@ -712,22 +768,25 @@
                                         :name="item.icon"
                                         class="page-category-config__selected-icon"
                                     />
-                                    <span v-else class="page-category-config__selected-icon-empty">无图标</span>
+                                    <span v-else class="page-category-config__selected-icon-empty"
+                                        >无图标</span
+                                    >
                                 </div>
-                                <span class="page-category-config__selected-name">{{ item.pathLabel }}</span>
+                                <span class="page-category-config__selected-name">{{
+                                    item.pathLabel
+                                }}</span>
                             </div>
                             <div class="page-category-config__selected-icon-editor">
                                 <el-radio-group
                                     :model-value="getCategoryIconMode(item)"
                                     size="small"
                                     class="page-category-config__selected-icon-mode"
-                                    @change="
-                                        (mode) =>
-                                            handleCategoryIconModeChange(item, mode)
-                                    "
+                                    @change="(mode) => handleCategoryIconModeChange(item, mode)"
                                 >
                                     <el-radio-button label="svg">SVG图标库</el-radio-button>
-                                    <el-radio-button label="icon">系统图标（Element Plus / local-icon）</el-radio-button>
+                                    <el-radio-button label="icon"
+                                        >系统图标（Element Plus / local-icon）</el-radio-button
+                                    >
                                 </el-radio-group>
                                 <svg-library-picker
                                     v-if="getCategoryIconMode(item) === 'svg'"
@@ -765,7 +824,11 @@
                                 >
                                     下移
                                 </el-button>
-                                <el-button type="danger" link @click="removeSelectedCategory(item.id)">
+                                <el-button
+                                    type="danger"
+                                    link
+                                    @click="removeSelectedCategory(item.id)"
+                                >
                                     移除
                                 </el-button>
                             </div>
@@ -782,7 +845,12 @@
         </el-dialog>
 
         <!-- WordPress 分类/标签配置 -->
-        <el-dialog v-model="showWpTaxonomyDialogVisible" title="WordPress 分类/标签配置" width="1180px" top="4vh">
+        <el-dialog
+            v-model="showWpTaxonomyDialogVisible"
+            title="WordPress 分类/标签配置"
+            width="1180px"
+            top="4vh"
+        >
             <div class="wp-taxonomy-config">
                 <div class="wp-taxonomy-config__toolbar">
                     <el-input
@@ -793,7 +861,9 @@
                     >
                         <template #prepend>pageSlug</template>
                     </el-input>
-                    <el-button :loading="wpTaxonomyLoading" @click="loadWpTaxonomyRows">刷新数据</el-button>
+                    <el-button :loading="wpTaxonomyLoading" @click="loadWpTaxonomyRows"
+                        >刷新数据</el-button
+                    >
                     <el-button
                         type="primary"
                         :loading="wpPresetImporting"
@@ -802,7 +872,8 @@
                         从 Hot 预设一键写入
                     </el-button>
                     <span class="wp-taxonomy-config__hint">
-                        当前会写入到 <code>{{ normalizedWpTaxonomyPageSlug }}</code>，重复项自动跳过。
+                        当前会写入到 <code>{{ normalizedWpTaxonomyPageSlug }}</code
+                        >，重复项自动跳过。
                     </span>
                 </div>
                 <el-tabs v-model="wpTaxonomyActiveTab">
@@ -826,7 +897,11 @@
                         >
                             <el-table-column label="ID" prop="id" width="80" />
                             <el-table-column label="WP分类ID" prop="wpCategoryId" width="110" />
-                            <el-table-column label="WordPress 分类名" prop="wpCategoryName" min-width="180" />
+                            <el-table-column
+                                label="WordPress 分类名"
+                                prop="wpCategoryName"
+                                min-width="180"
+                            />
                             <el-table-column label="显示名称" prop="displayName" min-width="150" />
                             <el-table-column label="Slug" prop="slug" min-width="130" />
                             <el-table-column label="排序" prop="order" width="90" />
@@ -839,10 +914,18 @@
                             </el-table-column>
                             <el-table-column label="操作" width="160" fixed="right">
                                 <template #default="{ row }">
-                                    <el-button type="primary" link @click="openWpTaxonomyEditDialog('category', row)">
+                                    <el-button
+                                        type="primary"
+                                        link
+                                        @click="openWpTaxonomyEditDialog('category', row)"
+                                    >
                                         编辑
                                     </el-button>
-                                    <el-button type="danger" link @click="handleDeleteWpTaxonomy('category', row)">
+                                    <el-button
+                                        type="danger"
+                                        link
+                                        @click="handleDeleteWpTaxonomy('category', row)"
+                                    >
                                         删除
                                     </el-button>
                                 </template>
@@ -869,7 +952,11 @@
                         >
                             <el-table-column label="ID" prop="id" width="80" />
                             <el-table-column label="WP标签ID" prop="wpTagId" width="110" />
-                            <el-table-column label="WordPress 标签名" prop="wpTagName" min-width="180" />
+                            <el-table-column
+                                label="WordPress 标签名"
+                                prop="wpTagName"
+                                min-width="180"
+                            />
                             <el-table-column label="显示名称" prop="displayName" min-width="150" />
                             <el-table-column label="Slug" prop="slug" min-width="130" />
                             <el-table-column label="排序" prop="order" width="90" />
@@ -882,10 +969,18 @@
                             </el-table-column>
                             <el-table-column label="操作" width="160" fixed="right">
                                 <template #default="{ row }">
-                                    <el-button type="primary" link @click="openWpTaxonomyEditDialog('tag', row)">
+                                    <el-button
+                                        type="primary"
+                                        link
+                                        @click="openWpTaxonomyEditDialog('tag', row)"
+                                    >
                                         编辑
                                     </el-button>
-                                    <el-button type="danger" link @click="handleDeleteWpTaxonomy('tag', row)">
+                                    <el-button
+                                        type="danger"
+                                        link
+                                        @click="handleDeleteWpTaxonomy('tag', row)"
+                                    >
                                         删除
                                     </el-button>
                                 </template>
@@ -899,7 +994,11 @@
         <!-- WordPress 分类/标签编辑弹窗 -->
         <el-dialog
             v-model="showWpTaxonomyEditDialogVisible"
-            :title="wpTaxonomyFormMode === 'add' ? `新增${wpTaxonomyTypeLabel}` : `编辑${wpTaxonomyTypeLabel}`"
+            :title="
+                wpTaxonomyFormMode === 'add'
+                    ? `新增${wpTaxonomyTypeLabel}`
+                    : `编辑${wpTaxonomyTypeLabel}`
+            "
             width="640px"
         >
             <el-form
@@ -915,7 +1014,10 @@
                     <el-input v-model="wpTaxonomyForm.wpName" placeholder="用于匹配远端文章数据" />
                 </el-form-item>
                 <el-form-item label="显示名称" prop="displayName">
-                    <el-input v-model="wpTaxonomyForm.displayName" placeholder="前台筛选项显示文案" />
+                    <el-input
+                        v-model="wpTaxonomyForm.displayName"
+                        placeholder="前台筛选项显示文案"
+                    />
                 </el-form-item>
                 <el-form-item label="Slug" prop="slug">
                     <el-input v-model="wpTaxonomyForm.slug" placeholder="英文标识，建议唯一" />
@@ -1109,7 +1211,17 @@ const FRONTEND_PAGE_PATH_MAP: Record<string, string> = {
     submit: '/submit'
 }
 const NAVIGATION_PAGE_SLUGS = ['uiux', 'ai', 'design', '3d', 'ecommerce', 'interior', 'font']
-const SYSTEM_PAGE_SLUGS = ['hot', 'daily-hot', 'daily-new', 'rankings', 'mcp', 'figma', 'articles', 'search', 'submit']
+const SYSTEM_PAGE_SLUGS = [
+    'hot',
+    'daily-hot',
+    'daily-new',
+    'rankings',
+    'mcp',
+    'figma',
+    'articles',
+    'search',
+    'submit'
+]
 const NAVIGATION_PAGE_TYPE_SET = new Set(['navigation', 'nav', 'channel', 'home'])
 const route = useRoute()
 
@@ -1299,21 +1411,20 @@ const normalizedWpTaxonomyPageSlug = computed(() => {
 /**
  * 当前分类/标签编辑类型对应的中文文案。
  */
-const wpTaxonomyTypeLabel = computed(() => (wpTaxonomyFormType.value === 'category' ? '分类' : '标签'))
+const wpTaxonomyTypeLabel = computed(() =>
+    wpTaxonomyFormType.value === 'category' ? '分类' : '标签'
+)
 
 /**
  * 分类表格搜索结果（名称 / slug / ID）。
  */
 const filteredWpCategoryRows = computed(() => {
-    const keyword = String(wpCategoryKeyword.value || '').trim().toLowerCase()
+    const keyword = String(wpCategoryKeyword.value || '')
+        .trim()
+        .toLowerCase()
     if (!keyword) return wpCategoryRows.value
     return wpCategoryRows.value.filter((item) => {
-        const haystack = [
-            item.wpCategoryId,
-            item.wpCategoryName,
-            item.displayName,
-            item.slug
-        ]
+        const haystack = [item.wpCategoryId, item.wpCategoryName, item.displayName, item.slug]
             .map((field) => String(field || '').toLowerCase())
             .join(' ')
         return haystack.includes(keyword)
@@ -1324,7 +1435,9 @@ const filteredWpCategoryRows = computed(() => {
  * 标签表格搜索结果（名称 / slug / ID）。
  */
 const filteredWpTagRows = computed(() => {
-    const keyword = String(wpTagKeyword.value || '').trim().toLowerCase()
+    const keyword = String(wpTagKeyword.value || '')
+        .trim()
+        .toLowerCase()
     if (!keyword) return wpTagRows.value
     return wpTagRows.value.filter((item) => {
         const haystack = [item.wpTagId, item.wpTagName, item.displayName, item.slug]
@@ -1422,8 +1535,14 @@ const mapWpTaxonomyRows = (payload: any, type: WpTaxonomyType): WpTaxonomyRow[] 
             if (type === 'category') {
                 return {
                     id: rowId,
-                    wpCategoryId: Number.parseInt(String(item?.wpCategoryId || item?.wp_category_id || 0), 10) || 0,
-                    wpCategoryName: String(item?.wpCategoryName || item?.wp_category_name || '').trim(),
+                    wpCategoryId:
+                        Number.parseInt(
+                            String(item?.wpCategoryId || item?.wp_category_id || 0),
+                            10
+                        ) || 0,
+                    wpCategoryName: String(
+                        item?.wpCategoryName || item?.wp_category_name || ''
+                    ).trim(),
                     displayName: String(item?.displayName || item?.display_name || '').trim(),
                     slug: String(item?.slug || '').trim(),
                     description: String(item?.description || '').trim(),
@@ -1529,7 +1648,9 @@ const buildWpTaxonomyPayload = () => {
     const basePayload = {
         id: wpTaxonomyForm.id || undefined,
         displayName: String(wpTaxonomyForm.displayName || '').trim(),
-        slug: String(wpTaxonomyForm.slug || '').trim().toLowerCase(),
+        slug: String(wpTaxonomyForm.slug || '')
+            .trim()
+            .toLowerCase(),
         description: String(wpTaxonomyForm.description || '').trim(),
         order: Number.parseInt(String(wpTaxonomyForm.order || 0), 10) || 0,
         visible: wpTaxonomyForm.visible !== false,
@@ -1669,7 +1790,9 @@ const handleImportHotPresetLibrary = async () => {
             }
         }
         await loadWpTaxonomyRows()
-        feedback.msgSuccess(`导入完成：新增 ${addCount} 条，跳过 ${skipCount} 条，失败 ${failCount} 条`)
+        feedback.msgSuccess(
+            `导入完成：新增 ${addCount} 条，跳过 ${skipCount} 条，失败 ${failCount} 条`
+        )
     } finally {
         wpPresetImporting.value = false
     }
@@ -1699,7 +1822,9 @@ const designArticleTagIdsModel = computed<number[]>({
  * 规范化设计文章来源。
  */
 const normalizeDesignArticleSource = (value: unknown): 'api' | 'local' => {
-    const source = String(value || '').trim().toLowerCase()
+    const source = String(value || '')
+        .trim()
+        .toLowerCase()
     return source === 'local' ? 'local' : 'api'
 }
 
@@ -1707,7 +1832,9 @@ const normalizeDesignArticleSource = (value: unknown): 'api' | 'local' => {
  * 规范化设计文章展示模式。
  */
 const normalizeDesignArticleDisplayMode = (value: unknown): 'fixed' | 'tabs' => {
-    const mode = String(value || '').trim().toLowerCase()
+    const mode = String(value || '')
+        .trim()
+        .toLowerCase()
     return mode === 'tabs' ? 'tabs' : 'fixed'
 }
 
@@ -1715,7 +1842,9 @@ const normalizeDesignArticleDisplayMode = (value: unknown): 'fixed' | 'tabs' => 
  * 规范化固定来源类型。
  */
 const normalizeDesignArticleFixedType = (value: unknown): 'category' | 'tag' => {
-    const type = String(value || '').trim().toLowerCase()
+    const type = String(value || '')
+        .trim()
+        .toLowerCase()
     return type === 'tag' ? 'tag' : 'category'
 }
 
@@ -1761,7 +1890,11 @@ const syncDesignArticleFixedSelection = () => {
     const normalizedCurrentId = Number.parseInt(String(editData.designArticleFixedId || 0), 10) || 0
     const matched = options.some((item) => item.id === normalizedCurrentId)
     if (matched) return
-    editData.designArticleFixedId = resolveDesignArticleFixedFallbackId(fixedType, categoryIds, tagIds)
+    editData.designArticleFixedId = resolveDesignArticleFixedFallbackId(
+        fixedType,
+        categoryIds,
+        tagIds
+    )
 }
 
 /**
@@ -1834,7 +1967,9 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
         return
     }
     try {
-        const rows = (await uiedWordpressWidgetList({ pageSlug: normalizedSlug })) as WordPressWidgetRow[] | undefined
+        const rows = (await uiedWordpressWidgetList({ pageSlug: normalizedSlug })) as
+            | WordPressWidgetRow[]
+            | undefined
         const list = Array.isArray(rows) ? rows : []
         const targetByKey = list.find(
             (item) => String(item?.widgetKey || '').trim() === 'design-article-grid-container'
@@ -1842,8 +1977,12 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
         const target =
             targetByKey ||
             list.find((item) => {
-                const position = String(item?.meta?.position || '').trim().toLowerCase()
-                const componentType = String(item?.meta?.componentType || '').trim().toLowerCase()
+                const position = String(item?.meta?.position || '')
+                    .trim()
+                    .toLowerCase()
+                const componentType = String(item?.meta?.componentType || '')
+                    .trim()
+                    .toLowerCase()
                 return position === 'main' && componentType === 'designarticlegrid'
             })
         if (!target) {
@@ -1861,14 +2000,22 @@ const loadDesignArticleWidgetConfig = async (pageSlug: string) => {
             return
         }
         const meta = target.meta && typeof target.meta === 'object' ? target.meta : {}
-        const categoryIds = Array.isArray(meta.categoryIds) ? meta.categoryIds : target.categoryIds || []
+        const categoryIds = Array.isArray(meta.categoryIds)
+            ? meta.categoryIds
+            : target.categoryIds || []
         const tagIds = Array.isArray(meta.tagIds) ? meta.tagIds : target.tagIds || []
         editData.designArticleWidgetId = Number(target.id || 0)
         editData.designArticleEnabled = target.visible !== false
-        editData.designArticleSource = normalizeDesignArticleSource(meta.articleSource ?? target.articleSource)
-        editData.designArticleTitle = String(target.title || meta.title || '设计文章').trim() || '设计文章'
-        editData.designArticleLimit = Number.parseInt(String(meta.limit ?? target.limit ?? 8), 10) || 8
-        editData.designArticleShowMoreLink = String(meta.showMoreLink || target.showMoreLink || '').trim()
+        editData.designArticleSource = normalizeDesignArticleSource(
+            meta.articleSource ?? target.articleSource
+        )
+        editData.designArticleTitle =
+            String(target.title || meta.title || '设计文章').trim() || '设计文章'
+        editData.designArticleLimit =
+            Number.parseInt(String(meta.limit ?? target.limit ?? 8), 10) || 8
+        editData.designArticleShowMoreLink = String(
+            meta.showMoreLink || target.showMoreLink || ''
+        ).trim()
         editData.designArticleCategoryIdsText = toNumberIdText(categoryIds)
         editData.designArticleTagIdsText = toNumberIdText(tagIds)
         const hasDisplayMode =
@@ -1934,7 +2081,7 @@ const syncDesignArticleWidgetConfig = async (pageSlug: string) => {
             enableSubCategories: displayMode === 'tabs',
             fixedFilterType: fixedType,
             fixedFilterId: fixedId
-        },
+        }
     }
     if (editData.designArticleWidgetId > 0) {
         await uiedWordpressWidgetEdit(payload)
@@ -1983,7 +2130,9 @@ const handleResetSearch = () => {
  * 解析页面前端访问路径，供后台“查看前端”按钮复用。
  */
 const resolveFrontendPagePath = (row: any): string => {
-    const slug = String(row?.slug || '').trim().toLowerCase()
+    const slug = String(row?.slug || '')
+        .trim()
+        .toLowerCase()
     if (!slug) return '/'
     return FRONTEND_PAGE_PATH_MAP[slug] || `/p/${slug}`
 }
@@ -2110,9 +2259,7 @@ const loadScrollCategories = async () => {
 const resolveScrollCategoryIdsByWebsites = (websites: any[]): number[] => {
     const ids = new Set<number>()
     ;(Array.isArray(websites) ? websites : []).forEach((website) => {
-        const categoryIds = Array.isArray(website?.categoryIds)
-            ? website.categoryIds
-            : []
+        const categoryIds = Array.isArray(website?.categoryIds) ? website.categoryIds : []
         categoryIds.forEach((rawId: any) => {
             const parsed = Number.parseInt(String(rawId || 0), 10)
             if (Number.isInteger(parsed) && parsed > 0) ids.add(parsed)
@@ -2264,7 +2411,9 @@ const resolveInitialEditTab = (
 /**
  * 规范化热门搜索模式，避免历史脏值导致编辑态异常。
  */
-const normalizeHotSearchMode = (value: unknown): 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' => {
+const normalizeHotSearchMode = (
+    value: unknown
+): 'custom_only' | 'dynamic_only' | 'custom_then_dynamic' => {
     const normalized = String(value || '')
         .trim()
         .toLowerCase()
@@ -2430,9 +2579,12 @@ const handleSubmit = async () => {
     editLoading.value = true
     try {
         const isIconScrollMode = editData.heroDisplayMode === 'iconScroll'
-        const normalizedPageType = String(editData.type || '').trim().toLowerCase() === 'navigation'
-            ? 'navigation'
-            : 'custom'
+        const normalizedPageType =
+            String(editData.type || '')
+                .trim()
+                .toLowerCase() === 'navigation'
+                ? 'navigation'
+                : 'custom'
         // 转换热门标签字符串为数组
         const submitData = {
             ...editData,
@@ -2445,7 +2597,12 @@ const handleSubmit = async () => {
                 : [],
             hotSearchMode: normalizeHotSearchMode(editData.hotSearchMode),
             hotSearchFixedCount: normalizeHotSearchNumber(editData.hotSearchFixedCount, 4, 0, 20),
-            hotSearchDynamicCount: normalizeHotSearchNumber(editData.hotSearchDynamicCount, 6, 0, 20),
+            hotSearchDynamicCount: normalizeHotSearchNumber(
+                editData.hotSearchDynamicCount,
+                6,
+                0,
+                20
+            ),
             hotSearchWindowDays: normalizeHotSearchNumber(editData.hotSearchWindowDays, 7, 1, 30),
             hotSearchMinScore: normalizeHotSearchNumber(editData.hotSearchMinScore, 1, 1, 1000000),
             heroScrollWebsites: isIconScrollMode
@@ -2570,7 +2727,10 @@ const normalizeCategorySvgLibrary = (value: unknown): CategorySvgLibraryOption[]
             if (!key) return null
             const svg = sanitizeSvgMarkup(item?.svg)
             if (!svg) return null
-            const label = String(item?.label || key).trim().slice(0, 40) || key
+            const label =
+                String(item?.label || key)
+                    .trim()
+                    .slice(0, 40) || key
             const sort = Number.isFinite(Number(item?.sort)) ? Number(item.sort) : index + 1
             return { key, label, svg, sort }
         })
@@ -2593,11 +2753,10 @@ const getCategoryIconMode = (item: CategoryOption): 'svg' | 'icon' =>
 /**
  * 切换分类图标编辑模式（SVG 图标库 / 系统图标）。
  */
-const handleCategoryIconModeChange = (
-    item: CategoryOption,
-    mode: string | number | boolean
-) => {
-    const normalizedMode = String(mode || '').trim().toLowerCase()
+const handleCategoryIconModeChange = (item: CategoryOption, mode: string | number | boolean) => {
+    const normalizedMode = String(mode || '')
+        .trim()
+        .toLowerCase()
     if (!item) return
     if (normalizedMode === 'svg') {
         if (isSvgIconToken(item.icon)) return
@@ -2643,7 +2802,9 @@ const loadCategorySvgLibrary = async () => {
 /**
  * 构建分类树和路径标签，便于运营快速定位一级/二级分类。
  */
-const buildCategoryTree = (rows: any[]): { tree: CategoryTreeNode[]; map: Record<number, CategoryOption> } => {
+const buildCategoryTree = (
+    rows: any[]
+): { tree: CategoryTreeNode[]; map: Record<number, CategoryOption> } => {
     const normalizedRows = (rows || [])
         .map((item: any) => ({
             id: Number(item.id),
@@ -2677,7 +2838,7 @@ const buildCategoryTree = (rows: any[]): { tree: CategoryTreeNode[]; map: Record
     const buildNodes = (parentId: number | null, parentNames: string[]): CategoryTreeNode[] => {
         const currentRows = byParent.get(parentId) || []
         return currentRows.map((item: any) => {
-            const pathParts = [ ...parentNames, item.name ]
+            const pathParts = [...parentNames, item.name]
             const node: CategoryTreeNode = {
                 id: item.id,
                 name: item.name,
@@ -2709,14 +2870,16 @@ const buildCategoryTree = (rows: any[]): { tree: CategoryTreeNode[]; map: Record
  * 同步“已选分类”列表，保留人工排序结果。
  */
 const syncSelectedCategories = (keys: number[]) => {
-    const uniqueKeys = Array.from(new Set(keys.map((key) => Number(key)).filter((key) => Number.isFinite(key))))
+    const uniqueKeys = Array.from(
+        new Set(keys.map((key) => Number(key)).filter((key) => Number.isFinite(key)))
+    )
     const existingById = new Map(categorySelectedRows.value.map((item) => [item.id, item]))
     const reserved = categorySelectedRows.value.filter((item) => uniqueKeys.includes(item.id))
     const appended = uniqueKeys
         .filter((key) => !existingById.has(key))
         .map((key) => categoryMap.value[key])
         .filter(Boolean)
-    categorySelectedRows.value = [ ...reserved, ...appended ]
+    categorySelectedRows.value = [...reserved, ...appended]
     categoryCheckedKeys.value = uniqueKeys
 }
 
@@ -2751,7 +2914,7 @@ const handleCategoryTreeCheck = () => {
 const moveSelectedCategory = (index: number, delta: number) => {
     const targetIndex = index + delta
     if (targetIndex < 0 || targetIndex >= categorySelectedRows.value.length) return
-    const list = [ ...categorySelectedRows.value ]
+    const list = [...categorySelectedRows.value]
     const [current] = list.splice(index, 1)
     list.splice(targetIndex, 0, current)
     categorySelectedRows.value = list
@@ -2788,7 +2951,7 @@ const handleCategories = async (row: any) => {
     const { tree, map } = buildCategoryTree(cats || [])
     categoryTreeData.value = tree
     categoryMap.value = map
-    const orderedPageCats = [ ...(pageCats || []) ].sort(
+    const orderedPageCats = [...(pageCats || [])].sort(
         (left: any, right: any) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0)
     )
     const selectedIds = orderedPageCats

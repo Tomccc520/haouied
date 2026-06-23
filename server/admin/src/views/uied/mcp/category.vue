@@ -68,7 +68,12 @@
                     <el-input v-model="formData.slug" placeholder="留空自动生成" />
                 </el-form-item>
                 <el-form-item label="分类描述">
-                    <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="用于分类页 SEO 描述" />
+                    <el-input
+                        v-model="formData.description"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="用于分类页 SEO 描述"
+                    />
                 </el-form-item>
                 <el-form-item label="SEO标题">
                     <el-input v-model="formData.seoTitle" placeholder="可选" />
@@ -77,7 +82,12 @@
                     <el-input v-model="formData.seoKeywords" placeholder="可选，逗号分隔" />
                 </el-form-item>
                 <el-form-item label="SEO描述">
-                    <el-input v-model="formData.seoDescription" type="textarea" :rows="2" placeholder="可选" />
+                    <el-input
+                        v-model="formData.seoDescription"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="可选"
+                    />
                 </el-form-item>
                 <el-form-item label="排序">
                     <el-input-number v-model="formData.sortOrder" :min="0" :max="9999" />
@@ -85,7 +95,9 @@
             </el-form>
             <template #footer>
                 <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+                <el-button type="primary" :loading="submitLoading" @click="handleSubmit"
+                    >保存</el-button
+                >
             </template>
         </el-dialog>
     </div>
@@ -106,16 +118,16 @@ import {
     uiedMcpCategoryList,
     uiedMcpCategoryAdd,
     uiedMcpCategoryEdit,
-    uiedMcpCategoryDelete,
+    uiedMcpCategoryDelete
 } from '@/api/uied'
 
 const queryParams = reactive({
-    keyword: '',
+    keyword: ''
 })
 
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedMcpCategoryList,
-    params: queryParams,
+    params: queryParams
 })
 
 const dialogVisible = ref(false)
@@ -129,11 +141,11 @@ const formData = reactive({
     seoTitle: '',
     seoKeywords: '',
     seoDescription: '',
-    sortOrder: 0,
+    sortOrder: 0
 })
 
 const rules: FormRules = {
-    name: [ { required: true, message: '请输入分类名称', trigger: 'blur' } ],
+    name: [{ required: true, message: '请输入分类名称', trigger: 'blur' }]
 }
 
 /**
@@ -189,7 +201,7 @@ const handleSubmit = async () => {
             seo_title: formData.seoTitle,
             seo_keywords: formData.seoKeywords,
             seo_description: formData.seoDescription,
-            sort_order: formData.sortOrder,
+            sort_order: formData.sortOrder
         }
         if (formData.id > 0) {
             await uiedMcpCategoryEdit(payload)

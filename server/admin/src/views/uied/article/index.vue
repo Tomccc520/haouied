@@ -87,20 +87,41 @@
             </div>
             <div class="article-quick-filters mt-3">
                 <span class="article-quick-filters__label">快捷筛选</span>
-                <el-button size="small" :type="isArticleQuickFilterActive('all') ? 'primary' : undefined" @click="applyArticleQuickFilter('all')">
+                <el-button
+                    size="small"
+                    :type="isArticleQuickFilterActive('all') ? 'primary' : undefined"
+                    @click="applyArticleQuickFilter('all')"
+                >
                     全部
                 </el-button>
-                <el-button size="small" :type="isArticleQuickFilterActive('published') ? 'success' : undefined" :plain="!isArticleQuickFilterActive('published')" @click="applyArticleQuickFilter('published')">
+                <el-button
+                    size="small"
+                    :type="isArticleQuickFilterActive('published') ? 'success' : undefined"
+                    :plain="!isArticleQuickFilterActive('published')"
+                    @click="applyArticleQuickFilter('published')"
+                >
                     已发布
                 </el-button>
-                <el-button size="small" :type="isArticleQuickFilterActive('draft') ? 'info' : undefined" :plain="!isArticleQuickFilterActive('draft')" @click="applyArticleQuickFilter('draft')">
+                <el-button
+                    size="small"
+                    :type="isArticleQuickFilterActive('draft') ? 'info' : undefined"
+                    :plain="!isArticleQuickFilterActive('draft')"
+                    @click="applyArticleQuickFilter('draft')"
+                >
                     草稿
                 </el-button>
-                <el-button size="small" :type="isArticleQuickFilterActive('recycle') ? 'warning' : undefined" :plain="!isArticleQuickFilterActive('recycle')" @click="applyArticleQuickFilter('recycle')">
+                <el-button
+                    size="small"
+                    :type="isArticleQuickFilterActive('recycle') ? 'warning' : undefined"
+                    :plain="!isArticleQuickFilterActive('recycle')"
+                    @click="applyArticleQuickFilter('recycle')"
+                >
                     回收站
                 </el-button>
                 <template v-if="isRecycleBinMode">
-                    <span class="article-quick-filters__label article-quick-filters__label--type">回收类型</span>
+                    <span class="article-quick-filters__label article-quick-filters__label--type"
+                        >回收类型</span
+                    >
                     <el-select
                         v-model="recycleTypeFilter"
                         size="small"
@@ -142,7 +163,12 @@
                 </el-table-column>
                 <el-table-column label="操作" width="190" fixed="right">
                     <template #default="{ row }">
-                        <el-button v-if="!isRecycleBinMode" type="primary" link @click="handleEdit(row)">
+                        <el-button
+                            v-if="!isRecycleBinMode"
+                            type="primary"
+                            link
+                            @click="handleEdit(row)"
+                        >
                             编辑
                         </el-button>
                         <el-button
@@ -228,8 +254,12 @@
                             :value="site.id"
                         >
                             <div class="article-related-site-option">
-                                <span class="article-related-site-option__name">{{ site.name }}</span>
-                                <span class="article-related-site-option__meta">{{ site.url }}</span>
+                                <span class="article-related-site-option__name">{{
+                                    site.name
+                                }}</span>
+                                <span class="article-related-site-option__meta">{{
+                                    site.url
+                                }}</span>
                             </div>
                         </el-option>
                     </el-select>
@@ -335,8 +365,14 @@
                 </el-form-item>
             </el-form>
             <template #footer>
-                <el-button :disabled="batchMoveLoading" @click="batchMoveDialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="batchMoveLoading" @click="handleBatchMoveSubmit">
+                <el-button :disabled="batchMoveLoading" @click="batchMoveDialogVisible = false"
+                    >取消</el-button
+                >
+                <el-button
+                    type="primary"
+                    :loading="batchMoveLoading"
+                    @click="handleBatchMoveSubmit"
+                >
                     确认批量移动
                 </el-button>
             </template>
@@ -571,7 +607,9 @@ const handleEdit = async (row: any) => {
             Object.assign(formData, res)
             const idSource = Array.isArray(res.relatedWebsiteIds)
                 ? res.relatedWebsiteIds
-                : (Array.isArray(res.relatedWebsites) ? res.relatedWebsites.map((site: any) => site?.id) : [])
+                : Array.isArray(res.relatedWebsites)
+                ? res.relatedWebsites.map((site: any) => site?.id)
+                : []
             formData.relatedWebsiteIds = Array.from(
                 new Set(
                     idSource
@@ -588,7 +626,10 @@ const handleEdit = async (row: any) => {
                 }))
                 .filter((site: any) => site.id > 0 && site.name)
             if (detailOptions.length > 0) {
-                const mergedMap = new Map<number, { id: number; name: string; url: string; slug?: string }>()
+                const mergedMap = new Map<
+                    number,
+                    { id: number; name: string; url: string; slug?: string }
+                >()
                 websiteOptions.value.forEach((site) => mergedMap.set(site.id, site))
                 detailOptions.forEach((site: any) => mergedMap.set(site.id, site))
                 websiteOptions.value = Array.from(mergedMap.values())
@@ -634,9 +675,13 @@ const handleDelete = async (id: number) => {
 
 // 批量删除
 const handleBatchDelete = async () => {
-    await ElMessageBox.confirm(`确定将选中的 ${selectedIds.value.length} 篇文章移入回收站吗？`, '提示', {
-        type: 'warning'
-    })
+    await ElMessageBox.confirm(
+        `确定将选中的 ${selectedIds.value.length} 篇文章移入回收站吗？`,
+        '提示',
+        {
+            type: 'warning'
+        }
+    )
     try {
         await request.post({ url: '/uied/article/del', params: { ids: selectedIds.value } })
         ElMessage.success('已移入回收站')
@@ -667,7 +712,9 @@ const handleRestore = async (id: number) => {
  * @param id 文章ID
  */
 const handleRealDelete = async (id: number) => {
-    await ElMessageBox.confirm('确定彻底删除该文章吗？该操作不可恢复。', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定彻底删除该文章吗？该操作不可恢复。', '提示', {
+        type: 'warning'
+    })
     try {
         await request.post({ url: '/uied/article/realDelete', params: { ids: [id] } })
         ElMessage.success('彻底删除成功')

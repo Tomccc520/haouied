@@ -13,11 +13,16 @@
                 <div class="hot-articles-setting__header">
                     <div>
                         <h2>热门文章（Hot）配置</h2>
-                        <p>用于管理前台 <code>/p/hot</code> 页面与入口展示，文章内容来源为 WordPress 频道（默认 uied.cn）。</p>
+                        <p>
+                            用于管理前台 <code>/p/hot</code> 页面与入口展示，文章内容来源为
+                            WordPress 频道（默认 uied.cn）。
+                        </p>
                     </div>
                     <div class="hot-articles-setting__actions">
                         <el-button :loading="loading" @click="loadConfig">刷新</el-button>
-                        <el-button type="primary" :loading="saving" @click="handleSave">保存配置</el-button>
+                        <el-button type="primary" :loading="saving" @click="handleSave"
+                            >保存配置</el-button
+                        >
                     </div>
                 </div>
             </template>
@@ -36,242 +41,307 @@
                 </el-form-item>
 
                 <el-tabs v-model="activeSectionTab" class="hot-articles-setting__section-tabs">
-                <el-tab-pane label="基础参数" name="basic">
-                <el-divider content-position="left">入口展示</el-divider>
+                    <el-tab-pane label="基础参数" name="basic">
+                        <el-divider content-position="left">入口展示</el-divider>
 
-                <el-form-item label="入口文案">
-                    <el-input v-model="formData.displayLabel" :disabled="!formData.enabled" />
-                </el-form-item>
-                <el-form-item label="入口路径">
-                    <el-input v-model="formData.displayPath" :disabled="!formData.enabled" placeholder="/p/hot" />
-                </el-form-item>
-                <el-form-item label="显示位置">
-                    <el-checkbox-group v-model="formData.displayPlacements" :disabled="!formData.enabled">
-                        <el-checkbox label="nav_quick_entry">首页快捷入口</el-checkbox>
-                        <el-checkbox label="home_menu">顶部导航菜单</el-checkbox>
-                        <el-checkbox label="footer_link">页脚链接</el-checkbox>
-                    </el-checkbox-group>
-                </el-form-item>
-                <el-form-item label="入口排序">
-                    <el-input-number v-model="formData.displaySort" :min="1" :max="9999" :disabled="!formData.enabled" />
-                </el-form-item>
-                <el-form-item label="入口新窗口">
-                    <el-switch v-model="formData.displayOpenInNewTab" :disabled="!formData.enabled" />
-                </el-form-item>
-
-                <el-divider content-position="left">页面文案</el-divider>
-
-                <el-form-item label="页面角标">
-                    <el-input v-model="formData.pageKicker" :disabled="!formData.enabled" />
-                </el-form-item>
-                <el-form-item label="页面标题">
-                    <el-input v-model="formData.pageTitle" :disabled="!formData.enabled" />
-                </el-form-item>
-                <el-form-item label="页面描述">
-                    <el-input
-                        v-model="formData.pageDescription"
-                        type="textarea"
-                        :rows="3"
-                        :disabled="!formData.enabled"
-                    />
-                </el-form-item>
-                <el-form-item label="头图副标题">
-                    <el-input
-                        v-model="formData.heroTagline"
-                        type="textarea"
-                        :rows="2"
-                        :disabled="!formData.enabled"
-                        placeholder="聚合国内外AI精选内容，探索AI技术前沿与应用"
-                    />
-                </el-form-item>
-                <el-form-item label="启用头部动效">
-                    <el-switch v-model="formData.motionEnabled" :disabled="!formData.enabled" />
-                </el-form-item>
-
-                <el-divider content-position="left">/p/hot 头部配置</el-divider>
-
-                <el-form-item label="头部角标">
-                    <el-input
-                        v-model="formData.hubHeaderKicker"
-                        :disabled="!formData.enabled"
-                        placeholder="CONTENT HUB"
-                    />
-                </el-form-item>
-                <el-form-item label="头部标题">
-                    <el-input
-                        v-model="formData.hubHeaderTitle"
-                        :disabled="!formData.enabled"
-                        placeholder="内容中心"
-                    />
-                </el-form-item>
-                <el-form-item label="头部描述">
-                    <el-input
-                        v-model="formData.hubHeaderDescription"
-                        type="textarea"
-                        :rows="2"
-                        :disabled="!formData.enabled"
-                        placeholder="热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。"
-                    />
-                </el-form-item>
-
-                <el-divider content-position="left">运营参数</el-divider>
-
-                <el-form-item label="每页条数">
-                    <el-input-number v-model="formData.pageSize" :min="1" :max="100" :disabled="!formData.enabled" />
-                </el-form-item>
-                <el-form-item label="文章新窗口">
-                    <el-switch v-model="formData.linksNewWindow" :disabled="!formData.enabled" />
-                </el-form-item>
-
-                </el-tab-pane>
-                <el-tab-pane label="筛选预设" name="preset">
-                <el-divider content-position="left">筛选预设（迁移 hot 项目）</el-divider>
-
-                <div class="hot-articles-setting__preset-toolbar">
-                    <span>可配置顶部筛选项，支持“全部 / 分类 / 标签”三种类型。</span>
-                    <div class="hot-articles-setting__toolbar-actions">
-                        <el-button size="small" @click="handleImportLegacyPresets">导入旧版标签/分类</el-button>
-                        <el-button size="small" type="primary" plain @click="handleAddPreset">新增筛选项</el-button>
-                    </div>
-                </div>
-
-                <div class="hot-articles-setting__preset-table">
-                    <div class="hot-articles-setting__preset-head">
-                        <span>Key</span>
-                        <span>名称</span>
-                        <span>类型</span>
-                        <span>ID</span>
-                        <span>描述</span>
-                        <span>启用</span>
-                        <span>排序</span>
-                        <span>操作</span>
-                    </div>
-                    <div
-                        v-for="(item, index) in formData.filterPresets"
-                        :key="`${item.key}-${index}`"
-                        class="hot-articles-setting__preset-row"
-                    >
-                        <el-input v-model="item.key" placeholder="key" />
-                        <el-input v-model="item.name" placeholder="名称" />
-                        <el-select v-model="item.type" placeholder="类型">
-                            <el-option label="全部" value="all" />
-                            <el-option label="分类" value="category" />
-                            <el-option label="标签" value="tag" />
-                        </el-select>
-                        <el-input-number v-model="item.id" :min="0" :max="9999999" />
-                        <el-input v-model="item.description" placeholder="可选描述" />
-                        <el-switch v-model="item.enabled" />
-                        <el-input-number v-model="item.sort" :min="1" :max="9999" />
-                        <el-button
-                            type="danger"
-                            link
-                            :disabled="formData.filterPresets.length <= 1"
-                            @click="handleRemovePreset(index)"
-                        >
-                            删除
-                        </el-button>
-                    </div>
-                </div>
-
-                </el-tab-pane>
-                <el-tab-pane label="左侧菜单" name="menu">
-                <el-divider content-position="left">工作台左侧菜单</el-divider>
-                <div class="hot-articles-setting__preset-toolbar">
-                    <span>仅保留运营高频字段：菜单名、图标、筛选组、外链、启用与排序。</span>
-                    <div class="hot-articles-setting__toolbar-actions">
-                        <el-button size="small" @click="handleApplyLegacyMenuPresetGroups">一键匹配旧版筛选组</el-button>
-                        <el-button size="small" type="primary" plain @click="handleAddWorkbenchMenu">新增菜单项</el-button>
-                    </div>
-                </div>
-                <div class="hot-articles-setting__menu-table">
-                    <div class="hot-articles-setting__menu-head" :style="[menuGridStyle, { minWidth: menuMinWidth }]">
-                        <span>Key</span>
-                        <span>名称</span>
-                        <span>模式</span>
-                        <span>图标</span>
-                        <span>筛选组</span>
-                        <span>默认筛选</span>
-                        <span>外链</span>
-                        <span>启用</span>
-                        <span>排序</span>
-                        <span>操作</span>
-                    </div>
-                    <div
-                        v-for="(item, index) in formData.workbenchMenuItems"
-                        :key="`${item.key}-${index}`"
-                        class="hot-articles-setting__menu-row"
-                        :style="[menuGridStyle, { minWidth: menuMinWidth }]"
-                    >
-                        <el-input v-model="item.key" placeholder="key" />
-                        <el-input v-model="item.label" placeholder="菜单名称" />
-                        <el-select v-model="item.mode" placeholder="模式" @change="() => handleWorkbenchMenuModeChange(item)">
-                            <el-option label="latest" value="latest" />
-                            <el-option label="hot" value="hot" />
-                            <el-option label="preset" value="preset" />
-                            <el-option label="authorHot" value="authorHot" />
-                            <el-option label="circle" value="circle" />
-                            <el-option label="external" value="external" />
-                        </el-select>
-                        <el-select v-model="item.iconKey" placeholder="图标">
-                            <el-option label="latest（最新文章 / FileText）" value="latest" />
-                            <el-option label="hot（热门文章 / Star）" value="hot" />
-                            <el-option label="ai（AI实时 / Robot）" value="ai" />
-                            <el-option label="product（产品榜 / Trophy）" value="product" />
-                            <el-option label="design（设计文章 / Desktop）" value="design" />
-                            <el-option label="resource（设计素材 / Appstore）" value="resource" />
-                            <el-option label="author（优秀作者 / Crown）" value="author" />
-                            <el-option label="circle（学习圈子 / Read）" value="circle" />
-                            <el-option label="extra（通用）" value="extra" />
-                            <el-option label="home（返回主站 / Home）" value="home" />
-                        </el-select>
-                        <el-select
-                            v-model="item.presetKeys"
-                            multiple
-                            filterable
-                            allow-create
-                            default-first-option
-                            collapse-tags
-                            collapse-tags-tooltip
-                            placeholder="筛选组 key（可多选）"
-                            @change="() => handleWorkbenchPresetKeysChange(item)"
-                        >
-                            <el-option
-                                v-for="preset in formData.filterPresets"
-                                :key="preset.key"
-                                :label="`${preset.name} (${preset.key})`"
-                                :value="preset.key"
+                        <el-form-item label="入口文案">
+                            <el-input
+                                v-model="formData.displayLabel"
+                                :disabled="!formData.enabled"
                             />
-                        </el-select>
-                        <el-select
-                            v-model="item.presetKey"
-                            :disabled="item.mode !== 'preset'"
-                            placeholder="默认筛选"
-                        >
-                            <el-option
-                                v-for="preset in getPresetOptionsByMenu(item)"
-                                :key="`${item.key}-${preset.key}`"
-                                :label="`${preset.name} (${preset.key})`"
-                                :value="preset.key"
+                        </el-form-item>
+                        <el-form-item label="入口路径">
+                            <el-input
+                                v-model="formData.displayPath"
+                                :disabled="!formData.enabled"
+                                placeholder="/p/hot"
                             />
-                        </el-select>
-                        <el-input
-                            v-model="item.externalUrl"
-                            :disabled="item.mode !== 'external'"
-                            :placeholder="item.mode === 'external' ? 'https://www.uied.cn' : '仅 external 模式可填写'"
-                        />
-                        <el-switch v-model="item.enabled" />
-                        <el-input-number v-model="item.sort" :min="1" :max="9999" />
-                        <el-button
-                            type="danger"
-                            link
-                            :disabled="formData.workbenchMenuItems.length <= 1"
-                            @click="handleRemoveWorkbenchMenu(index)"
-                        >
-                            删除
-                        </el-button>
-                    </div>
-                </div>
-                </el-tab-pane>
+                        </el-form-item>
+                        <el-form-item label="显示位置">
+                            <el-checkbox-group
+                                v-model="formData.displayPlacements"
+                                :disabled="!formData.enabled"
+                            >
+                                <el-checkbox label="nav_quick_entry">首页快捷入口</el-checkbox>
+                                <el-checkbox label="home_menu">顶部导航菜单</el-checkbox>
+                                <el-checkbox label="footer_link">页脚链接</el-checkbox>
+                            </el-checkbox-group>
+                        </el-form-item>
+                        <el-form-item label="入口排序">
+                            <el-input-number
+                                v-model="formData.displaySort"
+                                :min="1"
+                                :max="9999"
+                                :disabled="!formData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="入口新窗口">
+                            <el-switch
+                                v-model="formData.displayOpenInNewTab"
+                                :disabled="!formData.enabled"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">页面文案</el-divider>
+
+                        <el-form-item label="页面角标">
+                            <el-input v-model="formData.pageKicker" :disabled="!formData.enabled" />
+                        </el-form-item>
+                        <el-form-item label="页面标题">
+                            <el-input v-model="formData.pageTitle" :disabled="!formData.enabled" />
+                        </el-form-item>
+                        <el-form-item label="页面描述">
+                            <el-input
+                                v-model="formData.pageDescription"
+                                type="textarea"
+                                :rows="3"
+                                :disabled="!formData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="头图副标题">
+                            <el-input
+                                v-model="formData.heroTagline"
+                                type="textarea"
+                                :rows="2"
+                                :disabled="!formData.enabled"
+                                placeholder="聚合国内外AI精选内容，探索AI技术前沿与应用"
+                            />
+                        </el-form-item>
+                        <el-form-item label="启用头部动效">
+                            <el-switch
+                                v-model="formData.motionEnabled"
+                                :disabled="!formData.enabled"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">/p/hot 头部配置</el-divider>
+
+                        <el-form-item label="头部角标">
+                            <el-input
+                                v-model="formData.hubHeaderKicker"
+                                :disabled="!formData.enabled"
+                                placeholder="CONTENT HUB"
+                            />
+                        </el-form-item>
+                        <el-form-item label="头部标题">
+                            <el-input
+                                v-model="formData.hubHeaderTitle"
+                                :disabled="!formData.enabled"
+                                placeholder="内容中心"
+                            />
+                        </el-form-item>
+                        <el-form-item label="头部描述">
+                            <el-input
+                                v-model="formData.hubHeaderDescription"
+                                type="textarea"
+                                :rows="2"
+                                :disabled="!formData.enabled"
+                                placeholder="热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。"
+                            />
+                        </el-form-item>
+
+                        <el-divider content-position="left">运营参数</el-divider>
+
+                        <el-form-item label="每页条数">
+                            <el-input-number
+                                v-model="formData.pageSize"
+                                :min="1"
+                                :max="100"
+                                :disabled="!formData.enabled"
+                            />
+                        </el-form-item>
+                        <el-form-item label="文章新窗口">
+                            <el-switch
+                                v-model="formData.linksNewWindow"
+                                :disabled="!formData.enabled"
+                            />
+                        </el-form-item>
+                    </el-tab-pane>
+                    <el-tab-pane label="筛选预设" name="preset">
+                        <el-divider content-position="left">筛选预设（迁移 hot 项目）</el-divider>
+
+                        <div class="hot-articles-setting__preset-toolbar">
+                            <span>可配置顶部筛选项，支持“全部 / 分类 / 标签”三种类型。</span>
+                            <div class="hot-articles-setting__toolbar-actions">
+                                <el-button size="small" @click="handleImportLegacyPresets"
+                                    >导入旧版标签/分类</el-button
+                                >
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="handleAddPreset"
+                                    >新增筛选项</el-button
+                                >
+                            </div>
+                        </div>
+
+                        <div class="hot-articles-setting__preset-table">
+                            <div class="hot-articles-setting__preset-head">
+                                <span>Key</span>
+                                <span>名称</span>
+                                <span>类型</span>
+                                <span>ID</span>
+                                <span>描述</span>
+                                <span>启用</span>
+                                <span>排序</span>
+                                <span>操作</span>
+                            </div>
+                            <div
+                                v-for="(item, index) in formData.filterPresets"
+                                :key="`${item.key}-${index}`"
+                                class="hot-articles-setting__preset-row"
+                            >
+                                <el-input v-model="item.key" placeholder="key" />
+                                <el-input v-model="item.name" placeholder="名称" />
+                                <el-select v-model="item.type" placeholder="类型">
+                                    <el-option label="全部" value="all" />
+                                    <el-option label="分类" value="category" />
+                                    <el-option label="标签" value="tag" />
+                                </el-select>
+                                <el-input-number v-model="item.id" :min="0" :max="9999999" />
+                                <el-input v-model="item.description" placeholder="可选描述" />
+                                <el-switch v-model="item.enabled" />
+                                <el-input-number v-model="item.sort" :min="1" :max="9999" />
+                                <el-button
+                                    type="danger"
+                                    link
+                                    :disabled="formData.filterPresets.length <= 1"
+                                    @click="handleRemovePreset(index)"
+                                >
+                                    删除
+                                </el-button>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="左侧菜单" name="menu">
+                        <el-divider content-position="left">工作台左侧菜单</el-divider>
+                        <div class="hot-articles-setting__preset-toolbar">
+                            <span
+                                >仅保留运营高频字段：菜单名、图标、筛选组、外链、启用与排序。</span
+                            >
+                            <div class="hot-articles-setting__toolbar-actions">
+                                <el-button size="small" @click="handleApplyLegacyMenuPresetGroups"
+                                    >一键匹配旧版筛选组</el-button
+                                >
+                                <el-button
+                                    size="small"
+                                    type="primary"
+                                    plain
+                                    @click="handleAddWorkbenchMenu"
+                                    >新增菜单项</el-button
+                                >
+                            </div>
+                        </div>
+                        <div class="hot-articles-setting__menu-table">
+                            <div
+                                class="hot-articles-setting__menu-head"
+                                :style="[menuGridStyle, { minWidth: menuMinWidth }]"
+                            >
+                                <span>Key</span>
+                                <span>名称</span>
+                                <span>模式</span>
+                                <span>图标</span>
+                                <span>筛选组</span>
+                                <span>默认筛选</span>
+                                <span>外链</span>
+                                <span>启用</span>
+                                <span>排序</span>
+                                <span>操作</span>
+                            </div>
+                            <div
+                                v-for="(item, index) in formData.workbenchMenuItems"
+                                :key="`${item.key}-${index}`"
+                                class="hot-articles-setting__menu-row"
+                                :style="[menuGridStyle, { minWidth: menuMinWidth }]"
+                            >
+                                <el-input v-model="item.key" placeholder="key" />
+                                <el-input v-model="item.label" placeholder="菜单名称" />
+                                <el-select
+                                    v-model="item.mode"
+                                    placeholder="模式"
+                                    @change="() => handleWorkbenchMenuModeChange(item)"
+                                >
+                                    <el-option label="latest" value="latest" />
+                                    <el-option label="hot" value="hot" />
+                                    <el-option label="preset" value="preset" />
+                                    <el-option label="authorHot" value="authorHot" />
+                                    <el-option label="circle" value="circle" />
+                                    <el-option label="external" value="external" />
+                                </el-select>
+                                <el-select v-model="item.iconKey" placeholder="图标">
+                                    <el-option
+                                        label="latest（最新文章 / FileText）"
+                                        value="latest"
+                                    />
+                                    <el-option label="hot（热门文章 / Star）" value="hot" />
+                                    <el-option label="ai（AI实时 / Robot）" value="ai" />
+                                    <el-option label="product（产品榜 / Trophy）" value="product" />
+                                    <el-option
+                                        label="design（设计文章 / Desktop）"
+                                        value="design"
+                                    />
+                                    <el-option
+                                        label="resource（设计素材 / Appstore）"
+                                        value="resource"
+                                    />
+                                    <el-option label="author（优秀作者 / Crown）" value="author" />
+                                    <el-option label="circle（学习圈子 / Read）" value="circle" />
+                                    <el-option label="extra（通用）" value="extra" />
+                                    <el-option label="home（返回主站 / Home）" value="home" />
+                                </el-select>
+                                <el-select
+                                    v-model="item.presetKeys"
+                                    multiple
+                                    filterable
+                                    allow-create
+                                    default-first-option
+                                    collapse-tags
+                                    collapse-tags-tooltip
+                                    placeholder="筛选组 key（可多选）"
+                                    @change="() => handleWorkbenchPresetKeysChange(item)"
+                                >
+                                    <el-option
+                                        v-for="preset in formData.filterPresets"
+                                        :key="preset.key"
+                                        :label="`${preset.name} (${preset.key})`"
+                                        :value="preset.key"
+                                    />
+                                </el-select>
+                                <el-select
+                                    v-model="item.presetKey"
+                                    :disabled="item.mode !== 'preset'"
+                                    placeholder="默认筛选"
+                                >
+                                    <el-option
+                                        v-for="preset in getPresetOptionsByMenu(item)"
+                                        :key="`${item.key}-${preset.key}`"
+                                        :label="`${preset.name} (${preset.key})`"
+                                        :value="preset.key"
+                                    />
+                                </el-select>
+                                <el-input
+                                    v-model="item.externalUrl"
+                                    :disabled="item.mode !== 'external'"
+                                    :placeholder="
+                                        item.mode === 'external'
+                                            ? 'https://www.uied.cn'
+                                            : '仅 external 模式可填写'
+                                    "
+                                />
+                                <el-switch v-model="item.enabled" />
+                                <el-input-number v-model="item.sort" :min="1" :max="9999" />
+                                <el-button
+                                    type="danger"
+                                    link
+                                    :disabled="formData.workbenchMenuItems.length <= 1"
+                                    @click="handleRemoveWorkbenchMenu(index)"
+                                >
+                                    删除
+                                </el-button>
+                            </div>
+                        </div>
+                    </el-tab-pane>
                 </el-tabs>
             </el-form>
         </el-card>
@@ -329,7 +399,17 @@ interface HotWorkbenchMenuConfigItem {
     key: string
     label: string
     mode: 'latest' | 'hot' | 'preset' | 'authorHot' | 'circle' | 'external'
-    iconKey: 'latest' | 'hot' | 'ai' | 'product' | 'design' | 'resource' | 'author' | 'circle' | 'extra' | 'home'
+    iconKey:
+        | 'latest'
+        | 'hot'
+        | 'ai'
+        | 'product'
+        | 'design'
+        | 'resource'
+        | 'author'
+        | 'circle'
+        | 'extra'
+        | 'home'
     source: 'auto' | 'uied' | 'uied_hot' | 'uied_latest' | 'wp_v2'
     presetKey: string
     presetKeys: string[]
@@ -355,50 +435,402 @@ const activeSectionTab = ref<'basic' | 'preset' | 'menu'>('basic')
  * 说明：覆盖 HotArticles + DesignRealtime 常用分类，便于运营直接启用。
  */
 const LEGACY_FILTER_PRESET_LIBRARY: HotFilterPreset[] = [
-    { key: 'all', name: '全部', type: 'all', id: 0, description: '全部热门文章', enabled: true, sort: 10 },
-    { key: 'aigc', name: 'AIGC', type: 'category', id: 417, description: 'AIGC 分类内容', enabled: true, sort: 20 },
-    { key: 'ai-tools', name: 'AI工具', type: 'category', id: 3351, description: 'AI 工具分类内容', enabled: true, sort: 30 },
-    { key: 'productivity', name: '效率工具', type: 'category', id: 338, description: '效率工具分类内容', enabled: true, sort: 40 },
-    { key: 'design', name: '设计干货', type: 'category', id: 307, description: '设计干货分类内容', enabled: true, sort: 50 },
-    { key: 'ui', name: 'UI', type: 'category', id: 334, description: 'UI 相关文章', enabled: true, sort: 60 },
-    { key: 'ux', name: 'UX', type: 'category', id: 337, description: 'UX 相关文章', enabled: true, sort: 70 },
-    { key: 'product', name: '产品', type: 'category', id: 336, description: '产品相关文章', enabled: true, sort: 80 },
-    { key: 'graphic', name: '平面', type: 'category', id: 335, description: '平面相关文章', enabled: true, sort: 90 },
-    { key: '3d', name: '三维', type: 'category', id: 1031, description: '三维相关文章', enabled: true, sort: 100 },
-    { key: 'tips', name: '设计干货专题', type: 'category', id: 307, description: '设计干货专题内容', enabled: true, sort: 110 },
-    { key: 'inspiration', name: '设计灵感', type: 'category', id: 1861, description: '设计灵感内容', enabled: true, sort: 120 },
-    { key: 'study-circle', name: '学习圈子', type: 'tag', id: 393, description: '学习圈子标签内容', enabled: true, sort: 130 },
-    { key: 'nano-banana', name: 'Nano-Banana', type: 'tag', id: 13220, description: 'AI 实时标签', enabled: false, sort: 140 },
-    { key: 'midjourney', name: 'Midjourney', type: 'tag', id: 419, description: 'AI 实时标签', enabled: false, sort: 150 },
-    { key: 'stable-diffusion', name: 'Stable Diffusion', type: 'tag', id: 428, description: 'AI 实时标签', enabled: false, sort: 160 },
-    { key: 'deepseek', name: 'DeepSeek', type: 'tag', id: 3842, description: 'AI 实时标签', enabled: false, sort: 170 },
-    { key: 'jimeng', name: '即梦AI', type: 'tag', id: 12110, description: 'AI 实时标签', enabled: false, sort: 180 },
-    { key: 'gpt4o', name: 'GPT4o', type: 'tag', id: 4205, description: 'AI 实时标签', enabled: false, sort: 190 },
-    { key: 'gpt', name: 'GPT4o', type: 'tag', id: 4205, description: 'AI 实时标签（旧 key 兼容）', enabled: false, sort: 191 },
-    { key: 'aixiezuo', name: 'AI写作', type: 'tag', id: 3253, description: 'AI 产品榜单标签', enabled: false, sort: 200 },
-    { key: 'aihuihua', name: 'AI绘画', type: 'tag', id: 427, description: 'AI 产品榜单标签', enabled: false, sort: 210 },
-    { key: 'aishipin', name: 'AI视频', type: 'tag', id: 3484, description: 'AI 产品榜单标签', enabled: false, sort: 220 },
-    { key: 'aibangong', name: 'AI办公', type: 'tag', id: 3485, description: 'AI 产品榜单标签', enabled: false, sort: 230 },
-    { key: 'aisheji', name: 'AI设计', type: 'tag', id: 3372, description: 'AI 产品榜单标签', enabled: false, sort: 240 },
-    { key: 'aikaifa', name: 'AI开发', type: 'tag', id: 3486, description: 'AI 产品榜单标签', enabled: false, sort: 250 },
-    { key: 'aishuziren', name: 'AI数字人', type: 'tag', id: 3487, description: 'AI 产品榜单标签', enabled: false, sort: 260 },
-    { key: 'all-resources', name: '全部素材', type: 'category', id: 4, description: '设计素材分类', enabled: false, sort: 269 },
-    { key: 'portfolio', name: '作品集', type: 'category', id: 392, description: '设计素材分类', enabled: false, sort: 270 },
-    { key: 'card', name: '卡片式', type: 'category', id: 171, description: '设计素材分类', enabled: false, sort: 280 },
-    { key: 'big-data', name: '可视化', type: 'category', id: 65, description: '设计素材分类', enabled: false, sort: 290 },
-    { key: 'dashboard', name: '后台', type: 'category', id: 67, description: '设计素材分类', enabled: false, sort: 300 },
-    { key: 'icon', name: '图标', type: 'category', id: 45, description: '设计素材分类', enabled: false, sort: 310 },
-    { key: 'ar', name: '增强现实', type: 'category', id: 791, description: '设计素材分类', enabled: false, sort: 320 },
-    { key: 'app', name: '应用', type: 'category', id: 44, description: '设计素材分类', enabled: false, sort: 330 },
-    { key: 'watch', name: '手表', type: 'category', id: 66, description: '设计素材分类', enabled: false, sort: 340 },
-    { key: 'web', name: '网页', type: 'category', id: 75, description: '设计素材分类', enabled: false, sort: 350 },
-    { key: 'design-system', name: '设计系统/组件', type: 'category', id: 261, description: '设计素材分类', enabled: false, sort: 360 },
-    { key: '3d-icon', name: '3D/图标', type: 'category', id: 203, description: '设计素材分类', enabled: false, sort: 370 },
-    { key: 'font-resource', name: '字体素材', type: 'category', id: 319, description: '设计素材分类', enabled: false, sort: 380 },
-    { key: 'font', name: '字体', type: 'category', id: 319, description: '设计素材分类（旧 key 兼容）', enabled: false, sort: 381 },
-    { key: 'ps-plugin', name: 'PS插件', type: 'category', id: 11013, description: '设计素材分类', enabled: false, sort: 390 },
-    { key: 'sketch-plugin', name: 'Sketch插件', type: 'category', id: 344, description: '设计素材分类', enabled: false, sort: 400 },
-    { key: 'mockup', name: '样机', type: 'category', id: 210, description: '设计素材分类', enabled: false, sort: 410 },
+    {
+        key: 'all',
+        name: '全部',
+        type: 'all',
+        id: 0,
+        description: '全部热门文章',
+        enabled: true,
+        sort: 10
+    },
+    {
+        key: 'aigc',
+        name: 'AIGC',
+        type: 'category',
+        id: 417,
+        description: 'AIGC 分类内容',
+        enabled: true,
+        sort: 20
+    },
+    {
+        key: 'ai-tools',
+        name: 'AI工具',
+        type: 'category',
+        id: 3351,
+        description: 'AI 工具分类内容',
+        enabled: true,
+        sort: 30
+    },
+    {
+        key: 'productivity',
+        name: '效率工具',
+        type: 'category',
+        id: 338,
+        description: '效率工具分类内容',
+        enabled: true,
+        sort: 40
+    },
+    {
+        key: 'design',
+        name: '设计干货',
+        type: 'category',
+        id: 307,
+        description: '设计干货分类内容',
+        enabled: true,
+        sort: 50
+    },
+    {
+        key: 'ui',
+        name: 'UI',
+        type: 'category',
+        id: 334,
+        description: 'UI 相关文章',
+        enabled: true,
+        sort: 60
+    },
+    {
+        key: 'ux',
+        name: 'UX',
+        type: 'category',
+        id: 337,
+        description: 'UX 相关文章',
+        enabled: true,
+        sort: 70
+    },
+    {
+        key: 'product',
+        name: '产品',
+        type: 'category',
+        id: 336,
+        description: '产品相关文章',
+        enabled: true,
+        sort: 80
+    },
+    {
+        key: 'graphic',
+        name: '平面',
+        type: 'category',
+        id: 335,
+        description: '平面相关文章',
+        enabled: true,
+        sort: 90
+    },
+    {
+        key: '3d',
+        name: '三维',
+        type: 'category',
+        id: 1031,
+        description: '三维相关文章',
+        enabled: true,
+        sort: 100
+    },
+    {
+        key: 'tips',
+        name: '设计干货专题',
+        type: 'category',
+        id: 307,
+        description: '设计干货专题内容',
+        enabled: true,
+        sort: 110
+    },
+    {
+        key: 'inspiration',
+        name: '设计灵感',
+        type: 'category',
+        id: 1861,
+        description: '设计灵感内容',
+        enabled: true,
+        sort: 120
+    },
+    {
+        key: 'study-circle',
+        name: '学习圈子',
+        type: 'tag',
+        id: 393,
+        description: '学习圈子标签内容',
+        enabled: true,
+        sort: 130
+    },
+    {
+        key: 'nano-banana',
+        name: 'Nano-Banana',
+        type: 'tag',
+        id: 13220,
+        description: 'AI 实时标签',
+        enabled: false,
+        sort: 140
+    },
+    {
+        key: 'midjourney',
+        name: 'Midjourney',
+        type: 'tag',
+        id: 419,
+        description: 'AI 实时标签',
+        enabled: false,
+        sort: 150
+    },
+    {
+        key: 'stable-diffusion',
+        name: 'Stable Diffusion',
+        type: 'tag',
+        id: 428,
+        description: 'AI 实时标签',
+        enabled: false,
+        sort: 160
+    },
+    {
+        key: 'deepseek',
+        name: 'DeepSeek',
+        type: 'tag',
+        id: 3842,
+        description: 'AI 实时标签',
+        enabled: false,
+        sort: 170
+    },
+    {
+        key: 'jimeng',
+        name: '即梦AI',
+        type: 'tag',
+        id: 12110,
+        description: 'AI 实时标签',
+        enabled: false,
+        sort: 180
+    },
+    {
+        key: 'gpt4o',
+        name: 'GPT4o',
+        type: 'tag',
+        id: 4205,
+        description: 'AI 实时标签',
+        enabled: false,
+        sort: 190
+    },
+    {
+        key: 'gpt',
+        name: 'GPT4o',
+        type: 'tag',
+        id: 4205,
+        description: 'AI 实时标签（旧 key 兼容）',
+        enabled: false,
+        sort: 191
+    },
+    {
+        key: 'aixiezuo',
+        name: 'AI写作',
+        type: 'tag',
+        id: 3253,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 200
+    },
+    {
+        key: 'aihuihua',
+        name: 'AI绘画',
+        type: 'tag',
+        id: 427,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 210
+    },
+    {
+        key: 'aishipin',
+        name: 'AI视频',
+        type: 'tag',
+        id: 3484,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 220
+    },
+    {
+        key: 'aibangong',
+        name: 'AI办公',
+        type: 'tag',
+        id: 3485,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 230
+    },
+    {
+        key: 'aisheji',
+        name: 'AI设计',
+        type: 'tag',
+        id: 3372,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 240
+    },
+    {
+        key: 'aikaifa',
+        name: 'AI开发',
+        type: 'tag',
+        id: 3486,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 250
+    },
+    {
+        key: 'aishuziren',
+        name: 'AI数字人',
+        type: 'tag',
+        id: 3487,
+        description: 'AI 产品榜单标签',
+        enabled: false,
+        sort: 260
+    },
+    {
+        key: 'all-resources',
+        name: '全部素材',
+        type: 'category',
+        id: 4,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 269
+    },
+    {
+        key: 'portfolio',
+        name: '作品集',
+        type: 'category',
+        id: 392,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 270
+    },
+    {
+        key: 'card',
+        name: '卡片式',
+        type: 'category',
+        id: 171,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 280
+    },
+    {
+        key: 'big-data',
+        name: '可视化',
+        type: 'category',
+        id: 65,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 290
+    },
+    {
+        key: 'dashboard',
+        name: '后台',
+        type: 'category',
+        id: 67,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 300
+    },
+    {
+        key: 'icon',
+        name: '图标',
+        type: 'category',
+        id: 45,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 310
+    },
+    {
+        key: 'ar',
+        name: '增强现实',
+        type: 'category',
+        id: 791,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 320
+    },
+    {
+        key: 'app',
+        name: '应用',
+        type: 'category',
+        id: 44,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 330
+    },
+    {
+        key: 'watch',
+        name: '手表',
+        type: 'category',
+        id: 66,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 340
+    },
+    {
+        key: 'web',
+        name: '网页',
+        type: 'category',
+        id: 75,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 350
+    },
+    {
+        key: 'design-system',
+        name: '设计系统/组件',
+        type: 'category',
+        id: 261,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 360
+    },
+    {
+        key: '3d-icon',
+        name: '3D/图标',
+        type: 'category',
+        id: 203,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 370
+    },
+    {
+        key: 'font-resource',
+        name: '字体素材',
+        type: 'category',
+        id: 319,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 380
+    },
+    {
+        key: 'font',
+        name: '字体',
+        type: 'category',
+        id: 319,
+        description: '设计素材分类（旧 key 兼容）',
+        enabled: false,
+        sort: 381
+    },
+    {
+        key: 'ps-plugin',
+        name: 'PS插件',
+        type: 'category',
+        id: 11013,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 390
+    },
+    {
+        key: 'sketch-plugin',
+        name: 'Sketch插件',
+        type: 'category',
+        id: 344,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 400
+    },
+    {
+        key: 'mockup',
+        name: '样机',
+        type: 'category',
+        id: 210,
+        description: '设计素材分类',
+        enabled: false,
+        sort: 410
+    }
 ]
 
 /**
@@ -407,9 +839,39 @@ const LEGACY_FILTER_PRESET_LIBRARY: HotFilterPreset[] = [
 const LEGACY_MENU_PRESET_GROUPS: Record<string, string[]> = {
     'latest-articles': ['all', 'aigc', 'ai-tools', 'design'],
     'hot-articles': ['all', 'aigc', 'ai-tools', 'design'],
-    'ai-realtime': ['all', 'aigc', 'nano-banana', 'midjourney', 'stable-diffusion', 'deepseek', 'jimeng', 'gpt4o', 'gpt'],
-    'ai-products': ['all', 'ai-tools', 'aixiezuo', 'aihuihua', 'aishipin', 'aibangong', 'aisheji', 'aikaifa', 'aishuziren'],
-    'design-articles': ['all', 'design', 'ui', 'ux', 'product', 'graphic', '3d', 'tips', 'inspiration'],
+    'ai-realtime': [
+        'all',
+        'aigc',
+        'nano-banana',
+        'midjourney',
+        'stable-diffusion',
+        'deepseek',
+        'jimeng',
+        'gpt4o',
+        'gpt'
+    ],
+    'ai-products': [
+        'all',
+        'ai-tools',
+        'aixiezuo',
+        'aihuihua',
+        'aishipin',
+        'aibangong',
+        'aisheji',
+        'aikaifa',
+        'aishuziren'
+    ],
+    'design-articles': [
+        'all',
+        'design',
+        'ui',
+        'ux',
+        'product',
+        'graphic',
+        '3d',
+        'tips',
+        'inspiration'
+    ],
     'design-resources': [
         'all',
         'all-resources',
@@ -428,29 +890,32 @@ const LEGACY_MENU_PRESET_GROUPS: Record<string, string[]> = {
         'font',
         'ps-plugin',
         'sketch-plugin',
-        'mockup',
+        'mockup'
     ],
     'top-authors': ['all', 'aigc', 'design'],
-    'study-circles': ['all', 'study-circle'],
+    'study-circles': ['all', 'study-circle']
 }
 
 /**
  * 菜单模式的默认图标映射，减少运营同学手工选择成本。
  */
-const MENU_MODE_ICON_MAP: Record<HotWorkbenchMenuConfigItem['mode'], HotWorkbenchMenuConfigItem['iconKey']> = {
+const MENU_MODE_ICON_MAP: Record<
+    HotWorkbenchMenuConfigItem['mode'],
+    HotWorkbenchMenuConfigItem['iconKey']
+> = {
     latest: 'latest',
     hot: 'hot',
     preset: 'extra',
     authorHot: 'author',
     circle: 'circle',
-    external: 'home',
+    external: 'home'
 }
 
 /**
  * 菜单表格栅格模板（仅保留运营模式字段）。
  */
 const menuGridStyle = {
-    gridTemplateColumns: '1.1fr 1.2fr 1fr 1fr 2fr 1.4fr 1.6fr 90px 120px 80px',
+    gridTemplateColumns: '1.1fr 1.2fr 1fr 1fr 2fr 1.4fr 1.6fr 90px 120px 80px'
 }
 
 /**
@@ -484,23 +949,283 @@ const defaultConfig: HotArticlesConfig = {
     hubHeaderDescription: '热门文章、热门榜单、每日热榜、最新上新统一在一个页面内切换。',
     linksNewWindow: true,
     filterPresets: [
-        { key: 'all', name: '全部', type: 'all', id: 0, description: '全部热门文章', enabled: true, sort: 10 },
-        { key: 'aigc', name: 'AIGC', type: 'category', id: 417, description: 'AIGC 分类内容', enabled: true, sort: 20 },
-        { key: 'ai-tools', name: 'AI工具', type: 'category', id: 3351, description: 'AI 工具分类内容', enabled: true, sort: 30 },
-        { key: 'productivity', name: '效率工具', type: 'category', id: 338, description: '效率工具分类内容', enabled: true, sort: 40 },
-        { key: 'design', name: '设计干货', type: 'category', id: 307, description: '设计干货分类内容', enabled: true, sort: 50 },
+        {
+            key: 'all',
+            name: '全部',
+            type: 'all',
+            id: 0,
+            description: '全部热门文章',
+            enabled: true,
+            sort: 10
+        },
+        {
+            key: 'aigc',
+            name: 'AIGC',
+            type: 'category',
+            id: 417,
+            description: 'AIGC 分类内容',
+            enabled: true,
+            sort: 20
+        },
+        {
+            key: 'ai-tools',
+            name: 'AI工具',
+            type: 'category',
+            id: 3351,
+            description: 'AI 工具分类内容',
+            enabled: true,
+            sort: 30
+        },
+        {
+            key: 'productivity',
+            name: '效率工具',
+            type: 'category',
+            id: 338,
+            description: '效率工具分类内容',
+            enabled: true,
+            sort: 40
+        },
+        {
+            key: 'design',
+            name: '设计干货',
+            type: 'category',
+            id: 307,
+            description: '设计干货分类内容',
+            enabled: true,
+            sort: 50
+        }
     ],
     workbenchMenuItems: [
-        { key: 'latest-articles', label: '最新文章', mode: 'latest', iconKey: 'latest', source: 'uied_latest', presetKey: '', presetKeys: [], fallbackType: 'category', fallbackId: 0, categoryId: 0, tagId: 0, orderBy: 'date', order: 'desc', period: 'all', externalUrl: '', subtitle: '按发布时间实时更新', enabled: true, sort: 10 },
-        { key: 'hot-articles', label: '热门文章', mode: 'hot', iconKey: 'hot', source: 'uied_hot', presetKey: '', presetKeys: [], fallbackType: 'category', fallbackId: 0, categoryId: 417, tagId: 0, orderBy: 'views', order: 'desc', period: 'all', externalUrl: '', subtitle: '按热度优先展示', enabled: true, sort: 20 },
-        { key: 'ai-realtime', label: 'AI实时文章', mode: 'preset', iconKey: 'ai', source: 'uied_latest', presetKey: 'aigc', presetKeys: ['all', 'aigc', 'nano-banana', 'midjourney', 'stable-diffusion', 'deepseek', 'jimeng', 'gpt4o', 'gpt'], fallbackType: 'category', fallbackId: 417, categoryId: 0, tagId: 0, orderBy: 'date', order: 'desc', period: 'all', externalUrl: '', subtitle: '', enabled: true, sort: 30 },
-        { key: 'ai-products', label: 'AI产品榜单', mode: 'preset', iconKey: 'product', source: 'uied_latest', presetKey: 'ai-tools', presetKeys: ['all', 'ai-tools', 'aixiezuo', 'aihuihua', 'aishipin', 'aibangong', 'aisheji', 'aikaifa', 'aishuziren'], fallbackType: 'category', fallbackId: 3351, categoryId: 0, tagId: 0, orderBy: 'date', order: 'desc', period: 'all', externalUrl: '', subtitle: '', enabled: true, sort: 40 },
-        { key: 'design-articles', label: '设计文章', mode: 'preset', iconKey: 'design', source: 'uied_latest', presetKey: 'design', presetKeys: ['all', 'design', 'ui', 'ux', 'product', 'graphic', '3d', 'tips', 'inspiration'], fallbackType: 'category', fallbackId: 307, categoryId: 0, tagId: 0, orderBy: 'date', order: 'desc', period: 'all', externalUrl: '', subtitle: '', enabled: true, sort: 50 },
-        { key: 'design-resources', label: '设计素材', mode: 'preset', iconKey: 'resource', source: 'uied_latest', presetKey: 'all-resources', presetKeys: ['all', 'all-resources', 'portfolio', 'card', 'big-data', 'dashboard', 'icon', 'ar', 'app', 'watch', 'web', 'design-system', '3d-icon', 'font-resource', 'font', 'ps-plugin', 'sketch-plugin', 'mockup'], fallbackType: 'category', fallbackId: 4, categoryId: 0, tagId: 0, orderBy: 'date', order: 'desc', period: 'all', externalUrl: '', subtitle: '', enabled: true, sort: 60 },
-        { key: 'top-authors', label: '优秀作者', mode: 'authorHot', iconKey: 'author', source: 'uied_hot', presetKey: '', presetKeys: [], fallbackType: 'category', fallbackId: 0, categoryId: 0, tagId: 0, orderBy: 'comment_count', order: 'desc', period: 'weekly', externalUrl: '', subtitle: '', enabled: true, sort: 70 },
-        { key: 'study-circles', label: '学习圈子', mode: 'circle', iconKey: 'circle', source: 'uied_latest', presetKey: '', presetKeys: [], fallbackType: 'category', fallbackId: 0, categoryId: 0, tagId: 393, orderBy: 'date', order: 'desc', period: 'all', externalUrl: '', subtitle: '', enabled: true, sort: 80 },
-        { key: 'back-main-site', label: '返回主站', mode: 'external', iconKey: 'home', source: 'auto', presetKey: '', presetKeys: [], fallbackType: 'category', fallbackId: 0, categoryId: 0, tagId: 0, orderBy: 'date', order: 'desc', period: 'all', externalUrl: 'https://www.uied.cn', subtitle: '', enabled: true, sort: 999 },
-    ],
+        {
+            key: 'latest-articles',
+            label: '最新文章',
+            mode: 'latest',
+            iconKey: 'latest',
+            source: 'uied_latest',
+            presetKey: '',
+            presetKeys: [],
+            fallbackType: 'category',
+            fallbackId: 0,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '按发布时间实时更新',
+            enabled: true,
+            sort: 10
+        },
+        {
+            key: 'hot-articles',
+            label: '热门文章',
+            mode: 'hot',
+            iconKey: 'hot',
+            source: 'uied_hot',
+            presetKey: '',
+            presetKeys: [],
+            fallbackType: 'category',
+            fallbackId: 0,
+            categoryId: 417,
+            tagId: 0,
+            orderBy: 'views',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '按热度优先展示',
+            enabled: true,
+            sort: 20
+        },
+        {
+            key: 'ai-realtime',
+            label: 'AI实时文章',
+            mode: 'preset',
+            iconKey: 'ai',
+            source: 'uied_latest',
+            presetKey: 'aigc',
+            presetKeys: [
+                'all',
+                'aigc',
+                'nano-banana',
+                'midjourney',
+                'stable-diffusion',
+                'deepseek',
+                'jimeng',
+                'gpt4o',
+                'gpt'
+            ],
+            fallbackType: 'category',
+            fallbackId: 417,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '',
+            enabled: true,
+            sort: 30
+        },
+        {
+            key: 'ai-products',
+            label: 'AI产品榜单',
+            mode: 'preset',
+            iconKey: 'product',
+            source: 'uied_latest',
+            presetKey: 'ai-tools',
+            presetKeys: [
+                'all',
+                'ai-tools',
+                'aixiezuo',
+                'aihuihua',
+                'aishipin',
+                'aibangong',
+                'aisheji',
+                'aikaifa',
+                'aishuziren'
+            ],
+            fallbackType: 'category',
+            fallbackId: 3351,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '',
+            enabled: true,
+            sort: 40
+        },
+        {
+            key: 'design-articles',
+            label: '设计文章',
+            mode: 'preset',
+            iconKey: 'design',
+            source: 'uied_latest',
+            presetKey: 'design',
+            presetKeys: [
+                'all',
+                'design',
+                'ui',
+                'ux',
+                'product',
+                'graphic',
+                '3d',
+                'tips',
+                'inspiration'
+            ],
+            fallbackType: 'category',
+            fallbackId: 307,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '',
+            enabled: true,
+            sort: 50
+        },
+        {
+            key: 'design-resources',
+            label: '设计素材',
+            mode: 'preset',
+            iconKey: 'resource',
+            source: 'uied_latest',
+            presetKey: 'all-resources',
+            presetKeys: [
+                'all',
+                'all-resources',
+                'portfolio',
+                'card',
+                'big-data',
+                'dashboard',
+                'icon',
+                'ar',
+                'app',
+                'watch',
+                'web',
+                'design-system',
+                '3d-icon',
+                'font-resource',
+                'font',
+                'ps-plugin',
+                'sketch-plugin',
+                'mockup'
+            ],
+            fallbackType: 'category',
+            fallbackId: 4,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '',
+            enabled: true,
+            sort: 60
+        },
+        {
+            key: 'top-authors',
+            label: '优秀作者',
+            mode: 'authorHot',
+            iconKey: 'author',
+            source: 'uied_hot',
+            presetKey: '',
+            presetKeys: [],
+            fallbackType: 'category',
+            fallbackId: 0,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'comment_count',
+            order: 'desc',
+            period: 'weekly',
+            externalUrl: '',
+            subtitle: '',
+            enabled: true,
+            sort: 70
+        },
+        {
+            key: 'study-circles',
+            label: '学习圈子',
+            mode: 'circle',
+            iconKey: 'circle',
+            source: 'uied_latest',
+            presetKey: '',
+            presetKeys: [],
+            fallbackType: 'category',
+            fallbackId: 0,
+            categoryId: 0,
+            tagId: 393,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: '',
+            subtitle: '',
+            enabled: true,
+            sort: 80
+        },
+        {
+            key: 'back-main-site',
+            label: '返回主站',
+            mode: 'external',
+            iconKey: 'home',
+            source: 'auto',
+            presetKey: '',
+            presetKeys: [],
+            fallbackType: 'category',
+            fallbackId: 0,
+            categoryId: 0,
+            tagId: 0,
+            orderBy: 'date',
+            order: 'desc',
+            period: 'all',
+            externalUrl: 'https://www.uied.cn',
+            subtitle: '',
+            enabled: true,
+            sort: 999
+        }
+    ]
 }
 
 const formData = reactive<HotArticlesConfig>(JSON.parse(JSON.stringify(defaultConfig)))
@@ -523,13 +1248,16 @@ const normalizeFilterPresets = (value: unknown): HotFilterPreset[] => {
     const usedKeySet = new Set<string>()
     const normalized = source
         .map((item: any, index: number) => {
-            const key = String(item?.key || '')
-                .trim()
-                .toLowerCase()
-                .replace(/[^a-z0-9_-]/g, '') || `preset_${index + 1}`
+            const key =
+                String(item?.key || '')
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9_-]/g, '') || `preset_${index + 1}`
             if (usedKeySet.has(key)) return null
             usedKeySet.add(key)
-            const type = String(item?.type || 'category').trim().toLowerCase()
+            const type = String(item?.type || 'category')
+                .trim()
+                .toLowerCase()
             const resolvedType: 'all' | 'category' | 'tag' =
                 type === 'all' || type === 'tag' ? type : 'category'
             const id = Number.parseInt(String(item?.id || 0), 10)
@@ -540,13 +1268,15 @@ const normalizeFilterPresets = (value: unknown): HotFilterPreset[] => {
                 id: Number.isInteger(id) && id > 0 ? id : 0,
                 description: String(item?.description || '').trim(),
                 enabled: item?.enabled !== false,
-                sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+                sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10
             }
         })
         .filter((item): item is HotFilterPreset => Boolean(item))
         .sort((a, b) => a.sort - b.sort)
         .map((item, index) => ({ ...item, sort: (index + 1) * 10 }))
-    return normalized.length > 0 ? normalized : JSON.parse(JSON.stringify(defaultConfig.filterPresets))
+    return normalized.length > 0
+        ? normalized
+        : JSON.parse(JSON.stringify(defaultConfig.filterPresets))
 }
 
 /**
@@ -555,7 +1285,18 @@ const normalizeFilterPresets = (value: unknown): HotFilterPreset[] => {
 const normalizeMenuIconKey = (value: unknown): HotWorkbenchMenuConfigItem['iconKey'] => {
     const text = String(value || '').trim()
     const lower = text.toLowerCase()
-    const allowSet = new Set(['latest', 'hot', 'ai', 'product', 'design', 'resource', 'author', 'circle', 'extra', 'home'])
+    const allowSet = new Set([
+        'latest',
+        'hot',
+        'ai',
+        'product',
+        'design',
+        'resource',
+        'author',
+        'circle',
+        'extra',
+        'home'
+    ])
     if (allowSet.has(text)) return text as HotWorkbenchMenuConfigItem['iconKey']
     if (allowSet.has(lower)) return lower as HotWorkbenchMenuConfigItem['iconKey']
     const aliasMap: Record<string, HotWorkbenchMenuConfigItem['iconKey']> = {
@@ -579,7 +1320,7 @@ const normalizeMenuIconKey = (value: unknown): HotWorkbenchMenuConfigItem['iconK
         readoutlined: 'circle',
         book: 'circle',
         home: 'home',
-        homeoutlined: 'home',
+        homeoutlined: 'home'
     }
     return aliasMap[lower] || 'extra'
 }
@@ -595,27 +1336,55 @@ const normalizeWorkbenchMenuItems = (
     const usedKeySet = new Set<string>()
     const allowModeSet = new Set(['latest', 'hot', 'preset', 'authorHot', 'circle', 'external'])
     const allowSourceSet = new Set(['auto', 'uied', 'uied_hot', 'uied_latest', 'wp_v2'])
-    const allowOrderBySet = new Set(['date', 'modified', 'id', 'title', 'slug', 'relevance', 'views', 'comment_count'])
+    const allowOrderBySet = new Set([
+        'date',
+        'modified',
+        'id',
+        'title',
+        'slug',
+        'relevance',
+        'views',
+        'comment_count'
+    ])
     const allowPeriodSet = new Set(['all', 'daily', 'weekly', 'monthly'])
     const validPresetKeySet = new Set(
         (Array.isArray(filterPresets) ? filterPresets : [])
-            .map((item) => String(item?.key || '').trim().toLowerCase())
+            .map((item) =>
+                String(item?.key || '')
+                    .trim()
+                    .toLowerCase()
+            )
             .filter(Boolean)
     )
     const normalized = source
         .map((item: any, index: number) => {
-            const key = String(item?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || `menu_${index + 1}`
+            const key =
+                String(item?.key || '')
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9_-]/g, '') || `menu_${index + 1}`
             if (usedKeySet.has(key)) return null
             usedKeySet.add(key)
             const mode = String(item?.mode || 'latest').trim()
-            const sourceKey = String(item?.source || 'auto').trim().toLowerCase()
-            const orderBy = String(item?.orderBy || 'date').trim().toLowerCase()
-            const period = String(item?.period || 'all').trim().toLowerCase()
-            const fallbackType = String(item?.fallbackType || 'category').trim().toLowerCase()
+            const sourceKey = String(item?.source || 'auto')
+                .trim()
+                .toLowerCase()
+            const orderBy = String(item?.orderBy || 'date')
+                .trim()
+                .toLowerCase()
+            const period = String(item?.period || 'all')
+                .trim()
+                .toLowerCase()
+            const fallbackType = String(item?.fallbackType || 'category')
+                .trim()
+                .toLowerCase()
             const fallbackId = Number.parseInt(String(item?.fallbackId || 0), 10)
             const categoryId = Number.parseInt(String(item?.categoryId || 0), 10)
             const tagId = Number.parseInt(String(item?.tagId || 0), 10)
-            const presetKey = String(item?.presetKey || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
+            const presetKey = String(item?.presetKey || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9_-]/g, '')
             const presetKeysRaw = Array.isArray(item?.presetKeys)
                 ? item.presetKeys
                 : String(item?.presetKeys || '')
@@ -624,7 +1393,7 @@ const normalizeWorkbenchMenuItems = (
                       .filter(Boolean)
             const presetKeys = Array.from(
                 new Set(
-                    [ ...presetKeysRaw, presetKey ]
+                    [...presetKeysRaw, presetKey]
                         .map((keyText: string) =>
                             String(keyText || '')
                                 .trim()
@@ -638,13 +1407,19 @@ const normalizeWorkbenchMenuItems = (
                         )
                 )
             )
-            const resolvedPresetKey = presetKeys.includes(presetKey) ? presetKey : (presetKeys[0] || '')
+            const resolvedPresetKey = presetKeys.includes(presetKey)
+                ? presetKey
+                : presetKeys[0] || ''
             return {
                 key,
                 label: String(item?.label || key).trim() || key,
-                mode: allowModeSet.has(mode) ? (mode as HotWorkbenchMenuConfigItem['mode']) : 'latest',
+                mode: allowModeSet.has(mode)
+                    ? (mode as HotWorkbenchMenuConfigItem['mode'])
+                    : 'latest',
                 iconKey: normalizeMenuIconKey(item?.iconKey),
-                source: allowSourceSet.has(sourceKey) ? (sourceKey as HotWorkbenchMenuConfigItem['source']) : 'auto',
+                source: allowSourceSet.has(sourceKey)
+                    ? (sourceKey as HotWorkbenchMenuConfigItem['source'])
+                    : 'auto',
                 presetKey: resolvedPresetKey,
                 presetKeys,
                 fallbackType: fallbackType === 'tag' ? 'tag' : 'category',
@@ -652,20 +1427,30 @@ const normalizeWorkbenchMenuItems = (
                 categoryId: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 0,
                 tagId: Number.isInteger(tagId) && tagId > 0 ? tagId : 0,
                 orderBy: allowOrderBySet.has(orderBy) ? orderBy : 'date',
-                order: String(item?.order || 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc',
-                period: allowPeriodSet.has(period) ? (period as HotWorkbenchMenuConfigItem['period']) : 'all',
-                externalUrl: (allowModeSet.has(mode) ? mode : 'latest') === 'external'
-                    ? (String(item?.externalUrl || '').trim() || 'https://www.uied.cn')
-                    : '',
+                order:
+                    String(item?.order || 'desc')
+                        .trim()
+                        .toLowerCase() === 'asc'
+                        ? 'asc'
+                        : 'desc',
+                period: allowPeriodSet.has(period)
+                    ? (period as HotWorkbenchMenuConfigItem['period'])
+                    : 'all',
+                externalUrl:
+                    (allowModeSet.has(mode) ? mode : 'latest') === 'external'
+                        ? String(item?.externalUrl || '').trim() || 'https://www.uied.cn'
+                        : '',
                 subtitle: String(item?.subtitle || '').trim(),
                 enabled: item?.enabled !== false,
-                sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+                sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10
             }
         })
         .filter((item): item is HotWorkbenchMenuConfigItem => Boolean(item))
         .sort((a, b) => a.sort - b.sort)
         .map((item, index) => ({ ...item, sort: (index + 1) * 10 }))
-    return normalized.length > 0 ? normalized : JSON.parse(JSON.stringify(defaultConfig.workbenchMenuItems))
+    return normalized.length > 0
+        ? normalized
+        : JSON.parse(JSON.stringify(defaultConfig.workbenchMenuItems))
 }
 
 /**
@@ -681,38 +1466,81 @@ const normalizeConfig = (config: any): HotArticlesConfig => {
     const pageSize = Number.parseInt(String(config?.pageSize || defaultConfig.pageSize), 10)
     const defaultCategoryId = Number.parseInt(String(config?.defaultCategoryId || 0), 10)
     const defaultTagId = Number.parseInt(String(config?.defaultTagId || 0), 10)
-    const orderByAllowSet = new Set(['date', 'modified', 'id', 'title', 'slug', 'relevance', 'views', 'comment_count'])
-    const defaultOrderBy = String(config?.defaultOrderBy || 'date').trim().toLowerCase()
+    const orderByAllowSet = new Set([
+        'date',
+        'modified',
+        'id',
+        'title',
+        'slug',
+        'relevance',
+        'views',
+        'comment_count'
+    ])
+    const defaultOrderBy = String(config?.defaultOrderBy || 'date')
+        .trim()
+        .toLowerCase()
     const sourceModeAllowSet = new Set(['auto', 'uied', 'uied_hot', 'uied_latest', 'wp_v2'])
-    const apiSourceMode = String(config?.apiSourceMode || 'auto').trim().toLowerCase()
+    const apiSourceMode = String(config?.apiSourceMode || 'auto')
+        .trim()
+        .toLowerCase()
     const normalizedFilterPresets = normalizeFilterPresets(config?.filterPresets)
     return {
         enabled: config?.enabled !== false,
-        displayPlacements: placements.length > 0 ? Array.from(new Set(placements)) : ['nav_quick_entry'],
-        displayLabel: String(config?.displayLabel || defaultConfig.displayLabel).trim() || defaultConfig.displayLabel,
+        displayPlacements:
+            placements.length > 0 ? Array.from(new Set(placements)) : ['nav_quick_entry'],
+        displayLabel:
+            String(config?.displayLabel || defaultConfig.displayLabel).trim() ||
+            defaultConfig.displayLabel,
         displayPath: normalizePath(config?.displayPath),
         displaySort: Number.isFinite(Number(config?.displaySort))
             ? Math.max(1, Math.min(9999, Number(config.displaySort)))
             : defaultConfig.displaySort,
         displayOpenInNewTab: config?.displayOpenInNewTab === true,
-        pageKicker: String(config?.pageKicker || defaultConfig.pageKicker).trim() || defaultConfig.pageKicker,
-        pageTitle: String(config?.pageTitle || defaultConfig.pageTitle).trim() || defaultConfig.pageTitle,
+        pageKicker:
+            String(config?.pageKicker || defaultConfig.pageKicker).trim() ||
+            defaultConfig.pageKicker,
+        pageTitle:
+            String(config?.pageTitle || defaultConfig.pageTitle).trim() || defaultConfig.pageTitle,
         pageDescription:
-            String(config?.pageDescription || defaultConfig.pageDescription).trim() || defaultConfig.pageDescription,
-        pageSize: Number.isInteger(pageSize) ? Math.max(1, Math.min(100, pageSize)) : defaultConfig.pageSize,
-        defaultOrderBy: orderByAllowSet.has(defaultOrderBy) ? defaultOrderBy : defaultConfig.defaultOrderBy,
-        defaultOrder: String(config?.defaultOrder || 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc',
-        defaultCategoryId: Number.isInteger(defaultCategoryId) && defaultCategoryId > 0 ? defaultCategoryId : 0,
+            String(config?.pageDescription || defaultConfig.pageDescription).trim() ||
+            defaultConfig.pageDescription,
+        pageSize: Number.isInteger(pageSize)
+            ? Math.max(1, Math.min(100, pageSize))
+            : defaultConfig.pageSize,
+        defaultOrderBy: orderByAllowSet.has(defaultOrderBy)
+            ? defaultOrderBy
+            : defaultConfig.defaultOrderBy,
+        defaultOrder:
+            String(config?.defaultOrder || 'desc')
+                .trim()
+                .toLowerCase() === 'asc'
+                ? 'asc'
+                : 'desc',
+        defaultCategoryId:
+            Number.isInteger(defaultCategoryId) && defaultCategoryId > 0 ? defaultCategoryId : 0,
         defaultTagId: Number.isInteger(defaultTagId) && defaultTagId > 0 ? defaultTagId : 0,
-        apiSourceMode: sourceModeAllowSet.has(apiSourceMode) ? (apiSourceMode as HotArticlesConfig['apiSourceMode']) : 'auto',
+        apiSourceMode: sourceModeAllowSet.has(apiSourceMode)
+            ? (apiSourceMode as HotArticlesConfig['apiSourceMode'])
+            : 'auto',
         motionEnabled: config?.motionEnabled !== false,
-        heroTagline: String(config?.heroTagline || defaultConfig.heroTagline).trim() || defaultConfig.heroTagline,
-        hubHeaderKicker: String(config?.hubHeaderKicker || defaultConfig.hubHeaderKicker).trim() || defaultConfig.hubHeaderKicker,
-        hubHeaderTitle: String(config?.hubHeaderTitle || defaultConfig.hubHeaderTitle).trim() || defaultConfig.hubHeaderTitle,
-        hubHeaderDescription: String(config?.hubHeaderDescription || defaultConfig.hubHeaderDescription).trim() || defaultConfig.hubHeaderDescription,
+        heroTagline:
+            String(config?.heroTagline || defaultConfig.heroTagline).trim() ||
+            defaultConfig.heroTagline,
+        hubHeaderKicker:
+            String(config?.hubHeaderKicker || defaultConfig.hubHeaderKicker).trim() ||
+            defaultConfig.hubHeaderKicker,
+        hubHeaderTitle:
+            String(config?.hubHeaderTitle || defaultConfig.hubHeaderTitle).trim() ||
+            defaultConfig.hubHeaderTitle,
+        hubHeaderDescription:
+            String(config?.hubHeaderDescription || defaultConfig.hubHeaderDescription).trim() ||
+            defaultConfig.hubHeaderDescription,
         linksNewWindow: config?.linksNewWindow !== false,
         filterPresets: normalizedFilterPresets,
-        workbenchMenuItems: normalizeWorkbenchMenuItems(config?.workbenchMenuItems, normalizedFilterPresets),
+        workbenchMenuItems: normalizeWorkbenchMenuItems(
+            config?.workbenchMenuItems,
+            normalizedFilterPresets
+        )
     }
 }
 
@@ -722,7 +1550,7 @@ const normalizeConfig = (config: any): HotArticlesConfig => {
 const applyConfigToForm = (config: HotArticlesConfig) => {
     const next = normalizeConfig(config)
     formData.enabled = next.enabled
-    formData.displayPlacements = [ ...next.displayPlacements ]
+    formData.displayPlacements = [...next.displayPlacements]
     formData.displayLabel = next.displayLabel
     formData.displayPath = next.displayPath
     formData.displaySort = next.displaySort
@@ -753,7 +1581,13 @@ const applyConfigToForm = (config: HotArticlesConfig) => {
  * 获取当前可用的筛选 key 列表。
  */
 const getValidPresetKeys = (): string[] => {
-    return formData.filterPresets.map((item) => String(item.key || '').trim().toLowerCase()).filter(Boolean)
+    return formData.filterPresets
+        .map((item) =>
+            String(item.key || '')
+                .trim()
+                .toLowerCase()
+        )
+        .filter(Boolean)
 }
 
 /**
@@ -770,12 +1604,17 @@ const sanitizeMenuPresetKeys = (value: unknown): string[] => {
     const normalized = Array.from(
         new Set(
             source
-                .map((item) => String(item || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''))
+                .map((item) =>
+                    String(item || '')
+                        .trim()
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_-]/g, '')
+                )
                 .filter((item) => Boolean(item) && validKeySet.has(item))
         )
     )
     if (normalized.length > 0 && validKeySet.has('all') && !normalized.includes('all')) {
-        return [ 'all', ...normalized ]
+        return ['all', ...normalized]
     }
     return normalized
 }
@@ -839,7 +1678,7 @@ const handleWorkbenchMenuModeChange = (item: HotWorkbenchMenuConfigItem) => {
         item.presetKey = ''
     } else if (!Array.isArray(item.presetKeys) || item.presetKeys.length === 0) {
         const validKeys = getValidPresetKeys()
-        const defaultKeys = [ 'all', validKeys.find((key) => key !== 'all') || '' ].filter(Boolean)
+        const defaultKeys = ['all', validKeys.find((key) => key !== 'all') || ''].filter(Boolean)
         item.presetKeys = sanitizeMenuPresetKeys(defaultKeys)
     }
     syncMenuPresetKey(item)
@@ -849,9 +1688,15 @@ const handleWorkbenchMenuModeChange = (item: HotWorkbenchMenuConfigItem) => {
  * 一键导入旧版 hot 项目筛选库（分类 + 标签）。
  */
 const handleImportLegacyPresets = () => {
-    const merged = normalizeFilterPresets([ ...formData.filterPresets, ...LEGACY_FILTER_PRESET_LIBRARY ])
+    const merged = normalizeFilterPresets([
+        ...formData.filterPresets,
+        ...LEGACY_FILTER_PRESET_LIBRARY
+    ])
     formData.filterPresets = merged.map((item) => ({ ...item }))
-    formData.workbenchMenuItems = normalizeWorkbenchMenuItems(formData.workbenchMenuItems, formData.filterPresets).map((item) => ({ ...item }))
+    formData.workbenchMenuItems = normalizeWorkbenchMenuItems(
+        formData.workbenchMenuItems,
+        formData.filterPresets
+    ).map((item) => ({ ...item }))
     formData.workbenchMenuItems.forEach((item) => {
         handleWorkbenchPresetKeysChange(item)
     })
@@ -865,12 +1710,13 @@ const handleApplyLegacyMenuPresetGroups = () => {
     const validKeySet = new Set(getValidPresetKeys())
     formData.workbenchMenuItems = formData.workbenchMenuItems.map((item) => {
         const mapping = LEGACY_MENU_PRESET_GROUPS[item.key]
-        const fallback = item.mode === 'preset' ? [ 'all', item.presetKey ] : [ 'all' ]
-        const target = sanitizeMenuPresetKeys((mapping && mapping.length > 0 ? mapping : fallback).filter(Boolean))
-            .filter((key) => validKeySet.has(key))
+        const fallback = item.mode === 'preset' ? ['all', item.presetKey] : ['all']
+        const target = sanitizeMenuPresetKeys(
+            (mapping && mapping.length > 0 ? mapping : fallback).filter(Boolean)
+        ).filter((key) => validKeySet.has(key))
         const next = {
             ...item,
-            presetKeys: target,
+            presetKeys: target
         }
         handleWorkbenchPresetKeysChange(next)
         return next
@@ -906,7 +1752,7 @@ const handleAddPreset = () => {
         id: 0,
         description: '',
         enabled: true,
-        sort: nextSort,
+        sort: nextSort
     })
     formData.workbenchMenuItems.forEach((item) => {
         handleWorkbenchPresetKeysChange(item)
@@ -950,7 +1796,7 @@ const handleAddWorkbenchMenu = () => {
         externalUrl: '',
         subtitle: '',
         enabled: true,
-        sort: nextSort,
+        sort: nextSort
     })
 }
 

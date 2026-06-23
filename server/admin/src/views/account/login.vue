@@ -44,7 +44,11 @@
                                     <icon name="el-icon-Key" />
                                 </template>
                                 <template #append>
-                                    <el-button text :disabled="captchaLoading" @click="handleRefreshCaptchaClick">
+                                    <el-button
+                                        text
+                                        :disabled="captchaLoading"
+                                        @click="handleRefreshCaptchaClick"
+                                    >
                                         {{ captchaLoading ? '刷新中' : '换一题' }}
                                     </el-button>
                                 </template>
@@ -183,7 +187,9 @@ const handleRefreshCaptchaClick = () => {
  */
 const handleLoginErrorState = async (error: any) => {
     const errorData = error?.data || {}
-    const needCaptcha = Boolean(errorData?.needCaptcha || errorData?.captchaRequired || errorData?.locked)
+    const needCaptcha = Boolean(
+        errorData?.needCaptcha || errorData?.captchaRequired || errorData?.locked
+    )
     const lockSeconds = Number(errorData?.lockSeconds || 0) || 0
     if (needCaptcha) {
         captchaVisible.value = true

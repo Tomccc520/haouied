@@ -22,7 +22,9 @@
                         placeholder="搜索图标（名称 / key）"
                         class="svg-library-picker__search"
                     />
-                    <span class="svg-library-picker__count">{{ filteredOptions.length }} / {{ normalizedOptions.length }}</span>
+                    <span class="svg-library-picker__count"
+                        >{{ filteredOptions.length }} / {{ normalizedOptions.length }}</span
+                    >
                 </div>
                 <div class="svg-library-picker__list-wrap">
                     <el-scrollbar height="280px">
@@ -44,8 +46,12 @@
                                     v-html="item.svg"
                                 />
                                 <span class="svg-library-picker__item-meta">
-                                    <span class="svg-library-picker__item-label">{{ item.label }}</span>
-                                    <span class="svg-library-picker__item-key">svg:{{ item.key }}</span>
+                                    <span class="svg-library-picker__item-label">{{
+                                        item.label
+                                    }}</span>
+                                    <span class="svg-library-picker__item-key"
+                                        >svg:{{ item.key }}</span
+                                    >
                                 </span>
                             </button>
                         </div>
@@ -65,7 +71,11 @@
                     @clear="handleClear"
                 >
                     <template #prepend>
-                        <span v-if="selectedOption" class="svg-library-picker__selected-icon" v-html="selectedOption.svg" />
+                        <span
+                            v-if="selectedOption"
+                            class="svg-library-picker__selected-icon"
+                            v-html="selectedOption.svg"
+                        />
                         <span v-else class="svg-library-picker__selected-empty">无</span>
                     </template>
                     <template #append>
@@ -119,7 +129,9 @@ const inputRef = shallowRef<InstanceType<typeof ElInput>>()
  * 规范化 svg:key 令牌，兼容传入 svg:key 或纯 key。
  */
 const normalizeSvgTokenKey = (value: unknown): string => {
-    const raw = String(value || '').trim().toLowerCase()
+    const raw = String(value || '')
+        .trim()
+        .toLowerCase()
     const key = raw.startsWith('svg:') ? raw.slice(4) : raw
     return key.replace(/[^a-z0-9_-]/g, '').slice(0, 40)
 }
@@ -157,8 +169,8 @@ const normalizedOptions = computed<SvgLibraryItem[]>(() =>
 
 const selectedKey = computed(() => normalizeSvgTokenKey(props.modelValue))
 
-const selectedOption = computed(() =>
-    normalizedOptions.value.find((item) => item.key === selectedKey.value) || null
+const selectedOption = computed(
+    () => normalizedOptions.value.find((item) => item.key === selectedKey.value) || null
 )
 
 const displayText = computed(() =>
@@ -166,12 +178,18 @@ const displayText = computed(() =>
 )
 
 const filteredOptions = computed(() => {
-    const searchKeyword = String(keyword.value || '').trim().toLowerCase()
+    const searchKeyword = String(keyword.value || '')
+        .trim()
+        .toLowerCase()
     if (!searchKeyword) return normalizedOptions.value
     return normalizedOptions.value.filter((item) => {
         return (
-            String(item.label || '').toLowerCase().includes(searchKeyword) ||
-            String(item.key || '').toLowerCase().includes(searchKeyword)
+            String(item.label || '')
+                .toLowerCase()
+                .includes(searchKeyword) ||
+            String(item.key || '')
+                .toLowerCase()
+                .includes(searchKeyword)
         )
     })
 })

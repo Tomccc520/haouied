@@ -89,7 +89,9 @@ function extractResponseErrorMessage(error: any): string {
  * 判断是否为授权激活接口请求
  */
 function isLicenseActivateRequest(config: any): boolean {
-    const rawUrl = String(config?.url || '').trim().toLowerCase()
+    const rawUrl = String(config?.url || '')
+        .trim()
+        .toLowerCase()
     return rawUrl.includes('/uied/license/activate')
 }
 

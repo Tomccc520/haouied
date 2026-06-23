@@ -19,7 +19,9 @@
                     </p>
                 </div>
                 <div class="admin-update-log-page__hero-side">
-                    <div class="admin-update-log-page__hero-badge">本版 {{ highlightCount }} 项</div>
+                    <div class="admin-update-log-page__hero-badge">
+                        本版 {{ highlightCount }} 项
+                    </div>
                     <div class="admin-update-log-page__hero-tip">当前仅标记本版重点能力</div>
                 </div>
             </div>
@@ -188,7 +190,7 @@ const jumpToHighlight = (item: AdminUpdateHighlightItem) => {
         font-size: 12px;
         font-weight: 600;
         color: #1d4ed8;
-        background: rgba(37, 99, 235, 0.10);
+        background: rgba(37, 99, 235, 0.1);
         border: 1px solid rgba(37, 99, 235, 0.14);
     }
 
@@ -270,7 +272,7 @@ const jumpToHighlight = (item: AdminUpdateHighlightItem) => {
         font-size: 10px;
         font-weight: 600;
         color: #1d4ed8;
-        background: rgba(37, 99, 235, 0.10);
+        background: rgba(37, 99, 235, 0.1);
         border: 1px solid rgba(37, 99, 235, 0.14);
     }
 

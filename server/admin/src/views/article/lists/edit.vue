@@ -26,7 +26,9 @@
                                 <div class="article-edit__panel-head">
                                     <span class="font-medium">正文编辑</span>
                                     <div class="article-edit__actions">
-                                        <el-tag size="small" type="info">{{ autoDraftStatusText }}</el-tag>
+                                        <el-tag size="small" type="info">{{
+                                            autoDraftStatusText
+                                        }}</el-tag>
                                         <el-button size="small" @click="saveLocalDraft"
                                             >暂存草稿</el-button
                                         >
@@ -652,10 +654,10 @@ const clearLocalDraft = async () => {
  */
 const hasDraftContent = () => {
     return Boolean(
-        String(formData.title || '').trim()
-        || String(formData.content || '').trim()
-        || String(formData.intro || '').trim()
-        || String(formData.summary || '').trim()
+        String(formData.title || '').trim() ||
+            String(formData.content || '').trim() ||
+            String(formData.intro || '').trim() ||
+            String(formData.summary || '').trim()
     )
 }
 

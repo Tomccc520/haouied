@@ -13,7 +13,10 @@
                 <div class="content-hub-setting__header">
                     <div>
                         <h2>内容中心统一配置</h2>
-                        <p>热门文章 / 榜单系统 / 每日热榜 / 最新上新 / 网站对比 已合并到一个菜单，前台统一配置驱动展示。</p>
+                        <p>
+                            热门文章 / 榜单系统 / 每日热榜 / 最新上新 / 网站对比
+                            已合并到一个菜单，前台统一配置驱动展示。
+                        </p>
                     </div>
                 </div>
             </template>
@@ -34,8 +37,17 @@
                             <div class="content-hub-setting__daily-new-head">
                                 <span>最新上新入口与页面文案</span>
                                 <div class="content-hub-setting__daily-new-actions">
-                                    <el-button :loading="dailyNewLoading" @click="loadDailyNewConfig">刷新</el-button>
-                                    <el-button type="primary" :loading="dailyNewSaving" @click="saveDailyNewConfig">保存配置</el-button>
+                                    <el-button
+                                        :loading="dailyNewLoading"
+                                        @click="loadDailyNewConfig"
+                                        >刷新</el-button
+                                    >
+                                    <el-button
+                                        type="primary"
+                                        :loading="dailyNewSaving"
+                                        @click="saveDailyNewConfig"
+                                        >保存配置</el-button
+                                    >
                                 </div>
                             </div>
                         </template>
@@ -44,7 +56,10 @@
                                 <el-switch v-model="dailyNewForm.enabled" />
                             </el-form-item>
                             <el-form-item label="入口文案">
-                                <el-input v-model="dailyNewForm.displayLabel" :disabled="!dailyNewForm.enabled" />
+                                <el-input
+                                    v-model="dailyNewForm.displayLabel"
+                                    :disabled="!dailyNewForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="入口路径">
                                 <el-input
@@ -54,26 +69,48 @@
                                 />
                             </el-form-item>
                             <el-form-item label="显示位置">
-                                <el-checkbox-group v-model="dailyNewForm.displayPlacements" :disabled="!dailyNewForm.enabled">
+                                <el-checkbox-group
+                                    v-model="dailyNewForm.displayPlacements"
+                                    :disabled="!dailyNewForm.enabled"
+                                >
                                     <el-checkbox label="nav_quick_entry">首页快捷入口</el-checkbox>
                                     <el-checkbox label="home_menu">顶部导航菜单</el-checkbox>
                                     <el-checkbox label="footer_link">页脚链接</el-checkbox>
                                 </el-checkbox-group>
                             </el-form-item>
                             <el-form-item label="入口排序">
-                                <el-input-number v-model="dailyNewForm.displaySort" :min="1" :max="9999" :disabled="!dailyNewForm.enabled" />
+                                <el-input-number
+                                    v-model="dailyNewForm.displaySort"
+                                    :min="1"
+                                    :max="9999"
+                                    :disabled="!dailyNewForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="新窗口打开">
-                                <el-switch v-model="dailyNewForm.displayOpenInNewTab" :disabled="!dailyNewForm.enabled" />
+                                <el-switch
+                                    v-model="dailyNewForm.displayOpenInNewTab"
+                                    :disabled="!dailyNewForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="默认天数">
-                                <el-input-number v-model="dailyNewForm.defaultDays" :min="1" :max="30" :disabled="!dailyNewForm.enabled" />
+                                <el-input-number
+                                    v-model="dailyNewForm.defaultDays"
+                                    :min="1"
+                                    :max="30"
+                                    :disabled="!dailyNewForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="页面角标">
-                                <el-input v-model="dailyNewForm.pageKicker" :disabled="!dailyNewForm.enabled" />
+                                <el-input
+                                    v-model="dailyNewForm.pageKicker"
+                                    :disabled="!dailyNewForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="页面标题">
-                                <el-input v-model="dailyNewForm.pageTitle" :disabled="!dailyNewForm.enabled" />
+                                <el-input
+                                    v-model="dailyNewForm.pageTitle"
+                                    :disabled="!dailyNewForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="页面描述">
                                 <el-input
@@ -92,9 +129,22 @@
                             <div class="content-hub-setting__daily-new-head">
                                 <span>网站对比页配置（/vs/*）</span>
                                 <div class="content-hub-setting__daily-new-actions">
-                                    <el-button :loading="websiteCompareLoading" @click="loadWebsiteCompareConfig">刷新</el-button>
-                                    <el-button :loading="websiteCompareSaving" @click="resetWebsiteCompareToDefault">恢复默认</el-button>
-                                    <el-button type="primary" :loading="websiteCompareSaving" @click="saveWebsiteCompareConfig">保存配置</el-button>
+                                    <el-button
+                                        :loading="websiteCompareLoading"
+                                        @click="loadWebsiteCompareConfig"
+                                        >刷新</el-button
+                                    >
+                                    <el-button
+                                        :loading="websiteCompareSaving"
+                                        @click="resetWebsiteCompareToDefault"
+                                        >恢复默认</el-button
+                                    >
+                                    <el-button
+                                        type="primary"
+                                        :loading="websiteCompareSaving"
+                                        @click="saveWebsiteCompareConfig"
+                                        >保存配置</el-button
+                                    >
                                 </div>
                             </div>
                         </template>
@@ -119,10 +169,17 @@
 
                             <el-divider content-position="left">文案模板</el-divider>
                             <el-form-item label="H1标题模板">
-                                <el-input v-model="websiteCompareForm.copywriting.heroTitleTemplate" placeholder="支持 {left} / {right}" />
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.heroTitleTemplate"
+                                    placeholder="支持 {left} / {right}"
+                                />
                             </el-form-item>
                             <el-form-item label="描述模板">
-                                <el-input v-model="websiteCompareForm.copywriting.heroDescriptionTemplate" type="textarea" :rows="2" />
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.heroDescriptionTemplate"
+                                    type="textarea"
+                                    :rows="2"
+                                />
                             </el-form-item>
                             <el-form-item label="差异表标题">
                                 <el-input v-model="websiteCompareForm.copywriting.coreDiffTitle" />
@@ -131,7 +188,11 @@
                                 <el-input v-model="websiteCompareForm.copywriting.guideTitle" />
                             </el-form-item>
                             <el-form-item label="建议区说明">
-                                <el-input v-model="websiteCompareForm.copywriting.guideDescription" type="textarea" :rows="2" />
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.guideDescription"
+                                    type="textarea"
+                                    :rows="2"
+                                />
                             </el-form-item>
                             <el-form-item label="优点模板">
                                 <el-input
@@ -159,7 +220,9 @@
                             </el-form-item>
                             <el-form-item label="势均力敌建议">
                                 <el-input
-                                    v-model="websiteCompareForm.copywriting.recommendationTieTemplate"
+                                    v-model="
+                                        websiteCompareForm.copywriting.recommendationTieTemplate
+                                    "
                                     type="textarea"
                                     :rows="2"
                                     placeholder="支持 {left} / {right}"
@@ -167,7 +230,9 @@
                             </el-form-item>
                             <el-form-item label="领先建议模板">
                                 <el-input
-                                    v-model="websiteCompareForm.copywriting.recommendationLeadTemplate"
+                                    v-model="
+                                        websiteCompareForm.copywriting.recommendationLeadTemplate
+                                    "
                                     type="textarea"
                                     :rows="2"
                                     placeholder="支持 {winner} / {loser}"
@@ -177,16 +242,30 @@
                                 <el-input v-model="websiteCompareForm.copywriting.faqTitle" />
                             </el-form-item>
                             <el-form-item label="内链标题">
-                                <el-input v-model="websiteCompareForm.copywriting.internalLinksTitle" />
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.internalLinksTitle"
+                                />
                             </el-form-item>
                             <el-form-item label="内链说明">
-                                <el-input v-model="websiteCompareForm.copywriting.internalLinksDescription" type="textarea" :rows="2" />
+                                <el-input
+                                    v-model="
+                                        websiteCompareForm.copywriting.internalLinksDescription
+                                    "
+                                    type="textarea"
+                                    :rows="2"
+                                />
                             </el-form-item>
                             <el-form-item label="AI区标题">
-                                <el-input v-model="websiteCompareForm.copywriting.aiAnalysisTitle" />
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.aiAnalysisTitle"
+                                />
                             </el-form-item>
                             <el-form-item label="AI区说明">
-                                <el-input v-model="websiteCompareForm.copywriting.aiAnalysisDescription" type="textarea" :rows="2" />
+                                <el-input
+                                    v-model="websiteCompareForm.copywriting.aiAnalysisDescription"
+                                    type="textarea"
+                                    :rows="2"
+                                />
                             </el-form-item>
 
                             <el-divider content-position="left">对比指标</el-divider>
@@ -211,7 +290,9 @@
 
                             <el-divider content-position="left">FAQ配置</el-divider>
                             <div class="content-hub-setting__faq-actions">
-                                <el-button type="primary" plain @click="addWebsiteCompareFaq">新增FAQ</el-button>
+                                <el-button type="primary" plain @click="addWebsiteCompareFaq"
+                                    >新增FAQ</el-button
+                                >
                             </div>
                             <div
                                 v-for="(faq, index) in websiteCompareForm.faqItems"
@@ -221,12 +302,24 @@
                                 <div class="content-hub-setting__faq-item-header">
                                     <span>FAQ #{{ index + 1 }}</span>
                                     <div class="content-hub-setting__faq-item-actions">
-                                        <el-switch v-model="faq.enabled" active-text="启用" inactive-text="停用" />
-                                        <el-button type="danger" link @click="removeWebsiteCompareFaq(index)">删除</el-button>
+                                        <el-switch
+                                            v-model="faq.enabled"
+                                            active-text="启用"
+                                            inactive-text="停用"
+                                        />
+                                        <el-button
+                                            type="danger"
+                                            link
+                                            @click="removeWebsiteCompareFaq(index)"
+                                            >删除</el-button
+                                        >
                                     </div>
                                 </div>
                                 <el-form-item label="问题">
-                                    <el-input v-model="faq.question" placeholder="支持 {left} / {right}" />
+                                    <el-input
+                                        v-model="faq.question"
+                                        placeholder="支持 {left} / {right}"
+                                    />
                                 </el-form-item>
                                 <el-form-item label="答案">
                                     <el-input v-model="faq.answer" type="textarea" :rows="3" />
@@ -244,8 +337,15 @@
                             <div class="content-hub-setting__daily-new-head">
                                 <span>MCP 前端页面样式配置（/mcp）</span>
                                 <div class="content-hub-setting__daily-new-actions">
-                                    <el-button :loading="mcpPageLoading" @click="loadMcpPageConfig">刷新</el-button>
-                                    <el-button type="primary" :loading="mcpPageSaving" @click="saveMcpPageConfig">保存配置</el-button>
+                                    <el-button :loading="mcpPageLoading" @click="loadMcpPageConfig"
+                                        >刷新</el-button
+                                    >
+                                    <el-button
+                                        type="primary"
+                                        :loading="mcpPageSaving"
+                                        @click="saveMcpPageConfig"
+                                        >保存配置</el-button
+                                    >
                                 </div>
                             </div>
                         </template>
@@ -254,22 +354,34 @@
                                 <el-switch v-model="mcpPageForm.enabled" />
                             </el-form-item>
                             <el-form-item label="展示Hero区">
-                                <el-switch v-model="mcpPageForm.heroEnabled" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.heroEnabled"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="Hero风格">
-                                <el-radio-group v-model="mcpPageForm.heroStyle" :disabled="!mcpPageForm.enabled">
+                                <el-radio-group
+                                    v-model="mcpPageForm.heroStyle"
+                                    :disabled="!mcpPageForm.enabled"
+                                >
                                     <el-radio-button label="glass">玻璃感</el-radio-button>
                                     <el-radio-button label="solid">纯色块</el-radio-button>
                                 </el-radio-group>
                             </el-form-item>
                             <el-form-item label="视觉预设">
-                                <el-radio-group v-model="mcpPageForm.visualPreset" :disabled="!mcpPageForm.enabled">
+                                <el-radio-group
+                                    v-model="mcpPageForm.visualPreset"
+                                    :disabled="!mcpPageForm.enabled"
+                                >
                                     <el-radio-button label="minimal">极简线框</el-radio-button>
                                     <el-radio-button label="tech">科技渐变</el-radio-button>
                                 </el-radio-group>
                             </el-form-item>
                             <el-form-item label="背景模式">
-                                <el-radio-group v-model="mcpPageForm.backgroundMode" :disabled="!mcpPageForm.enabled">
+                                <el-radio-group
+                                    v-model="mcpPageForm.backgroundMode"
+                                    :disabled="!mcpPageForm.enabled"
+                                >
                                     <el-radio-button label="plain">纯色</el-radio-button>
                                     <el-radio-button label="mesh">柔和渐变</el-radio-button>
                                     <el-radio-button label="grid">网格纹理</el-radio-button>
@@ -277,20 +389,41 @@
                             </el-form-item>
                             <el-form-item label="主题色">
                                 <div class="content-hub-setting__color-field">
-                                    <el-color-picker v-model="mcpPageForm.accentColor" :disabled="!mcpPageForm.enabled" />
-                                    <el-input v-model="mcpPageForm.accentColor" :disabled="!mcpPageForm.enabled" maxlength="7" />
+                                    <el-color-picker
+                                        v-model="mcpPageForm.accentColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                    />
+                                    <el-input
+                                        v-model="mcpPageForm.accentColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                        maxlength="7"
+                                    />
                                 </div>
                             </el-form-item>
                             <el-form-item label="页面底色">
                                 <div class="content-hub-setting__color-field">
-                                    <el-color-picker v-model="mcpPageForm.pageBackgroundColor" :disabled="!mcpPageForm.enabled" />
-                                    <el-input v-model="mcpPageForm.pageBackgroundColor" :disabled="!mcpPageForm.enabled" maxlength="7" />
+                                    <el-color-picker
+                                        v-model="mcpPageForm.pageBackgroundColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                    />
+                                    <el-input
+                                        v-model="mcpPageForm.pageBackgroundColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                        maxlength="7"
+                                    />
                                 </div>
                             </el-form-item>
                             <el-form-item label="Hero底色">
                                 <div class="content-hub-setting__color-field">
-                                    <el-color-picker v-model="mcpPageForm.heroBackgroundColor" :disabled="!mcpPageForm.enabled" />
-                                    <el-input v-model="mcpPageForm.heroBackgroundColor" :disabled="!mcpPageForm.enabled" maxlength="7" />
+                                    <el-color-picker
+                                        v-model="mcpPageForm.heroBackgroundColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                    />
+                                    <el-input
+                                        v-model="mcpPageForm.heroBackgroundColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                        maxlength="7"
+                                    />
                                 </div>
                             </el-form-item>
                             <el-form-item label="Hero头图URL">
@@ -301,10 +434,20 @@
                                 />
                             </el-form-item>
                             <el-form-item label="页面角标">
-                                <el-input v-model="mcpPageForm.pageKicker" :disabled="!mcpPageForm.enabled" maxlength="40" show-word-limit />
+                                <el-input
+                                    v-model="mcpPageForm.pageKicker"
+                                    :disabled="!mcpPageForm.enabled"
+                                    maxlength="40"
+                                    show-word-limit
+                                />
                             </el-form-item>
                             <el-form-item label="页面标题">
-                                <el-input v-model="mcpPageForm.pageTitle" :disabled="!mcpPageForm.enabled" maxlength="80" show-word-limit />
+                                <el-input
+                                    v-model="mcpPageForm.pageTitle"
+                                    :disabled="!mcpPageForm.enabled"
+                                    maxlength="80"
+                                    show-word-limit
+                                />
                             </el-form-item>
                             <el-form-item label="页面描述">
                                 <el-input
@@ -317,62 +460,119 @@
                                 />
                             </el-form-item>
                             <el-form-item label="显示收录统计">
-                                <el-switch v-model="mcpPageForm.showHeroStats" :disabled="!mcpPageForm.enabled || !mcpPageForm.heroEnabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.showHeroStats"
+                                    :disabled="!mcpPageForm.enabled || !mcpPageForm.heroEnabled"
+                                />
                             </el-form-item>
                             <el-form-item label="卡片风格">
-                                <el-radio-group v-model="mcpPageForm.cardStyle" :disabled="!mcpPageForm.enabled">
+                                <el-radio-group
+                                    v-model="mcpPageForm.cardStyle"
+                                    :disabled="!mcpPageForm.enabled"
+                                >
                                     <el-radio-button label="elevated">浮层卡片</el-radio-button>
                                     <el-radio-button label="outline">描边卡片</el-radio-button>
                                 </el-radio-group>
                             </el-form-item>
                             <el-form-item label="信息密度">
-                                <el-radio-group v-model="mcpPageForm.density" :disabled="!mcpPageForm.enabled">
+                                <el-radio-group
+                                    v-model="mcpPageForm.density"
+                                    :disabled="!mcpPageForm.enabled"
+                                >
                                     <el-radio-button label="comfortable">舒适</el-radio-button>
                                     <el-radio-button label="compact">紧凑</el-radio-button>
                                 </el-radio-group>
                             </el-form-item>
                             <el-form-item label="卡片边框色">
                                 <div class="content-hub-setting__color-field">
-                                    <el-color-picker v-model="mcpPageForm.cardBorderColor" :disabled="!mcpPageForm.enabled" />
-                                    <el-input v-model="mcpPageForm.cardBorderColor" :disabled="!mcpPageForm.enabled" maxlength="7" />
+                                    <el-color-picker
+                                        v-model="mcpPageForm.cardBorderColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                    />
+                                    <el-input
+                                        v-model="mcpPageForm.cardBorderColor"
+                                        :disabled="!mcpPageForm.enabled"
+                                        maxlength="7"
+                                    />
                                 </div>
                             </el-form-item>
                             <el-form-item label="卡片圆角">
-                                <el-input-number v-model="mcpPageForm.cardRadius" :min="10" :max="28" :disabled="!mcpPageForm.enabled" />
+                                <el-input-number
+                                    v-model="mcpPageForm.cardRadius"
+                                    :min="10"
+                                    :max="28"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="卡片阴影">
-                                <el-switch v-model="mcpPageForm.cardShadowEnabled" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.cardShadowEnabled"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="显示官网按钮">
-                                <el-switch v-model="mcpPageForm.showOfficialLink" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.showOfficialLink"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="显示标签筛选">
-                                <el-switch v-model="mcpPageForm.showTagFilter" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.showTagFilter"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="标签上限">
-                                <el-input-number v-model="mcpPageForm.tagFilterLimit" :min="5" :max="60" :disabled="!mcpPageForm.enabled || !mcpPageForm.showTagFilter" />
+                                <el-input-number
+                                    v-model="mcpPageForm.tagFilterLimit"
+                                    :min="5"
+                                    :max="60"
+                                    :disabled="!mcpPageForm.enabled || !mcpPageForm.showTagFilter"
+                                />
                             </el-form-item>
                             <el-form-item label="显示分类数量">
-                                <el-switch v-model="mcpPageForm.showCategoryCount" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.showCategoryCount"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="每页MCP卡片数">
                                 <div class="content-hub-setting__inline-column">
-                                    <el-input-number v-model="mcpPageForm.listPageSize" :min="6" :max="48" :disabled="!mcpPageForm.enabled" />
-                                    <span class="content-hub-setting__tip">前端 /mcp 列表分页条数，建议 12-24。</span>
+                                    <el-input-number
+                                        v-model="mcpPageForm.listPageSize"
+                                        :min="6"
+                                        :max="48"
+                                        :disabled="!mcpPageForm.enabled"
+                                    />
+                                    <span class="content-hub-setting__tip"
+                                        >前端 /mcp 列表分页条数，建议 12-24。</span
+                                    >
                                 </div>
                             </el-form-item>
                             <el-form-item label="内容最大宽度">
-                                <el-input-number v-model="mcpPageForm.maxWidth" :min="960" :max="1800" :step="20" :disabled="!mcpPageForm.enabled" />
+                                <el-input-number
+                                    v-model="mcpPageForm.maxWidth"
+                                    :min="960"
+                                    :max="1800"
+                                    :step="20"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-divider content-position="left">详情页头部样式</el-divider>
                             <el-form-item label="头部样式">
-                                <el-radio-group v-model="mcpPageForm.detailHeaderStyle" :disabled="!mcpPageForm.enabled">
+                                <el-radio-group
+                                    v-model="mcpPageForm.detailHeaderStyle"
+                                    :disabled="!mcpPageForm.enabled"
+                                >
                                     <el-radio-button label="classic">经典版</el-radio-button>
                                     <el-radio-button label="market">市场版</el-radio-button>
                                 </el-radio-group>
                             </el-form-item>
                             <el-form-item label="显示评分位">
-                                <el-switch v-model="mcpPageForm.detailShowRating" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.detailShowRating"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="默认评分值">
                                 <el-input-number
@@ -381,21 +581,31 @@
                                     :max="5"
                                     :step="0.1"
                                     :precision="1"
-                                    :disabled="!mcpPageForm.enabled || !mcpPageForm.detailShowRating"
+                                    :disabled="
+                                        !mcpPageForm.enabled || !mcpPageForm.detailShowRating
+                                    "
                                 />
                             </el-form-item>
                             <el-form-item label="显示接入命令">
-                                <el-switch v-model="mcpPageForm.detailShowCommand" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.detailShowCommand"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                             <el-form-item label="命令模板">
                                 <el-input
                                     v-model="mcpPageForm.detailCommandTemplate"
-                                    :disabled="!mcpPageForm.enabled || !mcpPageForm.detailShowCommand"
-                                    placeholder='可选占位符：{transport} {runtime} {official_url} {docs_url} {github_url} {slug}'
+                                    :disabled="
+                                        !mcpPageForm.enabled || !mcpPageForm.detailShowCommand
+                                    "
+                                    placeholder="可选占位符：{transport} {runtime} {official_url} {docs_url} {github_url} {slug}"
                                 />
                             </el-form-item>
                             <el-form-item label="显示版本标签">
-                                <el-switch v-model="mcpPageForm.detailShowVersionTag" :disabled="!mcpPageForm.enabled" />
+                                <el-switch
+                                    v-model="mcpPageForm.detailShowVersionTag"
+                                    :disabled="!mcpPageForm.enabled"
+                                />
                             </el-form-item>
                         </el-form>
                     </el-card>
@@ -406,8 +616,17 @@
                             <div class="content-hub-setting__daily-new-head">
                                 <span>Figma 前端页面配置（/figma）</span>
                                 <div class="content-hub-setting__daily-new-actions">
-                                    <el-button :loading="figmaPageLoading" @click="loadFigmaPageConfig">刷新</el-button>
-                                    <el-button type="primary" :loading="figmaPageSaving" @click="saveFigmaPageConfig">保存配置</el-button>
+                                    <el-button
+                                        :loading="figmaPageLoading"
+                                        @click="loadFigmaPageConfig"
+                                        >刷新</el-button
+                                    >
+                                    <el-button
+                                        type="primary"
+                                        :loading="figmaPageSaving"
+                                        @click="saveFigmaPageConfig"
+                                        >保存配置</el-button
+                                    >
                                 </div>
                             </div>
                         </template>
@@ -417,20 +636,35 @@
                             </el-form-item>
                             <el-form-item label="每页插件卡片数">
                                 <div class="content-hub-setting__inline-column">
-                                    <el-input-number v-model="figmaPageForm.listPageSize" :min="6" :max="72" :disabled="!figmaPageForm.enabled" />
-                                    <span class="content-hub-setting__tip">控制 /figma 页列表分页条数，建议 18-30。</span>
+                                    <el-input-number
+                                        v-model="figmaPageForm.listPageSize"
+                                        :min="6"
+                                        :max="72"
+                                        :disabled="!figmaPageForm.enabled"
+                                    />
+                                    <span class="content-hub-setting__tip"
+                                        >控制 /figma 页列表分页条数，建议 18-30。</span
+                                    >
                                 </div>
                             </el-form-item>
                             <el-form-item label="卡片点击行为">
-                                <el-radio-group v-model="figmaPageForm.cardClickAction" :disabled="!figmaPageForm.enabled">
-                                    <el-radio-button label="official_first">优先原链接</el-radio-button>
+                                <el-radio-group
+                                    v-model="figmaPageForm.cardClickAction"
+                                    :disabled="!figmaPageForm.enabled"
+                                >
+                                    <el-radio-button label="official_first"
+                                        >优先原链接</el-radio-button
+                                    >
                                     <el-radio-button label="detail">进入详情页</el-radio-button>
                                 </el-radio-group>
                             </el-form-item>
                             <el-form-item label="新窗口打开">
                                 <el-switch
                                     v-model="figmaPageForm.cardClickNewWindow"
-                                    :disabled="!figmaPageForm.enabled || figmaPageForm.cardClickAction !== 'official_first'"
+                                    :disabled="
+                                        !figmaPageForm.enabled ||
+                                        figmaPageForm.cardClickAction !== 'official_first'
+                                    "
                                 />
                             </el-form-item>
                         </el-form>
@@ -456,7 +690,14 @@ import HotArticlesSetting from './hotArticles.vue'
 import DailyHotSetting from '../dailyHot/index.vue'
 import RankBoardSetting from '../rankBoard/index.vue'
 
-type ContentHubTab = 'hot' | 'rankings' | 'dailyHot' | 'dailyNew' | 'websiteCompare' | 'mcp' | 'figma'
+type ContentHubTab =
+    | 'hot'
+    | 'rankings'
+    | 'dailyHot'
+    | 'dailyNew'
+    | 'websiteCompare'
+    | 'mcp'
+    | 'figma'
 
 type WebsiteCompareMetricKey =
     | 'category'
@@ -583,13 +824,13 @@ const dailyNewForm = reactive<DailyNewFormState>({
     enabled: true,
     displayLabel: '每日上新',
     displayPath: '/p/hot?tab=daily-new',
-    displayPlacements: [ 'nav_quick_entry' ],
+    displayPlacements: ['nav_quick_entry'],
     displaySort: 86,
     displayOpenInNewTab: false,
     defaultDays: 7,
     pageKicker: 'Daily Fresh',
     pageTitle: '每日上新网址',
-    pageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
+    pageDescription: '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
 })
 
 /**
@@ -601,11 +842,12 @@ const getDefaultWebsiteCompareConfig = (): WebsiteCompareFormState => ({
         guide: true,
         faq: true,
         internalLinks: true,
-        aiAnalysis: true,
+        aiAnalysis: true
     },
     copywriting: {
         heroTitleTemplate: '{left} 和 {right} 哪个好？有什么区别和优缺点？',
-        heroDescriptionTemplate: '对比 {left} 和 {right} 的基础信息、分类、标签、截图与更新时间，帮助你更快判断哪个网站更适合你的使用场景。',
+        heroDescriptionTemplate:
+            '对比 {left} 和 {right} 的基础信息、分类、标签、截图与更新时间，帮助你更快判断哪个网站更适合你的使用场景。',
         coreDiffTitle: '核心差异对比',
         guideTitle: '优缺点速览与适用人群',
         guideDescription: '基于站点公开信息自动生成结构化建议，辅助快速决策。',
@@ -613,26 +855,27 @@ const getDefaultWebsiteCompareConfig = (): WebsiteCompareFormState => ({
             '{website} 的定位更偏向「{category}」场景，适合目标明确时快速筛选。',
             '从标签覆盖看，{website} 更接近 {top_tags} 等方向，功能边界相对清晰。',
             '如果你更关注 {top_tags} 这类需求，{website} 更值得优先试用。',
-            '当前公开信息结构较完整，适合先纳入候选清单做进一步体验。',
+            '当前公开信息结构较完整，适合先纳入候选清单做进一步体验。'
         ].join('\n'),
         cautionTemplates: [
             '建议结合官网实际体验确认 {website} 的核心功能与上手门槛。',
             '如果你更看重深度文档或社区反馈，建议再补充外部资料验证。',
             '在最终选择前，最好把 {website} 与同类工具的价格、更新频率一起比较。',
-            '若你的需求偏离「{category}」方向，建议再看一轮备选方案。',
+            '若你的需求偏离「{category}」方向，建议再看一轮备选方案。'
         ].join('\n'),
         audienceTemplates: [
             '适合正在寻找「{category}」相关资源的用户。',
             '适合关注 {top_tags} 等方向的从业者或团队。',
-            '如果你希望先快速筛一轮候选站点，{website} 适合作为首批试用对象。',
+            '如果你希望先快速筛一轮候选站点，{website} 适合作为首批试用对象。'
         ].join('\n'),
         recommendationTieTemplate: '两者公开信息量接近，建议优先根据具体功能场景和实际体验来决策。',
-        recommendationLeadTemplate: '从当前收录信息完整度看，{winner} 的公开信息更丰富，适合先作为优先试用方案。',
+        recommendationLeadTemplate:
+            '从当前收录信息完整度看，{winner} 的公开信息更丰富，适合先作为优先试用方案。',
         faqTitle: '常见问题',
         internalLinksTitle: '更多候选对比（内链）',
         internalLinksDescription: '基于分类与标签自动推荐，持续扩展对比页覆盖的长尾词。',
         aiAnalysisTitle: 'AI 分析对比（可选）',
-        aiAnalysisDescription: '基于当前公开信息生成对比结论、适用人群与选择建议。',
+        aiAnalysisDescription: '基于当前公开信息生成对比结论、适用人群与选择建议。'
     },
     metrics: [
         { key: 'category', label: '分类', enabled: true, sort: 10 },
@@ -642,28 +885,28 @@ const getDefaultWebsiteCompareConfig = (): WebsiteCompareFormState => ({
         { key: 'screenshot_count', label: '截图数量', enabled: true, sort: 50 },
         { key: 'comment_count', label: '评论数', enabled: true, sort: 60 },
         { key: 'rating_count', label: '评分人数', enabled: true, sort: 70 },
-        { key: 'updated_at', label: '最近更新', enabled: true, sort: 80 },
+        { key: 'updated_at', label: '最近更新', enabled: true, sort: 80 }
     ],
     faqItems: [
         {
             question: '{left} 和 {right} 哪个更适合新手？',
             answer: '建议先从功能定位、界面复杂度和你的使用目标来判断。',
             enabled: true,
-            sort: 10,
+            sort: 10
         },
         {
             question: '{left} 和 {right} 的主要区别是什么？',
             answer: '通常差异体现在功能定位、内容风格、更新频率与使用门槛。',
             enabled: true,
-            sort: 20,
+            sort: 20
         },
         {
             question: '怎么选择 {left} 或 {right}？',
             answer: '优先选择标签和分类更匹配的站点，再结合实际体验做最终决策。',
             enabled: true,
-            sort: 30,
-        },
-    ],
+            sort: 30
+        }
+    ]
 })
 
 const websiteCompareForm = reactive<WebsiteCompareFormState>(getDefaultWebsiteCompareConfig())
@@ -675,9 +918,9 @@ const normalizeTemplateTextarea = (value: unknown, fallback: string): string => 
     const rows = Array.isArray(value)
         ? value
         : String(value || '')
-            .split(/\r?\n/)
-            .map(item => String(item || '').trim())
-            .filter(Boolean)
+              .split(/\r?\n/)
+              .map((item) => String(item || '').trim())
+              .filter(Boolean)
     return rows.length > 0 ? rows.join('\n') : fallback
 }
 
@@ -687,7 +930,7 @@ const normalizeTemplateTextarea = (value: unknown, fallback: string): string => 
 const parseTemplateTextarea = (value: unknown, fallback: string[]): string[] => {
     const rows = String(value || '')
         .split(/\r?\n/)
-        .map(item => String(item || '').trim())
+        .map((item) => String(item || '').trim())
         .filter(Boolean)
     return rows.length > 0 ? rows : fallback
 }
@@ -725,7 +968,7 @@ const getDefaultMcpPageConfig = (): McpPageFormState => ({
     detailRatingValue: 0,
     detailShowCommand: true,
     detailCommandTemplate: '',
-    detailShowVersionTag: true,
+    detailShowVersionTag: true
 })
 
 const mcpPageForm = reactive<McpPageFormState>(getDefaultMcpPageConfig())
@@ -737,7 +980,7 @@ const getDefaultFigmaPageConfig = (): FigmaPageFormState => ({
     enabled: true,
     listPageSize: 24,
     cardClickAction: 'official_first',
-    cardClickNewWindow: true,
+    cardClickNewWindow: true
 })
 
 const figmaPageForm = reactive<FigmaPageFormState>(getDefaultFigmaPageConfig())
@@ -769,12 +1012,18 @@ const normalizeTab = (value: unknown): ContentHubTab => {
  */
 const applyDailyNewForm = (config: Record<string, any>) => {
     const placements = Array.isArray(config?.dailyNewDisplayPlacements)
-        ? config.dailyNewDisplayPlacements.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+        ? config.dailyNewDisplayPlacements
+              .map((item: unknown) => String(item || '').trim())
+              .filter(Boolean)
         : []
     dailyNewForm.enabled = config?.dailyNewEnabled !== false
-    dailyNewForm.displayLabel = String(config?.dailyNewDisplayLabel || '每日上新').trim() || '每日上新'
-    dailyNewForm.displayPath = String(config?.dailyNewDisplayPath || '/p/hot?tab=daily-new').trim() || '/p/hot?tab=daily-new'
-    dailyNewForm.displayPlacements = placements.length > 0 ? [ ...new Set(placements) ] : [ 'nav_quick_entry' ]
+    dailyNewForm.displayLabel =
+        String(config?.dailyNewDisplayLabel || '每日上新').trim() || '每日上新'
+    dailyNewForm.displayPath =
+        String(config?.dailyNewDisplayPath || '/p/hot?tab=daily-new').trim() ||
+        '/p/hot?tab=daily-new'
+    dailyNewForm.displayPlacements =
+        placements.length > 0 ? [...new Set(placements)] : ['nav_quick_entry']
     dailyNewForm.displaySort = Number.isFinite(Number(config?.dailyNewDisplaySort))
         ? Math.max(1, Math.min(9999, Number(config.dailyNewDisplaySort)))
         : 86
@@ -782,11 +1031,15 @@ const applyDailyNewForm = (config: Record<string, any>) => {
     dailyNewForm.defaultDays = Number.isFinite(Number(config?.dailyNewDefaultDays))
         ? Math.max(1, Math.min(30, Number(config.dailyNewDefaultDays)))
         : 7
-    dailyNewForm.pageKicker = String(config?.dailyNewPageKicker || 'Daily Fresh').trim() || 'Daily Fresh'
-    dailyNewForm.pageTitle = String(config?.dailyNewPageTitle || '每日上新网址').trim() || '每日上新网址'
-    dailyNewForm.pageDescription = String(
-        config?.dailyNewPageDescription || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
-    ).trim() || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
+    dailyNewForm.pageKicker =
+        String(config?.dailyNewPageKicker || 'Daily Fresh').trim() || 'Daily Fresh'
+    dailyNewForm.pageTitle =
+        String(config?.dailyNewPageTitle || '每日上新网址').trim() || '每日上新网址'
+    dailyNewForm.pageDescription =
+        String(
+            config?.dailyNewPageDescription ||
+                '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
+        ).trim() || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
 }
 
 /**
@@ -795,7 +1048,8 @@ const applyDailyNewForm = (config: Record<string, any>) => {
 const applyWebsiteCompareForm = (config: Record<string, any>) => {
     const defaults = getDefaultWebsiteCompareConfig()
     const sections = config?.sections && typeof config.sections === 'object' ? config.sections : {}
-    const copywriting = config?.copywriting && typeof config.copywriting === 'object' ? config.copywriting : {}
+    const copywriting =
+        config?.copywriting && typeof config.copywriting === 'object' ? config.copywriting : {}
     const rawMetrics = Array.isArray(config?.metrics) ? config.metrics : defaults.metrics
     const rawFaqItems = Array.isArray(config?.faqItems) ? config.faqItems : defaults.faqItems
 
@@ -805,11 +1059,21 @@ const applyWebsiteCompareForm = (config: Record<string, any>) => {
     websiteCompareForm.sections.internalLinks = sections?.internalLinks !== false
     websiteCompareForm.sections.aiAnalysis = sections?.aiAnalysis !== false
 
-    websiteCompareForm.copywriting.heroTitleTemplate = String(copywriting?.heroTitleTemplate || defaults.copywriting.heroTitleTemplate)
-    websiteCompareForm.copywriting.heroDescriptionTemplate = String(copywriting?.heroDescriptionTemplate || defaults.copywriting.heroDescriptionTemplate)
-    websiteCompareForm.copywriting.coreDiffTitle = String(copywriting?.coreDiffTitle || defaults.copywriting.coreDiffTitle)
-    websiteCompareForm.copywriting.guideTitle = String(copywriting?.guideTitle || defaults.copywriting.guideTitle)
-    websiteCompareForm.copywriting.guideDescription = String(copywriting?.guideDescription || defaults.copywriting.guideDescription)
+    websiteCompareForm.copywriting.heroTitleTemplate = String(
+        copywriting?.heroTitleTemplate || defaults.copywriting.heroTitleTemplate
+    )
+    websiteCompareForm.copywriting.heroDescriptionTemplate = String(
+        copywriting?.heroDescriptionTemplate || defaults.copywriting.heroDescriptionTemplate
+    )
+    websiteCompareForm.copywriting.coreDiffTitle = String(
+        copywriting?.coreDiffTitle || defaults.copywriting.coreDiffTitle
+    )
+    websiteCompareForm.copywriting.guideTitle = String(
+        copywriting?.guideTitle || defaults.copywriting.guideTitle
+    )
+    websiteCompareForm.copywriting.guideDescription = String(
+        copywriting?.guideDescription || defaults.copywriting.guideDescription
+    )
     websiteCompareForm.copywriting.strengthTemplates = normalizeTemplateTextarea(
         copywriting?.strengthTemplates,
         defaults.copywriting.strengthTemplates
@@ -828,13 +1092,23 @@ const applyWebsiteCompareForm = (config: Record<string, any>) => {
     websiteCompareForm.copywriting.recommendationLeadTemplate = String(
         copywriting?.recommendationLeadTemplate || defaults.copywriting.recommendationLeadTemplate
     )
-    websiteCompareForm.copywriting.faqTitle = String(copywriting?.faqTitle || defaults.copywriting.faqTitle)
-    websiteCompareForm.copywriting.internalLinksTitle = String(copywriting?.internalLinksTitle || defaults.copywriting.internalLinksTitle)
-    websiteCompareForm.copywriting.internalLinksDescription = String(copywriting?.internalLinksDescription || defaults.copywriting.internalLinksDescription)
-    websiteCompareForm.copywriting.aiAnalysisTitle = String(copywriting?.aiAnalysisTitle || defaults.copywriting.aiAnalysisTitle)
-    websiteCompareForm.copywriting.aiAnalysisDescription = String(copywriting?.aiAnalysisDescription || defaults.copywriting.aiAnalysisDescription)
+    websiteCompareForm.copywriting.faqTitle = String(
+        copywriting?.faqTitle || defaults.copywriting.faqTitle
+    )
+    websiteCompareForm.copywriting.internalLinksTitle = String(
+        copywriting?.internalLinksTitle || defaults.copywriting.internalLinksTitle
+    )
+    websiteCompareForm.copywriting.internalLinksDescription = String(
+        copywriting?.internalLinksDescription || defaults.copywriting.internalLinksDescription
+    )
+    websiteCompareForm.copywriting.aiAnalysisTitle = String(
+        copywriting?.aiAnalysisTitle || defaults.copywriting.aiAnalysisTitle
+    )
+    websiteCompareForm.copywriting.aiAnalysisDescription = String(
+        copywriting?.aiAnalysisDescription || defaults.copywriting.aiAnalysisDescription
+    )
 
-    const metricKeys = new Set(defaults.metrics.map(item => item.key))
+    const metricKeys = new Set(defaults.metrics.map((item) => item.key))
     const normalizedMetrics = rawMetrics
         .map((item: any, index: number) => {
             const key = String(item?.key || '').trim() as WebsiteCompareMetricKey
@@ -843,10 +1117,12 @@ const applyWebsiteCompareForm = (config: Record<string, any>) => {
                 key,
                 label: String(item?.label || key),
                 enabled: item?.enabled !== false,
-                sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+                sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10
             }
         })
-        .filter((item: WebsiteCompareMetricItem | null): item is WebsiteCompareMetricItem => Boolean(item))
+        .filter((item: WebsiteCompareMetricItem | null): item is WebsiteCompareMetricItem =>
+            Boolean(item)
+        )
         .sort((a, b) => a.sort - b.sort)
     websiteCompareForm.metrics = normalizedMetrics.length > 0 ? normalizedMetrics : defaults.metrics
 
@@ -855,11 +1131,12 @@ const applyWebsiteCompareForm = (config: Record<string, any>) => {
             question: String(item?.question || '').trim(),
             answer: String(item?.answer || '').trim(),
             enabled: item?.enabled !== false,
-            sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10,
+            sort: Number.isFinite(Number(item?.sort)) ? Number(item.sort) : (index + 1) * 10
         }))
         .filter((item: WebsiteCompareFaqItem) => item.question && item.answer)
         .sort((a, b) => a.sort - b.sort)
-    websiteCompareForm.faqItems = normalizedFaqItems.length > 0 ? normalizedFaqItems : defaults.faqItems
+    websiteCompareForm.faqItems =
+        normalizedFaqItems.length > 0 ? normalizedFaqItems : defaults.faqItems
 }
 
 /**
@@ -867,28 +1144,56 @@ const applyWebsiteCompareForm = (config: Record<string, any>) => {
  */
 const applyMcpPageForm = (config: Record<string, any>) => {
     const defaults = getDefaultMcpPageConfig()
-    const heroStyle = String(config?.heroStyle || '').trim().toLowerCase()
-    const visualPreset = String(config?.visualPreset || '').trim().toLowerCase()
-    const cardStyle = String(config?.cardStyle || '').trim().toLowerCase()
-    const density = String(config?.density || '').trim().toLowerCase()
-    const backgroundMode = String(config?.backgroundMode || '').trim().toLowerCase()
-    const detailHeaderStyle = String(config?.detailHeaderStyle || '').trim().toLowerCase()
+    const heroStyle = String(config?.heroStyle || '')
+        .trim()
+        .toLowerCase()
+    const visualPreset = String(config?.visualPreset || '')
+        .trim()
+        .toLowerCase()
+    const cardStyle = String(config?.cardStyle || '')
+        .trim()
+        .toLowerCase()
+    const density = String(config?.density || '')
+        .trim()
+        .toLowerCase()
+    const backgroundMode = String(config?.backgroundMode || '')
+        .trim()
+        .toLowerCase()
+    const detailHeaderStyle = String(config?.detailHeaderStyle || '')
+        .trim()
+        .toLowerCase()
     mcpPageForm.enabled = config?.enabled !== false
     mcpPageForm.heroEnabled = config?.heroEnabled !== false
     mcpPageForm.heroStyle = heroStyle === 'solid' ? 'solid' : defaults.heroStyle
     mcpPageForm.visualPreset = visualPreset === 'tech' ? 'tech' : defaults.visualPreset
-    mcpPageForm.pageKicker = String(config?.pageKicker || defaults.pageKicker).trim() || defaults.pageKicker
-    mcpPageForm.pageTitle = String(config?.pageTitle || defaults.pageTitle).trim() || defaults.pageTitle
-    mcpPageForm.pageDescription = String(config?.pageDescription || defaults.pageDescription).trim() || defaults.pageDescription
+    mcpPageForm.pageKicker =
+        String(config?.pageKicker || defaults.pageKicker).trim() || defaults.pageKicker
+    mcpPageForm.pageTitle =
+        String(config?.pageTitle || defaults.pageTitle).trim() || defaults.pageTitle
+    mcpPageForm.pageDescription =
+        String(config?.pageDescription || defaults.pageDescription).trim() ||
+        defaults.pageDescription
     mcpPageForm.showHeroStats = config?.showHeroStats !== false
     mcpPageForm.cardStyle = cardStyle === 'outline' ? 'outline' : defaults.cardStyle
     mcpPageForm.density = density === 'compact' ? 'compact' : defaults.density
-    mcpPageForm.backgroundMode = backgroundMode === 'plain' || backgroundMode === 'grid' ? backgroundMode : defaults.backgroundMode
+    mcpPageForm.backgroundMode =
+        backgroundMode === 'plain' || backgroundMode === 'grid'
+            ? backgroundMode
+            : defaults.backgroundMode
     mcpPageForm.accentColor = normalizeHexColor(config?.accentColor, defaults.accentColor)
-    mcpPageForm.pageBackgroundColor = normalizeHexColor(config?.pageBackgroundColor, defaults.pageBackgroundColor)
-    mcpPageForm.heroBackgroundColor = normalizeHexColor(config?.heroBackgroundColor, defaults.heroBackgroundColor)
+    mcpPageForm.pageBackgroundColor = normalizeHexColor(
+        config?.pageBackgroundColor,
+        defaults.pageBackgroundColor
+    )
+    mcpPageForm.heroBackgroundColor = normalizeHexColor(
+        config?.heroBackgroundColor,
+        defaults.heroBackgroundColor
+    )
     mcpPageForm.heroCoverImage = String(config?.heroCoverImage || defaults.heroCoverImage).trim()
-    mcpPageForm.cardBorderColor = normalizeHexColor(config?.cardBorderColor, defaults.cardBorderColor)
+    mcpPageForm.cardBorderColor = normalizeHexColor(
+        config?.cardBorderColor,
+        defaults.cardBorderColor
+    )
     mcpPageForm.cardRadius = Number.isFinite(Number(config?.cardRadius))
         ? Math.max(10, Math.min(28, Number(config?.cardRadius)))
         : defaults.cardRadius
@@ -905,13 +1210,16 @@ const applyMcpPageForm = (config: Record<string, any>) => {
     mcpPageForm.maxWidth = Number.isFinite(Number(config?.maxWidth))
         ? Math.max(960, Math.min(1800, Number(config?.maxWidth)))
         : defaults.maxWidth
-    mcpPageForm.detailHeaderStyle = detailHeaderStyle === 'market' ? 'market' : defaults.detailHeaderStyle
+    mcpPageForm.detailHeaderStyle =
+        detailHeaderStyle === 'market' ? 'market' : defaults.detailHeaderStyle
     mcpPageForm.detailShowRating = config?.detailShowRating !== false
     mcpPageForm.detailRatingValue = Number.isFinite(Number(config?.detailRatingValue))
         ? Math.max(0, Math.min(5, Number(config?.detailRatingValue)))
         : defaults.detailRatingValue
     mcpPageForm.detailShowCommand = config?.detailShowCommand !== false
-    mcpPageForm.detailCommandTemplate = String(config?.detailCommandTemplate || defaults.detailCommandTemplate).trim()
+    mcpPageForm.detailCommandTemplate = String(
+        config?.detailCommandTemplate || defaults.detailCommandTemplate
+    ).trim()
     mcpPageForm.detailShowVersionTag = config?.detailShowVersionTag !== false
 }
 
@@ -920,12 +1228,15 @@ const applyMcpPageForm = (config: Record<string, any>) => {
  */
 const applyFigmaPageForm = (config: Record<string, any>) => {
     const defaults = getDefaultFigmaPageConfig()
-    const cardClickAction = String(config?.cardClickAction || '').trim().toLowerCase()
+    const cardClickAction = String(config?.cardClickAction || '')
+        .trim()
+        .toLowerCase()
     figmaPageForm.enabled = config?.enabled !== false
     figmaPageForm.listPageSize = Number.isFinite(Number(config?.listPageSize))
         ? Math.max(6, Math.min(72, Number(config?.listPageSize)))
         : defaults.listPageSize
-    figmaPageForm.cardClickAction = cardClickAction === 'detail' ? 'detail' : defaults.cardClickAction
+    figmaPageForm.cardClickAction =
+        cardClickAction === 'detail' ? 'detail' : defaults.cardClickAction
     figmaPageForm.cardClickNewWindow = config?.cardClickNewWindow !== false
 }
 
@@ -1011,17 +1322,26 @@ const saveDailyNewConfig = async () => {
             ...(homepageConfigRaw.value || {}),
             dailyNewEnabled: dailyNewForm.enabled,
             dailyNewDisplayLabel: String(dailyNewForm.displayLabel || '').trim() || '每日上新',
-            dailyNewDisplayPath: String(dailyNewForm.displayPath || '').trim() || '/p/hot?tab=daily-new',
+            dailyNewDisplayPath:
+                String(dailyNewForm.displayPath || '').trim() || '/p/hot?tab=daily-new',
             dailyNewDisplayPlacements: Array.from(
-                new Set((dailyNewForm.displayPlacements || []).map((item) => String(item || '').trim()).filter(Boolean))
+                new Set(
+                    (dailyNewForm.displayPlacements || [])
+                        .map((item) => String(item || '').trim())
+                        .filter(Boolean)
+                )
             ),
-            dailyNewDisplaySort: Math.max(1, Math.min(9999, Number(dailyNewForm.displaySort || 86))),
+            dailyNewDisplaySort: Math.max(
+                1,
+                Math.min(9999, Number(dailyNewForm.displaySort || 86))
+            ),
             dailyNewDisplayOpenInNewTab: dailyNewForm.displayOpenInNewTab === true,
             dailyNewDefaultDays: Math.max(1, Math.min(30, Number(dailyNewForm.defaultDays || 7))),
             dailyNewPageKicker: String(dailyNewForm.pageKicker || '').trim() || 'Daily Fresh',
             dailyNewPageTitle: String(dailyNewForm.pageTitle || '').trim() || '每日上新网址',
-            dailyNewPageDescription: String(dailyNewForm.pageDescription || '').trim()
-                || '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。',
+            dailyNewPageDescription:
+                String(dailyNewForm.pageDescription || '').trim() ||
+                '每天自动汇总最新收录站点，帮助运营和用户第一时间发现高质量新资源。'
         }
         await uiedSettingSave({ homepageConfig: merged })
         homepageConfigRaw.value = merged
@@ -1044,7 +1364,7 @@ const buildWebsiteComparePayload = (): Record<string, any> => {
             key: item.key,
             label: String(item.label || item.key).trim() || item.key,
             enabled: item.enabled !== false,
-            sort: Number.isFinite(Number(item.sort)) ? Number(item.sort) : (index + 1) * 10,
+            sort: Number.isFinite(Number(item.sort)) ? Number(item.sort) : (index + 1) * 10
         }))
         .sort((a, b) => a.sort - b.sort)
     const faqItems = (Array.isArray(websiteCompareForm.faqItems) ? websiteCompareForm.faqItems : [])
@@ -1052,9 +1372,9 @@ const buildWebsiteComparePayload = (): Record<string, any> => {
             question: String(item.question || '').trim(),
             answer: String(item.answer || '').trim(),
             enabled: item.enabled !== false,
-            sort: Number.isFinite(Number(item.sort)) ? Number(item.sort) : (index + 1) * 10,
+            sort: Number.isFinite(Number(item.sort)) ? Number(item.sort) : (index + 1) * 10
         }))
-        .filter(item => item.question && item.answer)
+        .filter((item) => item.question && item.answer)
         .sort((a, b) => a.sort - b.sort)
     return {
         sections: {
@@ -1062,11 +1382,15 @@ const buildWebsiteComparePayload = (): Record<string, any> => {
             guide: websiteCompareForm.sections.guide !== false,
             faq: websiteCompareForm.sections.faq !== false,
             internalLinks: websiteCompareForm.sections.internalLinks !== false,
-            aiAnalysis: websiteCompareForm.sections.aiAnalysis !== false,
+            aiAnalysis: websiteCompareForm.sections.aiAnalysis !== false
         },
         copywriting: {
-            heroTitleTemplate: String(websiteCompareForm.copywriting.heroTitleTemplate || '').trim(),
-            heroDescriptionTemplate: String(websiteCompareForm.copywriting.heroDescriptionTemplate || '').trim(),
+            heroTitleTemplate: String(
+                websiteCompareForm.copywriting.heroTitleTemplate || ''
+            ).trim(),
+            heroDescriptionTemplate: String(
+                websiteCompareForm.copywriting.heroDescriptionTemplate || ''
+            ).trim(),
             coreDiffTitle: String(websiteCompareForm.copywriting.coreDiffTitle || '').trim(),
             guideTitle: String(websiteCompareForm.copywriting.guideTitle || '').trim(),
             guideDescription: String(websiteCompareForm.copywriting.guideDescription || '').trim(),
@@ -1082,16 +1406,26 @@ const buildWebsiteComparePayload = (): Record<string, any> => {
                 websiteCompareForm.copywriting.audienceTemplates,
                 defaultCopywriting.audienceTemplates.split('\n')
             ),
-            recommendationTieTemplate: String(websiteCompareForm.copywriting.recommendationTieTemplate || '').trim(),
-            recommendationLeadTemplate: String(websiteCompareForm.copywriting.recommendationLeadTemplate || '').trim(),
+            recommendationTieTemplate: String(
+                websiteCompareForm.copywriting.recommendationTieTemplate || ''
+            ).trim(),
+            recommendationLeadTemplate: String(
+                websiteCompareForm.copywriting.recommendationLeadTemplate || ''
+            ).trim(),
             faqTitle: String(websiteCompareForm.copywriting.faqTitle || '').trim(),
-            internalLinksTitle: String(websiteCompareForm.copywriting.internalLinksTitle || '').trim(),
-            internalLinksDescription: String(websiteCompareForm.copywriting.internalLinksDescription || '').trim(),
+            internalLinksTitle: String(
+                websiteCompareForm.copywriting.internalLinksTitle || ''
+            ).trim(),
+            internalLinksDescription: String(
+                websiteCompareForm.copywriting.internalLinksDescription || ''
+            ).trim(),
             aiAnalysisTitle: String(websiteCompareForm.copywriting.aiAnalysisTitle || '').trim(),
-            aiAnalysisDescription: String(websiteCompareForm.copywriting.aiAnalysisDescription || '').trim(),
+            aiAnalysisDescription: String(
+                websiteCompareForm.copywriting.aiAnalysisDescription || ''
+            ).trim()
         },
         metrics,
-        faqItems,
+        faqItems
     }
 }
 
@@ -1126,14 +1460,16 @@ const saveMcpPageConfig = async () => {
             visualPreset: mcpPageForm.visualPreset === 'tech' ? 'tech' : 'minimal',
             pageKicker: String(mcpPageForm.pageKicker || '').trim() || 'MCP HUB',
             pageTitle: String(mcpPageForm.pageTitle || '').trim() || 'MCP 中心',
-            pageDescription: String(mcpPageForm.pageDescription || '').trim()
-                || '集中收录可直接部署与接入的 MCP 服务，支持按分类和标签快速筛选。',
+            pageDescription:
+                String(mcpPageForm.pageDescription || '').trim() ||
+                '集中收录可直接部署与接入的 MCP 服务，支持按分类和标签快速筛选。',
             showHeroStats: mcpPageForm.showHeroStats !== false,
             cardStyle: mcpPageForm.cardStyle === 'outline' ? 'outline' : 'elevated',
             density: mcpPageForm.density === 'compact' ? 'compact' : 'comfortable',
-            backgroundMode: mcpPageForm.backgroundMode === 'plain' || mcpPageForm.backgroundMode === 'grid'
-                ? mcpPageForm.backgroundMode
-                : 'mesh',
+            backgroundMode:
+                mcpPageForm.backgroundMode === 'plain' || mcpPageForm.backgroundMode === 'grid'
+                    ? mcpPageForm.backgroundMode
+                    : 'mesh',
             accentColor: normalizeHexColor(mcpPageForm.accentColor, '#2563eb'),
             pageBackgroundColor: normalizeHexColor(mcpPageForm.pageBackgroundColor, '#f2f6ff'),
             heroBackgroundColor: normalizeHexColor(mcpPageForm.heroBackgroundColor, '#eef4ff'),
@@ -1151,8 +1487,10 @@ const saveMcpPageConfig = async () => {
             detailShowRating: mcpPageForm.detailShowRating !== false,
             detailRatingValue: Math.max(0, Math.min(5, Number(mcpPageForm.detailRatingValue || 0))),
             detailShowCommand: mcpPageForm.detailShowCommand !== false,
-            detailCommandTemplate: String(mcpPageForm.detailCommandTemplate || '').trim().slice(0, 400),
-            detailShowVersionTag: mcpPageForm.detailShowVersionTag !== false,
+            detailCommandTemplate: String(mcpPageForm.detailCommandTemplate || '')
+                .trim()
+                .slice(0, 400),
+            detailShowVersionTag: mcpPageForm.detailShowVersionTag !== false
         }
         await uiedSettingSave({ mcpPageConfig: payload })
         feedback.msgSuccess('MCP页面配置保存成功')
@@ -1174,8 +1512,9 @@ const saveFigmaPageConfig = async () => {
         const payload: FigmaPageFormState = {
             enabled: figmaPageForm.enabled !== false,
             listPageSize: Math.max(6, Math.min(72, Number(figmaPageForm.listPageSize || 24))),
-            cardClickAction: figmaPageForm.cardClickAction === 'detail' ? 'detail' : 'official_first',
-            cardClickNewWindow: figmaPageForm.cardClickNewWindow !== false,
+            cardClickAction:
+                figmaPageForm.cardClickAction === 'detail' ? 'detail' : 'official_first',
+            cardClickNewWindow: figmaPageForm.cardClickNewWindow !== false
         }
         await uiedSettingSave({ figmaPageConfig: payload })
         feedback.msgSuccess('Figma页面配置保存成功')
@@ -1201,14 +1540,15 @@ const resetWebsiteCompareToDefault = async () => {
  * 新增 FAQ 项。
  */
 const addWebsiteCompareFaq = () => {
-    const nextSort = websiteCompareForm.faqItems.length > 0
-        ? Math.max(...websiteCompareForm.faqItems.map(item => Number(item.sort || 0))) + 10
-        : 10
+    const nextSort =
+        websiteCompareForm.faqItems.length > 0
+            ? Math.max(...websiteCompareForm.faqItems.map((item) => Number(item.sort || 0))) + 10
+            : 10
     websiteCompareForm.faqItems.push({
         question: '',
         answer: '',
         enabled: true,
-        sort: nextSort,
+        sort: nextSort
     })
 }
 
@@ -1230,10 +1570,18 @@ watch(
 watch(
     () => activeTab.value,
     (value) => {
-        if (value === 'dailyNew' && !dailyNewLoading.value && !Object.keys(homepageConfigRaw.value || {}).length) {
+        if (
+            value === 'dailyNew' &&
+            !dailyNewLoading.value &&
+            !Object.keys(homepageConfigRaw.value || {}).length
+        ) {
             loadDailyNewConfig()
         }
-        if (value === 'websiteCompare' && !websiteCompareLoading.value && !websiteCompareInited.value) {
+        if (
+            value === 'websiteCompare' &&
+            !websiteCompareLoading.value &&
+            !websiteCompareInited.value
+        ) {
             loadWebsiteCompareConfig()
         }
         if (value === 'mcp' && !mcpPageLoading.value && !mcpPageInited.value) {

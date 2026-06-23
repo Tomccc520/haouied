@@ -307,7 +307,7 @@ const queryStr = computed<string>(() => {
             line-height: 1;
             font-weight: 600;
             color: #1d4ed8;
-            background: rgba(37, 99, 235, 0.10);
+            background: rgba(37, 99, 235, 0.1);
             border: 1px solid rgba(37, 99, 235, 0.14);
         }
         &--dot {

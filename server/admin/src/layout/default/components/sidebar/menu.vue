@@ -9,7 +9,12 @@
                 <span class="menu-toolbar__title">后台导航</span>
                 <div class="menu-toolbar__meta-actions">
                     <span class="menu-toolbar__count">{{ displayMenuCount }} 项</span>
-                    <el-button class="menu-toolbar__updates" link type="primary" @click="openUpdateLog">
+                    <el-button
+                        class="menu-toolbar__updates"
+                        link
+                        type="primary"
+                        @click="openUpdateLog"
+                    >
                         更新记录
                         <el-tag class="menu-toolbar__badge" size="small" effect="plain" type="info">
                             {{ updateHighlightCount }}
@@ -277,7 +282,16 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
     },
     {
         key: 'license',
-        keywords: ['商业授权', '许可证', '功能开关', '商业模式', '授权', 'license', '/license', 'uied:license:']
+        keywords: [
+            '商业授权',
+            '许可证',
+            '功能开关',
+            '商业模式',
+            '授权',
+            'license',
+            '/license',
+            'uied:license:'
+        ]
     },
     {
         key: 'delivery',
@@ -299,7 +313,18 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
     },
     {
         key: 'data',
-        keywords: ['数据中心', '统计', '日志', '导出', 'monitor', 'operationlog', '/statistics', '/operation-log', 'uied:statistics:', 'uied:log:']
+        keywords: [
+            '数据中心',
+            '统计',
+            '日志',
+            '导出',
+            'monitor',
+            'operationlog',
+            '/statistics',
+            '/operation-log',
+            'uied:statistics:',
+            'uied:log:'
+        ]
     },
     {
         key: 'material',
@@ -376,14 +401,7 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
     },
     {
         key: 'website',
-        keywords: [
-            '网址管理',
-            '网站管理',
-            '网址',
-            'website-manage',
-            '/website',
-            'uied:website:'
-        ]
+        keywords: ['网址管理', '网站管理', '网址', 'website-manage', '/website', 'uied:website:']
     },
     {
         key: 'category',
@@ -395,7 +413,15 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
     },
     {
         key: 'tag',
-        keywords: ['标签管理', '网站标签', '文章标签', '标签', '/tag', 'uied:tag:', 'uied:websiteTag:']
+        keywords: [
+            '标签管理',
+            '网站标签',
+            '文章标签',
+            '标签',
+            '/tag',
+            'uied:tag:',
+            'uied:websiteTag:'
+        ]
     },
     {
         key: 'operation',
@@ -430,7 +456,20 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
     },
     {
         key: 'system',
-        keywords: ['系统管理', '系统设置', '权限', '角色', '菜单', '管理员', 'monitor', 'admin', '/permission', '/setting/system', 'uied:permission:', 'uied:admin:']
+        keywords: [
+            '系统管理',
+            '系统设置',
+            '权限',
+            '角色',
+            '菜单',
+            '管理员',
+            'monitor',
+            'admin',
+            '/permission',
+            '/setting/system',
+            'uied:permission:',
+            'uied:admin:'
+        ]
     }
 ]
 
@@ -439,42 +478,198 @@ const MENU_CATEGORY_RULES: MenuCategoryRule[] = [
  */
 const MENU_FINE_GROUP_RULES: Record<string, MenuFineGroupDefinition[]> = {
     material: [
-        { key: 'material', label: '素材管理', icon: 'el-icon-PictureFilled', keywords: ['素材管理', '素材中心', 'material', 'svg', '图标库'], order: 10 }
+        {
+            key: 'material',
+            label: '素材管理',
+            icon: 'el-icon-PictureFilled',
+            keywords: ['素材管理', '素材中心', 'material', 'svg', '图标库'],
+            order: 10
+        }
     ],
     frontend: [
-        { key: 'nav', label: '导航菜单', icon: 'el-icon-Menu', keywords: ['导航菜单', 'navmenu', '/navmenu', 'uied:navmenu:'], order: 10 },
-        { key: 'social', label: '社交媒体', icon: 'el-icon-Share', keywords: ['社交媒体', '/social', 'uied:social:'], order: 30 },
-        { key: 'footer', label: '页脚配置', icon: 'el-icon-Document', keywords: ['页脚配置', '页脚', '/footer', 'uied:footer:'], order: 40 },
-        { key: 'friend', label: '友情链接', icon: 'el-icon-Link', keywords: ['友情链接', '/friend', 'uied:friend:'], order: 50 },
-        { key: 'favicon', label: '图标配置', icon: 'el-icon-ChromeFilled', keywords: ['favicon', '图标配置', '/favicon', 'uied:favicon:'], order: 60 }
+        {
+            key: 'nav',
+            label: '导航菜单',
+            icon: 'el-icon-Menu',
+            keywords: ['导航菜单', 'navmenu', '/navmenu', 'uied:navmenu:'],
+            order: 10
+        },
+        {
+            key: 'social',
+            label: '社交媒体',
+            icon: 'el-icon-Share',
+            keywords: ['社交媒体', '/social', 'uied:social:'],
+            order: 30
+        },
+        {
+            key: 'footer',
+            label: '页脚配置',
+            icon: 'el-icon-Document',
+            keywords: ['页脚配置', '页脚', '/footer', 'uied:footer:'],
+            order: 40
+        },
+        {
+            key: 'friend',
+            label: '友情链接',
+            icon: 'el-icon-Link',
+            keywords: ['友情链接', '/friend', 'uied:friend:'],
+            order: 50
+        },
+        {
+            key: 'favicon',
+            label: '图标配置',
+            icon: 'el-icon-ChromeFilled',
+            keywords: ['favicon', '图标配置', '/favicon', 'uied:favicon:'],
+            order: 60
+        }
     ],
     settings: [
-        { key: 'site', label: '站点设置', icon: 'el-icon-Setting', keywords: ['站点设置', '网站设置', '基础配置', 'siteinfo', '/setting'], order: 10 },
-        { key: 'content', label: '内容配置', icon: 'el-icon-DataAnalysis', keywords: ['内容中心配置', '文章配置', '内容配置', 'articleconfig', '/article-config'], order: 20 },
-        { key: 'detail', label: '详情配置', icon: 'el-icon-View', keywords: ['网站详情页配置', '详情页配置', 'detail-page', 'detail'], order: 30 },
-        { key: 'auth', label: '认证配置', icon: 'el-icon-UserFilled', keywords: ['注册登录配置', 'auth-config', '登录配置', 'register', 'login'], order: 40 },
-        { key: 'seo', label: 'SEO中心', icon: 'el-icon-Compass', keywords: ['seo中心', 'seo', 'sitemap', 'robots', '重定向'], order: 50 },
-        { key: 'backup', label: '配置导入导出', icon: 'el-icon-RefreshRight', keywords: ['配置导入导出', '配置迁移', 'setting-backup', 'backup', 'restore'], order: 60 },
-        { key: 'upgrade', label: '升级中心', icon: 'el-icon-UploadFilled', keywords: ['升级中心', 'upgrade-center', '版本升级'], order: 70 }
+        {
+            key: 'site',
+            label: '站点设置',
+            icon: 'el-icon-Setting',
+            keywords: ['站点设置', '网站设置', '基础配置', 'siteinfo', '/setting'],
+            order: 10
+        },
+        {
+            key: 'content',
+            label: '内容配置',
+            icon: 'el-icon-DataAnalysis',
+            keywords: ['内容中心配置', '文章配置', '内容配置', 'articleconfig', '/article-config'],
+            order: 20
+        },
+        {
+            key: 'detail',
+            label: '详情配置',
+            icon: 'el-icon-View',
+            keywords: ['网站详情页配置', '详情页配置', 'detail-page', 'detail'],
+            order: 30
+        },
+        {
+            key: 'auth',
+            label: '认证配置',
+            icon: 'el-icon-UserFilled',
+            keywords: ['注册登录配置', 'auth-config', '登录配置', 'register', 'login'],
+            order: 40
+        },
+        {
+            key: 'seo',
+            label: 'SEO中心',
+            icon: 'el-icon-Compass',
+            keywords: ['seo中心', 'seo', 'sitemap', 'robots', '重定向'],
+            order: 50
+        },
+        {
+            key: 'backup',
+            label: '配置导入导出',
+            icon: 'el-icon-RefreshRight',
+            keywords: ['配置导入导出', '配置迁移', 'setting-backup', 'backup', 'restore'],
+            order: 60
+        },
+        {
+            key: 'upgrade',
+            label: '升级中心',
+            icon: 'el-icon-UploadFilled',
+            keywords: ['升级中心', 'upgrade-center', '版本升级'],
+            order: 70
+        }
     ],
     mcp: [
-        { key: 'mcp-list', label: 'MCP列表', icon: 'el-icon-List', keywords: ['mcp列表', '资源管理', '/mcp-list', 'uied:mcp:list'], order: 10 },
-        { key: 'mcp-category', label: 'MCP分类', icon: 'el-icon-Files', keywords: ['mcp分类', '分类管理', '/mcp-category', 'uied:mcp:category:'], order: 20 },
-        { key: 'mcp-tag', label: 'MCP标签', icon: 'el-icon-CollectionTag', keywords: ['mcp标签', '标签管理', '/mcp-tag', 'uied:mcp:tag:'], order: 30 },
-        { key: 'mcp-publish', label: '发布MCP', icon: 'el-icon-EditPen', keywords: ['发布mcp', '发布管理', '/mcp-publish', 'uied:mcp:add'], order: 40 },
-        { key: 'mcp-config', label: 'MCP配置', icon: 'el-icon-Connection', keywords: ['mcp配置', '/mcp-config', 'tab=mcp', 'uied:setting:get'], order: 50 }
+        {
+            key: 'mcp-list',
+            label: 'MCP列表',
+            icon: 'el-icon-List',
+            keywords: ['mcp列表', '资源管理', '/mcp-list', 'uied:mcp:list'],
+            order: 10
+        },
+        {
+            key: 'mcp-category',
+            label: 'MCP分类',
+            icon: 'el-icon-Files',
+            keywords: ['mcp分类', '分类管理', '/mcp-category', 'uied:mcp:category:'],
+            order: 20
+        },
+        {
+            key: 'mcp-tag',
+            label: 'MCP标签',
+            icon: 'el-icon-CollectionTag',
+            keywords: ['mcp标签', '标签管理', '/mcp-tag', 'uied:mcp:tag:'],
+            order: 30
+        },
+        {
+            key: 'mcp-publish',
+            label: '发布MCP',
+            icon: 'el-icon-EditPen',
+            keywords: ['发布mcp', '发布管理', '/mcp-publish', 'uied:mcp:add'],
+            order: 40
+        },
+        {
+            key: 'mcp-config',
+            label: 'MCP配置',
+            icon: 'el-icon-Connection',
+            keywords: ['mcp配置', '/mcp-config', 'tab=mcp', 'uied:setting:get'],
+            order: 50
+        }
     ],
     operation: [
-        { key: 'hot', label: '热门推荐', icon: 'el-icon-Star', keywords: ['热门推荐', '热门文章', 'hot recommendation', 'hot_articles', 'hot'], order: 10 },
-        { key: 'daily-hot', label: '每日热榜', icon: 'el-icon-TrendCharts', keywords: ['每日热榜', 'dailyhot', 'daily-hot', 'daily hot'], order: 20 },
-        { key: 'rank', label: '榜单系统', icon: 'el-icon-Histogram', keywords: ['榜单系统', 'rankboard', 'rank board', 'rank'], order: 30 },
-        { key: 'topic', label: '专题工厂', icon: 'el-icon-Management', keywords: ['专题页工厂', '专题工厂', 'topicfactory', 'topic factory', '专题'], order: 40 },
-        { key: 'contribution', label: '投稿激励', icon: 'el-icon-EditPen', keywords: ['投稿激励', 'contribution', '投稿'], order: 50 },
-        { key: 'commercial', label: '商业变现', icon: 'el-icon-PriceTag', keywords: ['商业位体系', '商业变现', 'commercialslot', 'commercial slot', 'banner'], order: 60 },
-        { key: 'submit', label: '网站提交', icon: 'el-icon-Upload', keywords: ['网站提交', 'submission', 'push'], order: 70 }
+        {
+            key: 'hot',
+            label: '热门推荐',
+            icon: 'el-icon-Star',
+            keywords: ['热门推荐', '热门文章', 'hot recommendation', 'hot_articles', 'hot'],
+            order: 10
+        },
+        {
+            key: 'daily-hot',
+            label: '每日热榜',
+            icon: 'el-icon-TrendCharts',
+            keywords: ['每日热榜', 'dailyhot', 'daily-hot', 'daily hot'],
+            order: 20
+        },
+        {
+            key: 'rank',
+            label: '榜单系统',
+            icon: 'el-icon-Histogram',
+            keywords: ['榜单系统', 'rankboard', 'rank board', 'rank'],
+            order: 30
+        },
+        {
+            key: 'topic',
+            label: '专题工厂',
+            icon: 'el-icon-Management',
+            keywords: ['专题页工厂', '专题工厂', 'topicfactory', 'topic factory', '专题'],
+            order: 40
+        },
+        {
+            key: 'contribution',
+            label: '投稿激励',
+            icon: 'el-icon-EditPen',
+            keywords: ['投稿激励', 'contribution', '投稿'],
+            order: 50
+        },
+        {
+            key: 'commercial',
+            label: '商业变现',
+            icon: 'el-icon-PriceTag',
+            keywords: ['商业位体系', '商业变现', 'commercialslot', 'commercial slot', 'banner'],
+            order: 60
+        },
+        {
+            key: 'submit',
+            label: '网站提交',
+            icon: 'el-icon-Upload',
+            keywords: ['网站提交', 'submission', 'push'],
+            order: 70
+        }
     ],
     user: [
-        { key: 'user-center', label: '用户中心', icon: 'el-icon-UserFilled', keywords: ['用户中心', 'consumer', '授权订单', '授权域名', '源码下载'], order: 10 }
+        {
+            key: 'user-center',
+            label: '用户中心',
+            icon: 'el-icon-UserFilled',
+            keywords: ['用户中心', 'consumer', '授权订单', '授权域名', '源码下载'],
+            order: 10
+        }
     ]
 }
 const MENU_SECOND_LEVEL_GROUP_ICON: Record<string, string> = {
@@ -802,7 +997,12 @@ const collectLeafRoutesFromTopLevel = (item: RouteRecordRaw): RouteRecordRaw[] =
 const classifyTopLevelRoute = (item: RouteRecordRaw): string => {
     const text = getRouteGroupText(item)
     const isMcpContext = hasAnyKeyword(text, ['mcp', '/mcp', 'uied:mcp:', 'mcp配置', 'mcp中心'])
-    const isFigmaContext = hasAnyKeyword(text, ['figma', '/figma-center', 'uied:figma:', 'figma中心'])
+    const isFigmaContext = hasAnyKeyword(text, [
+        'figma',
+        '/figma-center',
+        'uied:figma:',
+        'figma中心'
+    ])
     if (isFigmaContext) {
         return 'figma'
     }
@@ -915,50 +1115,44 @@ const buildStructuredRoutes = (list: RouteRecordRaw[] = []): RouteRecordRaw[] =>
         } as RouteRecordRaw)
     })
 
-    list
-        .filter((item) => item && !item.meta?.hidden)
-        .forEach((item) => {
-            const leafRoutes = collectLeafRoutesFromTopLevel(item)
-            leafRoutes.forEach((leaf) => {
-                const groupKey = classifyTopLevelRoute(leaf)
-                const bucket = rootBuckets.get(groupKey) || rootBuckets.get('system')
-                if (!bucket) return
-                const children = Array.isArray(bucket.children) ? bucket.children : []
-                const metaRecord = getRouteMetaRecord(leaf)
-                metaRecord.title = resolveMenuDisplayTitle(
-                    String(metaRecord.title || ''),
-                    String(leaf?.path || ''),
-                    String(metaRecord.perms || '')
-                )
-                const fineRule = resolveFineGroupRule(groupKey, getRouteGroupText(leaf))
-                metaRecord.icon =
-                    fineRule?.icon || resolveSecondLevelIcon(String(metaRecord.title || ''), groupKey)
+    list.filter((item) => item && !item.meta?.hidden).forEach((item) => {
+        const leafRoutes = collectLeafRoutesFromTopLevel(item)
+        leafRoutes.forEach((leaf) => {
+            const groupKey = classifyTopLevelRoute(leaf)
+            const bucket = rootBuckets.get(groupKey) || rootBuckets.get('system')
+            if (!bucket) return
+            const children = Array.isArray(bucket.children) ? bucket.children : []
+            const metaRecord = getRouteMetaRecord(leaf)
+            metaRecord.title = resolveMenuDisplayTitle(
+                String(metaRecord.title || ''),
+                String(leaf?.path || ''),
+                String(metaRecord.perms || '')
+            )
+            const fineRule = resolveFineGroupRule(groupKey, getRouteGroupText(leaf))
+            metaRecord.icon =
+                fineRule?.icon || resolveSecondLevelIcon(String(metaRecord.title || ''), groupKey)
 
-                const normalizedLeaf = {
-                    ...leaf,
-                    meta: metaRecord,
-                    children: []
-                } as RouteRecordRaw
-                const path = String(normalizedLeaf?.path || '').trim()
-                if (!path) return
-                const seenPathSet = new Set(children.map((row: any) => String(row?.path || '').trim()))
-                if (seenPathSet.has(path)) return
-                children.push(normalizedLeaf)
-                bucket.children = children
-            })
+            const normalizedLeaf = {
+                ...leaf,
+                meta: metaRecord,
+                children: []
+            } as RouteRecordRaw
+            const path = String(normalizedLeaf?.path || '').trim()
+            if (!path) return
+            const seenPathSet = new Set(children.map((row: any) => String(row?.path || '').trim()))
+            if (seenPathSet.has(path)) return
+            children.push(normalizedLeaf)
+            bucket.children = children
         })
+    })
 
     MENU_CATEGORY_DEFINITIONS.forEach((definition) => {
         const bucket = rootBuckets.get(definition.key)
         if (!bucket || !Array.isArray(bucket.children)) return
-        bucket.children = sortSecondLevelRoutes(
-            bucket.children as RouteRecordRaw[],
-            definition.key
-        )
+        bucket.children = sortSecondLevelRoutes(bucket.children as RouteRecordRaw[], definition.key)
     })
 
-    return MENU_CATEGORY_DEFINITIONS
-        .map((definition) => rootBuckets.get(definition.key))
+    return MENU_CATEGORY_DEFINITIONS.map((definition) => rootBuckets.get(definition.key))
         .filter((item): item is RouteRecordRaw => Boolean(item))
         .filter((item) => Array.isArray(item.children) && item.children.length > 0)
 }
@@ -993,10 +1187,7 @@ function countVisibleLeafMenus(list: RouteRecordRaw[] = []): number {
  * @param list 过滤后的菜单树
  * @param parentPath 父级路径
  */
-const collectOpenedMenuPaths = (
-    list: RouteRecordRaw[] = [],
-    parentPath = ''
-): string[] => {
+const collectOpenedMenuPaths = (list: RouteRecordRaw[] = [], parentPath = ''): string[] => {
     const pathSet = new Set<string>()
     list.forEach((item) => {
         if (!item || item.meta?.hidden) return

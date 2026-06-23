@@ -113,7 +113,11 @@
                                 <span class="social-preview__name">{{ group.name }}</span>
                             </div>
                         </div>
-                        <el-empty v-else :image-size="64" description="请先添加并启用社交媒体分组" />
+                        <el-empty
+                            v-else
+                            :image-size="64"
+                            description="请先添加并启用社交媒体分组"
+                        />
                     </div>
 
                     <div class="panel-toolbar panel-toolbar--split">
@@ -152,7 +156,12 @@
                             </template>
                         </el-table-column>
                         <el-table-column label="昵称" prop="name" min-width="150" />
-                        <el-table-column label="链接" prop="url" min-width="220" show-overflow-tooltip />
+                        <el-table-column
+                            label="链接"
+                            prop="url"
+                            min-width="220"
+                            show-overflow-tooltip
+                        />
                         <el-table-column label="图标" min-width="110">
                             <template #default="{ row }">
                                 <div class="icon-cell">
@@ -168,7 +177,9 @@
                                         class="icon-cell__svg"
                                         v-html="resolveSvgIconMarkup(row.icon)"
                                     />
-                                    <span v-else class="icon-cell__text">{{ row.icon || '-' }}</span>
+                                    <span v-else class="icon-cell__text">{{
+                                        row.icon || '-'
+                                    }}</span>
                                 </div>
                             </template>
                         </el-table-column>
@@ -236,11 +247,20 @@
                             :options="categorySvgLibraryOptions"
                             class="icon-editor__svg-picker"
                         />
-                        <div class="icon-editor__tip">可直接选择 SVG 图标库（写入格式：svg:key）</div>
-                        <div v-if="isAssetUrl(groupData.icon)" class="icon-editor__preview">
-                            <el-image :src="groupData.icon" fit="cover" class="icon-cell__preview" />
+                        <div class="icon-editor__tip">
+                            可直接选择 SVG 图标库（写入格式：svg:key）
                         </div>
-                        <div v-else-if="resolveSvgIconMarkup(groupData.icon)" class="icon-editor__preview">
+                        <div v-if="isAssetUrl(groupData.icon)" class="icon-editor__preview">
+                            <el-image
+                                :src="groupData.icon"
+                                fit="cover"
+                                class="icon-cell__preview"
+                            />
+                        </div>
+                        <div
+                            v-else-if="resolveSvgIconMarkup(groupData.icon)"
+                            class="icon-editor__preview"
+                        >
                             <span
                                 class="icon-cell__svg icon-cell__svg--preview"
                                 v-html="resolveSvgIconMarkup(groupData.icon)"
@@ -336,11 +356,16 @@
                             :options="categorySvgLibraryOptions"
                             class="icon-editor__svg-picker"
                         />
-                        <div class="icon-editor__tip">可直接选择 SVG 图标库（写入格式：svg:key）</div>
+                        <div class="icon-editor__tip">
+                            可直接选择 SVG 图标库（写入格式：svg:key）
+                        </div>
                         <div v-if="isAssetUrl(itemData.icon)" class="icon-editor__preview">
                             <el-image :src="itemData.icon" fit="cover" class="icon-cell__preview" />
                         </div>
-                        <div v-else-if="resolveSvgIconMarkup(itemData.icon)" class="icon-editor__preview">
+                        <div
+                            v-else-if="resolveSvgIconMarkup(itemData.icon)"
+                            class="icon-editor__preview"
+                        >
                             <span
                                 class="icon-cell__svg icon-cell__svg--preview"
                                 v-html="resolveSvgIconMarkup(itemData.icon)"
@@ -560,7 +585,10 @@ const normalizeCategorySvgLibrary = (value: unknown): SvgLibraryOption[] => {
             if (!key) return null
             const svg = sanitizeSvgMarkup(item?.svg)
             if (!svg) return null
-            const label = String(item?.label || key).trim().slice(0, 40) || key
+            const label =
+                String(item?.label || key)
+                    .trim()
+                    .slice(0, 40) || key
             const sort = Number.isFinite(Number(item?.sort)) ? Number(item.sort) : index + 1
             return { key, label, svg, sort }
         })
@@ -633,7 +661,7 @@ const normalizeGroupRow = (row: any) => {
         id: Number(row?.id || 0),
         name: String(row?.name || ''),
         icon: String(row?.icon || ''),
-        displayType: [ 'links', 'qrcode', 'mixed' ].includes(displayType) ? displayType : 'links',
+        displayType: ['links', 'qrcode', 'mixed'].includes(displayType) ? displayType : 'links',
         sortOrder: Number(row?.sortOrder ?? row?.sort ?? 0),
         isActive: row?.isActive !== false && row?.isShow !== false
     }
@@ -673,7 +701,9 @@ const loadGroupOptions = async () => {
 const loadCategorySvgLibrary = async () => {
     try {
         const res = await uiedSettingGet({ key: 'pageGlobalConfig' })
-        categorySvgLibraryOptions.value = normalizeCategorySvgLibrary((res as any)?.categorySvgLibrary)
+        categorySvgLibraryOptions.value = normalizeCategorySvgLibrary(
+            (res as any)?.categorySvgLibrary
+        )
     } catch (error) {
         console.error('加载社交媒体 SVG 图标库失败:', error)
         categorySvgLibraryOptions.value = []
@@ -888,7 +918,12 @@ const handleDeleteItem = async (id: number) => {
  * 初始化页面数据。
  */
 const initPageData = async () => {
-    await Promise.all([getGroupLists(), getItemLists(), loadGroupOptions(), loadCategorySvgLibrary()])
+    await Promise.all([
+        getGroupLists(),
+        getItemLists(),
+        loadGroupOptions(),
+        loadCategorySvgLibrary()
+    ])
 }
 
 initPageData()

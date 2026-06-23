@@ -12,7 +12,9 @@
             <template #header>
                 <div class="flex items-center justify-between">
                     <div>
-                        <h2 class="figma-publish-page__title">{{ formData.id ? '编辑 Figma 插件' : '发布 Figma 插件' }}</h2>
+                        <h2 class="figma-publish-page__title">
+                            {{ formData.id ? '编辑 Figma 插件' : '发布 Figma 插件' }}
+                        </h2>
                         <p class="figma-publish-page__desc">
                             支持草稿与发布双状态，并可配置分类、标签、SEO 与来源信息。
                         </p>
@@ -21,13 +23,22 @@
                 </div>
             </template>
 
-            <el-form ref="formRef" :model="formData" :rules="rules" label-width="120px" class="figma-publish-page__form">
+            <el-form
+                ref="formRef"
+                :model="formData"
+                :rules="rules"
+                label-width="120px"
+                class="figma-publish-page__form"
+            >
                 <el-divider content-position="left">基础信息</el-divider>
                 <el-form-item label="插件名称" prop="name">
                     <el-input v-model="formData.name" placeholder="请输入插件名称" />
                 </el-form-item>
                 <el-form-item label="URL标识" prop="slug">
-                    <el-input v-model="formData.slug" placeholder="留空自动生成（建议英文短横线）" />
+                    <el-input
+                        v-model="formData.slug"
+                        placeholder="留空自动生成（建议英文短横线）"
+                    />
                 </el-form-item>
                 <el-form-item label="插件摘要" prop="summary">
                     <el-input
@@ -62,7 +73,10 @@
                     </div>
                 </el-form-item>
                 <el-form-item label="官方链接" prop="officialUrl">
-                    <el-input v-model="formData.officialUrl" placeholder="https://www.figma.com/community/plugin/..." />
+                    <el-input
+                        v-model="formData.officialUrl"
+                        placeholder="https://www.figma.com/community/plugin/..."
+                    />
                 </el-form-item>
                 <el-form-item label="文档链接">
                     <el-input v-model="formData.docsUrl" placeholder="https://" />
@@ -71,7 +85,10 @@
                     <el-input v-model="formData.githubUrl" placeholder="https://github.com/..." />
                 </el-form-item>
                 <el-form-item label="插件ID">
-                    <el-input v-model="formData.figmaPluginId" placeholder="例如：123456789012345678" />
+                    <el-input
+                        v-model="formData.figmaPluginId"
+                        placeholder="例如：123456789012345678"
+                    />
                 </el-form-item>
                 <el-form-item label="作者名称">
                     <el-input v-model="formData.authorName" placeholder="可选" />
@@ -89,7 +106,13 @@
 
                 <el-divider content-position="left">分类与标签</el-divider>
                 <el-form-item label="所属分类">
-                    <el-select v-model="formData.categoryId" placeholder="请选择分类" clearable filterable class="w-[320px]">
+                    <el-select
+                        v-model="formData.categoryId"
+                        placeholder="请选择分类"
+                        clearable
+                        filterable
+                        class="w-[320px]"
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -163,8 +186,15 @@
                 <el-form-item>
                     <div class="figma-publish-page__actions">
                         <el-button @click="goBack">取消</el-button>
-                        <el-button :loading="submitLoading" @click="submitByStatus('draft')">保存草稿</el-button>
-                        <el-button type="primary" :loading="submitLoading" @click="submitByStatus('published')">保存并发布</el-button>
+                        <el-button :loading="submitLoading" @click="submitByStatus('draft')"
+                            >保存草稿</el-button
+                        >
+                        <el-button
+                            type="primary"
+                            :loading="submitLoading"
+                            @click="submitByStatus('published')"
+                            >保存并发布</el-button
+                        >
                     </div>
                 </el-form-item>
             </el-form>
@@ -188,7 +218,7 @@ import {
     uiedFigmaEdit,
     uiedFigmaDetail,
     uiedFigmaCategoryAll,
-    uiedFigmaTagAll,
+    uiedFigmaTagAll
 } from '@/api/uied'
 
 interface OptionItem {
@@ -229,7 +259,7 @@ const formData = reactive({
     publishTime: '',
     seoTitle: '',
     seoKeywords: '',
-    seoDescription: '',
+    seoDescription: ''
 })
 
 const rules: FormRules = {
@@ -248,9 +278,9 @@ const rules: FormRules = {
                 }
                 callback(new Error('官方链接需以 http:// 或 https:// 开头'))
             },
-            trigger: 'blur',
-        },
-    ],
+            trigger: 'blur'
+        }
+    ]
 }
 
 /**
@@ -266,18 +296,18 @@ const goBack = () => {
 const loadOptions = async () => {
     const [categoryRows, tagRows] = await Promise.all([
         uiedFigmaCategoryAll({}),
-        uiedFigmaTagAll({}),
+        uiedFigmaTagAll({})
     ])
     categoryOptions.value = (Array.isArray(categoryRows) ? categoryRows : [])
         .map((item: any) => ({
             id: Number(item.id || 0),
-            name: String(item.name || ''),
+            name: String(item.name || '')
         }))
         .filter((item) => item.id > 0 && item.name)
     tagOptions.value = (Array.isArray(tagRows) ? tagRows : [])
         .map((item: any) => ({
             id: Number(item.id || 0),
-            name: String(item.name || ''),
+            name: String(item.name || '')
         }))
         .filter((item) => item.id > 0 && item.name)
 }
@@ -343,7 +373,7 @@ const buildPayload = (status: FigmaStatus) => {
         publish_time: publishTime > 0 ? publishTime : undefined,
         seo_title: formData.seoTitle,
         seo_keywords: formData.seoKeywords,
-        seo_description: formData.seoDescription,
+        seo_description: formData.seoDescription
     }
 }
 

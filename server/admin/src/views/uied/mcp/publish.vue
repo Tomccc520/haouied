@@ -12,20 +12,33 @@
             <template #header>
                 <div class="flex items-center justify-between">
                     <div>
-                        <h2 class="mcp-publish-page__title">{{ formData.id ? '编辑 MCP' : '发布 MCP' }}</h2>
-                        <p class="mcp-publish-page__desc">支持草稿与发布双状态，并可配置 SEO、分类、标签、推荐位与排序。</p>
+                        <h2 class="mcp-publish-page__title">
+                            {{ formData.id ? '编辑 MCP' : '发布 MCP' }}
+                        </h2>
+                        <p class="mcp-publish-page__desc">
+                            支持草稿与发布双状态，并可配置 SEO、分类、标签、推荐位与排序。
+                        </p>
                     </div>
                     <el-button @click="goBack">返回列表</el-button>
                 </div>
             </template>
 
-            <el-form ref="formRef" :model="formData" :rules="rules" label-width="120px" class="mcp-publish-page__form">
+            <el-form
+                ref="formRef"
+                :model="formData"
+                :rules="rules"
+                label-width="120px"
+                class="mcp-publish-page__form"
+            >
                 <el-divider content-position="left">基础信息</el-divider>
                 <el-form-item label="名称" prop="name">
                     <el-input v-model="formData.name" placeholder="请输入 MCP 名称" />
                 </el-form-item>
                 <el-form-item label="URL标识" prop="slug">
-                    <el-input v-model="formData.slug" placeholder="留空自动生成（建议英文短横线）" />
+                    <el-input
+                        v-model="formData.slug"
+                        placeholder="留空自动生成（建议英文短横线）"
+                    />
                 </el-form-item>
                 <el-form-item label="摘要" prop="summary">
                     <el-input
@@ -89,7 +102,13 @@
                     <el-input v-model="formData.protocolVersion" placeholder="例如：2025-03-26" />
                 </el-form-item>
                 <el-form-item label="所属分类">
-                    <el-select v-model="formData.categoryId" placeholder="请选择分类" clearable filterable class="w-[320px]">
+                    <el-select
+                        v-model="formData.categoryId"
+                        placeholder="请选择分类"
+                        clearable
+                        filterable
+                        class="w-[320px]"
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -99,7 +118,15 @@
                     </el-select>
                 </el-form-item>
                 <el-form-item label="标签">
-                    <el-select v-model="formData.tagIds" multiple collapse-tags collapse-tags-tooltip placeholder="请选择标签" filterable class="w-[420px]">
+                    <el-select
+                        v-model="formData.tagIds"
+                        multiple
+                        collapse-tags
+                        collapse-tags-tooltip
+                        placeholder="请选择标签"
+                        filterable
+                        class="w-[420px]"
+                    >
                         <el-option
                             v-for="item in tagOptions"
                             :key="item.id"
@@ -155,8 +182,15 @@
                 <el-form-item>
                     <div class="mcp-publish-page__actions">
                         <el-button @click="goBack">取消</el-button>
-                        <el-button :loading="submitLoading" @click="submitByStatus('draft')">保存草稿</el-button>
-                        <el-button type="primary" :loading="submitLoading" @click="submitByStatus('published')">保存并发布</el-button>
+                        <el-button :loading="submitLoading" @click="submitByStatus('draft')"
+                            >保存草稿</el-button
+                        >
+                        <el-button
+                            type="primary"
+                            :loading="submitLoading"
+                            @click="submitByStatus('published')"
+                            >保存并发布</el-button
+                        >
                     </div>
                 </el-form-item>
             </el-form>
@@ -180,7 +214,7 @@ import {
     uiedMcpEdit,
     uiedMcpDetail,
     uiedMcpCategoryAll,
-    uiedMcpTagAll,
+    uiedMcpTagAll
 } from '@/api/uied'
 
 interface OptionItem {
@@ -220,7 +254,7 @@ const formData = reactive({
     publishTime: '',
     seoTitle: '',
     seoKeywords: '',
-    seoDescription: '',
+    seoDescription: ''
 })
 
 const rules: FormRules = {
@@ -239,9 +273,9 @@ const rules: FormRules = {
                 }
                 callback(new Error('官网链接需以 http:// 或 https:// 开头'))
             },
-            trigger: 'blur',
-        },
-    ],
+            trigger: 'blur'
+        }
+    ]
 }
 
 /**
@@ -255,20 +289,17 @@ const goBack = () => {
  * 加载分类与标签选项。
  */
 const loadOptions = async () => {
-    const [categoryRows, tagRows] = await Promise.all([
-        uiedMcpCategoryAll({}),
-        uiedMcpTagAll({}),
-    ])
+    const [categoryRows, tagRows] = await Promise.all([uiedMcpCategoryAll({}), uiedMcpTagAll({})])
     categoryOptions.value = (Array.isArray(categoryRows) ? categoryRows : [])
         .map((item: any) => ({
             id: Number(item.id || 0),
-            name: String(item.name || ''),
+            name: String(item.name || '')
         }))
         .filter((item) => item.id > 0 && item.name)
     tagOptions.value = (Array.isArray(tagRows) ? tagRows : [])
         .map((item: any) => ({
             id: Number(item.id || 0),
-            name: String(item.name || ''),
+            name: String(item.name || '')
         }))
         .filter((item) => item.id > 0 && item.name)
 }
@@ -332,7 +363,7 @@ const buildPayload = (status: McpStatus) => {
         publish_time: publishTime > 0 ? publishTime : undefined,
         seo_title: formData.seoTitle,
         seo_keywords: formData.seoKeywords,
-        seo_description: formData.seoDescription,
+        seo_description: formData.seoDescription
     }
 }
 

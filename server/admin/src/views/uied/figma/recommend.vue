@@ -20,14 +20,25 @@
                     />
                 </el-form-item>
                 <el-form-item label="状态">
-                    <el-select v-model="queryParams.status" class="w-[140px]" clearable placeholder="全部状态">
+                    <el-select
+                        v-model="queryParams.status"
+                        class="w-[140px]"
+                        clearable
+                        placeholder="全部状态"
+                    >
                         <el-option label="待审核" value="pending" />
                         <el-option label="已通过" value="approved" />
                         <el-option label="已拒绝" value="rejected" />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="分类">
-                    <el-select v-model="queryParams.categoryId" class="w-[180px]" clearable filterable placeholder="全部分类">
+                    <el-select
+                        v-model="queryParams.categoryId"
+                        class="w-[180px]"
+                        clearable
+                        filterable
+                        placeholder="全部分类"
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -74,7 +85,9 @@
                 <el-table-column label="推荐人" min-width="180">
                     <template #default="{ row }">
                         <div>{{ row.submitterName || '-' }}</div>
-                        <div class="text-xs text-[#6b7280]">{{ row.submitterEmail || row.submitterWechat || '-' }}</div>
+                        <div class="text-xs text-[#6b7280]">
+                            {{ row.submitterEmail || row.submitterWechat || '-' }}
+                        </div>
                     </template>
                 </el-table-column>
                 <el-table-column label="状态" width="110">
@@ -121,7 +134,9 @@
 
         <el-dialog v-model="detailDialogVisible" title="推荐详情" width="720px">
             <el-descriptions :column="1" border>
-                <el-descriptions-item label="插件名称">{{ detailData.pluginName || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="插件名称">{{
+                    detailData.pluginName || '-'
+                }}</el-descriptions-item>
                 <el-descriptions-item label="官方链接">
                     <a
                         v-if="detailData.officialUrl"
@@ -133,22 +148,44 @@
                     </a>
                     <span v-else>-</span>
                 </el-descriptions-item>
-                <el-descriptions-item label="推荐简介">{{ detailData.summary || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="意向分类">{{ detailData.categoryName || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="推荐说明">{{ detailData.submitNote || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="推荐人">{{ detailData.submitterName || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="邮箱">{{ detailData.submitterEmail || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="微信">{{ detailData.submitterWechat || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="来源IP">{{ detailData.sourceIp || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="推荐简介">{{
+                    detailData.summary || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="意向分类">{{
+                    detailData.categoryName || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="推荐说明">{{
+                    detailData.submitNote || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="推荐人">{{
+                    detailData.submitterName || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="邮箱">{{
+                    detailData.submitterEmail || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="微信">{{
+                    detailData.submitterWechat || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="来源IP">{{
+                    detailData.sourceIp || '-'
+                }}</el-descriptions-item>
                 <el-descriptions-item label="状态">
                     <el-tag :type="resolveStatusType(detailData.status)">
                         {{ resolveStatusLabel(detailData.status) }}
                     </el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item label="审核备注">{{ detailData.reviewNote || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="审核人">{{ detailData.reviewerName || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="提交时间">{{ formatUnixTime(detailData.createTime) }}</el-descriptions-item>
-                <el-descriptions-item label="审核时间">{{ formatUnixTime(detailData.reviewTime) }}</el-descriptions-item>
+                <el-descriptions-item label="审核备注">{{
+                    detailData.reviewNote || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="审核人">{{
+                    detailData.reviewerName || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="提交时间">{{
+                    formatUnixTime(detailData.createTime)
+                }}</el-descriptions-item>
+                <el-descriptions-item label="审核时间">{{
+                    formatUnixTime(detailData.reviewTime)
+                }}</el-descriptions-item>
             </el-descriptions>
         </el-dialog>
 
@@ -158,10 +195,19 @@
                     <el-input v-model="approveForm.pluginName" placeholder="请输入插件名称" />
                 </el-form-item>
                 <el-form-item label="官方链接">
-                    <el-input v-model="approveForm.officialUrl" placeholder="https://www.figma.com/community/plugin/..." />
+                    <el-input
+                        v-model="approveForm.officialUrl"
+                        placeholder="https://www.figma.com/community/plugin/..."
+                    />
                 </el-form-item>
                 <el-form-item label="归属分类">
-                    <el-select v-model="approveForm.categoryId" clearable filterable class="w-full" placeholder="不指定则沿用推荐分类">
+                    <el-select
+                        v-model="approveForm.categoryId"
+                        clearable
+                        filterable
+                        class="w-full"
+                        placeholder="不指定则沿用推荐分类"
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -187,7 +233,9 @@
             </el-form>
             <template #footer>
                 <el-button @click="approveDialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="approving" @click="confirmApprove">确认通过</el-button>
+                <el-button type="primary" :loading="approving" @click="confirmApprove"
+                    >确认通过</el-button
+                >
             </template>
         </el-dialog>
 
@@ -200,7 +248,9 @@
             />
             <template #footer>
                 <el-button @click="rejectDialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="rejecting" @click="confirmReject">确认拒绝</el-button>
+                <el-button type="primary" :loading="rejecting" @click="confirmReject"
+                    >确认拒绝</el-button
+                >
             </template>
         </el-dialog>
     </div>
@@ -223,7 +273,7 @@ import {
     uiedFigmaRecommendDelete,
     uiedFigmaRecommendDetail,
     uiedFigmaRecommendList,
-    uiedFigmaRecommendReject,
+    uiedFigmaRecommendReject
 } from '@/api/uied'
 
 interface CategoryOption {
@@ -237,20 +287,22 @@ type TagType = '' | 'success' | 'warning' | 'danger' | 'info'
 const statusLabelMap: Record<RecommendStatus, string> = {
     pending: '待审核',
     approved: '已通过',
-    rejected: '已拒绝',
+    rejected: '已拒绝'
 }
 
 const statusTypeMap: Record<RecommendStatus, TagType> = {
     pending: 'warning',
     approved: 'success',
-    rejected: 'danger',
+    rejected: 'danger'
 }
 
 /**
  * 解析推荐审核状态文案，兜底未知状态。
  */
 const resolveStatusLabel = (status: any): string => {
-    const text = String(status || '').trim().toLowerCase()
+    const text = String(status || '')
+        .trim()
+        .toLowerCase()
     if (text === 'approved') return statusLabelMap.approved
     if (text === 'rejected') return statusLabelMap.rejected
     if (text === 'pending') return statusLabelMap.pending
@@ -261,7 +313,9 @@ const resolveStatusLabel = (status: any): string => {
  * 解析推荐审核状态标签类型，避免模板索引时报错。
  */
 const resolveStatusType = (status: any): TagType => {
-    const text = String(status || '').trim().toLowerCase()
+    const text = String(status || '')
+        .trim()
+        .toLowerCase()
     if (text === 'approved') return statusTypeMap.approved
     if (text === 'rejected') return statusTypeMap.rejected
     if (text === 'pending') return statusTypeMap.pending
@@ -271,13 +325,13 @@ const resolveStatusType = (status: any): TagType => {
 const queryParams = reactive({
     keyword: '',
     status: 'pending',
-    categoryId: '',
+    categoryId: ''
 })
 
 const categoryOptions = ref<CategoryOption[]>([])
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedFigmaRecommendList,
-    params: queryParams,
+    params: queryParams
 })
 
 const detailDialogVisible = ref(false)
@@ -291,14 +345,14 @@ const approveForm = reactive<any>({
     officialUrl: '',
     categoryId: undefined,
     publishStatus: 'published',
-    reviewNote: '',
+    reviewNote: ''
 })
 
 const rejectDialogVisible = ref(false)
 const rejecting = ref(false)
 const rejectForm = reactive<any>({
     id: 0,
-    reviewNote: '',
+    reviewNote: ''
 })
 
 /**
@@ -316,7 +370,9 @@ const formatUnixTime = (value: any): string => {
 const loadCategoryOptions = async () => {
     const rows = await uiedFigmaCategoryAll({})
     categoryOptions.value = Array.isArray(rows)
-        ? rows.map((item: any) => ({ id: Number(item.id || 0), name: String(item.name || '') })).filter((item: CategoryOption) => item.id > 0 && item.name)
+        ? rows
+              .map((item: any) => ({ id: Number(item.id || 0), name: String(item.name || '') }))
+              .filter((item: CategoryOption) => item.id > 0 && item.name)
         : []
 }
 
@@ -365,7 +421,7 @@ const confirmApprove = async () => {
             officialUrl: approveForm.officialUrl,
             categoryId: approveForm.categoryId || 0,
             publishStatus: approveForm.publishStatus,
-            reviewNote: approveForm.reviewNote,
+            reviewNote: approveForm.reviewNote
         })
         feedback.msgSuccess('审核通过并已入库')
         approveDialogVisible.value = false
@@ -397,7 +453,7 @@ const confirmReject = async () => {
     try {
         await uiedFigmaRecommendReject({
             id: rejectForm.id,
-            reviewNote: rejectForm.reviewNote,
+            reviewNote: rejectForm.reviewNote
         })
         feedback.msgSuccess('已拒绝该推荐')
         rejectDialogVisible.value = false

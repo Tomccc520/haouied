@@ -106,7 +106,8 @@
                         <el-divider content-position="left">侧边栏配置</el-divider>
                     </div>
                     <p class="section-desc">
-                        面向运营配置：统一“启用侧栏 / 侧栏吸顶 / 吸顶偏移 / 链接新开窗口 / 模块顺序”交互，减少客户理解成本。
+                        面向运营配置：统一“启用侧栏 / 侧栏吸顶 / 吸顶偏移 / 链接新开窗口 /
+                        模块顺序”交互，减少客户理解成本。
                     </p>
 
                     <el-form-item label="启用侧栏">
@@ -142,7 +143,9 @@
                     <el-form-item label="相关推荐标题">
                         <el-input
                             v-model="config.relatedTitle"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('related')
+                            "
                             placeholder="例如：你可能还喜欢 / 同类推荐"
                         />
                         <span class="form-tip">侧边栏相关推荐标题文案。</span>
@@ -153,7 +156,9 @@
                             v-model="config.relatedCount"
                             :min="1"
                             :max="12"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('related')
+                            "
                         />
                         <span class="form-tip">控制侧边栏相关推荐显示数量。</span>
                     </el-form-item>
@@ -184,7 +189,9 @@
                     <el-form-item label="文章模块标题">
                         <el-input
                             v-model="config.articlesTitle"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('articles')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('articles')
+                            "
                             placeholder="例如：推荐文章 / 最新文章"
                         />
                         <span class="form-tip">侧栏文章推荐模块标题文案。</span>
@@ -195,7 +202,9 @@
                             v-model="config.articlesCount"
                             :min="1"
                             :max="12"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('articles')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('articles')
+                            "
                         />
                         <span class="form-tip">控制文章推荐模块显示数量。</span>
                     </el-form-item>
@@ -219,7 +228,9 @@
                         <el-select
                             v-model="config.relatedMode"
                             style="width: 260px"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('related')
+                            "
                         >
                             <el-option label="同分类推荐" value="same_category" />
                             <el-option label="同标签推荐" value="same_tags" />
@@ -234,7 +245,9 @@
                             v-model="config.manualWebsiteIds"
                             type="textarea"
                             :rows="3"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('related')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('related')
+                            "
                             placeholder="填写网站ID，英文逗号分隔，例如：12,35,108"
                         />
                         <span class="form-tip">仅在「手动推荐」模式下生效，按填写顺序展示。</span>
@@ -269,7 +282,9 @@
                     <el-form-item label="分类区块标题">
                         <el-input
                             v-model="config.categoryTitle"
-                            :disabled="!config.enabled || !isSidebarModuleEnabledForConfig('category')"
+                            :disabled="
+                                !config.enabled || !isSidebarModuleEnabledForConfig('category')
+                            "
                             placeholder="例如：所在分类 / 相关推荐目录"
                         />
                         <span class="form-tip">侧边栏分类区块标题文案。</span>
@@ -357,7 +372,8 @@
                     <!-- 详情页运营位 -->
                     <el-divider content-position="left">详情页推广位</el-divider>
                     <p class="section-desc">
-                        详情页广告位采用统一运营策略：此处仅维护 slotKey 标识，具体广告素材、上下线与排序请在「广告管理」中配置。
+                        详情页广告位采用统一运营策略：此处仅维护 slotKey
+                        标识，具体广告素材、上下线与排序请在「广告管理」中配置。
                     </p>
 
                     <el-form-item label="顶部推广位标识">
@@ -469,7 +485,8 @@
                     <el-form-item label="Noindex 索引控制">
                         <el-switch v-model="config.seoNoindexEnabled" />
                         <span class="form-tip"
-                            >开启后详情页 robots 将输出 noindex,nofollow（防止被搜索引擎收录）。</span
+                            >开启后详情页 robots 将输出
+                            noindex,nofollow（防止被搜索引擎收录）。</span
                         >
                     </el-form-item>
                 </div>

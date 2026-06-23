@@ -274,7 +274,10 @@
                                 <div class="import-preset-manage__header">
                                     <span class="import-preset-manage__title">模板库管理</span>
                                     <div class="import-preset-manage__actions">
-                                        <el-button size="small" @click="handleOpenImportPresetDialog('article')">
+                                        <el-button
+                                            size="small"
+                                            @click="handleOpenImportPresetDialog('article')"
+                                        >
                                             新增模板
                                         </el-button>
                                         <el-button
@@ -291,18 +294,37 @@
                                     <el-table-column label="排序" width="72" align="center">
                                         <template #default="{ row }">{{ row.sort }}</template>
                                     </el-table-column>
-                                    <el-table-column label="模板名称" min-width="140" show-overflow-tooltip>
+                                    <el-table-column
+                                        label="模板名称"
+                                        min-width="140"
+                                        show-overflow-tooltip
+                                    >
                                         <template #default="{ row }">{{ row.name }}</template>
                                     </el-table-column>
-                                    <el-table-column label="说明" min-width="180" show-overflow-tooltip>
-                                        <template #default="{ row }">{{ row.description || '-' }}</template>
+                                    <el-table-column
+                                        label="说明"
+                                        min-width="180"
+                                        show-overflow-tooltip
+                                    >
+                                        <template #default="{ row }">{{
+                                            row.description || '-'
+                                        }}</template>
                                     </el-table-column>
-                                    <el-table-column label="模型" min-width="180" show-overflow-tooltip>
-                                        <template #default="{ row }">{{ row.model || '默认模型' }}</template>
+                                    <el-table-column
+                                        label="模型"
+                                        min-width="180"
+                                        show-overflow-tooltip
+                                    >
+                                        <template #default="{ row }">{{
+                                            row.model || '默认模型'
+                                        }}</template>
                                     </el-table-column>
                                     <el-table-column label="状态" width="84" align="center">
                                         <template #default="{ row }">
-                                            <el-tag :type="row.enabled === false ? 'info' : 'success'" size="small">
+                                            <el-tag
+                                                :type="row.enabled === false ? 'info' : 'success'"
+                                                size="small"
+                                            >
                                                 {{ row.enabled === false ? '停用' : '启用' }}
                                             </el-tag>
                                         </template>
@@ -314,7 +336,9 @@
                                                 link
                                                 type="primary"
                                                 :disabled="$index === 0"
-                                                @click="handleMoveImportPreset('article', $index, 'up')"
+                                                @click="
+                                                    handleMoveImportPreset('article', $index, 'up')
+                                                "
                                             >
                                                 上移
                                             </el-button>
@@ -322,8 +346,16 @@
                                                 size="small"
                                                 link
                                                 type="primary"
-                                                :disabled="$index === articleImportPresetList.length - 1"
-                                                @click="handleMoveImportPreset('article', $index, 'down')"
+                                                :disabled="
+                                                    $index === articleImportPresetList.length - 1
+                                                "
+                                                @click="
+                                                    handleMoveImportPreset(
+                                                        'article',
+                                                        $index,
+                                                        'down'
+                                                    )
+                                                "
                                             >
                                                 下移
                                             </el-button>
@@ -331,7 +363,9 @@
                                                 size="small"
                                                 link
                                                 type="primary"
-                                                @click="handleOpenImportPresetDialog('article', row)"
+                                                @click="
+                                                    handleOpenImportPresetDialog('article', row)
+                                                "
                                             >
                                                 编辑
                                             </el-button>
@@ -428,7 +462,10 @@
                                 <div class="import-preset-manage__header">
                                     <span class="import-preset-manage__title">模板库管理</span>
                                     <div class="import-preset-manage__actions">
-                                        <el-button size="small" @click="handleOpenImportPresetDialog('website')">
+                                        <el-button
+                                            size="small"
+                                            @click="handleOpenImportPresetDialog('website')"
+                                        >
                                             新增模板
                                         </el-button>
                                         <el-button
@@ -445,18 +482,37 @@
                                     <el-table-column label="排序" width="72" align="center">
                                         <template #default="{ row }">{{ row.sort }}</template>
                                     </el-table-column>
-                                    <el-table-column label="模板名称" min-width="140" show-overflow-tooltip>
+                                    <el-table-column
+                                        label="模板名称"
+                                        min-width="140"
+                                        show-overflow-tooltip
+                                    >
                                         <template #default="{ row }">{{ row.name }}</template>
                                     </el-table-column>
-                                    <el-table-column label="说明" min-width="180" show-overflow-tooltip>
-                                        <template #default="{ row }">{{ row.description || '-' }}</template>
+                                    <el-table-column
+                                        label="说明"
+                                        min-width="180"
+                                        show-overflow-tooltip
+                                    >
+                                        <template #default="{ row }">{{
+                                            row.description || '-'
+                                        }}</template>
                                     </el-table-column>
-                                    <el-table-column label="模型" min-width="180" show-overflow-tooltip>
-                                        <template #default="{ row }">{{ row.model || '默认模型' }}</template>
+                                    <el-table-column
+                                        label="模型"
+                                        min-width="180"
+                                        show-overflow-tooltip
+                                    >
+                                        <template #default="{ row }">{{
+                                            row.model || '默认模型'
+                                        }}</template>
                                     </el-table-column>
                                     <el-table-column label="状态" width="84" align="center">
                                         <template #default="{ row }">
-                                            <el-tag :type="row.enabled === false ? 'info' : 'success'" size="small">
+                                            <el-tag
+                                                :type="row.enabled === false ? 'info' : 'success'"
+                                                size="small"
+                                            >
                                                 {{ row.enabled === false ? '停用' : '启用' }}
                                             </el-tag>
                                         </template>
@@ -468,7 +524,9 @@
                                                 link
                                                 type="primary"
                                                 :disabled="$index === 0"
-                                                @click="handleMoveImportPreset('website', $index, 'up')"
+                                                @click="
+                                                    handleMoveImportPreset('website', $index, 'up')
+                                                "
                                             >
                                                 上移
                                             </el-button>
@@ -476,8 +534,16 @@
                                                 size="small"
                                                 link
                                                 type="primary"
-                                                :disabled="$index === websiteImportPresetList.length - 1"
-                                                @click="handleMoveImportPreset('website', $index, 'down')"
+                                                :disabled="
+                                                    $index === websiteImportPresetList.length - 1
+                                                "
+                                                @click="
+                                                    handleMoveImportPreset(
+                                                        'website',
+                                                        $index,
+                                                        'down'
+                                                    )
+                                                "
                                             >
                                                 下移
                                             </el-button>
@@ -485,7 +551,9 @@
                                                 size="small"
                                                 link
                                                 type="primary"
-                                                @click="handleOpenImportPresetDialog('website', row)"
+                                                @click="
+                                                    handleOpenImportPresetDialog('website', row)
+                                                "
                                             >
                                                 编辑
                                             </el-button>
@@ -716,7 +784,9 @@
                             <el-col :xs="12" :sm="8" :md="6">
                                 <el-card shadow="hover" class="stats-card">
                                     <div class="stats-card-title">平均耗时(ms)</div>
-                                    <div class="stats-card-value">{{ statsData.avgDurationMs }}</div>
+                                    <div class="stats-card-value">
+                                        {{ statsData.avgDurationMs }}
+                                    </div>
                                 </el-card>
                             </el-col>
                         </el-row>
@@ -731,7 +801,9 @@
                             <template #header>
                                 <div class="stats-feature-header">
                                     <span class="stats-feature-title">功能使用分布</span>
-                                    <span class="stats-feature-subtitle">按功能维度统计调用、成功率与 Token</span>
+                                    <span class="stats-feature-subtitle"
+                                        >按功能维度统计调用、成功率与 Token</span
+                                    >
                                 </div>
                             </template>
                             <el-table :data="featureStatsRows" size="small" border>
@@ -745,11 +817,21 @@
                                         </el-tag>
                                     </template>
                                 </el-table-column>
-                                <el-table-column label="调用次数" prop="calls" width="100" align="right" />
+                                <el-table-column
+                                    label="调用次数"
+                                    prop="calls"
+                                    width="100"
+                                    align="right"
+                                />
                                 <el-table-column label="成功率" width="100" align="right">
                                     <template #default="{ row }">{{ row.successRate }}%</template>
                                 </el-table-column>
-                                <el-table-column label="Token" prop="tokens" width="110" align="right" />
+                                <el-table-column
+                                    label="Token"
+                                    prop="tokens"
+                                    width="110"
+                                    align="right"
+                                />
                             </el-table>
                         </el-card>
 
@@ -812,7 +894,9 @@
                                 <template #default="{ row }">
                                     <el-tag
                                         size="small"
-                                        :type="row.responseStatus === 'success' ? 'success' : 'danger'"
+                                        :type="
+                                            row.responseStatus === 'success' ? 'success' : 'danger'
+                                        "
                                     >
                                         {{ row.responseStatus === 'success' ? '成功' : '失败' }}
                                     </el-tag>
@@ -1036,7 +1120,10 @@
                             class="ai-model-field__select"
                         >
                             <el-option
-                                v-for="item in getProviderMergedModelOptions(editForm.provider, editForm.model)"
+                                v-for="item in getProviderMergedModelOptions(
+                                    editForm.provider,
+                                    editForm.model
+                                )"
                                 :key="`${item.source}:${item.value}`"
                                 :label="item.label"
                                 :value="item.value"
@@ -1136,12 +1223,10 @@
                         class="w-100"
                     >
                         <el-option
-                            v-for="
-                                item in getProviderMergedReasoningOptions(
-                                    editForm.provider,
-                                    editForm.reasoningModel
-                                )
-                            "
+                            v-for="item in getProviderMergedReasoningOptions(
+                                editForm.provider,
+                                editForm.reasoningModel
+                            )"
                             :key="item.value"
                             :label="item.label"
                             :value="item.value"
@@ -1288,9 +1373,7 @@
                 <el-form-item label="所属模块">
                     <el-tag size="small" type="info">
                         {{
-                            importPresetDialogModule === 'article'
-                                ? '批量导入文章'
-                                : '批量导入网址'
+                            importPresetDialogModule === 'article' ? '批量导入文章' : '批量导入网址'
                         }}
                     </el-tag>
                 </el-form-item>
@@ -1424,10 +1507,7 @@ type RemoteModelMeta = {
     requestUrl: string
 }
 
-const providerModelPresetMap: Record<
-    string,
-    Array<ProviderModelPreset>
-> = {
+const providerModelPresetMap: Record<string, Array<ProviderModelPreset>> = {
     siliconflow: [
         {
             label: 'SiliconFlow / DeepSeek-V3.2（通用）',
@@ -1601,9 +1681,14 @@ const getProviderReasoningPresets = (provider: string) => {
 /**
  * 合并“接口模型 + 预设模型”为下拉选项
  */
-const getProviderMergedModelOptions = (provider: string, currentModel = ''): Array<RuntimeModelOption> => {
+const getProviderMergedModelOptions = (
+    provider: string,
+    currentModel = ''
+): Array<RuntimeModelOption> => {
     const key = normalizeProviderKey(provider)
-    const remoteOptions = Array.isArray(providerRemoteModelMap[key]) ? providerRemoteModelMap[key] : []
+    const remoteOptions = Array.isArray(providerRemoteModelMap[key])
+        ? providerRemoteModelMap[key]
+        : []
     const presetOptions = getProviderModelPresets(key).map((item) => ({
         label: item.model === item.label ? item.label : `${item.model}（预设）`,
         value: item.model,
@@ -2094,7 +2179,8 @@ const providerGuideInfoMap: Record<string, ProviderGuideInfo> = {
     },
     kimi: {
         apiUrlPlaceholder: 'https://api.moonshot.cn/v1/chat/completions',
-        guideText: 'Kimi 官方 OpenAI 兼容地址建议填写 /v1/chat/completions（模型可先选 moonshot-v1-8k）。',
+        guideText:
+            'Kimi 官方 OpenAI 兼容地址建议填写 /v1/chat/completions（模型可先选 moonshot-v1-8k）。',
         docUrl: 'https://platform.moonshot.cn/docs/api/chat'
     },
     moonshot: {
@@ -2246,7 +2332,9 @@ const getProviderKeyGuideInfo = (provider: string): ProviderKeyGuideInfo => {
 /**
  * 当前提供商 Key 获取提示文案。
  */
-const currentProviderKeyGuideText = computed(() => getProviderKeyGuideInfo(editForm.provider).guideText)
+const currentProviderKeyGuideText = computed(
+    () => getProviderKeyGuideInfo(editForm.provider).guideText
+)
 
 /**
  * 当前提供商 Key 获取跳转地址（存在时显示按钮）。
@@ -2778,7 +2866,9 @@ const normalizeUsageLogItem = (item: any) => ({
 /**
  * 规范化“功能分布”统计行
  */
-const normalizeFeatureStats = (rows: any): Array<{
+const normalizeFeatureStats = (
+    rows: any
+): Array<{
     featureType: string
     calls: number
     tokens: number
@@ -2807,7 +2897,9 @@ const loadStats = async () => {
         statsData.avgTokensPerCall = Number(data.avgTokensPerCall ?? 0)
         statsData.todaySuccessRate = Number(data.todaySuccessRate ?? 0)
         statsData.todayFailedCalls = Number(data.todayFailedCalls ?? 0)
-        statsData.byFeature = normalizeFeatureStats(data.byFeature || Object.values(data.byType || {}))
+        statsData.byFeature = normalizeFeatureStats(
+            data.byFeature || Object.values(data.byType || {})
+        )
     } catch (error) {
         console.error('获取使用统计失败:', error)
         statsData.totalCalls = 0
@@ -2852,7 +2944,9 @@ const loadLogList = async () => {
         const res = await uiedAiUsageLogList(params)
         const data = res?.data || res || {}
         const rows = data?.lists || data?.list || []
-        logList.value = (Array.isArray(rows) ? rows : []).map((item: any) => normalizeUsageLogItem(item))
+        logList.value = (Array.isArray(rows) ? rows : []).map((item: any) =>
+            normalizeUsageLogItem(item)
+        )
         logPagination.total = Number(data?.count ?? data?.total ?? 0)
     } catch (error) {
         console.error('获取使用日志失败:', error)
@@ -2946,7 +3040,10 @@ const DEFAULT_WEBSITE_IMPORT_PROMPT = `请为以下网站生成一篇详细的�
 /**
  * 创建默认模板库（文章/网址），用于首屏和异常兜底。
  */
-const createDefaultImportTemplatePresets = (): Record<ImportModuleType, ImportTemplatePreset[]> => ({
+const createDefaultImportTemplatePresets = (): Record<
+    ImportModuleType,
+    ImportTemplatePreset[]
+> => ({
     article: [
         {
             id: 'article_default',
@@ -3095,14 +3192,23 @@ const importModelOptions = computed(() => {
     /**
      * 写入单个模型选项，自动去重并附带来源说明。
      */
-    const pushModelOption = (modelName: string, providerName: string, isDefault: boolean, suffix = '主模型') => {
+    const pushModelOption = (
+        modelName: string,
+        providerName: string,
+        isDefault: boolean,
+        suffix = '主模型'
+    ) => {
         const normalizedName = String(modelName || '').trim()
         if (!normalizedName) return
         const dedupKey = normalizedName.toLowerCase()
         if (dedup.has(dedupKey)) return
         dedup.add(dedupKey)
         options.push({
-            label: `${normalizedName}${providerName ? `（${providerName} · ${suffix}${isDefault ? ' · 默认配置' : ''}）` : ''}`,
+            label: `${normalizedName}${
+                providerName
+                    ? `（${providerName} · ${suffix}${isDefault ? ' · 默认配置' : ''}）`
+                    : ''
+            }`,
             value: normalizedName
         })
     }
@@ -3137,16 +3243,26 @@ const normalizeImportModuleConfig = (
 const normalizeInsecureDomainList = (source: any, fallback: string[] = []): string[] => {
     const rawList = Array.isArray(source) ? source : String(source || '').split(/[\n,;\s]+/)
     const list = rawList
-        .map((item: any) => String(item || '').trim().toLowerCase())
+        .map((item: any) =>
+            String(item || '')
+                .trim()
+                .toLowerCase()
+        )
         .filter(Boolean)
         .map((item) => item.replace(/^https?:\/\//, ''))
         .map((item) => item.replace(/\/+$/, ''))
         .filter((item) => /^[a-z0-9.-]+$/.test(item))
     const merged = list.length
         ? list
-        : (Array.isArray(fallback)
-              ? fallback.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean)
-              : [])
+        : Array.isArray(fallback)
+        ? fallback
+              .map((item) =>
+                  String(item || '')
+                      .trim()
+                      .toLowerCase()
+              )
+              .filter(Boolean)
+        : []
     return Array.from(new Set(merged))
 }
 
@@ -3258,12 +3374,19 @@ const normalizeImportPresetItem = (
     const fallback = defaults[index] || defaults[0]
     const fallbackId = `${module}_preset_${index + 1}`
     return {
-        id: String(item?.id || fallback?.id || fallbackId).trim().slice(0, 64) || fallbackId,
-        name: String(item?.name || fallback?.name || `模板 ${index + 1}`).trim().slice(0, 60),
+        id:
+            String(item?.id || fallback?.id || fallbackId)
+                .trim()
+                .slice(0, 64) || fallbackId,
+        name: String(item?.name || fallback?.name || `模板 ${index + 1}`)
+            .trim()
+            .slice(0, 60),
         description: String(item?.description || fallback?.description || '')
             .trim()
             .slice(0, 120),
-        model: String(item?.model || fallback?.model || '').trim().slice(0, 120),
+        model: String(item?.model || fallback?.model || '')
+            .trim()
+            .slice(0, 120),
         promptTemplate: String(item?.promptTemplate || fallback?.promptTemplate || '')
             .trim()
             .slice(0, 12000),
@@ -3275,10 +3398,7 @@ const normalizeImportPresetItem = (
 /**
  * 规范化模板列表：去重、排序、重新生成 sort。
  */
-const normalizeImportPresetList = (
-    list: any,
-    module: ImportModuleType
-): ImportTemplatePreset[] => {
+const normalizeImportPresetList = (list: any, module: ImportModuleType): ImportTemplatePreset[] => {
     const source = Array.isArray(list) ? list : []
     const normalized = source.map((item, index) => normalizeImportPresetItem(item, module, index))
     const fallback = createDefaultImportTemplatePresets()[module]
@@ -3514,7 +3634,10 @@ const handleMoveImportPreset = (
 /**
  * 根据模块与预设 ID 查找模板预设。
  */
-const findImportPreset = (module: ImportModuleType, presetId: string): ImportTemplatePreset | null => {
+const findImportPreset = (
+    module: ImportModuleType,
+    presetId: string
+): ImportTemplatePreset | null => {
     const list = getImportPresetListByModule(module)
     const matched = list.find((item) => item.id === presetId)
     return matched || null
@@ -3533,7 +3656,8 @@ const applyImportPresetToModule = (module: ImportModuleType, preset: ImportTempl
  * 点击“应用预设”后的处理逻辑。
  */
 const handleApplyImportPreset = (module: ImportModuleType) => {
-    const presetId = module === 'article' ? selectedArticlePresetId.value : selectedWebsitePresetId.value
+    const presetId =
+        module === 'article' ? selectedArticlePresetId.value : selectedWebsitePresetId.value
     if (!presetId) {
         ElMessage.warning('请先选择模板预设')
         return
@@ -3584,10 +3708,14 @@ const handleResetAllImportConfig = async () => {
     }
     const articleDefault = getDefaultImportModuleConfig('article')
     importConfigForm.articleBatchImport.model = String(articleDefault.model || '').trim()
-    importConfigForm.articleBatchImport.promptTemplate = String(articleDefault.promptTemplate || '').trim()
+    importConfigForm.articleBatchImport.promptTemplate = String(
+        articleDefault.promptTemplate || ''
+    ).trim()
     const websiteDefault = getDefaultImportModuleConfig('website')
     importConfigForm.websiteBatchImport.model = String(websiteDefault.model || '').trim()
-    importConfigForm.websiteBatchImport.promptTemplate = String(websiteDefault.promptTemplate || '').trim()
+    importConfigForm.websiteBatchImport.promptTemplate = String(
+        websiteDefault.promptTemplate || ''
+    ).trim()
     selectedArticlePresetId.value = ''
     selectedWebsitePresetId.value = ''
     ElMessage.success('全部模块已恢复默认模板')
@@ -3626,8 +3754,14 @@ const handleCopyImportPrompt = async (module: ImportModuleType) => {
  */
 const applyImportConfig = (payload: any) => {
     const defaults = createDefaultImportConfig()
-    const articleConfig = normalizeImportModuleConfig(payload?.articleBatchImport, defaults.articleBatchImport)
-    const websiteConfig = normalizeImportModuleConfig(payload?.websiteBatchImport, defaults.websiteBatchImport)
+    const articleConfig = normalizeImportModuleConfig(
+        payload?.articleBatchImport,
+        defaults.articleBatchImport
+    )
+    const websiteConfig = normalizeImportModuleConfig(
+        payload?.websiteBatchImport,
+        defaults.websiteBatchImport
+    )
     const networkConfig = normalizeImportNetworkConfig(
         payload?.network || payload?.remoteImageTransfer,
         defaults.network
@@ -3770,7 +3904,11 @@ watch(
          */
         const shouldAutoFillApiUrl =
             !String(editForm.apiUrl || '').trim() ||
-            isProviderDefaultFieldValue(previousProviderKey, String(editForm.apiUrl || ''), 'apiUrl')
+            isProviderDefaultFieldValue(
+                previousProviderKey,
+                String(editForm.apiUrl || ''),
+                'apiUrl'
+            )
         const shouldAutoFillModel =
             !String(editForm.model || '').trim() ||
             isProviderDefaultFieldValue(previousProviderKey, String(editForm.model || ''), 'model')

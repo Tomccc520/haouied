@@ -20,13 +20,24 @@
                     />
                 </el-form-item>
                 <el-form-item label="状态">
-                    <el-select v-model="queryParams.status" class="w-[140px]" placeholder="全部状态" clearable>
+                    <el-select
+                        v-model="queryParams.status"
+                        class="w-[140px]"
+                        placeholder="全部状态"
+                        clearable
+                    >
                         <el-option label="草稿" value="draft" />
                         <el-option label="已发布" value="published" />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="分类">
-                    <el-select v-model="queryParams.categoryId" class="w-[180px]" placeholder="全部分类" clearable filterable>
+                    <el-select
+                        v-model="queryParams.categoryId"
+                        class="w-[180px]"
+                        placeholder="全部分类"
+                        clearable
+                        filterable
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -80,7 +91,11 @@
                         </el-radio-group>
                         <el-switch
                             v-model="figmaPageConfig.cardClickNewWindow"
-                            :disabled="figmaPageConfigLoading || figmaPageConfigSaving || figmaPageConfig.cardClickAction !== 'official_first'"
+                            :disabled="
+                                figmaPageConfigLoading ||
+                                figmaPageConfigSaving ||
+                                figmaPageConfig.cardClickAction !== 'official_first'
+                            "
                             inline-prompt
                             active-text="新窗"
                             inactive-text="当前页"
@@ -105,7 +120,9 @@
                         <div class="figma-list-page__title">{{ row.name }}</div>
                         <div class="figma-list-page__sub">
                             /{{ row.slug }}
-                            <span class="figma-list-page__path">前端路径：{{ resolveFrontendFigmaPath(row) }}</span>
+                            <span class="figma-list-page__path"
+                                >前端路径：{{ resolveFrontendFigmaPath(row) }}</span
+                            >
                             <a
                                 v-if="row.officialUrl"
                                 class="figma-list-page__link"
@@ -132,7 +149,9 @@
                 </el-table-column>
                 <el-table-column label="推荐" width="90">
                     <template #default="{ row }">
-                        <el-tag v-if="Number(row.isRecommended) === 1" type="warning" effect="plain">推荐</el-tag>
+                        <el-tag v-if="Number(row.isRecommended) === 1" type="warning" effect="plain"
+                            >推荐</el-tag
+                        >
                         <span v-else>-</span>
                     </template>
                 </el-table-column>
@@ -154,7 +173,9 @@
                 </el-table-column>
                 <el-table-column label="操作" width="250" fixed="right">
                     <template #default="{ row }">
-                        <el-button type="primary" link @click="openFrontendFigma(row)">查看前端</el-button>
+                        <el-button type="primary" link @click="openFrontendFigma(row)"
+                            >查看前端</el-button
+                        >
                         <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
                         <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
                     </template>
@@ -174,22 +195,49 @@
             :destroy-on-close="false"
         >
             <div v-loading="editDrawerLoading" class="figma-edit-drawer">
-                <el-form ref="editFormRef" :model="editFormData" :rules="editRules" label-width="96px">
+                <el-form
+                    ref="editFormRef"
+                    :model="editFormData"
+                    :rules="editRules"
+                    label-width="96px"
+                >
                     <el-form-item label="插件名称" prop="name">
                         <el-input v-model="editFormData.name" placeholder="请输入插件名称" />
                     </el-form-item>
                     <el-form-item label="插件标识">
-                        <el-input v-model="editFormData.slug" placeholder="用于详情页路径，建议英文短横线" />
+                        <el-input
+                            v-model="editFormData.slug"
+                            placeholder="用于详情页路径，建议英文短横线"
+                        />
                     </el-form-item>
                     <el-form-item label="官方链接" prop="officialUrl">
-                        <el-input v-model="editFormData.officialUrl" placeholder="https://www.figma.com/community/plugin/..." />
+                        <el-input
+                            v-model="editFormData.officialUrl"
+                            placeholder="https://www.figma.com/community/plugin/..."
+                        />
                     </el-form-item>
                     <el-form-item label="简介">
-                        <el-input v-model="editFormData.summary" type="textarea" :rows="3" placeholder="插件简介（用于列表摘要与SEO）" />
+                        <el-input
+                            v-model="editFormData.summary"
+                            type="textarea"
+                            :rows="3"
+                            placeholder="插件简介（用于列表摘要与SEO）"
+                        />
                     </el-form-item>
                     <el-form-item label="分类">
-                        <el-select v-model="editFormData.categoryId" clearable filterable style="width: 100%" placeholder="请选择分类">
-                            <el-option v-for="item in categoryOptions" :key="item.id" :label="item.name" :value="item.id" />
+                        <el-select
+                            v-model="editFormData.categoryId"
+                            clearable
+                            filterable
+                            style="width: 100%"
+                            placeholder="请选择分类"
+                        >
+                            <el-option
+                                v-for="item in categoryOptions"
+                                :key="item.id"
+                                :label="item.name"
+                                :value="item.id"
+                            />
                         </el-select>
                     </el-form-item>
                     <el-form-item label="标签">
@@ -202,7 +250,12 @@
                             style="width: 100%"
                             placeholder="请选择标签（可多选）"
                         >
-                            <el-option v-for="item in tagOptions" :key="item.id" :label="item.name" :value="item.id" />
+                            <el-option
+                                v-for="item in tagOptions"
+                                :key="item.id"
+                                :label="item.name"
+                                :value="item.id"
+                            />
                         </el-select>
                     </el-form-item>
                     <el-form-item label="发布状态">
@@ -214,7 +267,9 @@
                     <el-form-item label="推荐位">
                         <el-switch
                             :model-value="editFormData.isRecommended === 1"
-                            @update:model-value="(value) => (editFormData.isRecommended = value ? 1 : 0)"
+                            @update:model-value="
+                                (value) => (editFormData.isRecommended = value ? 1 : 0)
+                            "
                         />
                     </el-form-item>
                     <el-form-item label="排序">
@@ -227,13 +282,24 @@
                         <el-input-number v-model="editFormData.likeCount" :min="0" :step="100" />
                     </el-form-item>
                     <el-form-item label="SEO标题">
-                        <el-input v-model="editFormData.seoTitle" placeholder="为空则使用插件名称" />
+                        <el-input
+                            v-model="editFormData.seoTitle"
+                            placeholder="为空则使用插件名称"
+                        />
                     </el-form-item>
                     <el-form-item label="SEO关键词">
-                        <el-input v-model="editFormData.seoKeywords" placeholder="关键词用英文逗号分隔" />
+                        <el-input
+                            v-model="editFormData.seoKeywords"
+                            placeholder="关键词用英文逗号分隔"
+                        />
                     </el-form-item>
                     <el-form-item label="SEO描述">
-                        <el-input v-model="editFormData.seoDescription" type="textarea" :rows="3" placeholder="建议 60-120 字" />
+                        <el-input
+                            v-model="editFormData.seoDescription"
+                            type="textarea"
+                            :rows="3"
+                            placeholder="建议 60-120 字"
+                        />
                     </el-form-item>
                 </el-form>
             </div>
@@ -241,7 +307,12 @@
                 <div class="figma-edit-drawer__footer">
                     <el-button @click="openFullPublishEditor">打开完整编辑页</el-button>
                     <el-button @click="editDrawerVisible = false">取消</el-button>
-                    <el-button type="primary" :loading="editSubmitting" @click="handleSaveDrawerEdit">保存</el-button>
+                    <el-button
+                        type="primary"
+                        :loading="editSubmitting"
+                        @click="handleSaveDrawerEdit"
+                        >保存</el-button
+                    >
                 </div>
             </template>
         </el-drawer>
@@ -267,7 +338,9 @@
                             :value="item.value"
                         />
                     </el-select>
-                    <div class="figma-list-page__hint">选择分类后会自动填充来源地址，仅“自定义链接”支持手工输入来源地址。</div>
+                    <div class="figma-list-page__hint">
+                        选择分类后会自动填充来源地址，仅“自定义链接”支持手工输入来源地址。
+                    </div>
                 </el-form-item>
                 <el-form-item label="来源地址">
                     <el-input
@@ -283,7 +356,13 @@
                     <el-input-number v-model="importForm.limit" :min="1" :max="120" />
                 </el-form-item>
                 <el-form-item label="默认分类">
-                    <el-select v-model="importForm.categoryId" clearable filterable placeholder="不指定则保持未分类" class="w-[360px]">
+                    <el-select
+                        v-model="importForm.categoryId"
+                        clearable
+                        filterable
+                        placeholder="不指定则保持未分类"
+                        class="w-[360px]"
+                    >
                         <el-option
                             v-for="item in categoryOptions"
                             :key="item.id"
@@ -294,7 +373,9 @@
                 </el-form-item>
                 <el-form-item label="来源自动分类">
                     <el-switch v-model="importForm.autoCategory" />
-                    <div class="figma-list-page__hint">未指定“默认分类”时，将根据采集分类自动映射本地分类并写入。</div>
+                    <div class="figma-list-page__hint">
+                        未指定“默认分类”时，将根据采集分类自动映射本地分类并写入。
+                    </div>
                 </el-form-item>
                 <el-form-item label="导入状态">
                     <el-radio-group v-model="importForm.status">
@@ -304,7 +385,9 @@
                 </el-form-item>
                 <el-form-item label="标题简介汉化">
                     <el-switch v-model="importForm.translate" />
-                    <div class="figma-list-page__hint">开启后会调用 AI 配置进行汉化，若失败自动保留原文。</div>
+                    <div class="figma-list-page__hint">
+                        开启后会调用 AI 配置进行汉化，若失败自动保留原文。
+                    </div>
                 </el-form-item>
                 <el-form-item label="导入结果" v-if="importResultText">
                     <div class="figma-list-page__import-result">{{ importResultText }}</div>
@@ -312,7 +395,9 @@
             </el-form>
             <template #footer>
                 <el-button @click="importDialogVisible = false">关闭</el-button>
-                <el-button type="primary" :loading="importing" @click="handleImportOfficial">开始采集</el-button>
+                <el-button type="primary" :loading="importing" @click="handleImportOfficial"
+                    >开始采集</el-button
+                >
             </template>
         </el-dialog>
     </div>
@@ -341,7 +426,7 @@ import {
     uiedFigmaRefreshMissingStats,
     uiedFigmaImportOfficial,
     uiedSettingGet,
-    uiedSettingSave,
+    uiedSettingSave
 } from '@/api/uied'
 
 interface FigmaCategoryOption {
@@ -404,7 +489,7 @@ const router = useRouter()
 const queryParams = reactive({
     keyword: '',
     status: '',
-    categoryId: '' as number | string,
+    categoryId: '' as number | string
 })
 
 const categoryOptions = ref<FigmaCategoryOption[]>([])
@@ -421,12 +506,32 @@ const figmaPageConfigLoading = ref(false)
 const figmaPageConfigSaving = ref(false)
 const officialSourceCategoryOptions = [
     { label: '全部插件', value: 'plugins', url: 'https://www.figma.com/community/plugins' },
-    { label: '编辑效果', value: 'editing-effects', url: 'https://www.figma.com/community/editing-effects?resource_type=plugins' },
-    { label: '开发协作', value: 'development', url: 'https://www.figma.com/community/development?resource_type=plugins' },
-    { label: '导入导出', value: 'import-export', url: 'https://www.figma.com/community/import-export?resource_type=plugins' },
-    { label: '文件组织', value: 'file-organization', url: 'https://www.figma.com/community/file-organization?resource_type=plugins' },
-    { label: '无障碍', value: 'accessibility', url: 'https://www.figma.com/community/accessibility?resource_type=plugins' },
-    { label: '自定义链接', value: 'custom', url: '' },
+    {
+        label: '编辑效果',
+        value: 'editing-effects',
+        url: 'https://www.figma.com/community/editing-effects?resource_type=plugins'
+    },
+    {
+        label: '开发协作',
+        value: 'development',
+        url: 'https://www.figma.com/community/development?resource_type=plugins'
+    },
+    {
+        label: '导入导出',
+        value: 'import-export',
+        url: 'https://www.figma.com/community/import-export?resource_type=plugins'
+    },
+    {
+        label: '文件组织',
+        value: 'file-organization',
+        url: 'https://www.figma.com/community/file-organization?resource_type=plugins'
+    },
+    {
+        label: '无障碍',
+        value: 'accessibility',
+        url: 'https://www.figma.com/community/accessibility?resource_type=plugins'
+    },
+    { label: '自定义链接', value: 'custom', url: '' }
 ]
 const importForm = reactive({
     sourceUrl: 'https://www.figma.com/community/plugins',
@@ -435,14 +540,14 @@ const importForm = reactive({
     categoryId: undefined as number | undefined,
     autoCategory: true,
     status: 'published' as 'draft' | 'published',
-    translate: true,
+    translate: true
 })
 
 const figmaPageConfig = reactive<FigmaPageConfigState>({
     enabled: true,
     listPageSize: 24,
     cardClickAction: 'official_first',
-    cardClickNewWindow: true,
+    cardClickNewWindow: true
 })
 
 const DEFAULT_EDIT_FORM: FigmaEditFormState = {
@@ -472,33 +577,35 @@ const DEFAULT_EDIT_FORM: FigmaEditFormState = {
     likeCount: 0,
     seoTitle: '',
     seoKeywords: '',
-    seoDescription: '',
+    seoDescription: ''
 }
 
 const editFormRef = ref<FormInstance>()
 const editFormData = reactive<FigmaEditFormState>({ ...DEFAULT_EDIT_FORM })
 const editRules: FormRules = {
     name: [{ required: true, message: '插件名称不能为空', trigger: 'blur' }],
-    officialUrl: [{ required: true, message: '官方链接不能为空', trigger: 'blur' }],
+    officialUrl: [{ required: true, message: '官方链接不能为空', trigger: 'blur' }]
 }
 
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedFigmaList,
-    params: queryParams,
+    params: queryParams
 })
 
 /**
  * 规范化 Figma 前端配置，确保后台保存前字段稳定。
  */
 const normalizeFigmaPageConfig = (data: any): FigmaPageConfigState => {
-    const cardClickAction = String(data?.cardClickAction || '').trim().toLowerCase()
+    const cardClickAction = String(data?.cardClickAction || '')
+        .trim()
+        .toLowerCase()
     return {
         enabled: data?.enabled !== false,
         listPageSize: Number.isFinite(Number(data?.listPageSize))
             ? Math.max(6, Math.min(72, Number(data.listPageSize)))
             : 24,
         cardClickAction: cardClickAction === 'detail' ? 'detail' : 'official_first',
-        cardClickNewWindow: data?.cardClickNewWindow !== false,
+        cardClickNewWindow: data?.cardClickNewWindow !== false
     }
 }
 
@@ -551,7 +658,7 @@ const loadCategoryOptions = async () => {
     categoryOptions.value = (Array.isArray(rows) ? rows : [])
         .map((item: any) => ({
             id: Number(item.id || 0),
-            name: String(item.name || ''),
+            name: String(item.name || '')
         }))
         .filter((item) => item.id > 0 && item.name)
 }
@@ -564,7 +671,7 @@ const loadTagOptions = async () => {
     tagOptions.value = (Array.isArray(rows) ? rows : [])
         .map((item: any) => ({
             id: Number(item.id || 0),
-            name: String(item.name || ''),
+            name: String(item.name || '')
         }))
         .filter((item) => item.id > 0 && item.name)
 }
@@ -602,11 +709,18 @@ const handleEdit = (row: any) => {
     uiedFigmaDetail({ id })
         .then((detail: any) => {
             const tagsFromDetail = Array.isArray(detail?.tags)
-                ? detail.tags.map((item: any) => Number(item?.id || 0)).filter((item: number) => item > 0)
+                ? detail.tags
+                      .map((item: any) => Number(item?.id || 0))
+                      .filter((item: number) => item > 0)
                 : []
-            const tagIds = tagsFromDetail.length > 0
-                ? tagsFromDetail
-                : (Array.isArray(detail?.tagIds) ? detail.tagIds.map((item: any) => Number(item || 0)).filter((item: number) => item > 0) : [])
+            const tagIds =
+                tagsFromDetail.length > 0
+                    ? tagsFromDetail
+                    : Array.isArray(detail?.tagIds)
+                    ? detail.tagIds
+                          .map((item: any) => Number(item || 0))
+                          .filter((item: number) => item > 0)
+                    : []
             Object.assign(editFormData, {
                 id: Number(detail?.id || id),
                 name: String(detail?.name || ''),
@@ -627,19 +741,24 @@ const handleEdit = (row: any) => {
                 protocolVersion: String(detail?.protocolVersion || ''),
                 categoryId: Number(detail?.categoryId || 0) || undefined,
                 tagIds,
-                status: String(detail?.status || '').toLowerCase() === 'published' ? 'published' : 'draft',
+                status:
+                    String(detail?.status || '').toLowerCase() === 'published'
+                        ? 'published'
+                        : 'draft',
                 isRecommended: Number(detail?.isRecommended || 0) === 1 ? 1 : 0,
                 sortOrder: Number(detail?.sortOrder || 0),
                 userCount: Number(detail?.userCount || 0),
                 likeCount: Number(detail?.likeCount || 0),
                 seoTitle: String(detail?.seoTitle || ''),
                 seoKeywords: String(detail?.seoKeywords || ''),
-                seoDescription: String(detail?.seoDescription || ''),
+                seoDescription: String(detail?.seoDescription || '')
             } as FigmaEditFormState)
         })
         .catch((error: any) => {
             editDrawerVisible.value = false
-            feedback.msgError(error?.msg || error?.message || error?.response?.data?.message || '加载插件详情失败')
+            feedback.msgError(
+                error?.msg || error?.message || error?.response?.data?.message || '加载插件详情失败'
+            )
         })
         .finally(() => {
             editDrawerLoading.value = false
@@ -721,9 +840,13 @@ const handleSaveDrawerEdit = async () => {
             runtime: String(editFormData.runtime || '').trim() || 'other',
             protocolVersion: String(editFormData.protocolVersion || '').trim(),
             categoryId: Number(editFormData.categoryId || 0) || null,
-            tagIds: Array.from(new Set((Array.isArray(editFormData.tagIds) ? editFormData.tagIds : [])
-                .map((item) => Number(item || 0))
-                .filter((item) => item > 0))),
+            tagIds: Array.from(
+                new Set(
+                    (Array.isArray(editFormData.tagIds) ? editFormData.tagIds : [])
+                        .map((item) => Number(item || 0))
+                        .filter((item) => item > 0)
+                )
+            ),
             status: editFormData.status === 'published' ? 'published' : 'draft',
             isRecommended: Number(editFormData.isRecommended || 0) === 1 ? 1 : 0,
             sortOrder: Number(editFormData.sortOrder || 0),
@@ -731,14 +854,16 @@ const handleSaveDrawerEdit = async () => {
             likeCount: Math.max(0, Number(editFormData.likeCount || 0)),
             seoTitle: String(editFormData.seoTitle || '').trim(),
             seoKeywords: String(editFormData.seoKeywords || '').trim(),
-            seoDescription: String(editFormData.seoDescription || '').trim(),
+            seoDescription: String(editFormData.seoDescription || '').trim()
         }
         await uiedFigmaEdit(payload)
         feedback.msgSuccess('保存成功')
         editDrawerVisible.value = false
         await getLists()
     } catch (error: any) {
-        feedback.msgError(error?.msg || error?.message || error?.response?.data?.message || '保存失败')
+        feedback.msgError(
+            error?.msg || error?.message || error?.response?.data?.message || '保存失败'
+        )
     } finally {
         editSubmitting.value = false
     }
@@ -758,7 +883,7 @@ const openImportDialog = () => {
  */
 const handleSourceCategoryChange = (value?: string) => {
     const sourceCategory = String(value || importForm.sourceCategory || '').trim()
-    const target = officialSourceCategoryOptions.find(item => item.value === sourceCategory)
+    const target = officialSourceCategoryOptions.find((item) => item.value === sourceCategory)
     if (!target) return
     if (target.value === 'custom') return
     importForm.sourceUrl = target.url
@@ -771,16 +896,20 @@ const handleImportOfficial = async () => {
     importing.value = true
     importResultText.value = ''
     try {
-        const result = await uiedFigmaImportOfficial({
+        const result = (await uiedFigmaImportOfficial({
             sourceUrl: importForm.sourceUrl,
             sourceCategory: importForm.sourceCategory,
             limit: Number(importForm.limit || 20),
             categoryId: importForm.categoryId || null,
             autoCategory: importForm.autoCategory,
             status: importForm.status,
-            translate: importForm.translate,
-        }) as FigmaImportResult
-        importResultText.value = `来源：${result?.sourceUrl || '-'} ｜ 扫描：${Number(result?.scanned || 0)} ｜ 新增：${Number(result?.created || 0)} ｜ 更新：${Number(result?.updated || 0)} ｜ 失败：${Number(result?.failed || 0)}`
+            translate: importForm.translate
+        })) as FigmaImportResult
+        importResultText.value = `来源：${result?.sourceUrl || '-'} ｜ 扫描：${Number(
+            result?.scanned || 0
+        )} ｜ 新增：${Number(result?.created || 0)} ｜ 更新：${Number(
+            result?.updated || 0
+        )} ｜ 失败：${Number(result?.failed || 0)}`
         feedback.msgSuccess('采集完成')
         await getLists()
     } finally {
@@ -809,7 +938,7 @@ const handleAutoTagMissing = async () => {
             const result: any = await uiedFigmaTagAutoFill({
                 limit: batchLimit,
                 onlyWithoutTags: 1,
-                startId: nextStartId,
+                startId: nextStartId
             })
             const processed = Number(result?.processed || 0)
             const updated = Number(result?.updated || 0)
@@ -832,7 +961,7 @@ const handleAutoTagMissing = async () => {
                 const result: any = await uiedFigmaTagAutoFill({
                     limit: 180,
                     onlyWithoutTags: 0,
-                    startId: nextStartId,
+                    startId: nextStartId
                 })
                 const processed = Number(result?.processed || 0)
                 const updated = Number(result?.updated || 0)
@@ -883,7 +1012,7 @@ const handleRefreshMissingStats = async () => {
             const result: any = await uiedFigmaRefreshMissingStats({
                 limit: batchLimit,
                 onlyMissing: 1,
-                beforeId: nextBeforeId,
+                beforeId: nextBeforeId
             })
             const processed = Number(result?.processed || 0)
             const updated = Number(result?.updated || 0)

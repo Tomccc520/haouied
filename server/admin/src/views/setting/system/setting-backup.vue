@@ -187,9 +187,7 @@ const handleSettingBackupFileChange = async (event: Event) => {
 
     try {
         const payload = await parseBackupFile(file)
-        await feedback.confirm(
-            '导入后将覆盖快照中同名配置（含站点信息/登录配置），是否继续导入？'
-        )
+        await feedback.confirm('导入后将覆盖快照中同名配置（含站点信息/登录配置），是否继续导入？')
         importLoading.value = true
         const result: any = await uiedSettingBackupImport({
             payload,

@@ -145,8 +145,12 @@
             <div class="article-summary mb-3">
                 <el-tag effect="plain">当前列表 {{ safeLists.length }} 条</el-tag>
                 <template v-if="!isRecycleBinMode">
-                    <el-tag type="warning" effect="plain">待审核 {{ pageAuditPendingCount }} 条</el-tag>
-                    <el-tag type="success" effect="plain">已发布 {{ pagePublishedCount }} 条</el-tag>
+                    <el-tag type="warning" effect="plain"
+                        >待审核 {{ pageAuditPendingCount }} 条</el-tag
+                    >
+                    <el-tag type="success" effect="plain"
+                        >已发布 {{ pagePublishedCount }} 条</el-tag
+                    >
                     <el-tag type="info" effect="plain">待发布 {{ pageDraftCount }} 条</el-tag>
                 </template>
                 <template v-else>
@@ -256,7 +260,9 @@
                                 >
                                     <div class="flex items-center justify-between gap-2">
                                         <span>{{ item.label }}</span>
-                                        <span class="text-xs text-gray-400">{{ item.userTypeName }}</span>
+                                        <span class="text-xs text-gray-400">{{
+                                            item.userTypeName
+                                        }}</span>
                                     </div>
                                 </el-option>
                             </el-select>
@@ -296,24 +302,17 @@
                                 模型与提示词请在「AI 助手管理 -> 导入配置」中统一设置。
                             </div>
                         </el-form-item>
-                        <el-form-item
-                            v-else
-                            label="生成说明"
-                        >
+                        <el-form-item v-else label="生成说明">
                             <div class="w-full">
                                 <div class="text-xs text-gray-500 leading-6">
-                                    每行输入一个文章选题、标题方向或关键词，系统会逐篇调用默认 AI 模型生成完整文章并直接入库。
+                                    每行输入一个文章选题、标题方向或关键词，系统会逐篇调用默认 AI
+                                    模型生成完整文章并直接入库。
                                 </div>
-                                <el-collapse
-                                    v-model="batchAiGenerateAdvancedPanels"
-                                    class="mt-3"
-                                >
-                                    <el-collapse-item
-                                        title="高级AI配置（可选）"
-                                        name="advanced"
-                                    >
+                                <el-collapse v-model="batchAiGenerateAdvancedPanels" class="mt-3">
+                                    <el-collapse-item title="高级AI配置（可选）" name="advanced">
                                         <div class="text-xs text-gray-500 leading-6 mb-3">
-                                            留空时将自动使用「AI 助手管理 -> 导入配置」中“批量导入文章”的默认模型与提示词。
+                                            留空时将自动使用「AI 助手管理 ->
+                                            导入配置」中“批量导入文章”的默认模型与提示词。
                                         </div>
                                         <el-form-item
                                             label="提示词预设"
@@ -333,12 +332,19 @@
                                                     <el-option
                                                         v-for="item in batchAiArticlePresetOptions"
                                                         :key="item.id"
-                                                        :label="item.description ? `${item.name} · ${item.description}` : item.name"
+                                                        :label="
+                                                            item.description
+                                                                ? `${item.name} · ${item.description}`
+                                                                : item.name
+                                                        "
                                                         :value="item.id"
                                                     />
                                                 </el-select>
                                                 <el-button
-                                                    :disabled="!selectedBatchAiArticlePresetId || batchWechatImportLoading"
+                                                    :disabled="
+                                                        !selectedBatchAiArticlePresetId ||
+                                                        batchWechatImportLoading
+                                                    "
                                                     @click="handleApplyBatchAiArticlePreset"
                                                 >
                                                     应用预设
@@ -370,7 +376,8 @@
                                                 placeholder="可选，支持占位符 {topic}。留空时使用系统默认提示词模板。"
                                             />
                                             <div class="text-xs text-gray-500 mt-2 leading-6">
-                                                适合在专题运营时临时覆盖默认提示词，例如指定文章语气、受众人群、段落结构或 SEO 输出要求。
+                                                适合在专题运营时临时覆盖默认提示词，例如指定文章语气、受众人群、段落结构或
+                                                SEO 输出要求。
                                             </div>
                                         </el-form-item>
                                     </el-collapse-item>
@@ -396,12 +403,19 @@
                         <el-table-column type="index" label="#" width="56" />
                         <el-table-column label="状态" width="88">
                             <template #default="{ row }">
-                                <el-tag :type="row.status === 'created' ? 'success' : 'danger'" size="small">
+                                <el-tag
+                                    :type="row.status === 'created' ? 'success' : 'danger'"
+                                    size="small"
+                                >
                                     {{ row.status === 'created' ? '成功' : '失败' }}
                                 </el-tag>
                             </template>
                         </el-table-column>
-                        <el-table-column :label="batchArticleImportSourceLabel" min-width="260" show-overflow-tooltip>
+                        <el-table-column
+                            :label="batchArticleImportSourceLabel"
+                            min-width="260"
+                            show-overflow-tooltip
+                        >
                             <template #default="{ row }">{{ row.url || '-' }}</template>
                         </el-table-column>
                         <el-table-column label="文章ID" width="96">
@@ -424,7 +438,10 @@
                     </el-table>
                 </div>
                 <template #footer>
-                    <el-button :disabled="batchWechatImportLoading" @click="batchWechatImportDialogVisible = false">
+                    <el-button
+                        :disabled="batchWechatImportLoading"
+                        @click="batchWechatImportDialogVisible = false"
+                    >
                         取消
                     </el-button>
                     <el-button
@@ -511,7 +528,11 @@
                     </el-form-item>
                     <el-form-item label="发布状态">
                         <el-switch v-model="batchEditForm.applyIsShow" />
-                        <el-radio-group v-model="batchEditForm.isShow" class="ml-3" :disabled="!batchEditForm.applyIsShow">
+                        <el-radio-group
+                            v-model="batchEditForm.isShow"
+                            class="ml-3"
+                            :disabled="!batchEditForm.applyIsShow"
+                        >
                             <el-radio :label="1">已发布</el-radio>
                             <el-radio :label="0">待发布</el-radio>
                         </el-radio-group>
@@ -533,13 +554,22 @@
                                 :rows="3"
                                 placeholder="例如：{summary}，作者：{author}"
                             />
-                            <div class="form-tips">支持变量：{title} {intro} {summary} {category} {author}</div>
+                            <div class="form-tips">
+                                支持变量：{title} {intro} {summary} {category} {author}
+                            </div>
                         </el-form-item>
                     </template>
                 </el-form>
                 <template #footer>
-                    <el-button :disabled="batchEditLoading" @click="batchEditDialogVisible = false">取消</el-button>
-                    <el-button type="primary" :loading="batchEditLoading" @click="handleBatchEditSubmit">确认批量编辑</el-button>
+                    <el-button :disabled="batchEditLoading" @click="batchEditDialogVisible = false"
+                        >取消</el-button
+                    >
+                    <el-button
+                        type="primary"
+                        :loading="batchEditLoading"
+                        @click="handleBatchEditSubmit"
+                        >确认批量编辑</el-button
+                    >
                 </template>
             </el-dialog>
 
@@ -574,7 +604,11 @@
                     </el-form-item>
                 </el-form>
                 <template #footer>
-                    <el-button :disabled="recyclePolicyLoading" @click="recyclePolicyDialogVisible = false">取消</el-button>
+                    <el-button
+                        :disabled="recyclePolicyLoading"
+                        @click="recyclePolicyDialogVisible = false"
+                        >取消</el-button
+                    >
                     <el-button
                         type="warning"
                         plain
@@ -584,7 +618,12 @@
                     >
                         立即清理
                     </el-button>
-                    <el-button type="primary" :loading="recyclePolicyLoading" @click="handleRecyclePolicySave">保存策略</el-button>
+                    <el-button
+                        type="primary"
+                        :loading="recyclePolicyLoading"
+                        @click="handleRecyclePolicySave"
+                        >保存策略</el-button
+                    >
                 </template>
             </el-dialog>
 
@@ -665,7 +704,11 @@
                             <el-tooltip
                                 content="审核通过并发布"
                                 placement="top"
-                                v-if="!isRecycleBinMode && Number(row.reviewStatus) === 1 && Number(row.isShow) !== 1"
+                                v-if="
+                                    !isRecycleBinMode &&
+                                    Number(row.reviewStatus) === 1 &&
+                                    Number(row.isShow) !== 1
+                                "
                             >
                                 <el-button
                                     v-perms="['article:change']"
@@ -718,7 +761,11 @@
                                 />
                             </el-tooltip>
 
-                            <el-tooltip v-if="!isRecycleBinMode" content="移入回收站" placement="top">
+                            <el-tooltip
+                                v-if="!isRecycleBinMode"
+                                content="移入回收站"
+                                placement="top"
+                            >
                                 <el-button
                                     v-perms="['article:del']"
                                     type="danger"
@@ -756,7 +803,15 @@
     </div>
 </template>
 <script lang="ts" setup name="articleLists">
-import { Delete, Document, EditPen, Promotion, RefreshLeft, Select, View } from '@element-plus/icons-vue'
+import {
+    Delete,
+    Document,
+    EditPen,
+    Promotion,
+    RefreshLeft,
+    Select,
+    View
+} from '@element-plus/icons-vue'
 import {
     articleLists,
     articleDelete,
@@ -899,9 +954,10 @@ const batchArticleImportTextareaPlaceholder = computed(() =>
  * 批量处理主输入框值（根据模式切换到不同字段）
  */
 const batchArticleImportTextareaValue = computed({
-    get: () => (batchWechatImportForm.mode === 'aiGenerate'
-        ? batchWechatImportForm.topicsText
-        : batchWechatImportForm.urlsText),
+    get: () =>
+        batchWechatImportForm.mode === 'aiGenerate'
+            ? batchWechatImportForm.topicsText
+            : batchWechatImportForm.urlsText,
     set: (value: string) => {
         if (batchWechatImportForm.mode === 'aiGenerate') {
             batchWechatImportForm.topicsText = value
@@ -1283,7 +1339,9 @@ const openBatchWechatImportDialog = () => {
  * 规范化“文章导入模板库”预设列表，只保留启用项并统一字段。
  */
 const normalizeBatchAiArticlePresetList = (payload: any): ImportTemplatePresetItem[] => {
-    const source: Array<Record<string, any>> = Array.isArray(payload?.article) ? payload.article : []
+    const source: Array<Record<string, any>> = Array.isArray(payload?.article)
+        ? payload.article
+        : []
     return source
         .map((item: any, index: number) => ({
             id: String(item?.id || `article_preset_${index + 1}`).trim(),
@@ -1295,7 +1353,10 @@ const normalizeBatchAiArticlePresetList = (payload: any): ImportTemplatePresetIt
             sort: Number.isFinite(Number(item?.sort)) ? Number(item?.sort) : (index + 1) * 10
         }))
         .filter((item: ImportTemplatePresetItem) => item.enabled !== false && item.promptTemplate)
-        .sort((a: ImportTemplatePresetItem, b: ImportTemplatePresetItem) => Number(a.sort || 0) - Number(b.sort || 0))
+        .sort(
+            (a: ImportTemplatePresetItem, b: ImportTemplatePresetItem) =>
+                Number(a.sort || 0) - Number(b.sort || 0)
+        )
 }
 
 /**
@@ -1307,7 +1368,9 @@ const loadBatchAiArticlePresets = async (force = false) => {
     batchAiArticlePresetLoading.value = true
     try {
         const res: any = await uiedAiImportTemplatePresetsGet()
-        batchAiArticlePresetOptions.value = normalizeBatchAiArticlePresetList(res?.data || res || {})
+        batchAiArticlePresetOptions.value = normalizeBatchAiArticlePresetList(
+            res?.data || res || {}
+        )
         batchAiArticlePresetLoaded.value = true
     } catch (error: any) {
         batchAiArticlePresetOptions.value = []
@@ -1343,7 +1406,9 @@ const handleApplyBatchAiArticlePreset = () => {
 const normalizeBatchWechatImportRows = (rows: any): BatchWechatImportResultRow[] => {
     if (!Array.isArray(rows)) return []
     return rows.map((item: any) => ({
-        status: String(item?.status || '').trim().toLowerCase(),
+        status: String(item?.status || '')
+            .trim()
+            .toLowerCase(),
         url: String(item?.url || '').trim(),
         articleId:
             Number.isFinite(Number(item?.articleId)) && Number(item?.articleId) > 0
@@ -1397,37 +1462,45 @@ const handleBatchWechatImportSubmit = async () => {
     }
     batchWechatImportLoading.value = true
     try {
-        const result: any = batchWechatImportForm.mode === 'aiGenerate'
-            ? await articleGenerateAiBatch({
-                cid,
-                author,
-                topics: topicsText,
-                status: batchWechatImportForm.status,
-                aiModel: String(batchWechatImportForm.aiModel || '').trim(),
-                aiPromptTemplate: String(batchWechatImportForm.aiPromptTemplate || '').trim(),
-                aiTemplateId: String(selectedBatchAiArticlePresetId.value || '').trim(),
-                aiTemplateName: String(matchedAiPreset?.name || '').trim()
-            })
-            : await articleImportWechatBatch({
-                cid,
-                author,
-                urls: urlsText,
-                status: batchWechatImportForm.status,
-                aiEnabled: batchWechatImportForm.aiEnabled === true
-            })
-        const normalizedRows = normalizeBatchWechatImportRows(result?.rows || result?.data?.rows || [])
+        const result: any =
+            batchWechatImportForm.mode === 'aiGenerate'
+                ? await articleGenerateAiBatch({
+                      cid,
+                      author,
+                      topics: topicsText,
+                      status: batchWechatImportForm.status,
+                      aiModel: String(batchWechatImportForm.aiModel || '').trim(),
+                      aiPromptTemplate: String(batchWechatImportForm.aiPromptTemplate || '').trim(),
+                      aiTemplateId: String(selectedBatchAiArticlePresetId.value || '').trim(),
+                      aiTemplateName: String(matchedAiPreset?.name || '').trim()
+                  })
+                : await articleImportWechatBatch({
+                      cid,
+                      author,
+                      urls: urlsText,
+                      status: batchWechatImportForm.status,
+                      aiEnabled: batchWechatImportForm.aiEnabled === true
+                  })
+        const normalizedRows = normalizeBatchWechatImportRows(
+            result?.rows || result?.data?.rows || []
+        )
         batchWechatImportResult.value = {
             created: Number(result?.created || result?.data?.created || 0),
             failed: Number(result?.failed || result?.data?.failed || 0),
             rows: normalizedRows
         }
         feedback.msgSuccess(
-            `${batchWechatImportForm.mode === 'aiGenerate' ? '生成' : '导入'}完成：新增 ${batchWechatImportResult.value.created} 条，失败 ${batchWechatImportResult.value.failed} 条`
+            `${batchWechatImportForm.mode === 'aiGenerate' ? '生成' : '导入'}完成：新增 ${
+                batchWechatImportResult.value.created
+            } 条，失败 ${batchWechatImportResult.value.failed} 条`
         )
         resetPage()
     } catch (error: any) {
         feedback.msgError(
-            error?.message || (batchWechatImportForm.mode === 'aiGenerate' ? '批量AI生成文章失败' : '批量导入文章失败')
+            error?.message ||
+                (batchWechatImportForm.mode === 'aiGenerate'
+                    ? '批量AI生成文章失败'
+                    : '批量导入文章失败')
         )
     } finally {
         batchWechatImportLoading.value = false
@@ -1464,7 +1537,13 @@ const handleBatchEditSubmit = async () => {
         feedback.msgWarning('请选择要批量编辑的文章')
         return
     }
-    if (!batchEditForm.applyCid && !batchEditForm.applyTagIds && !batchEditForm.applyTopicId && !batchEditForm.applyIsShow && !batchEditForm.applySeo) {
+    if (
+        !batchEditForm.applyCid &&
+        !batchEditForm.applyTagIds &&
+        !batchEditForm.applyTopicId &&
+        !batchEditForm.applyIsShow &&
+        !batchEditForm.applySeo
+    ) {
         feedback.msgWarning('请至少选择一项批量编辑内容')
         return
     }
@@ -1557,7 +1636,9 @@ const handleRecyclePolicyCleanupNow = async () => {
     recyclePolicyCleanupLoading.value = true
     try {
         const data: any = await articleRecyclePolicyCleanup()
-        recyclePolicyForm.lastCleanupTime = Number(data?.cleanupTime || Math.floor(Date.now() / 1000))
+        recyclePolicyForm.lastCleanupTime = Number(
+            data?.cleanupTime || Math.floor(Date.now() / 1000)
+        )
         const deletedCount = Number(data?.deletedCount || 0)
         const checkedCount = Number(data?.checkedCount || 0)
         feedback.msgSuccess(`清理完成：已删除 ${deletedCount} 篇，扫描 ${checkedCount} 篇`)

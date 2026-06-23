@@ -81,7 +81,9 @@
             </el-form>
             <template #footer>
                 <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+                <el-button type="primary" :loading="submitLoading" @click="handleSubmit"
+                    >保存</el-button
+                >
             </template>
         </el-dialog>
     </div>
@@ -98,20 +100,15 @@ import { reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import feedback from '@/utils/feedback'
 import { usePaging } from '@/hooks/usePaging'
-import {
-    uiedMcpTagList,
-    uiedMcpTagAdd,
-    uiedMcpTagEdit,
-    uiedMcpTagDelete,
-} from '@/api/uied'
+import { uiedMcpTagList, uiedMcpTagAdd, uiedMcpTagEdit, uiedMcpTagDelete } from '@/api/uied'
 
 const queryParams = reactive({
-    keyword: '',
+    keyword: ''
 })
 
 const { pager, getLists, resetPage, resetParams } = usePaging({
     fetchFun: uiedMcpTagList,
-    params: queryParams,
+    params: queryParams
 })
 
 const dialogVisible = ref(false)
@@ -122,11 +119,11 @@ const formData = reactive({
     name: '',
     slug: '',
     description: '',
-    sortOrder: 0,
+    sortOrder: 0
 })
 
 const rules: FormRules = {
-    name: [{ required: true, message: '请输入标签名称', trigger: 'blur' }],
+    name: [{ required: true, message: '请输入标签名称', trigger: 'blur' }]
 }
 
 /**
@@ -173,7 +170,7 @@ const handleSubmit = async () => {
             name: formData.name,
             slug: formData.slug,
             description: formData.description,
-            sort_order: formData.sortOrder,
+            sort_order: formData.sortOrder
         }
         if (formData.id > 0) {
             await uiedMcpTagEdit(payload)

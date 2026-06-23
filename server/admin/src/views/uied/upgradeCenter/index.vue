@@ -108,8 +108,14 @@
                     <el-select v-model="upgradeConfig.restartMode" class="w-[280px]">
                         <el-option label="none（不重启）" value="none" />
                         <el-option label="pm2_all（pm2 restart all）" value="pm2_all" />
-                        <el-option label="pm2_backend（pm2 restart uied-server）" value="pm2_backend" />
-                        <el-option label="systemd_uied（systemctl restart uied-server）" value="systemd_uied" />
+                        <el-option
+                            label="pm2_backend（pm2 restart uied-server）"
+                            value="pm2_backend"
+                        />
+                        <el-option
+                            label="systemd_uied（systemctl restart uied-server）"
+                            value="systemd_uied"
+                        />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="执行 SQL 补丁">
@@ -125,7 +131,9 @@
             <template #header>
                 <div class="flex items-center justify-between">
                     <span class="font-medium">服务器升级包</span>
-                    <el-button :loading="bundleLoading" @click="loadBundleList">刷新升级包</el-button>
+                    <el-button :loading="bundleLoading" @click="loadBundleList"
+                        >刷新升级包</el-button
+                    >
                 </div>
             </template>
             <el-table :data="bundleList" size="large" max-height="280">
@@ -138,7 +146,9 @@
                 </el-table-column>
                 <el-table-column label="操作" width="150" fixed="right">
                     <template #default="{ row }">
-                        <el-button link type="primary" @click="applyBundle(row.bundleName)">选用该包</el-button>
+                        <el-button link type="primary" @click="applyBundle(row.bundleName)"
+                            >选用该包</el-button
+                        >
                     </template>
                 </el-table-column>
             </el-table>
@@ -156,7 +166,11 @@
                     />
                 </el-form-item>
                 <el-form-item label="目标版本号">
-                    <el-input v-model.trim="upgradeForm.targetVersion" placeholder="例如：1.1.3" class="w-[280px]" />
+                    <el-input
+                        v-model.trim="upgradeForm.targetVersion"
+                        placeholder="例如：1.1.3"
+                        class="w-[280px]"
+                    />
                 </el-form-item>
                 <el-form-item label="SHA256 校验值">
                     <el-input
@@ -193,7 +207,9 @@
                 <div class="flex items-center justify-between">
                     <span class="font-medium">升级任务审计</span>
                     <el-space>
-                        <el-button :loading="taskPager.loading" @click="loadTaskList">刷新任务</el-button>
+                        <el-button :loading="taskPager.loading" @click="loadTaskList"
+                            >刷新任务</el-button
+                        >
                     </el-space>
                 </div>
             </template>
@@ -207,7 +223,9 @@
                     </template>
                 </el-table-column>
                 <el-table-column label="执行人" width="130">
-                    <template #default="{ row }">{{ row.operator_nickname || row.operator_username || '-' }}</template>
+                    <template #default="{ row }">{{
+                        row.operator_nickname || row.operator_username || '-'
+                    }}</template>
                 </el-table-column>
                 <el-table-column label="开始时间" width="170">
                     <template #default="{ row }">{{ formatTime(row.started_at) }}</template>
@@ -217,8 +235,12 @@
                 </el-table-column>
                 <el-table-column label="操作" width="180" fixed="right">
                     <template #default="{ row }">
-                        <el-button link type="primary" @click="openTaskDetail(row.task_no)">详情</el-button>
-                        <el-button link type="info" @click="openTaskLog(row.task_no)">日志</el-button>
+                        <el-button link type="primary" @click="openTaskDetail(row.task_no)"
+                            >详情</el-button
+                        >
+                        <el-button link type="info" @click="openTaskLog(row.task_no)"
+                            >日志</el-button
+                        >
                     </template>
                 </el-table-column>
             </el-table>
@@ -231,20 +253,40 @@
             <el-descriptions v-if="taskDetail" :column="2" border>
                 <el-descriptions-item label="任务号">{{ taskDetail.task_no }}</el-descriptions-item>
                 <el-descriptions-item label="状态">
-                    <el-tag :type="resolveTaskTagType(taskDetail.status)">{{ taskDetail.status }}</el-tag>
+                    <el-tag :type="resolveTaskTagType(taskDetail.status)">{{
+                        taskDetail.status
+                    }}</el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item label="目标版本">{{ taskDetail.target_version || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="执行阶段">{{ taskDetail.phase || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="升级包">{{ taskDetail.bundle_name || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="目标版本">{{
+                    taskDetail.target_version || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="执行阶段">{{
+                    taskDetail.phase || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="升级包">{{
+                    taskDetail.bundle_name || '-'
+                }}</el-descriptions-item>
                 <el-descriptions-item label="执行人">
                     {{ taskDetail.operator_nickname || taskDetail.operator_username || '-' }}
                 </el-descriptions-item>
-                <el-descriptions-item label="前端备份">{{ taskDetail.backup_frontend_path || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="后台备份">{{ taskDetail.backup_admin_path || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="后端备份">{{ taskDetail.backup_backend_path || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="数据库备份">{{ taskDetail.backup_db_path || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="回滚状态">{{ taskDetail.rollback_status || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="回滚说明">{{ taskDetail.rollback_message || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="前端备份">{{
+                    taskDetail.backup_frontend_path || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="后台备份">{{
+                    taskDetail.backup_admin_path || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="后端备份">{{
+                    taskDetail.backup_backend_path || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="数据库备份">{{
+                    taskDetail.backup_db_path || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="回滚状态">{{
+                    taskDetail.rollback_status || '-'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="回滚说明">{{
+                    taskDetail.rollback_message || '-'
+                }}</el-descriptions-item>
                 <el-descriptions-item label="错误信息" :span="2">
                     {{ taskDetail.error_message || '-' }}
                 </el-descriptions-item>
@@ -490,7 +532,9 @@ const startUpgradeTask = async () => {
         return
     }
     const bundleName = String(upgradeForm.bundleName || '').trim()
-    const expectedSha256 = String(upgradeForm.expectedSha256 || '').trim().toLowerCase()
+    const expectedSha256 = String(upgradeForm.expectedSha256 || '')
+        .trim()
+        .toLowerCase()
     const adminPassword = String(upgradeForm.adminPassword || '').trim()
     const confirmPhrase = String(upgradeForm.confirmPhrase || '').trim()
     const shouldPhrase = String(upgradeConfig.confirmPhrase || 'UPGRADE').trim()

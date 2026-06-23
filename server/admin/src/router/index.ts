@@ -14,7 +14,9 @@ const ROUTER_VIEW_RAW = markRaw(RouterView)
  */
 function normalizeContentHubLegacyRoute(route: any) {
     const next = { ...(route || {}) }
-    const rawPath = String(next.paths || '').trim().replace(/^\/+/, '')
+    const rawPath = String(next.paths || '')
+        .trim()
+        .replace(/^\/+/, '')
     if (!rawPath) return next
 
     /**
@@ -65,7 +67,10 @@ function normalizeContentHubLegacyRoute(route: any) {
     /**
      * 旧入口（热门文章）兼容并隐藏。
      */
-    if (rawPath === 'system-setting/base-config/hot-articles' || rawPath.startsWith('system-setting/base-config/hot-articles/')) {
+    if (
+        rawPath === 'system-setting/base-config/hot-articles' ||
+        rawPath.startsWith('system-setting/base-config/hot-articles/')
+    ) {
         next.paths = 'system-setting/base-config/content-hub'
         next.params = JSON.stringify({ tab: 'hot' })
         next.menuName = next.menuName || '内容中心配置'
@@ -89,7 +94,10 @@ function normalizeContentHubLegacyRoute(route: any) {
         return next
     }
 
-    if (rawPath === 'settings/daily-hot-config' || rawPath.startsWith('settings/daily-hot-config/')) {
+    if (
+        rawPath === 'settings/daily-hot-config' ||
+        rawPath.startsWith('settings/daily-hot-config/')
+    ) {
         next.paths = 'system-setting/base-config/content-hub'
         next.params = JSON.stringify({ tab: 'dailyHot' })
         next.isShow = 0
@@ -97,7 +105,10 @@ function normalizeContentHubLegacyRoute(route: any) {
         return next
     }
 
-    if (rawPath === 'settings/rank-board-config' || rawPath.startsWith('settings/rank-board-config/')) {
+    if (
+        rawPath === 'settings/rank-board-config' ||
+        rawPath.startsWith('settings/rank-board-config/')
+    ) {
         next.paths = 'system-setting/base-config/content-hub'
         next.params = JSON.stringify({ tab: 'rankings' })
         next.isShow = 0
@@ -105,7 +116,10 @@ function normalizeContentHubLegacyRoute(route: any) {
         return next
     }
 
-    if (rawPath === 'settings/daily-new-config' || rawPath.startsWith('settings/daily-new-config/')) {
+    if (
+        rawPath === 'settings/daily-new-config' ||
+        rawPath.startsWith('settings/daily-new-config/')
+    ) {
         next.paths = 'system-setting/base-config/content-hub'
         next.params = JSON.stringify({ tab: 'dailyNew' })
         next.isShow = 0
@@ -121,7 +135,10 @@ function normalizeContentHubLegacyRoute(route: any) {
  * @param path 菜单路径
  */
 function normalizeMenuPath(path: unknown) {
-    return String(path || '').trim().replace(/^\/+/, '').toLowerCase()
+    return String(path || '')
+        .trim()
+        .replace(/^\/+/, '')
+        .toLowerCase()
 }
 
 /**
@@ -133,7 +150,9 @@ function normalizeMenuPath(path: unknown) {
  */
 function isMenuRouteBlocked(route: any) {
     const path = normalizeMenuPath(route?.paths)
-    const perms = String(route?.perms || '').trim().toLowerCase()
+    const perms = String(route?.perms || '')
+        .trim()
+        .toLowerCase()
     const blockedPaths = new Set([
         'user-center/level',
         'delivery-center',
@@ -141,10 +160,7 @@ function isMenuRouteBlocked(route: any) {
         'uied/delivery-init',
         'delivery-init'
     ])
-    const blockedPerms = new Set([
-        'user:level:list',
-        'uied:delivery:init:index'
-    ])
+    const blockedPerms = new Set(['user:level:list', 'uied:delivery:init:index'])
     return blockedPaths.has(path) || blockedPerms.has(perms)
 }
 
@@ -162,7 +178,11 @@ export function filterAsyncRoutes(routes: any[], firstRoute = true) {
             return
         }
         const routeRecord = createRouteRecord(normalizedRoute, firstRoute)
-        if (normalizedRoute.children != null && normalizedRoute.children && normalizedRoute.children.length) {
+        if (
+            normalizedRoute.children != null &&
+            normalizedRoute.children &&
+            normalizedRoute.children.length
+        ) {
             routeRecord.children = filterAsyncRoutes(normalizedRoute.children, false)
         }
         result.push(routeRecord)
@@ -178,8 +198,8 @@ export function createRouteRecord(route: any, firstRoute: boolean): RouteRecordR
         path: isExternal(normalizedRoute.paths)
             ? normalizedRoute.paths
             : firstRoute
-                ? `/${normalizedRoute.paths}`
-                : normalizedRoute.paths,
+            ? `/${normalizedRoute.paths}`
+            : normalizedRoute.paths,
         name: Symbol(normalizedRoute.paths),
         meta: {
             hidden: !normalizedRoute.isShow,

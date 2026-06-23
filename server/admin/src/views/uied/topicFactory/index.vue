@@ -11,7 +11,9 @@
                 <div class="flex items-center justify-between">
                     <span class="font-medium">专题页模板工厂</span>
                     <div class="flex gap-2">
-                        <el-button @click="handleImportTrigger" :loading="importing">导入模板包</el-button>
+                        <el-button @click="handleImportTrigger" :loading="importing"
+                            >导入模板包</el-button
+                        >
                         <el-button @click="handleExportTemplates" :disabled="!templateRows.length"
                             >导出模板包</el-button
                         >
@@ -133,11 +135,7 @@
                     <el-input v-model="templateConfigForm.heroHighlightText" />
                 </el-form-item>
                 <el-form-item label="Hero副标题">
-                    <el-input
-                        v-model="templateConfigForm.heroSubtitle"
-                        type="textarea"
-                        :rows="2"
-                    />
+                    <el-input v-model="templateConfigForm.heroSubtitle" type="textarea" :rows="2" />
                 </el-form-item>
                 <el-form-item label="搜索占位词">
                     <el-input v-model="templateConfigForm.searchPlaceholder" />
@@ -165,10 +163,7 @@
                     />
                 </el-form-item>
                 <el-form-item label="专题主题色">
-                    <el-input
-                        v-model="templateConfigForm.themeColor"
-                        placeholder="例如 #7C3AED"
-                    />
+                    <el-input v-model="templateConfigForm.themeColor" placeholder="例如 #7C3AED" />
                 </el-form-item>
                 <el-form-item label="启用搜索">
                     <el-switch v-model="templateConfigForm.searchEnabled" />
@@ -359,9 +354,7 @@ const parseTextList = (value: string) => {
  */
 const parseCategorySlugListFromUnknown = (value: unknown) => {
     if (Array.isArray(value)) {
-        return value
-            .map((item) => String(item || '').trim())
-            .filter(Boolean)
+        return value.map((item) => String(item || '').trim()).filter(Boolean)
     }
     return parseTextList(String(value || ''))
 }
@@ -410,7 +403,8 @@ const normalizeImportTemplate = (raw: any, index: number): TopicTemplateRow => {
     return {
         id: Number(source.id || 0),
         templateKey,
-        templateName: String(source.templateName || source.name || templateKey).trim() || templateKey,
+        templateName:
+            String(source.templateName || source.name || templateKey).trim() || templateKey,
         scene: String(source.scene || 'topic').trim() || 'topic',
         description: String(source.description || '').trim(),
         defaultSlug: String(source.defaultSlug || '').trim(),
@@ -420,7 +414,7 @@ const normalizeImportTemplate = (raw: any, index: number): TopicTemplateRow => {
         categorySlugsText: categorySlugs.join(','),
         isEnabled: source.isEnabled !== false,
         sort: Number(source.sort || (index + 1) * 10),
-        pageConfig,
+        pageConfig
     }
 }
 
@@ -436,9 +430,9 @@ const buildTemplateExportPayload = () => {
             const payload = buildTemplatePayload(row)
             return {
                 ...payload,
-                id: undefined,
+                id: undefined
             }
-        }),
+        })
     }
 }
 
@@ -446,7 +440,9 @@ const buildTemplateExportPayload = () => {
  * 下载 JSON 文件到本地。
  */
 const downloadJsonFile = (filename: string, data: Record<string, any>) => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json;charset=utf-8'
+    })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -472,7 +468,7 @@ const handleExportTemplates = () => {
         String(now.getDate()).padStart(2, '0'),
         String(now.getHours()).padStart(2, '0'),
         String(now.getMinutes()).padStart(2, '0'),
-        String(now.getSeconds()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0')
     ].join('')
     const filename = `uied-topic-templates_${dateText}.json`
     downloadJsonFile(filename, buildTemplateExportPayload())
@@ -501,7 +497,9 @@ const handleImportFileChange = async (event: Event) => {
         const parsed = JSON.parse(text)
         const templateList: unknown[] = Array.isArray(parsed)
             ? parsed
-            : (Array.isArray(parsed?.templates) ? parsed.templates : [])
+            : Array.isArray(parsed?.templates)
+            ? parsed.templates
+            : []
         if (!templateList.length) {
             feedback.msgError('导入失败：模板包中没有可用模板')
             return
@@ -524,7 +522,7 @@ const handleImportFileChange = async (event: Event) => {
             const payload = buildTemplatePayload(item)
             await uiedTopicFactoryTemplateSave({
                 ...payload,
-                id: undefined,
+                id: undefined
             })
             successCount += 1
         }
@@ -559,7 +557,9 @@ const loadTemplates = async () => {
             icon: String(item.icon || ''),
             themeColor: item.themeColor,
             categorySlugs: Array.isArray(item.categorySlugs) ? item.categorySlugs : [],
-            categorySlugsText: (Array.isArray(item.categorySlugs) ? item.categorySlugs : []).join(','),
+            categorySlugsText: (Array.isArray(item.categorySlugs) ? item.categorySlugs : []).join(
+                ','
+            ),
             isEnabled: item.isEnabled !== false,
             sort: Number(item.sort || 10),
             pageConfig:

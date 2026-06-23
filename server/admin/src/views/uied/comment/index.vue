@@ -474,7 +474,9 @@ const isCanceledRequestError = (error: any): boolean => {
  * 规范化评论审核配置，避免输入越界与非法模式。
  */
 const normalizeCommentAuditConfig = (config: any) => {
-    const mode = String(config?.autoAuditMode || '').trim().toLowerCase()
+    const mode = String(config?.autoAuditMode || '')
+        .trim()
+        .toLowerCase()
     const normalizeNumber = (value: unknown, min: number, max: number, fallback: number) => {
         const num = Number(value)
         if (!Number.isFinite(num)) return fallback
@@ -489,12 +491,7 @@ const normalizeCommentAuditConfig = (config: any) => {
         sensitiveWords: String(config?.sensitiveWords || '').trim(),
         autoPendingSuspicious: config?.autoPendingSuspicious !== false,
         suspiciousWords: String(config?.suspiciousWords || '').trim(),
-        minLength: normalizeNumber(
-            config?.minLength,
-            0,
-            500,
-            defaultCommentAuditConfig.minLength
-        ),
+        minLength: normalizeNumber(config?.minLength, 0, 500, defaultCommentAuditConfig.minLength),
         maxLinkCount: normalizeNumber(
             config?.maxLinkCount,
             0,
@@ -536,7 +533,11 @@ const parseBooleanSetting = (value: unknown, defaultValue: boolean): boolean => 
  * 标准化评论类型，避免传入非法值导致后端默认回退异常。
  */
 const normalizeCommentType = (value: unknown): 'website' | 'article' => {
-    return String(value || '').trim().toLowerCase() === 'article' ? 'article' : 'website'
+    return String(value || '')
+        .trim()
+        .toLowerCase() === 'article'
+        ? 'article'
+        : 'website'
 }
 
 /**
@@ -669,7 +670,8 @@ const handleToggleCommentSwitch = async (
     target: 'website' | 'article' | 'loginRequired',
     enabled: boolean
 ) => {
-    const loadingKey = target === 'website' ? 'website' : target === 'article' ? 'article' : 'loginRequired'
+    const loadingKey =
+        target === 'website' ? 'website' : target === 'article' ? 'article' : 'loginRequired'
     const previousEnabled = !enabled
     switchLoading[loadingKey] = true
     try {
@@ -735,7 +737,9 @@ const showRiskScore = (row: any): boolean => {
  * 根据风险等级返回标签主题色。
  */
 const getRiskTagType = (level: unknown): 'danger' | 'warning' | 'info' => {
-    const normalized = String(level || '').trim().toLowerCase()
+    const normalized = String(level || '')
+        .trim()
+        .toLowerCase()
     if (normalized === 'high') return 'danger'
     if (normalized === 'medium') return 'warning'
     return 'info'
