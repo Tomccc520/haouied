@@ -2592,6 +2592,27 @@ class SettingService extends Service {
   }
 
   /**
+   * 解析数据库中的设置值，并对需要特殊规范化的配置执行兜底处理。
+   * @param {string} key 设置键
+   * @param {unknown} rawValue 数据库存储值
+   * @return {any} 解析后的设置值
+   */
+  parseStoredSettingValue(key, rawValue) {
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (key === 'materialUploadConfig') {
+        return this.normalizeMaterialUploadConfig(parsed || {});
+      }
+      return parsed;
+    } catch (error) {
+      if (key === 'materialUploadConfig') {
+        return this.getDefaultMaterialUploadConfig();
+      }
+      return rawValue;
+    }
+  }
+
+  /**
    * 获取单个设置
    */
   async get(key) {
@@ -2606,19 +2627,45 @@ class SettingService extends Service {
     );
 
     if (!setting) return null;
+    return this.parseStoredSettingValue(key, setting.value);
+  }
 
-    try {
-      const parsed = JSON.parse(setting.value);
-      if (key === 'materialUploadConfig') {
-        return this.normalizeMaterialUploadConfig(parsed || {});
-      }
-      return parsed;
-    } catch (error) {
-      if (key === 'materialUploadConfig') {
-        return this.getDefaultMaterialUploadConfig();
-      }
-      return setting.value;
+  /**
+   * 一次查询获取多个设置，减少公开配置接口的数据库往返次数。
+   * @param {string[]} keys 设置键列表
+   * @return {Promise<Record<string, any>>} 设置键值映射
+   */
+  async getMany(keys = []) {
+    const { app } = this;
+    const normalizedKeys = Array.from(new Set(
+      (Array.isArray(keys) ? keys : [])
+        .map(key => String(key || '').trim())
+        .filter(Boolean)
+    ));
+    const result = {};
+
+    if (normalizedKeys.includes('brandConfig')) {
+      result.brandConfig = this.getDefaultBrandConfig();
     }
+
+    const databaseKeys = normalizedKeys.filter(key => key !== 'brandConfig');
+    if (databaseKeys.length === 0) return result;
+
+    const placeholders = databaseKeys.map(() => '?').join(', ');
+    const settings = await app.model.query(
+      `SELECT \`key\`, \`value\` FROM uied_site_setting WHERE \`key\` IN (${placeholders})`,
+      {
+        replacements: databaseKeys,
+        type: app.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    for (const setting of settings) {
+      const settingKey = String(setting?.key || '').trim();
+      if (!settingKey) continue;
+      result[settingKey] = this.parseStoredSettingValue(settingKey, setting.value);
+    }
+    return result;
   }
 
   /**
@@ -2912,28 +2959,50 @@ class SettingService extends Service {
    * 获取公开设置（前端访问）
    */
   async getPublicSettings() {
-    const siteInfo = await this.getSiteInfo();
-
-    // 从数据库读取各项配置
-    const pageGlobalConfig = await this.get('pageGlobalConfig');
-    const appearanceConfig = await this.get('appearanceConfig');
-    const homepageConfig = await this.get('homepageConfig');
-    const cardStyleConfig = await this.get('cardStyleConfig');
-    const sidebarConfig = await this.get('sidebarConfig');
-    const searchConfig = await this.get('searchConfig');
-    const exitModalConfig = await this.get('exitModalConfig');
-    const paymentConfig = await this.get('paymentConfig');
-    const submissionServiceConfig = await this.get('submissionServiceConfig');
-    const detailPageConfig = await this.get('detailPageConfig');
-    const hotArticlesConfig = await this.get('hotArticlesConfig');
-    const articleConfig = await this.get('articleConfig');
-    const articleTopicsConfig = await this.get('articleTopicsConfig');
-    const footerAboutConfig = await this.get('footerAboutConfig');
-    const websiteCompareConfig = await this.get('websiteCompareConfig');
-    const mcpPageConfig = await this.get('mcpPageConfig');
-    const figmaPageConfig = await this.get('figmaPageConfig');
+    const publicSettingKeys = [
+      'pageGlobalConfig',
+      'appearanceConfig',
+      'homepageConfig',
+      'cardStyleConfig',
+      'sidebarConfig',
+      'searchConfig',
+      'exitModalConfig',
+      'paymentConfig',
+      'submissionServiceConfig',
+      'detailPageConfig',
+      'hotArticlesConfig',
+      'articleConfig',
+      'articleTopicsConfig',
+      'footerAboutConfig',
+      'websiteCompareConfig',
+      'mcpPageConfig',
+      'figmaPageConfig',
+    ];
+    const [ siteInfo, publicConfigMap, authConfig ] = await Promise.all([
+      this.getSiteInfo(),
+      this.getMany(publicSettingKeys),
+      this.getPublicAuthConfig(),
+    ]);
+    const {
+      pageGlobalConfig,
+      appearanceConfig,
+      homepageConfig,
+      cardStyleConfig,
+      sidebarConfig,
+      searchConfig,
+      exitModalConfig,
+      paymentConfig,
+      submissionServiceConfig,
+      detailPageConfig,
+      hotArticlesConfig,
+      articleConfig,
+      articleTopicsConfig,
+      footerAboutConfig,
+      websiteCompareConfig,
+      mcpPageConfig,
+      figmaPageConfig,
+    } = publicConfigMap;
     const brandConfig = this.getDefaultBrandConfig();
-    const authConfig = await this.getPublicAuthConfig();
 
     // 默认配置
     const defaultPageGlobal = {

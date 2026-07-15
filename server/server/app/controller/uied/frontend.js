@@ -1027,7 +1027,21 @@ class FrontendController extends Controller {
 
     try {
       this.setNoCacheHeaders();
-      const [
+      const [ configMap, authConfig ] = await Promise.all([
+        ctx.service.uied.setting.getMany([
+          'exitModalConfig',
+          'pageGlobalConfig',
+          'appearanceConfig',
+          'homepageConfig',
+          'cardStyleConfig',
+          'sidebarConfig',
+          'searchConfig',
+          'articleConfig',
+          'articleTopicsConfig',
+        ]),
+        ctx.service.uied.setting.getPublicAuthConfig(),
+      ]);
+      const {
         exitModalConfig,
         pageGlobalConfig,
         appearanceConfig,
@@ -1037,19 +1051,7 @@ class FrontendController extends Controller {
         searchConfig,
         articleConfig,
         articleTopicsConfig,
-        authConfig,
-      ] = await Promise.all([
-        ctx.service.uied.setting.get('exitModalConfig'),
-        ctx.service.uied.setting.get('pageGlobalConfig'),
-        ctx.service.uied.setting.get('appearanceConfig'),
-        ctx.service.uied.setting.get('homepageConfig'),
-        ctx.service.uied.setting.get('cardStyleConfig'),
-        ctx.service.uied.setting.get('sidebarConfig'),
-        ctx.service.uied.setting.get('searchConfig'),
-        ctx.service.uied.setting.get('articleConfig'),
-        ctx.service.uied.setting.get('articleTopicsConfig'),
-        ctx.service.uied.setting.getPublicAuthConfig(),
-      ]);
+      } = configMap;
 
       /**
        * 规范化页面点击配置，兼容历史值并确保前端行为稳定

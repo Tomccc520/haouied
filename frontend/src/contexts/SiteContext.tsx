@@ -10,7 +10,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import api from '../services/api';
+import publicSettingService from '../services/publicSettingService';
 import { unwrapApiResponse } from '../utils/apiResponse';
 
 /**
@@ -170,15 +170,13 @@ export const SiteProvider: React.FC<SiteProviderProps> = ({
    * 获取站点信息
    * Requirements: 8.1, 8.4
    */
-  const fetchSiteInfo = useCallback(async () => {
+  const fetchSiteInfo = useCallback(async (forceFresh = false) => {
     try {
       setLoading(true);
-      const response = await api.get('/site-info', {
-        params: { _t: Date.now() },
-      });
+      const response = await publicSettingService.getSiteInfo({ forceFresh });
       
-      if (response.data) {
-        setSiteInfo(normalizeSiteInfoPayload(response.data, defaultSiteInfo));
+      if (response) {
+        setSiteInfo(normalizeSiteInfoPayload(response, defaultSiteInfo));
         setIsUsingDefault(false);
         setError(null);
       } else {
@@ -205,7 +203,7 @@ export const SiteProvider: React.FC<SiteProviderProps> = ({
    * Requirements: 8.2
    */
   const refresh = useCallback(async () => {
-    await fetchSiteInfo();
+    await fetchSiteInfo(true);
   }, [fetchSiteInfo]);
 
   /**

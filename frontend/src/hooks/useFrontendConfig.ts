@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import publicSettingService from '../services/publicSettingService';
+import publicSettingService, { type PublicSettings } from '../services/publicSettingService';
 import {
   normalizeWebsiteClickMode,
   normalizeHotRecommendationClickMode,
@@ -745,6 +745,23 @@ const buildConfig = (data: FrontendConfigData): FrontendConfig => ({
   searchConfig: normalizeSearchConfig(data.searchConfig),
 });
 
+/**
+ * 从统一公开设置响应构建前端运行配置，避免首屏额外请求 frontend-config。
+ * @param settings 公开设置响应
+ * @returns 前端运行配置
+ */
+const buildConfigFromPublicSettings = (settings: PublicSettings): FrontendConfig => buildConfig({
+  authConfig: settings.authConfig,
+  exitModalEnabled: settings.exitModal?.enabled !== false,
+  exitModalConfig: settings.exitModal,
+  pageGlobalConfig: settings.pageGlobal,
+  appearanceConfig: settings.appearance,
+  homepageConfig: settings.homepage,
+  cardStyleConfig: settings.cardStyle,
+  sidebarConfig: settings.sidebar,
+  searchConfig: settings.search,
+});
+
 // ==================== Hook ====================
 
 /** 获取前端功能配置 */
@@ -772,47 +789,10 @@ export const useFrontendConfig = () => {
     setLoading(true);
     configPromise = (async () => {
       try {
-        const frontendConfig = await publicSettingService.getFrontendConfig();
-        const hasFrontendConfig = Boolean(
-          frontendConfig.authConfig ||
-          frontendConfig.exitModalConfig ||
-          frontendConfig.pageGlobalConfig ||
-          frontendConfig.appearanceConfig ||
-          frontendConfig.homepageConfig ||
-          frontendConfig.cardStyleConfig ||
-          frontendConfig.sidebarConfig ||
-          frontendConfig.searchConfig ||
-          typeof frontendConfig.exitModalEnabled === 'boolean'
-        );
-
-        if (hasFrontendConfig) {
-          const newConfig = buildConfig({
-            authConfig: frontendConfig.authConfig,
-            exitModalEnabled: frontendConfig.exitModalEnabled,
-            exitModalConfig: frontendConfig.exitModalConfig,
-            pageGlobalConfig: frontendConfig.pageGlobalConfig,
-            appearanceConfig: frontendConfig.appearanceConfig,
-            homepageConfig: frontendConfig.homepageConfig,
-            cardStyleConfig: frontendConfig.cardStyleConfig,
-            sidebarConfig: frontendConfig.sidebarConfig,
-            searchConfig: frontendConfig.searchConfig,
-          });
-          cachedConfig = newConfig;
-          cacheTimestamp = Date.now();
-          return newConfig;
-        }
-
-        const settings = await publicSettingService.getPublicSettings();
-        const newConfig = buildConfig({
-          authConfig: settings.authConfig,
-          pageGlobalConfig: settings.pageGlobal,
-          appearanceConfig: settings.appearance,
-          homepageConfig: settings.homepage,
-          cardStyleConfig: settings.cardStyle,
-          sidebarConfig: settings.sidebar,
-          searchConfig: settings.search,
-          exitModalConfig: settings.exitModal,
+        const settings = await publicSettingService.getPublicSettings({
+          forceFresh: forceRefresh,
         });
+        const newConfig = buildConfigFromPublicSettings(settings);
         cachedConfig = newConfig;
         cacheTimestamp = Date.now();
         return newConfig;
@@ -848,46 +828,10 @@ export const getFrontendConfig = async (forceRefresh = false): Promise<FrontendC
   }
 
   try {
-    const frontendConfig = await publicSettingService.getFrontendConfig();
-    const hasFrontendConfig = Boolean(
-      frontendConfig.authConfig ||
-      frontendConfig.exitModalConfig ||
-      frontendConfig.pageGlobalConfig ||
-      frontendConfig.appearanceConfig ||
-      frontendConfig.homepageConfig ||
-      frontendConfig.cardStyleConfig ||
-      frontendConfig.sidebarConfig ||
-      frontendConfig.searchConfig ||
-      typeof frontendConfig.exitModalEnabled === 'boolean'
-    );
-
-    if (hasFrontendConfig) {
-      cachedConfig = buildConfig({
-        authConfig: frontendConfig.authConfig,
-        exitModalEnabled: frontendConfig.exitModalEnabled,
-        exitModalConfig: frontendConfig.exitModalConfig,
-        pageGlobalConfig: frontendConfig.pageGlobalConfig,
-        appearanceConfig: frontendConfig.appearanceConfig,
-        homepageConfig: frontendConfig.homepageConfig,
-        cardStyleConfig: frontendConfig.cardStyleConfig,
-        sidebarConfig: frontendConfig.sidebarConfig,
-        searchConfig: frontendConfig.searchConfig,
-      });
-      cacheTimestamp = Date.now();
-      return cachedConfig;
-    }
-
-    const settings = await publicSettingService.getPublicSettings();
-    cachedConfig = buildConfig({
-      authConfig: settings.authConfig,
-      pageGlobalConfig: settings.pageGlobal,
-      appearanceConfig: settings.appearance,
-      homepageConfig: settings.homepage,
-      cardStyleConfig: settings.cardStyle,
-      sidebarConfig: settings.sidebar,
-      searchConfig: settings.search,
-      exitModalConfig: settings.exitModal,
+    const settings = await publicSettingService.getPublicSettings({
+      forceFresh: forceRefresh,
     });
+    cachedConfig = buildConfigFromPublicSettings(settings);
     cacheTimestamp = Date.now();
     return cachedConfig;
   } catch {

@@ -8,42 +8,53 @@
  * @version 1.0.0
  */
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 
 // Context
 import { SiteProvider } from './contexts/SiteContext';
 import { UserProvider } from './contexts/UserContext';
-
-// 页面组件
-import HomePage from './pages/Home';
-import CategoryPage from './pages/Category';
-import TagPage from './pages/Tag';
-import SitePage from './pages/Site';
-import SearchPage from './pages/Search';
-import ProfilePage from './pages/Profile';
-import SubmitPage from './pages/Submit';
-import ChangelogPage from './pages/Changelog';
-import HotArticlesPage from './pages/HotArticles';
-import WebsiteComparePage from './pages/WebsiteCompare';
-import MCPListPage from './pages/MCP';
-import MCPDetailPage from './pages/MCP/detail';
-import FigmaPage from './pages/Figma';
-import FigmaDetailPage from './pages/Figma/detail';
-import NotFoundPage from './pages/NotFound';
-import WebsiteDetail from './pages/WebsiteDetail';
-import InstallPage from './pages/Install';
-import SocialAuthCallbackPage from './pages/Auth/SocialCallback';
 import Layout from './components/layout/Layout';
-import DynamicPage from './components/DynamicPage';
 import { FIXED_DYNAMIC_ROUTES, ROOT_NAV_SLUG, isFixedDynamicNavSlug } from './config/navModel';
 import { useFrontendConfig } from './hooks/useFrontendConfig';
 import { useAppearanceConfig } from './hooks/usePublicSettings';
+import './App.css';
+
+// 页面组件按路由拆包，避免低频页面进入首屏主包。
+const HomePage = lazy(() => import('./pages/Home'));
+const CategoryPage = lazy(() => import('./pages/Category'));
+const TagPage = lazy(() => import('./pages/Tag'));
+const SitePage = lazy(() => import('./pages/Site'));
+const SearchPage = lazy(() => import('./pages/Search'));
+const ProfilePage = lazy(() => import('./pages/Profile'));
+const SubmitPage = lazy(() => import('./pages/Submit'));
+const ChangelogPage = lazy(() => import('./pages/Changelog'));
+const HotArticlesPage = lazy(() => import('./pages/HotArticles'));
+const WebsiteComparePage = lazy(() => import('./pages/WebsiteCompare'));
+const MCPListPage = lazy(() => import('./pages/MCP'));
+const MCPDetailPage = lazy(() => import('./pages/MCP/detail'));
+const FigmaPage = lazy(() => import('./pages/Figma'));
+const FigmaDetailPage = lazy(() => import('./pages/Figma/detail'));
+const NotFoundPage = lazy(() => import('./pages/NotFound'));
+const WebsiteDetail = lazy(() => import('./pages/WebsiteDetail'));
+const InstallPage = lazy(() => import('./pages/Install'));
+const SocialAuthCallbackPage = lazy(() => import('./pages/Auth/SocialCallback'));
+const DynamicPage = lazy(() => import('./components/DynamicPage'));
 
 // @pro-feature-start: articles
-import { ArticleList, ArticleDetail } from './pages/Articles';
+const ArticleList = lazy(() => import('./pages/Articles').then(module => ({ default: module.ArticleList })));
+const ArticleDetail = lazy(() => import('./pages/Articles').then(module => ({ default: module.ArticleDetail })));
 // @pro-feature-end: articles
-import './App.css';
+
+/**
+ * 路由异步资源加载占位，保持页面切换时有稳定的可访问反馈。
+ */
+const RouteLoadingFallback: React.FC = () => (
+  <div className="route-loading" role="status" aria-live="polite">
+    <span className="route-loading__spinner" aria-hidden="true" />
+    <span>页面加载中</span>
+  </div>
+);
 
 // 动态页面路由组件
 const DynamicPageRoute: React.FC = () => {
@@ -67,7 +78,7 @@ const RootEntryRoute: React.FC = () => {
   const homePageSlug = String(config?.homepageConfig?.homePageSlug || '').trim();
   const normalizedHomePageSlug = homePageSlug.toLowerCase();
   if (loading) {
-    return null;
+    return <RouteLoadingFallback />;
   }
   if (homePageSlug) {
     if (isFixedDynamicNavSlug(normalizedHomePageSlug)) {
@@ -201,7 +212,9 @@ const AppRouteSwitch: React.FC = () => {
 function App() {
   return (
     <Router>
-      <AppRouteSwitch />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <AppRouteSwitch />
+      </Suspense>
     </Router>
   );
 }

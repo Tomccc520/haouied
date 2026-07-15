@@ -16,9 +16,10 @@ const API_BASE_URL = getApiBaseUrl();
 
 // 重试配置
 const RETRY_CONFIG = {
-  maxRetries: 3,
+  maxRetries: 2,
   retryDelay: 1000, // 基础延迟时间（毫秒）
-  retryableStatuses: [408, 429, 500, 502, 503, 504], // 可重试的HTTP状态码
+  // 业务 500 与限流 429 直接失败，避免同一异常被成倍放大成请求风暴。
+  retryableStatuses: [408, 502, 503, 504], // 仅重试明确的临时网关/超时错误
   retryableMethods: ['get', 'head', 'options'], // 幂等方法才重试
 };
 

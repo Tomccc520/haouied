@@ -26,6 +26,71 @@ class WordpressConfigService extends Service {
   }
 
   /**
+   * 获取进程级文章缓存与进行中请求容器，供多个请求实例共享。
+   * @return {{cache: Map<string, any>, pending: Map<string, Promise<any>>}} 运行时容器
+   */
+  getPostsRuntimeStores() {
+    const { app } = this;
+    if (!(app.__uiedWordpressPostsCache instanceof Map)) {
+      app.__uiedWordpressPostsCache = new Map();
+    }
+    if (!(app.__uiedWordpressPostsPending instanceof Map)) {
+      app.__uiedWordpressPostsPending = new Map();
+    }
+    return {
+      cache: app.__uiedWordpressPostsCache,
+      pending: app.__uiedWordpressPostsPending,
+    };
+  }
+
+  /**
+   * 清理 WordPress 运行时缓存，配置变更后确保下一次请求读取最新源。
+   */
+  clearPostsRuntimeCache() {
+    const { app } = this;
+    const stores = this.getPostsRuntimeStores();
+    stores.cache.clear();
+    stores.pending.clear();
+    app.__uiedWordpressDefaultConfigCache = {
+      data: null,
+      expiresAt: 0,
+      pending: null,
+    };
+  }
+
+  /**
+   * 构建文章查询缓存键，保证同参数请求可复用缓存与进行中 Promise。
+   * @param {Record<string, any>} options 已规范化查询参数
+   * @return {string} 缓存键
+   */
+  buildPostsCacheKey(options = {}) {
+    return [
+      String(options.sourceMode || 'uied_latest'),
+      String(options.period || 'all'),
+      Number(options.categoryId || 0),
+      Number(options.tagId || 0),
+      Number(options.page || 1),
+      Number(options.perPage || 10),
+      String(options.orderBy || 'date'),
+      String(options.order || 'desc'),
+      String(options.search || ''),
+    ].join('|');
+  }
+
+  /**
+   * 解析文章缓存有效期，限制在 30 秒到 24 小时之间。
+   * @param {Record<string, any>} config WordPress 源配置
+   * @return {number} 缓存毫秒数
+   */
+  resolvePostsCacheTtl(config = {}) {
+    const seconds = Number.parseInt(String(config?.cacheTime || 7200), 10);
+    const safeSeconds = Number.isFinite(seconds)
+      ? Math.max(30, Math.min(seconds, 24 * 60 * 60))
+      : 7200;
+    return safeSeconds * 1000;
+  }
+
+  /**
    * 判断是否为可降级的库结构兼容错误
    */
   isSchemaCompatibilityError(error) {
@@ -119,30 +184,49 @@ class WordpressConfigService extends Service {
    */
   async getDefaultConfig() {
     const { app } = this;
+    const state = app.__uiedWordpressDefaultConfigCache || {
+      data: null,
+      expiresAt: 0,
+      pending: null,
+    };
+    app.__uiedWordpressDefaultConfigCache = state;
 
-    let [ config ] = await app.model.query(
-      'SELECT * FROM uied_wordpress_config WHERE enabled = 1 AND is_default = 1 LIMIT 1',
-      { type: app.Sequelize.QueryTypes.SELECT }
-    );
+    if (state.data && state.expiresAt > Date.now()) return state.data;
+    if (state.pending) return await state.pending;
 
-    if (!config) {
-      [ config ] = await app.model.query(
-        'SELECT * FROM uied_wordpress_config WHERE enabled = 1 LIMIT 1',
+    state.pending = (async () => {
+      let [ config ] = await app.model.query(
+        'SELECT * FROM uied_wordpress_config WHERE enabled = 1 AND is_default = 1 LIMIT 1',
         { type: app.Sequelize.QueryTypes.SELECT }
       );
-    }
 
-    if (!config) {
-      this.ctx.logger.warn('[wordpressConfig] 未配置可用 WordPress 源，自动回退 UIED 默认源');
-      return this.buildBuiltinDefaultConfig();
-    }
+      if (!config) {
+        [ config ] = await app.model.query(
+          'SELECT * FROM uied_wordpress_config WHERE enabled = 1 LIMIT 1',
+          { type: app.Sequelize.QueryTypes.SELECT }
+        );
+      }
 
-    return {
-      id: config.id,
-      name: config.name,
-      apiUrl: config.api_url,
-      cacheTime: config.cache_time,
-    };
+      if (!config) {
+        this.ctx.logger.warn('[wordpressConfig] 未配置可用 WordPress 源，自动回退 UIED 默认源');
+        return this.buildBuiltinDefaultConfig();
+      }
+
+      return {
+        id: config.id,
+        name: config.name,
+        apiUrl: config.api_url,
+        cacheTime: config.cache_time,
+      };
+    })();
+
+    try {
+      state.data = await state.pending;
+      state.expiresAt = Date.now() + 60 * 1000;
+      return state.data;
+    } finally {
+      state.pending = null;
+    }
   }
 
   /**
@@ -175,6 +259,8 @@ class WordpressConfigService extends Service {
         type: app.Sequelize.QueryTypes.INSERT,
       }
     );
+
+    this.clearPostsRuntimeCache();
 
     return { id: result, ...data };
   }
@@ -211,6 +297,8 @@ class WordpressConfigService extends Service {
       { replacements: values, type: app.Sequelize.QueryTypes.UPDATE }
     );
 
+    this.clearPostsRuntimeCache();
+
     return data;
   }
 
@@ -224,6 +312,7 @@ class WordpressConfigService extends Service {
       'DELETE FROM uied_wordpress_config WHERE id = ?',
       { replacements: [ id ], type: app.Sequelize.QueryTypes.DELETE }
     );
+    this.clearPostsRuntimeCache();
   }
 
   // ==================== WordPress 分类配置 ====================
@@ -914,10 +1003,6 @@ class WordpressConfigService extends Service {
    * 代理获取 WordPress 文章
    */
   async getPosts({ source = 'auto', period = 'all', categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search }) {
-    const config = await this.getDefaultConfig();
-    if (!config) {
-      throw new Error('没有可用的 WordPress 配置');
-    }
     const normalizedSource = String(source || 'auto').trim().toLowerCase();
     const normalizedOrderBy = String(orderBy || 'date').trim().toLowerCase();
     const preferUiedHot = [ 'views', 'view', 'hot', 'comment_count' ].includes(normalizedOrderBy);
@@ -926,7 +1011,6 @@ class WordpressConfigService extends Service {
       : (normalizedSource === 'uied' ? 'uied_latest' : normalizedSource);
 
     const fetchOptions = {
-      config,
       sourceMode,
       period: String(period || 'all').trim().toLowerCase(),
       categoryId,
@@ -937,19 +1021,75 @@ class WordpressConfigService extends Service {
       order: String(order || 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc',
       search: String(search || '').trim(),
     };
+    const cacheKey = this.buildPostsCacheKey(fetchOptions);
+    const stores = this.getPostsRuntimeStores();
+    const cached = stores.cache.get(cacheKey);
 
-    if ([ 'uied_hot', 'uied_latest' ].includes(sourceMode)) {
-      try {
-        return await this.fetchPostsFromUiedApi(fetchOptions);
-      } catch (error) {
-        this.ctx.logger.warn(
-          '[wordpressConfig] uied 接口拉取失败，自动回退 wp/v2:',
-          error?.message || error
-        );
-      }
+    if (cached?.expiresAt > Date.now() && Array.isArray(cached.data)) {
+      return cached.data;
+    }
+    if (stores.pending.has(cacheKey)) {
+      return await stores.pending.get(cacheKey);
     }
 
-    return await this.fetchPostsFromWpV2(fetchOptions);
+    /**
+     * 执行一次上游读取；并发请求共用该 Promise，异常时优先返回过期缓存。
+     */
+    const requestPromise = (async () => {
+      try {
+        const config = await this.getDefaultConfig();
+        const runtimeOptions = { ...fetchOptions, config };
+        let rows;
+
+        if ([ 'uied_hot', 'uied_latest' ].includes(sourceMode)) {
+          try {
+            rows = await this.fetchPostsFromUiedApi(runtimeOptions);
+          } catch (error) {
+            this.ctx.logger.warn(
+              '[wordpressConfig] uied 接口拉取失败，自动回退 wp/v2:',
+              error?.message || error
+            );
+          }
+        }
+
+        if (!Array.isArray(rows)) {
+          rows = await this.fetchPostsFromWpV2(runtimeOptions);
+        }
+
+        const normalizedRows = Array.isArray(rows) ? rows : [];
+        if (stores.cache.size >= 200 && !stores.cache.has(cacheKey)) {
+          const oldestKey = stores.cache.keys().next().value;
+          if (oldestKey) stores.cache.delete(oldestKey);
+        }
+        stores.cache.set(cacheKey, {
+          data: normalizedRows,
+          expiresAt: Date.now() + this.resolvePostsCacheTtl(config),
+        });
+        return normalizedRows;
+      } catch (error) {
+        if (Array.isArray(cached?.data)) {
+          this.ctx.logger.warn(
+            '[wordpressConfig] 上游不可用，返回过期文章缓存:',
+            error?.message || error
+          );
+          return cached.data;
+        }
+        this.ctx.logger.error(
+          '[wordpressConfig] 上游不可用且无缓存，降级为空列表:',
+          error?.message || error
+        );
+        return [];
+      }
+    })();
+
+    stores.pending.set(cacheKey, requestPromise);
+    try {
+      return await requestPromise;
+    } finally {
+      if (stores.pending.get(cacheKey) === requestPromise) {
+        stores.pending.delete(cacheKey);
+      }
+    }
   }
 
   /**

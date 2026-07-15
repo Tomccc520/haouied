@@ -96,6 +96,7 @@ const DEFAULT_TAG_OPTIONS: TagOption[] = [
 
 // 常量定义
 const CACHE_EXPIRE_TIME = 10 * 60 * 1000; // 10分钟缓存过期
+const wordpressArticlePendingRequests = new Map<string, Promise<Record<string, unknown>[]>>();
 const DEFAULT_ARTICLE_THUMBNAIL = buildPlaceholderImage({
   eyebrow: 'UIED',
   title: '设计文章',
@@ -108,6 +109,43 @@ const DEFAULT_ARTICLE_THUMBNAIL = buildPlaceholderImage({
     accent: '#2563EB',
   },
 });
+
+/**
+ * 构建 WordPress 代理请求键，确保参数顺序不同也能命中同一进行中请求。
+ * @param params 请求参数
+ * @returns 稳定请求键
+ */
+function buildWordPressArticleRequestKey(params: Record<string, string | number>): string {
+  return Object.entries(params)
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join('&');
+}
+
+/**
+ * 合并相同的 WordPress 文章代理请求，避免多个运营区块同时加载时重复访问后端。
+ * @param params 请求参数
+ * @returns 标准化文章原始列表
+ */
+async function fetchWordPressProxyArticles(
+  params: Record<string, string | number>
+): Promise<Record<string, unknown>[]> {
+  const requestKey = buildWordPressArticleRequestKey(params);
+  const pendingRequest = wordpressArticlePendingRequests.get(requestKey);
+  if (pendingRequest) return pendingRequest;
+
+  const requestPromise = api.get('/wordpress/posts', { params })
+    .then(response => unwrapApiList<Record<string, unknown>>(response?.data));
+  wordpressArticlePendingRequests.set(requestKey, requestPromise);
+
+  try {
+    return await requestPromise;
+  } finally {
+    if (wordpressArticlePendingRequests.get(requestKey) === requestPromise) {
+      wordpressArticlePendingRequests.delete(requestKey);
+    }
+  }
+}
 
 // 清除所有设计文章缓存
 const clearDesignArticlesCache = () => {
@@ -831,8 +869,8 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
           params.categoryId = currentOption.id;
         }
 
-        const proxyResponse = await api.get('/wordpress/posts', { params });
-        response = unwrapApiList<Record<string, unknown>>(proxyResponse?.data)
+        const proxyRows = await fetchWordPressProxyArticles(params);
+        response = proxyRows
           .map((item) => mapProxyArticleToRankItem(item))
           .filter((item) => Boolean(item.name));
       }

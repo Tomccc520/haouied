@@ -38,6 +38,37 @@
   color: var(--primary-400);
 }
 
+.route-loading {
+  min-height: 42vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-secondary, #64748b);
+  font-size: 14px;
+}
+
+.route-loading__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in srgb, var(--primary-color, #2563eb) 20%, transparent);
+  border-top-color: var(--primary-color, #2563eb);
+  border-radius: 50%;
+  animation: route-loading-spin 0.72s linear infinite;
+}
+
+@keyframes route-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading__spinner {
+    animation: none;
+  }
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

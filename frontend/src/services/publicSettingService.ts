@@ -1948,9 +1948,9 @@ export const publicSettingService = {
   /**
    * 获取站点信息
    */
-  getSiteInfo: async (): Promise<SiteInfo> => {
+  getSiteInfo: async (options?: { forceFresh?: boolean }): Promise<SiteInfo> => {
     try {
-      const settings = await publicSettingService.getPublicSettings();
+      const settings = await publicSettingService.getPublicSettings(options);
       return normalizeSiteInfoConfig(settings.siteInfo || DEFAULT_SITE_INFO);
     } catch (error) {
       debugLog.error('获取站点信息失败，使用默认配置:', error);

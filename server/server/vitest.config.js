@@ -14,5 +14,9 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 30000,
+    include: [
+      'test/property/**/*.test.js',
+      'test/unit/**/*.test.js',
+    ],
   },
 });

@@ -14,12 +14,12 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { RankingListSkeleton } from '../../components/Skeleton';
+import DesignArticleGrid from '../../components/DesignArticleGrid';
 import Banner from '../../components/Banner';
 import AdBanner from '../../components/AdBanner';
 import SEO from '../../components/SEO';
-import DesignArticleGrid from '../../components/DesignArticleGrid';
 import AdminShortcutHint from '../../components/AdminShortcutHint';
-import { RankingListSkeleton } from '../../components/Skeleton';
 import { getRankings, getRankingsAggregate } from '../../services/rankingService';
 import { getDailyHotDisplayConfig } from '../../services/dailyHotService';
 import { getHotArticlesDisplayConfig, type HotArticlesDisplayConfig } from '../../services/hotArticleService';
