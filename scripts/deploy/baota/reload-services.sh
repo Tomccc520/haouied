@@ -2,50 +2,49 @@
 # @copyright Tomda (https://www.tomda.top)
 # @copyright UIED技术团队 (https://fsuied.com)
 # @author UIED技术团队
-# @createDate 2026-02-27
+# @createDate 2026-08-01
 
-set -euo pipefail
+set -Eeuo pipefail
 
-SITE_ROOT="${1:-/www/wwwroot/hao.uied.cn}"
-BACKEND_DIR="$SITE_ROOT/backend"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ECO_FILE="$SCRIPT_DIR/ecosystem.uied-api.config.cjs"
+SOURCE_ROOT="${1:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+ENV_FILE="${2:-$SOURCE_ROOT/../../../shared/uied-api.env}"
+BACKEND_DIR="$SOURCE_ROOT/server/server"
 
-check_command() {
-  # 函数说明：检查命令是否存在，避免执行中断
-  local cmd="$1"
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "缺少命令: $cmd"
-    exit 1
-  fi
+# 检查服务重载所需命令。
+check_commands() {
+  local command_name
+  for command_name in node pm2 nginx; do
+    command -v "$command_name" >/dev/null 2>&1 || { echo "缺少命令: $command_name" >&2; exit 1; }
+  done
+  [[ -f "$ENV_FILE" ]] || { echo "环境变量文件不存在: $ENV_FILE" >&2; exit 1; }
+  [[ -d "$BACKEND_DIR" ]] || { echo "后端目录不存在: $BACKEND_DIR" >&2; exit 1; }
 }
 
+# 平滑重载后端并持久化 PM2 进程列表。
 reload_backend() {
-  # 函数说明：重载后端 PM2 进程，若不存在则首次启动
-  cd "$BACKEND_DIR"
-  if pm2 describe uied-api >/dev/null 2>&1; then
-    pm2 reload uied-api --update-env
-  else
-    pm2 start "$ECO_FILE"
-  fi
+  export UIED_BACKEND_DIR="$BACKEND_DIR"
+  export UIED_API_ENV_FILE="$ENV_FILE"
+  pm2 startOrReload "$SCRIPT_DIR/ecosystem.uied-api.config.cjs" --only uied-api --update-env
   pm2 save
 }
 
+# 校验并重载 Nginx。
 reload_nginx() {
-  # 函数说明：重载 Nginx 配置使静态资源与反向代理生效
-  if command -v bt >/dev/null 2>&1; then
-    bt reload
+  nginx -t
+  if [[ -x /etc/init.d/nginx ]]; then
+    /etc/init.d/nginx reload
   else
-    nginx -t && nginx -s reload
+    nginx -s reload
   fi
 }
 
+# 执行服务重载主流程。
 main() {
-  # 函数说明：执行上线后的服务重载流程
-  check_command pm2
+  check_commands
   reload_backend
   reload_nginx
-  echo "服务已重载完成。"
+  echo "后端与 Nginx 已重载完成。"
 }
 
 main "$@"

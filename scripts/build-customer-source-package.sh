@@ -150,6 +150,8 @@ sync_source_to_stage() {
     --exclude '*.license' \
     --exclude '.env' \
     --exclude '.env.*' \
+    --exclude 'server/server/config/config.local.js' \
+    --exclude 'server/server/config/config.prod.js' \
     --exclude '*.pem' \
     --exclude '*.key' \
     --exclude '*.log' \
@@ -183,11 +185,12 @@ write_package_manifest() {
 
 ## 部署提醒
 
-1. 客户部署后再放入授权文件：\`server/licenses/*.license\`。
-2. 新客户可执行：\`server/sql/customer/starter.sql\`。
-3. 老客户只补星流短链可执行：\`server/sql/patch_2026_0609_seo_xingliu_redirect.sql\`。
-4. 客户站不要配置签发端密钥，不要开启本地自签：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
-5. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
+1. 宝塔命令部署入口：\`scripts/deploy/baota/deploy.sh\`。
+2. 全新空数据库初始化：\`scripts/deploy/baota/init-database.sh\`，老客户禁止执行。
+3. 客户部署后再放入授权文件：\`server/licenses/*.license\`。
+4. 老客户只补星流短链可执行：\`server/sql/patch_2026_0609_seo_xingliu_redirect.sql\`。
+5. 客户站不要配置签发端密钥，不要开启本地自签：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
+6. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
 EOF
 }
 
@@ -196,20 +199,18 @@ write_customer_install_docs() {
   cat > "$STAGE_DIR/INSTALL.md" <<EOF
 # UIED-NAV ${VERSION} 客户安装入口
 
-本文件是客户源码包的安装入口。源码内历史开发文档仅供研发参考，客户部署请以本文和外层交付包里的 \`INSTALL-GUIDE-HAO-UIED-v${VERSION}-CUSTOMER.md\` 为准。
+本文件是客户源码包的安装入口。源码内历史开发文档仅供研发参考，宝塔部署请以 \`docs/部署文档/宝塔命令行部署-1.1.3.md\` 为准。
 
 ## 快速步骤
 
 1. 解压源码包：\`tar -xzf uied-nav-${VERSION}-customer-source.tgz\`。
-2. 创建 MySQL 数据库，字符集使用 \`utf8mb4\`。
-3. 全新安装依次导入：
-   - \`server/sql/install.sql\`
-   - \`server/sql/uied_tables.sql\`
-   - \`server/sql/customer/starter.sql\`
-4. 安装并启动后端：进入 \`server/server\` 执行 \`npm install --production\` 和 \`npm run start\`。
-5. 构建前台：进入 \`frontend\` 执行 \`npm install\` 和 \`npm run build\`。
-6. 构建后台：进入 \`server/admin\` 执行 \`npm install\` 和 \`npm run build\`。
-7. Nginx 将 \`/api\` 反代到 \`127.0.0.1:8002\`，\`/admin/\` 指向后台静态目录，根路径指向前台静态目录。
+2. 创建全新 MySQL 数据库，字符集使用 \`utf8mb4\`。
+3. 首次执行部署命令生成环境变量模板：\`./scripts/deploy/baota/deploy.sh --domain 你的域名\`。
+4. 填写 \`/www/wwwroot/你的域名/shared/uied-api.env\` 后，执行全新数据库初始化脚本。
+5. 再次执行部署命令，脚本会安装后端依赖、同步预构建前后台并启动 PM2。
+6. 将生成的 \`deploy/uied-nav.nginx.conf\` 应用到宝塔站点，检查后重载 Nginx。
+
+> \`server/sql/install.sql\` 包含 DROP TABLE。老客户升级禁止运行数据库初始化脚本，只执行版本对应补丁。
 
 ## 授权说明
 
@@ -220,7 +221,7 @@ write_customer_install_docs() {
 
 ## 安全边界
 
-- 本包已排除本地授权、\`.env\`、密钥、日志、根目录 \`data/\`、运行时导出 JSON 和数据库备份。
+- 本包已排除本地授权、\`.env\`、本机 \`config.prod.js/config.local.js\`、密钥、日志、根目录 \`data/\`、运行时导出 JSON 和数据库备份。
 - 如果客户已有正式数据，执行 SQL 前必须先备份数据库。
 EOF
 }
@@ -246,9 +247,9 @@ verify_archive_safe() {
   list_file="$WORK_DIR/archive-list.txt"
   tar -tzf "$PACKAGE_FILE" > "$list_file"
 
-  if grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/' "$list_file" >/dev/null; then
-    log_err "客户包内仍发现授权文件、环境变量或密钥风险："
-    grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/' "$list_file" | head -n 20
+  if grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/|/server/server/config/config\.(local|prod)\.js$' "$list_file" >/dev/null; then
+    log_err "客户包内仍发现授权文件、运行时配置、环境变量或密钥风险："
+    grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/|/server/server/config/config\.(local|prod)\.js$' "$list_file" | head -n 20
     exit 1
   fi
 
@@ -257,7 +258,7 @@ verify_archive_safe() {
     grep -E '^[^/]+/data/|^[^/]+/server/server/exports/[^/]+\.json$|(^|/)([^/]*mysql_backup[^/]*|[^/]*backup[^/]*|[^/]*dump[^/]*|[^/]*mysql_data[^/]*|uied_nav_prod_[^/]*)\.sql(\.gz)?$|(^|/)export_[0-9]{8}[^/]*\.json$' "$list_file" | head -n 20
     exit 1
   fi
-  log_ok "归档安全检查通过：未发现授权文件、customer-license.json、.env、pem/key、数据库备份、运行时导出数据"
+  log_ok "归档安全检查通过：未发现授权文件、运行时配置、customer-license.json、.env、pem/key、数据库备份、运行时导出数据"
 }
 
 # 主流程入口。

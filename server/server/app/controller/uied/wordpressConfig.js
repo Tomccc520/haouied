@@ -60,7 +60,8 @@ class WordpressConfigController extends baseController {
       this.result({ data: result, message: '创建成功' });
     } catch (error) {
       ctx.logger.error('创建WordPress配置失败:', error);
-      this.result({ code: 500, message: '创建失败' });
+      const code = Number(error?.status || 500);
+      this.result({ code, message: code === 400 ? error.message : '创建失败' });
     }
   }
 
@@ -78,7 +79,8 @@ class WordpressConfigController extends baseController {
       this.result({ data: result, message: '更新成功' });
     } catch (error) {
       ctx.logger.error('更新WordPress配置失败:', error);
-      this.result({ code: 500, message: '更新失败' });
+      const code = Number(error?.status || 500);
+      this.result({ code, message: code === 400 ? error.message : '更新失败' });
     }
   }
 
@@ -321,17 +323,21 @@ class WordpressConfigController extends baseController {
   async posts() {
     const { ctx } = this;
     try {
-      const { source = 'auto', period = 'all', categoryId, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search } = ctx.query;
+      const { source = 'auto', period = 'all', categoryId, categorySlug, tagId, page = 1, perPage = 10, orderBy = 'date', order = 'desc', search, diagnostic } = ctx.query;
+      const diagnosticMode = String(diagnostic || '').trim() === '1';
       const result = await ctx.service.uied.wordpressConfig.getPosts({
         source,
         period,
         categoryId,
+        categorySlug,
         tagId,
         page: Number.parseInt(page, 10),
         perPage: Number.parseInt(perPage, 10),
         orderBy,
         order,
         search,
+        strict: diagnosticMode,
+        bypassCache: diagnosticMode,
       });
       this.result({ data: result });
     } catch (error) {

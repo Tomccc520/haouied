@@ -322,6 +322,13 @@ module.exports = options => {
       'uied:website:batchRealDelete': [ 'uied:website:del' ],
       // 商业版：AI 配置 detail 兼容别名复用 get 权限
       'uied:aiConfig:detail': [ 'uied:aiConfig:get', 'uied:aiConfig:list' ],
+      // 商业版：WordPress 数据源读取复用站点设置读取权限，避免内容中心页面可见但接口 403
+      'uied:wordpress:configs': [ 'uied:setting:get', 'uied:wordpress:categories' ],
+      'uied:wordpress:configs:default': [ 'uied:setting:get', 'uied:wordpress:categories' ],
+      'uied:wordpress:posts': [ 'uied:setting:get', 'uied:wordpress:categories' ],
+      'uied:wordpress:configs:add': [ 'uied:setting:save', 'uied:wordpress:categories:add' ],
+      'uied:wordpress:configs:edit': [ 'uied:setting:save', 'uied:wordpress:categories:edit' ],
+      'uied:wordpress:configs:del': [ 'uied:setting:save', 'uied:wordpress:categories:del' ],
       // 商业版：WordPress 标签/组件复用原有分类管理权限，避免历史角色漏配
       'uied:wordpress:tags': [ 'uied:wordpress:categories' ],
       'uied:wordpress:tags:add': [ 'uied:wordpress:categories:add' ],

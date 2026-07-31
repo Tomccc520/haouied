@@ -574,3 +574,78 @@ CREATE TABLE IF NOT EXISTS `uied_figma_plugin_item_tag` (
   KEY `idx_figma_plugin_item_tag_tag` (`tag_id`),
   KEY `idx_figma_plugin_item_tag_delete` (`is_delete`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Figma 插件标签关联表';
+
+-- WordPress 外部文章源配置表
+CREATE TABLE IF NOT EXISTS `uied_wordpress_config` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(128) NOT NULL DEFAULT '',
+  `api_url` varchar(255) NOT NULL DEFAULT '',
+  `enabled` tinyint unsigned NOT NULL DEFAULT 1,
+  `is_default` tinyint unsigned NOT NULL DEFAULT 0,
+  `cache_time` int unsigned NOT NULL DEFAULT 7200,
+  `create_time` int unsigned NOT NULL DEFAULT 0,
+  `update_time` int unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_enabled_default` (`enabled`, `is_default`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='WordPress 源配置';
+
+-- WordPress 分类映射配置表
+CREATE TABLE IF NOT EXISTS `uied_wordpress_category` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `config_id` int unsigned DEFAULT NULL,
+  `wp_category_id` int unsigned NOT NULL DEFAULT 0,
+  `wp_category_name` varchar(128) NOT NULL DEFAULT '',
+  `display_name` varchar(128) NOT NULL DEFAULT '',
+  `slug` varchar(128) NOT NULL DEFAULT '',
+  `description` varchar(500) NOT NULL DEFAULT '',
+  `sort` int unsigned NOT NULL DEFAULT 0,
+  `visible` tinyint unsigned NOT NULL DEFAULT 1,
+  `page_slug` varchar(64) NOT NULL DEFAULT '',
+  `create_time` int unsigned NOT NULL DEFAULT 0,
+  `update_time` int unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_page_visible_sort` (`page_slug`, `visible`, `sort`),
+  KEY `idx_slug` (`slug`),
+  KEY `idx_config_id` (`config_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='WordPress 分类映射配置';
+
+-- WordPress 标签映射配置表
+CREATE TABLE IF NOT EXISTS `uied_wordpress_tag` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `config_id` int unsigned DEFAULT NULL,
+  `wp_tag_id` int unsigned NOT NULL DEFAULT 0,
+  `wp_tag_name` varchar(128) NOT NULL DEFAULT '',
+  `display_name` varchar(128) NOT NULL DEFAULT '',
+  `slug` varchar(128) NOT NULL DEFAULT '',
+  `description` varchar(500) NOT NULL DEFAULT '',
+  `sort` int unsigned NOT NULL DEFAULT 0,
+  `visible` tinyint unsigned NOT NULL DEFAULT 1,
+  `page_slug` varchar(64) NOT NULL DEFAULT '',
+  `create_time` int unsigned NOT NULL DEFAULT 0,
+  `update_time` int unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_page_visible_sort` (`page_slug`, `visible`, `sort`),
+  KEY `idx_slug` (`slug`),
+  KEY `idx_config_id` (`config_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='WordPress 标签映射配置';
+
+-- WordPress 页面组件配置表
+CREATE TABLE IF NOT EXISTS `uied_wordpress_widget` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `config_id` int unsigned DEFAULT NULL,
+  `widget_key` varchar(100) NOT NULL DEFAULT '',
+  `widget_name` varchar(128) NOT NULL DEFAULT '',
+  `title` varchar(200) NOT NULL DEFAULT '',
+  `content` text,
+  `meta_json` text,
+  `sort` int unsigned NOT NULL DEFAULT 0,
+  `visible` tinyint unsigned NOT NULL DEFAULT 1,
+  `page_slug` varchar(64) NOT NULL DEFAULT '',
+  `create_time` int unsigned NOT NULL DEFAULT 0,
+  `update_time` int unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_page_visible_sort` (`page_slug`, `visible`, `sort`),
+  KEY `idx_widget_key` (`widget_key`),
+  KEY `idx_config_id` (`config_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='WordPress 组件配置';

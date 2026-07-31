@@ -65,6 +65,11 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-06-09',
     title: '正式版1.1.3：授权稳态、运营短链与交付安全自检',
     changes: [
+      { type: 'feature', scope: 'fullstack', text: '【学习文章数据源】兼容 UIED 开放文章流 `/api/open/v1/posts`，支持分页、分类 ID/slug、排序、封面图、作者、栏目与浏览统计映射；后台内容中心新增可视化数据源配置和接口试读。' },
+      { type: 'fix', scope: 'fullstack', text: '【文章源安装修复】补齐全新空库所需的 WordPress 配置、分类、标签与组件表，并增加运行时自愈；修复普通管理员权限、默认源禁用状态、接口试读缓存及切源后旧请求污染新缓存的问题。' },
+      { type: 'improve', scope: 'backend', text: '【文章源安全】数据源地址仅允许 HTTP/HTTPS，禁止账号口令、localhost 和私网 IP；宝塔 Nginx 示例同步收紧 API 路径匹配与非哈希静态资源缓存，避免错误代理和旧资源长期不更新。' },
+      { type: 'feature', scope: 'backend', text: '【宝塔命令部署】新增参数化部署、全新空库初始化、PM2 环境隔离与 Nginx 配置生成脚本；预构建前后台可直接发布，上传目录默认独立持久化，升级不覆盖数据库、授权和图片。' },
+      { type: 'improve', scope: 'backend', text: '【交付安全】客户源码包进一步排除本机 `config.prod.js/config.local.js`，防止数据库账号等服务器配置随通用交付包外发。' },
       { type: 'feature', scope: 'fullstack', text: '【运营短链】新客户初始化默认内置 `/xingliu` 运营短链，跳转到星流推广链接；老客户新增 MySQL 5.6 兼容 SQL 补丁，只在缺失时追加规则，不覆盖已有 SEO 配置。' },
       { type: 'fix', scope: 'backend', text: '【短链安全】SEO 中心短链来源路径禁止保存为空或 `/`，后端匹配时也会跳过根路径，避免误配置导致首页整站跳转。' },
       { type: 'improve', scope: 'backend', text: '【客户包导出】后台客户包导出改为 POST，默认不导出真实授权、域名白名单、签名和功能覆盖，降低通用源码包泄漏客户授权信息的风险。' },

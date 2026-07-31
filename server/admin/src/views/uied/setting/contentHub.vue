@@ -123,6 +123,9 @@
                         </el-form>
                     </el-card>
                 </el-tab-pane>
+                <el-tab-pane label="WordPress数据源" name="wordpress-source" lazy>
+                    <WordpressSourceSetting />
+                </el-tab-pane>
                 <el-tab-pane label="网站对比" name="websiteCompare" lazy>
                     <el-card shadow="never">
                         <template #header>
@@ -687,6 +690,7 @@ import { useRoute } from 'vue-router'
 import feedback from '@/utils/feedback'
 import { uiedSettingGet, uiedSettingSave } from '@/api/uied'
 import HotArticlesSetting from './hotArticles.vue'
+import WordpressSourceSetting from './wordpressSources.vue'
 import DailyHotSetting from '../dailyHot/index.vue'
 import RankBoardSetting from '../rankBoard/index.vue'
 
@@ -695,6 +699,7 @@ type ContentHubTab =
     | 'rankings'
     | 'dailyHot'
     | 'dailyNew'
+    | 'wordpress-source'
     | 'websiteCompare'
     | 'mcp'
     | 'figma'
@@ -1001,6 +1006,7 @@ const normalizeTab = (value: unknown): ContentHubTab => {
     if (text === 'dailyHot') return 'dailyHot'
     if (text === 'rankings') return 'rankings'
     if (text === 'dailyNew') return 'dailyNew'
+    if (text === 'wordpress-source') return 'wordpress-source'
     if (text === 'websiteCompare') return 'websiteCompare'
     if (text === 'mcp') return 'mcp'
     if (text === 'figma') return 'figma'

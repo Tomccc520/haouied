@@ -100,6 +100,10 @@ function checkRequiredFiles() {
     'server/server/app/service/uied/deliveryInit.js',
     'server/admin/src/views/uied/deliveryInit/index.vue',
     'frontend/src/pages/Changelog/index.tsx',
+    'scripts/deploy/baota/deploy.sh',
+    'scripts/deploy/baota/init-database.sh',
+    'scripts/deploy/baota/uied-api.env.example',
+    'docs/部署文档/宝塔命令行部署-1.1.3.md',
   ];
   return requiredFiles.map(file => {
     const target = path.join(PROJECT_ROOT, file);
@@ -367,6 +371,7 @@ function checkPackageScripts() {
  */
 function checkStarterSqlDefaults() {
   const content = readText('server/sql/customer/starter.sql');
+  const uiedTablesContent = readText('server/sql/uied_tables.sql');
   if (!content) {
     return [
       makeCheck(
@@ -386,7 +391,26 @@ function checkStarterSqlDefaults() {
   const hasXingliuPatch = /\/xingliu/.test(patchContent)
     && /INSERT INTO `uied_site_setting`/.test(patchContent)
     && /LOCATE\('\[', `value`, LOCATE\('"redirects"', `value`\)\)/.test(patchContent);
+  const wordpressTableNames = [
+    'uied_wordpress_config',
+    'uied_wordpress_category',
+    'uied_wordpress_tag',
+    'uied_wordpress_widget',
+  ];
+  const hasWordpressTables = wordpressTableNames.every((tableName) => (
+    uiedTablesContent.includes(`CREATE TABLE IF NOT EXISTS \`${tableName}\``)
+  ));
   return [
+    hasWordpressTables
+      ? makeCheck('delivery', 'database:wordpress-tables', 'pass', '文章数据源表', 'uied_tables.sql 已包含 WordPress 数据源四张基础表')
+      : makeCheck(
+        'delivery',
+        'database:wordpress-tables',
+        'fail',
+        '文章数据源表',
+        'uied_tables.sql 缺少 WordPress 数据源基础表',
+        '请补齐 config/category/tag/widget 四张表，避免全新空库进入内容中心时报错。'
+      ),
     hasSeoConfig
       ? makeCheck('delivery', 'starter:seo-config', 'pass', 'SEO 默认配置', 'starter.sql 已包含 seoCenterConfig')
       : makeCheck(
@@ -495,19 +519,21 @@ function checkCustomerSourcePackageScriptBoundary() {
     && /export_\[0-9\]\{8\}/.test(scriptContent)
     && /server\/server\/exports/.test(scriptContent);
   const excludesRuntimeExports = /--exclude ['"]server\/server\/exports\/\*\.json['"]/.test(scriptContent);
+  const excludesRuntimeConfigs = /config\/config\.prod\.js/.test(scriptContent)
+    && /config\/config\.local\.js/.test(scriptContent);
   const writesCustomerInstall = /write_customer_install_docs/.test(scriptContent)
     && /客户站不要配置签发端密钥/.test(scriptContent);
   const writesRelativeSha = /basename "\$PACKAGE_FILE"/.test(scriptContent)
     && /cd "\$OUTPUT_DIR"/.test(scriptContent)
     && /shasum -a 256 "\$package_name" > "\$sha_name"/.test(scriptContent);
-  if (excludesRootData && excludesBackupSql && excludesRuntimeExports && verifiesArchiveData && writesCustomerInstall && writesRelativeSha) {
+  if (excludesRootData && excludesBackupSql && excludesRuntimeExports && excludesRuntimeConfigs && verifiesArchiveData && writesCustomerInstall && writesRelativeSha) {
     return [
       makeCheck(
         'delivery',
         'package-script:data-boundary',
         'pass',
         '客户源码包数据边界',
-        '构建脚本已排除根目录 data、运行时导出数据与数据库备份，归档后复查，覆盖客户安装入口，并生成相对路径 SHA256'
+        '构建脚本已排除根目录 data、运行时配置、导出数据与数据库备份，归档后复查，覆盖客户安装入口，并生成相对路径 SHA256'
       ),
     ];
   }
@@ -517,7 +543,7 @@ function checkCustomerSourcePackageScriptBoundary() {
       'package-script:data-boundary',
       'fail',
       '客户源码包数据边界',
-      '构建脚本缺少根目录 data、运行时导出数据、数据库备份、归档复查、客户安装入口或相对路径 SHA256 规则',
+      '构建脚本缺少根目录 data、运行时配置、导出数据、数据库备份、归档复查、客户安装入口或相对路径 SHA256 规则',
       '请确保客户源码包不包含 data/mysql_backup*.sql、server/server/exports/*.json、export_*.json、*_mysql_data_*.sql 等本地数据文件，且校验文件不暴露本机绝对路径。'
     ),
   ];

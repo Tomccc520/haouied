@@ -1188,7 +1188,37 @@ export function uiedSeoScraperFetch(params: any) {
     return request.post({ url: '/uied/seoScraper/fetch', params })
 }
 
-// ==================== WordPress 标签/组件配置 ====================
+// ==================== WordPress 数据源/标签/组件配置 ====================
+
+// WordPress 数据源列表
+export function uiedWordpressConfigList() {
+    return request.get({ url: '/uied/wordpress/configs' })
+}
+
+// WordPress 当前默认数据源
+export function uiedWordpressConfigDefault() {
+    return request.get({ url: '/uied/wordpress/configs/default' })
+}
+
+// 新增 WordPress 数据源
+export function uiedWordpressConfigAdd(params: any) {
+    return request.post({ url: '/uied/wordpress/configs/add', params })
+}
+
+// 编辑 WordPress 数据源
+export function uiedWordpressConfigEdit(params: any) {
+    return request.post({ url: '/uied/wordpress/configs/edit', params })
+}
+
+// 删除 WordPress 数据源
+export function uiedWordpressConfigDel(params: any) {
+    return request.post({ url: '/uied/wordpress/configs/del', params })
+}
+
+// 测试当前默认 WordPress 数据源
+export function uiedWordpressPostList(params?: any) {
+    return request.get({ url: '/uied/wordpress/posts', params })
+}
 
 // WordPress 标签列表
 export function uiedWordpressTagList(params?: any) {

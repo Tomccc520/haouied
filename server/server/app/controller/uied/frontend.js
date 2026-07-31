@@ -1921,6 +1921,7 @@ class FrontendController extends Controller {
     const source = String(ctx.query?.source || 'auto').trim().toLowerCase();
     const period = String(ctx.query?.period || 'all').trim().toLowerCase();
     const categoryId = this.parsePositiveInt(ctx.query?.categoryId, 0);
+    const categorySlug = String(ctx.query?.categorySlug || '').trim();
     const tagId = this.parsePositiveInt(ctx.query?.tagId, 0);
     const page = this.parsePositiveInt(ctx.query?.page, 1);
     const perPage = this.parsePositiveInt(ctx.query?.perPage, 24);
@@ -1933,6 +1934,7 @@ class FrontendController extends Controller {
         source,
         period,
         categoryId: categoryId > 0 ? categoryId : undefined,
+        categorySlug: categorySlug || undefined,
         tagId: tagId > 0 ? tagId : undefined,
         page: Math.max(1, page),
         perPage: Math.min(Math.max(1, perPage), 100),
