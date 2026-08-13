@@ -1722,6 +1722,13 @@ class FrontendService extends Service {
         keywords: this.normalizeSeoText(route?.keywords, existing.keywords || siteKeywords),
         noindex,
         updatedAt: Number.parseInt(String(route?.updatedAt || existing.updatedAt || now), 10) || now,
+        seoType: String(route?.seoType || existing.seoType || 'WebPage').trim() || 'WebPage',
+        image: String(route?.image || existing.image || '').trim(),
+        bodyContent: String(route?.bodyContent || existing.bodyContent || '').trim(),
+        author: this.normalizeSeoText(route?.author, existing.author || ''),
+        category: this.normalizeSeoText(route?.category, existing.category || ''),
+        datePublished: Number.parseInt(String(route?.datePublished || existing.datePublished || 0), 10) || 0,
+        breadcrumbs: Array.isArray(route?.breadcrumbs) ? route.breadcrumbs : (existing.breadcrumbs || []),
       };
       routeMap.set(path, normalized);
     };
@@ -1729,7 +1736,7 @@ class FrontendService extends Service {
     // 全站公共路由（保证核心页面有首屏 SEO）
     [
       { path: '/', title: siteTitle, description: siteDescription, keywords: siteKeywords },
-      { path: '/search', title: this.buildSeoTitle('全站搜索', siteName), description: siteDescription },
+      { path: '/search', title: this.buildSeoTitle('全站搜索', siteName), description: siteDescription, noindex: true },
       { path: '/submit', title: this.buildSeoTitle('网站提交', siteName), description: siteDescription },
       { path: '/changelog', title: this.buildSeoTitle('更新日志', siteName), description: siteDescription },
       { path: '/p/hot', title: this.buildSeoTitle('热门内容', siteName), description: siteDescription },
@@ -1892,7 +1899,8 @@ class FrontendService extends Service {
     // 文章详情页
     try {
       const articleRows = await app.model.query(
-        `SELECT slug, title, excerpt, seo_title, seo_description, update_time, published_at
+        `SELECT slug, title, excerpt, LEFT(content, 4000) AS content_preview, cover_image, author, category,
+                seo_title, seo_description, update_time, published_at
          FROM uied_article
          WHERE is_delete = 0 AND status = 'published' AND slug IS NOT NULL AND slug <> ''
          ORDER BY COALESCE(published_at, update_time) DESC, id DESC`,
@@ -1909,6 +1917,17 @@ class FrontendService extends Service {
           description: this.normalizeSeoText(row?.seo_description || row?.excerpt, siteDescription),
           keywords: `${titleSeed},${siteKeywords}`,
           updatedAt,
+          seoType: 'Article',
+          image: row?.cover_image,
+          bodyContent: row?.content_preview || row?.excerpt,
+          author: row?.author,
+          category: row?.category,
+          datePublished: Number.parseInt(String(row?.published_at || 0), 10) || 0,
+          breadcrumbs: [
+            { name: siteName, url: '/' },
+            { name: '文章中心', url: '/articles' },
+            { name: titleSeed, url: `/article/${slug}` },
+          ],
         });
         upsertRoute({
           path: `/articles/${slug}`,
@@ -1966,10 +1985,14 @@ class FrontendService extends Service {
       try {
         const permalinkConfig = await ctx.service.uied.setting.get('permalink_config').catch(() => ({}));
         const websiteRows = await app.model.query(
-          `SELECT id, slug, name, description, seo_title, seo_description, seo_keywords, update_time
-           FROM uied_website
-           WHERE is_delete = 0 AND ${this.getPublicWebsiteStatusCondition()}
-           ORDER BY id DESC
+          `SELECT w.id, w.slug, w.name, w.description, w.icon_url, w.thumbnail,
+                  LEFT(w.detail_content, 4000) AS detail_content_preview,
+                  w.seo_title, w.seo_description, w.seo_keywords,
+                  w.update_time, c.name as category_name, c.slug as category_slug
+           FROM uied_website w
+           LEFT JOIN uied_category c ON c.id = w.category_id AND c.is_delete = 0
+           WHERE w.is_delete = 0 AND ${this.getPublicWebsiteStatusCondition('w')}
+           ORDER BY w.id DESC
            LIMIT ?`,
           {
             replacements: [ websiteLimit ],
@@ -1988,6 +2011,15 @@ class FrontendService extends Service {
             description: this.normalizeSeoText(row?.seo_description || row?.description, siteDescription),
             keywords: this.normalizeSeoText(row?.seo_keywords, `${name},${siteKeywords}`),
             updatedAt,
+            seoType: 'SoftwareApplication',
+            image: row?.thumbnail || row?.icon_url,
+            bodyContent: row?.detail_content_preview || row?.description,
+            category: row?.category_name,
+            breadcrumbs: [
+              { name: siteName, url: '/' },
+              { name: row?.category_name || '网站导航', url: row?.category_name ? `/category/${row?.category_slug || ''}` : '/category' },
+              { name, url: detailPath },
+            ],
           });
         });
       } catch (error) {

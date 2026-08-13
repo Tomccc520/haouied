@@ -19,6 +19,47 @@ server {
         deny all;
     }
 
+    # SEO 文件必须由后端动态生成，避免被前台 SPA fallback 接管。
+    location = /robots.txt {
+        proxy_pass http://127.0.0.1:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_no_cache 1;
+        add_header Cache-Control "public, max-age=3600" always;
+    }
+
+    location = /sitemap.xml {
+        proxy_pass http://127.0.0.1:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_no_cache 1;
+        add_header Cache-Control "public, max-age=3600" always;
+    }
+
+    location = /sitemap-advanced.xml {
+        proxy_pass http://127.0.0.1:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_no_cache 1;
+        add_header Cache-Control "public, max-age=3600" always;
+    }
+
+    location ^~ /sitemap-advanced/ {
+        proxy_pass http://127.0.0.1:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_no_cache 1;
+        add_header Cache-Control "public, max-age=3600" always;
+    }
+
     # 后端 API（Egg.js）
     location ~ ^/api(?:/|$) {
         proxy_pass http://127.0.0.1:8002;

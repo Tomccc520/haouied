@@ -153,14 +153,19 @@ read_env_value() {
 
 # 校验数据库参数和客户站授权安全开关。
 validate_env_file() {
-  local key value uploads_dir
-  for key in UIED_DB_HOST UIED_DB_PORT UIED_DB_USER UIED_DB_PASSWORD UIED_DB_NAME UIED_UPLOADS_ABS_DIR; do
+  local key value uploads_dir site_origin
+  for key in UIED_DB_HOST UIED_DB_PORT UIED_DB_USER UIED_DB_PASSWORD UIED_DB_NAME UIED_UPLOADS_ABS_DIR UIED_SITE_ORIGIN; do
     value="$(read_env_value "$key")"
     if [[ -z "$value" ]]; then
       echo "环境变量缺失或为空: $key" >&2
       exit 1
     fi
   done
+  site_origin="$(read_env_value UIED_SITE_ORIGIN)"
+  if [[ ! "$site_origin" =~ ^https?://[^/]+$ || "$site_origin" == *127.0.0.1* || "$site_origin" == *localhost* || "$site_origin" == *0.0.0.0* ]]; then
+    echo "UIED_SITE_ORIGIN 必须是客户真实站点的 http(s) 主域名，不能是本机地址。" >&2
+    exit 1
+  fi
   if [[ "$(read_env_value UIED_ENABLE_LOCAL_LICENSE_SIGN)" != "false" ]]; then
     echo "客户站必须配置 UIED_ENABLE_LOCAL_LICENSE_SIGN=false" >&2
     exit 1
@@ -223,6 +228,7 @@ build_frontend() {
     cd "$SOURCE_ROOT/frontend"
     npm ci
     REACT_APP_API_URL=/api \
+      REACT_APP_SITE_ORIGIN="https://$DOMAIN" \
       SEO_SITE_ORIGIN="https://$DOMAIN" \
       SEO_API_ORIGIN=http://127.0.0.1:8002 \
       npm run build

@@ -241,6 +241,112 @@ function toAbsoluteUrl(input, siteOrigin) {
 }
 
 /**
+ * 将富文本转换为可安全写入首屏兜底内容的纯文本。
+ * @param {unknown} value 富文本或普通文本
+ * @param {number} limit 最大字符数
+ * @returns {string} 清洗后的纯文本
+ */
+function stripHtmlToText(value, limit = 6000) {
+  const text = String(value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&#x27;/gi, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s+/g, '\n')
+    .trim()
+  return text.slice(0, Math.max(200, limit)).trim()
+}
+
+/**
+ * 将时间戳转换为 JSON-LD 使用的 ISO 时间。
+ * @param {unknown} value Unix 秒级时间戳
+ * @returns {string|undefined} ISO 时间或空值
+ */
+function toIsoDate(value) {
+  const timestamp = Number.parseInt(String(value || ''), 10)
+  if (!Number.isInteger(timestamp) || timestamp <= 0) return undefined
+  const date = new Date(timestamp * 1000)
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+}
+
+/**
+ * 生成详情页首屏静态兜底内容，确保禁用脚本或爬虫首访仍能读到正文摘要。
+ * @param {object} route 路由 SEO 数据
+ * @returns {string} HTML 片段
+ */
+function buildPrerenderFallback(route) {
+  const bodyText = stripHtmlToText(route.bodyContent, 6000)
+  const imageHtml = route.image
+    ? `<figure><img src="${escapeHtml(route.image)}" alt="${escapeHtml(route.title)}" width="1200" height="630" loading="eager" /><figcaption>${escapeHtml(route.title)}</figcaption></figure>`
+    : ''
+  const dateHtml = route.datePublished && toIsoDate(route.datePublished)
+    ? `<time datetime="${escapeHtml(toIsoDate(route.datePublished))}">${escapeHtml(toIsoDate(route.datePublished).slice(0, 10))}</time>`
+    : ''
+  const bodyHtml = bodyText
+    ? `<p>${escapeHtml(bodyText).replace(/\n/g, '<br />')}</p>`
+    : `<p>${escapeHtml(route.description)}</p>`
+  return `<main id="seo-prerender-content"><h1>${escapeHtml(route.title)}</h1>${imageHtml}<p>${escapeHtml(route.description)}</p>${dateHtml}${bodyHtml}</main>`
+}
+
+/**
+ * 写入当前路由的 JSON-LD 结构化数据。
+ * @param {string} html 原始 HTML
+ * @param {object} route 路由 SEO 数据
+ * @param {object} siteSeo 站点 SEO
+ * @returns {string} 写入后的 HTML
+ */
+function upsertRouteJsonLd(html, route, siteSeo) {
+  const canonicalUrl = route.canonicalUrl
+  const graph = [{
+    '@type': 'WebPage',
+    '@id': `${canonicalUrl}#webpage`,
+    url: canonicalUrl,
+    name: route.title,
+    description: route.description,
+    isPartOf: { '@id': `${siteSeo.url}#website` },
+    inLanguage: 'zh-CN',
+  }]
+  if (route.seoType === 'Article') {
+    graph.push({
+      '@type': 'Article',
+      '@id': `${canonicalUrl}#article`,
+      headline: route.title,
+      description: route.description,
+      url: canonicalUrl,
+      ...(route.image ? { image: [ route.image ] } : {}),
+      ...(toIsoDate(route.datePublished) ? { datePublished: toIsoDate(route.datePublished) } : {}),
+      ...(toIsoDate(route.updatedAt) ? { dateModified: toIsoDate(route.updatedAt) } : {}),
+      author: route.author ? { '@type': 'Person', name: route.author } : { '@type': 'Organization', name: siteSeo.siteName },
+      publisher: { '@type': 'Organization', name: siteSeo.siteName, url: siteSeo.url },
+      ...(route.category ? { articleSection: route.category } : {}),
+      inLanguage: 'zh-CN',
+    })
+  } else if (route.seoType === 'SoftwareApplication') {
+    graph.push({
+      '@type': 'SoftwareApplication',
+      '@id': `${canonicalUrl}#application`,
+      name: route.title,
+      description: route.description,
+      url: canonicalUrl,
+      ...(route.image ? { image: route.image } : {}),
+      applicationCategory: 'WebApplication',
+      operatingSystem: 'Web',
+      inLanguage: 'zh-CN',
+    })
+  }
+  const node = `<script id="seo-route-jsonld" type="application/ld+json">\n${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }, null, 2)}\n</script>`
+  const pattern = /<script[^>]*id=["']seo-route-jsonld["'][^>]*>[\s\S]*?<\/script>/i
+  return pattern.test(html) ? html.replace(pattern, node) : html.replace(/<\/head>/i, `    ${node}\n</head>`)
+}
+
+/**
  * 替换或新增 <title>。
  * @param {string} html 原始 HTML
  * @param {string} title 标题
@@ -343,11 +449,15 @@ function renderSeoHtml(html, route, siteSeo) {
   output = upsertMetaTag(output, 'name', 'description', route.description)
   output = upsertMetaTag(output, 'name', 'keywords', route.keywords)
   output = upsertMetaTag(output, 'name', 'robots', route.noindex ? 'noindex,nofollow' : 'index,follow')
-  output = upsertMetaTag(output, 'property', 'og:type', 'website')
+  output = upsertMetaTag(output, 'property', 'og:type', route.seoType === 'Article' ? 'article' : 'website')
   output = upsertMetaTag(output, 'property', 'og:title', route.title)
   output = upsertMetaTag(output, 'property', 'og:description', route.description)
   output = upsertMetaTag(output, 'property', 'og:url', route.canonicalUrl)
   output = upsertMetaTag(output, 'property', 'og:site_name', siteSeo.siteName)
+  if (route.image) {
+    output = upsertMetaTag(output, 'property', 'og:image', route.image)
+    output = upsertMetaTag(output, 'name', 'twitter:image', route.image)
+  }
   output = upsertMetaTag(output, 'name', 'twitter:card', 'summary_large_image')
   output = upsertMetaTag(output, 'name', 'twitter:title', route.title)
   output = upsertMetaTag(output, 'name', 'twitter:description', route.description)
@@ -358,6 +468,8 @@ function renderSeoHtml(html, route, siteSeo) {
     siteDescription: siteSeo.siteDescription,
     url: route.canonicalUrl,
   })
+  output = upsertRouteJsonLd(output, route, { ...siteSeo, url: siteSeo.url || route.canonicalUrl })
+  output = output.replace(/<div id=["']root["']><\/div>/i, `<div id="root">${buildPrerenderFallback(route)}</div>`)
   return output
 }
 
@@ -387,6 +499,16 @@ function normalizeRouteMeta(item, siteSeo, siteOrigin) {
     keywords,
     noindex: item.noindex === true,
     updatedAt: Number.isInteger(updatedAt) && updatedAt > 0 ? updatedAt : Math.floor(Date.now() / 1000),
+    seoType: String(item.seoType || 'WebPage').trim() || 'WebPage',
+    image: item.image ? toAbsoluteUrl(item.image, siteOrigin) : '',
+    bodyContent: String(item.bodyContent || '').trim(),
+    author: String(item.author || '').trim(),
+    category: String(item.category || '').trim(),
+    datePublished: Number.parseInt(String(item.datePublished || 0), 10) || 0,
+    breadcrumbs: Array.isArray(item.breadcrumbs) ? item.breadcrumbs.map(crumb => ({
+      name: String(crumb?.name || '').trim(),
+      url: toAbsoluteUrl(crumb?.url || '/', siteOrigin),
+    })).filter(crumb => crumb.name) : [],
   }
 }
 
@@ -563,7 +685,7 @@ async function run() {
 
   let renderedCount = 0
   for (const route of normalizedRoutes) {
-    const html = renderSeoHtml(indexHtml, route, siteSeo)
+    const html = renderSeoHtml(indexHtml, route, { ...siteSeo, url: DEFAULT_SITE_ORIGIN })
     const outputFilePath = resolveOutputFilePath(route.path)
     await fs.mkdir(path.dirname(outputFilePath), { recursive: true })
     await fs.writeFile(outputFilePath, html, 'utf8')
