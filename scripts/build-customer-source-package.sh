@@ -126,6 +126,7 @@ sync_source_to_stage() {
     --exclude '.DS_Store' \
     --exclude '.agents/' \
     --exclude '.claude/' \
+    --exclude '.codex/' \
     --exclude '.codebuddy/' \
     --exclude '.cursor/' \
     --exclude '.kiro/' \
@@ -133,6 +134,8 @@ sync_source_to_stage() {
     --exclude '.trae/' \
     --exclude '.windsurf/' \
     --exclude '.vscode/' \
+    --exclude '.workbuddy/' \
+    --exclude '项目检查报告-*.md' \
     --exclude 'node_modules/' \
     --exclude '*/node_modules/' \
     --exclude 'release/' \
@@ -247,9 +250,9 @@ verify_archive_safe() {
   list_file="$WORK_DIR/archive-list.txt"
   tar -tzf "$PACKAGE_FILE" > "$list_file"
 
-  if grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/|/server/server/config/config\.(local|prod)\.js$' "$list_file" >/dev/null; then
+  if grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/|/server/server/config/config\.(local|prod)\.js$|(^|/)\.(workbuddy|codex)/|(^|/)项目检查报告-' "$list_file" >/dev/null; then
     log_err "客户包内仍发现授权文件、运行时配置、环境变量或密钥风险："
-    grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/|/server/server/config/config\.(local|prod)\.js$' "$list_file" | head -n 20
+    grep -E '(^|/)[^/]+\.license$|(^|/)customer-license\.json$|(^|/)\.env($|\.)|(^|/)[^/]+\.(pem|key)$|(^|/)licenses?/|/server/server/config/config\.(local|prod)\.js$|(^|/)\.(workbuddy|codex)/|(^|/)项目检查报告-' "$list_file" | head -n 20
     exit 1
   fi
 
