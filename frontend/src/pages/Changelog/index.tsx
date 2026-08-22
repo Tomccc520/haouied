@@ -68,7 +68,7 @@ const localChangelogData: ChangelogRelease[] = [
       { type: 'feature', scope: 'fullstack', text: '【学习文章数据源】兼容 UIED 开放文章流 `/api/open/v1/posts`，支持分页、分类 ID/slug、排序、封面图、作者、栏目与浏览统计映射；后台内容中心新增可视化数据源配置和接口试读。' },
       { type: 'fix', scope: 'backend', text: '【首页学习文章】自动模式在客户数据库文章源为空或不可用时回退 UIED 官方开放文章流，保留原分类筛选并直接使用 API 封面，部署后无需额外导入文章配置。' },
       { type: 'improve', scope: 'frontend', text: '【学习文章封面】首页文章卡片缩略图统一调整为 3:4 纵向比例，图片继续按居中裁切展示，提升不同来源封面的版面一致性。' },
-      { type: 'fix', scope: 'backend', text: '【客户包兼容】源码包生成时关闭 macOS 扩展属性写入，避免 Linux/CentOS 解压出现 `LIBARCHIVE.xattr` 警告。' },
+      { type: 'fix', scope: 'backend', text: '【客户包兼容】源码包生成时关闭 macOS 扩展属性写入，避免 Linux/CentOS 解压出现 `LIBARCHIVE.xattr` 警告；所有版本默认统一输出到 `release/客户部署包`，不再分散到时间戳目录。' },
       { type: 'fix', scope: 'fullstack', text: '【文章源安装修复】补齐全新空库所需的 WordPress 配置、分类、标签与组件表，并增加运行时自愈；修复普通管理员权限、默认源禁用状态、接口试读缓存及切源后旧请求污染新缓存的问题。' },
       { type: 'improve', scope: 'backend', text: '【文章源安全】数据源地址仅允许 HTTP/HTTPS，禁止账号口令、localhost 和私网 IP；宝塔 Nginx 示例同步收紧 API 路径匹配与非哈希静态资源缓存，避免错误代理和旧资源长期不更新。' },
       { type: 'feature', scope: 'backend', text: '【宝塔命令部署】新增参数化部署、全新空库初始化、PM2 环境隔离与 Nginx 配置生成脚本；预构建前后台可直接发布，上传目录默认独立持久化，升级不覆盖数据库、授权和图片。' },

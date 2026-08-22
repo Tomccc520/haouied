@@ -8,8 +8,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${UIED_RELEASE_VERSION:-1.1.3}"
-DATE_TAG="$(date +%Y%m%d_%H%M%S)"
-OUTPUT_DIR="${UIED_RELEASE_OUTPUT_DIR:-$ROOT_DIR/release/customer_${VERSION}_${DATE_TAG}}"
+OUTPUT_DIR="${UIED_RELEASE_OUTPUT_DIR:-$ROOT_DIR/release/客户部署包}"
 OUTPUT_DIR_EXPLICIT=0
 PACKAGE_ROOT="uied-nav-${VERSION}"
 WORK_DIR="$OUTPUT_DIR/.package-work"
@@ -53,7 +52,7 @@ UIED-NAV 客户源码包构建脚本
 
 选项:
   --version 1.1.3       指定版本号，默认读取 UIED_RELEASE_VERSION 或 1.1.3
-  --output /abs/path    指定输出目录，默认 release/customer_<version>_<date>
+  --output /abs/path    指定输出目录，默认 release/客户部署包
   -h, --help            显示帮助
 
 说明:
@@ -70,7 +69,7 @@ parse_args() {
         VERSION="${2:-$VERSION}"
         PACKAGE_ROOT="uied-nav-${VERSION}"
         if [[ "$OUTPUT_DIR_EXPLICIT" -eq 0 ]]; then
-          OUTPUT_DIR="${UIED_RELEASE_OUTPUT_DIR:-$ROOT_DIR/release/customer_${VERSION}_${DATE_TAG}}"
+          OUTPUT_DIR="${UIED_RELEASE_OUTPUT_DIR:-$ROOT_DIR/release/客户部署包}"
         fi
         WORK_DIR="$OUTPUT_DIR/.package-work"
         STAGE_DIR="$WORK_DIR/$PACKAGE_ROOT"
