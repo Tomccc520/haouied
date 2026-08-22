@@ -102,10 +102,21 @@ server {
         try_files $uri $uri/ /admin/index.html;
     }
 
+    # 可索引详情路由必须存在对应预渲染文件，否则返回真实 404，避免搜索引擎判定为软 404。
+    location ~ ^/(?:website|article|articles|category|categories|tag|tags|mcp)/ {
+        try_files $uri/index.html $uri =404;
+    }
+
+    error_page 404 /404/index.html;
+    location = /404/index.html {
+        internal;
+    }
+
     # 官网前台（React）
     location / {
         index index.html;
-        try_files $uri $uri/ /index.html;
+        # 优先直接读取预渲染目录的 index.html，避免 /ai 被强制 301 为 /ai/ 与 canonical 不一致。
+        try_files $uri/index.html $uri /index.html;
     }
 
     # React 构建资源均带内容哈希，可安全使用长期强缓存

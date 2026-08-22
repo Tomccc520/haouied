@@ -1620,6 +1620,25 @@ class FrontendService extends Service {
   }
 
   /**
+   * 判断文章是否为不应进入搜索索引的测试占位内容。
+   * @param {object} article 文章数据
+   * @return {boolean} 是否应标记 noindex
+   */
+  isSeoPlaceholderArticle(article = {}) {
+    const title = String(article?.title || '').trim();
+    const slug = String(article?.slug || '').trim();
+    const content = String(article?.content || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const placeholderTitle = /^(?:测试(?:文章)?|示例(?:文章)?|test(?:\s+article)?|demo)$/i.test(title);
+    const placeholderSlug = /^(?:test|demo|ceshi)$/i.test(slug);
+    return (placeholderTitle || placeholderSlug) && content.length < 200;
+  }
+
+  /**
    * 规范化路由路径，统一为以 "/" 开头且不带尾部 "/"（根路径除外）。
    * @param {unknown} inputPath 原始路径
    * @param {string} fallback 兜底路径
@@ -1736,6 +1755,7 @@ class FrontendService extends Service {
     // 全站公共路由（保证核心页面有首屏 SEO）
     [
       { path: '/', title: siteTitle, description: siteDescription, keywords: siteKeywords },
+      { path: '/404', title: this.buildSeoTitle('页面未找到', siteName), description: '您访问的页面不存在或已下线。', noindex: true },
       { path: '/search', title: this.buildSeoTitle('全站搜索', siteName), description: siteDescription, noindex: true },
       { path: '/submit', title: this.buildSeoTitle('网站提交', siteName), description: siteDescription },
       { path: '/changelog', title: this.buildSeoTitle('更新日志', siteName), description: siteDescription },
@@ -1911,6 +1931,11 @@ class FrontendService extends Service {
         if (!slug) return;
         const titleSeed = this.normalizeSeoText(row?.seo_title || row?.title, slug);
         const updatedAt = Number.parseInt(String(row?.published_at || row?.update_time || now), 10) || now;
+        const noindex = this.isSeoPlaceholderArticle({
+          title: row?.title,
+          slug,
+          content: row?.content_preview || row?.excerpt,
+        });
         upsertRoute({
           path: `/article/${slug}`,
           title: this.buildSeoTitle(titleSeed, siteName),
@@ -1923,6 +1948,7 @@ class FrontendService extends Service {
           author: row?.author,
           category: row?.category,
           datePublished: Number.parseInt(String(row?.published_at || 0), 10) || 0,
+          noindex,
           breadcrumbs: [
             { name: siteName, url: '/' },
             { name: '文章中心', url: '/articles' },
@@ -2026,6 +2052,28 @@ class FrontendService extends Service {
         ctx.logger.warn(`[uied.frontend] 构建 SEO 清单时读取网站详情失败: ${error?.message || error}`);
       }
     }
+
+    /**
+     * 聚合页的更新时间跟随其下属最新内容，避免 Sitemap 长期保留过期日期。
+     * @param {string} aggregatePath 聚合页路径
+     * @param {(path:string) => boolean} matcher 下属路由匹配函数
+     */
+    const syncAggregateUpdatedAt = (aggregatePath, matcher) => {
+      const aggregate = routeMap.get(aggregatePath);
+      if (!aggregate) return;
+      const latestUpdatedAt = Array.from(routeMap.values()).reduce((latest, route) => {
+        if (!route || route.noindex === true || !matcher(String(route.path || ''))) return latest;
+        return Math.max(latest, Number(route.updatedAt || 0));
+      }, Number(aggregate.updatedAt || 0));
+      aggregate.updatedAt = latestUpdatedAt || now;
+      routeMap.set(aggregatePath, aggregate);
+    };
+
+    syncAggregateUpdatedAt('/', routePath => routePath !== '/');
+    syncAggregateUpdatedAt('/articles', routePath => /^\/article\/[^/]+$/i.test(routePath));
+    syncAggregateUpdatedAt('/category', routePath => /^\/category\/[^/]+$/i.test(routePath));
+    syncAggregateUpdatedAt('/tag', routePath => /^\/tag\/[^/]+$/i.test(routePath));
+    syncAggregateUpdatedAt('/mcp', routePath => /^\/mcp\/[^/]+$/i.test(routePath));
 
     const routes = Array.from(routeMap.values())
       .sort((a, b) => a.path.localeCompare(b.path));

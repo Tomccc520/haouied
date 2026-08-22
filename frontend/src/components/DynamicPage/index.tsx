@@ -1,6 +1,10 @@
 /**
  * @file DynamicPage/index.tsx
  * @description 动态页面组件 - 从API获取数据并渲染页面
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-08-22
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -49,6 +53,18 @@ interface DirectVisitTarget {
  */
 const HOMEPAGE_LATEST_UPDATE_DAYS = 7;
 const CATEGORY_SECTION_ID_PREFIX = 'category-';
+const HOT_RECOMMENDATION_ROWS = 4;
+
+/**
+ * 根据热门推荐网格的 CSS 断点计算当前列数，确保每个尺寸都稳定展示四行。
+ */
+const resolveHotRecommendationColumnCount = (): number => {
+  if (typeof window === 'undefined') return 4;
+  if (window.innerWidth >= 1600) return 6;
+  if (window.innerWidth >= 1200) return 4;
+  if (window.innerWidth >= 901) return 3;
+  return 2;
+};
 
 /**
  * 判断滚动容器是否为 window，便于 TypeScript 做类型收窄。
@@ -118,6 +134,9 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   const [latestWebsiteUpdatesLoading, setLatestWebsiteUpdatesLoading] = useState(false);
   const [dailyNewDisplayConfig, setDailyNewDisplayConfig] = useState<DailyNewDisplayConfig | null>(null);
   const [sidebarStickyEnabled, setSidebarStickyEnabled] = useState<boolean>(true);
+  const [hotRecommendationColumns, setHotRecommendationColumns] = useState<number>(
+    resolveHotRecommendationColumnCount
+  );
   const [sidebarFixedActive, setSidebarFixedActive] = useState<boolean>(false);
   const [mobileToolsGridStyle, setMobileToolsGridStyle] = useState<React.CSSProperties | undefined>(() => resolveMobileToolsGridStyle());
   const mainLayoutRef = useRef<HTMLDivElement | null>(null);
@@ -384,16 +403,23 @@ const DynamicPage: React.FC<DynamicPageProps> = ({ slug, pageType }) => {
   );
 
   /**
-   * 热门推荐首屏条数：按“网格列数 × 3 行”计算，保证默认展示三行卡片。
+   * 监听视口断点变化，让热门推荐在桌面端和移动端都精确保持四行。
    */
-  const hotRecommendationLimit = useMemo(() => {
-    const gridColumns = Number(frontendConfig?.pageGlobalConfig?.gridColumns || 4);
-    const safeColumns = Number.isFinite(gridColumns) ? Math.max(2, Math.min(6, Math.floor(gridColumns))) : 4;
-    /**
-     * 超大屏保持 6 列时，兜底至少 18 条，确保首屏仍可展示 3 行卡片。
-     */
-    return Math.max(18, safeColumns * 3);
-  }, [frontendConfig?.pageGlobalConfig?.gridColumns]);
+  useEffect(() => {
+    const updateHotRecommendationColumns = () => {
+      setHotRecommendationColumns(resolveHotRecommendationColumnCount());
+    };
+    updateHotRecommendationColumns();
+    window.addEventListener('resize', updateHotRecommendationColumns, { passive: true });
+    return () => {
+      window.removeEventListener('resize', updateHotRecommendationColumns);
+    };
+  }, []);
+
+  /**
+   * 热门推荐每页条数随当前网格列数变化，稳定展示四行卡片。
+   */
+  const hotRecommendationLimit = hotRecommendationColumns * HOT_RECOMMENDATION_ROWS;
 
   // 导航项 - 包含子分类信息
   const navItems: NavItem[] = useMemo(() => {

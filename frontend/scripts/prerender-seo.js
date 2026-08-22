@@ -292,7 +292,31 @@ function buildPrerenderFallback(route) {
   const bodyHtml = bodyText
     ? `<p>${escapeHtml(bodyText).replace(/\n/g, '<br />')}</p>`
     : `<p>${escapeHtml(route.description)}</p>`
-  return `<main id="seo-prerender-content"><h1>${escapeHtml(route.title)}</h1>${imageHtml}<p>${escapeHtml(route.description)}</p>${dateHtml}${bodyHtml}</main>`
+  const breadcrumbHtml = buildPrerenderLinkList(route.breadcrumbs, '面包屑导航')
+  const relatedLinkHtml = buildPrerenderLinkList(route.relatedLinks, '相关内容')
+  return `<main id="seo-prerender-content"><h1>${escapeHtml(route.title)}</h1>${breadcrumbHtml}${imageHtml}<p>${escapeHtml(route.description)}</p>${dateHtml}${bodyHtml}${relatedLinkHtml}</main>`
+}
+
+/**
+ * 生成可抓取的内部链接导航，为禁用 JavaScript 的搜索引擎提供发现入口。
+ * @param {Array<{name:string,url:string}>} links 链接列表
+ * @param {string} label 导航说明
+ * @returns {string} HTML 片段
+ */
+function buildPrerenderLinkList(links, label) {
+  if (!Array.isArray(links) || links.length === 0) return ''
+  const unique = new Map()
+  links.forEach(item => {
+    const name = String(item?.name || '').trim()
+    const url = String(item?.url || '').trim()
+    if (!name || !url || unique.has(url)) return
+    unique.set(url, { name, url })
+  })
+  if (unique.size === 0) return ''
+  const items = Array.from(unique.values())
+    .map(item => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(item.name)}</a></li>`)
+    .join('')
+  return `<nav aria-label="${escapeHtml(label)}"><h2>${escapeHtml(label)}</h2><ul>${items}</ul></nav>`
 }
 
 /**
@@ -490,6 +514,12 @@ function normalizeRouteMeta(item, siteSeo, siteOrigin) {
   const keywords = String(item.keywords || siteSeo.siteKeywords || '').trim() || siteSeo.siteKeywords
   const canonicalUrl = toAbsoluteUrl(canonicalPath, siteOrigin)
   const updatedAt = Number.parseInt(String(item.updatedAt || Date.now() / 1000), 10)
+  const noindex = item.noindex === true || isPrerenderPlaceholderArticle({
+    path: pathName,
+    title,
+    bodyContent: item.bodyContent,
+    seoType: item.seoType,
+  })
   return {
     path: pathName,
     canonicalPath,
@@ -497,7 +527,7 @@ function normalizeRouteMeta(item, siteSeo, siteOrigin) {
     title,
     description,
     keywords,
-    noindex: item.noindex === true,
+    noindex,
     updatedAt: Number.isInteger(updatedAt) && updatedAt > 0 ? updatedAt : Math.floor(Date.now() / 1000),
     seoType: String(item.seoType || 'WebPage').trim() || 'WebPage',
     image: item.image ? toAbsoluteUrl(item.image, siteOrigin) : '',
@@ -509,7 +539,92 @@ function normalizeRouteMeta(item, siteSeo, siteOrigin) {
       name: String(crumb?.name || '').trim(),
       url: toAbsoluteUrl(crumb?.url || '/', siteOrigin),
     })).filter(crumb => crumb.name) : [],
+    relatedLinks: Array.isArray(item.relatedLinks) ? item.relatedLinks.map(link => ({
+      name: String(link?.name || '').trim(),
+      url: toAbsoluteUrl(link?.url || '/', siteOrigin),
+    })).filter(link => link.name) : [],
   }
+}
+
+/**
+ * 识别测试占位文章，即使构建时连接旧版后端也不会将其写入 Sitemap。
+ * @param {{path:string,title:string,bodyContent:unknown,seoType:unknown}} route 路由数据
+ * @returns {boolean} 是否应标记 noindex
+ */
+function isPrerenderPlaceholderArticle(route) {
+  const isArticle = String(route?.seoType || '').toLowerCase() === 'article'
+    || /^\/article\/[^/]+$/i.test(String(route?.path || ''))
+  if (!isArticle) return false
+  const title = String(route?.title || '').trim()
+  const bodyText = stripHtmlToText(route?.bodyContent, 400)
+  const placeholderTitle = /^(?:测试(?:文章)?|示例(?:文章)?|test(?:\s+article)?|demo)(?:\s*[-|_].*)?$/i.test(title)
+  return placeholderTitle && bodyText.length < 200
+}
+
+/**
+ * 按更新时间倒序选取指定路由，用于构建预渲染页面的内链入口。
+ * @param {Array<object>} routes 已规范化的路由列表
+ * @param {(route:object) => boolean} predicate 路由筛选函数
+ * @param {number} limit 最大数量
+ * @returns {Array<{name:string,url:string}>} 内部链接
+ */
+function selectPrerenderLinks(routes, predicate, limit) {
+  return routes
+    .filter(route => route && route.noindex !== true && predicate(route))
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+    .slice(0, limit)
+    .map(route => ({
+      name: route.title,
+      url: route.canonicalUrl,
+    }))
+}
+
+/**
+ * 为首页和聚合页补齐可抓取内链，避免 SPA 静态源码只有标题和简介。
+ * @param {Array<object>} routes 已规范化的路由列表
+ */
+function attachPrerenderInternalLinks(routes) {
+  const routeByPath = new Map(routes.map(route => [ route.path, route ]))
+  /**
+   * 向指定聚合页写入去重后的预渲染内链。
+   */
+  const assignLinks = (pathName, links) => {
+    const route = routeByPath.get(pathName)
+    if (!route) return
+    route.relatedLinks = links
+  }
+
+  const coreLinks = selectPrerenderLinks(
+    routes,
+    route => /^\/[a-z0-9-]+$/i.test(route.path) && route.path !== '/',
+    12
+  )
+  const categoryLinks = selectPrerenderLinks(routes, route => /^\/category\/[^/]+$/i.test(route.path), 24)
+  const articleLinks = selectPrerenderLinks(routes, route => /^\/article\/[^/]+$/i.test(route.path), 16)
+  const websiteLinks = selectPrerenderLinks(routes, route => /^\/website\/[^/]+$/i.test(route.path), 24)
+
+  assignLinks('/', [ ...coreLinks, ...categoryLinks, ...articleLinks, ...websiteLinks ])
+  assignLinks('/category', selectPrerenderLinks(routes, route => /^\/category\/[^/]+$/i.test(route.path), 80))
+  assignLinks('/tag', selectPrerenderLinks(routes, route => /^\/tag\/[^/]+$/i.test(route.path), 80))
+  assignLinks('/articles', selectPrerenderLinks(routes, route => /^\/article\/[^/]+$/i.test(route.path), 80))
+  assignLinks('/mcp', selectPrerenderLinks(routes, route => /^\/mcp\/[^/]+$/i.test(route.path), 80))
+
+  /**
+   * 将聚合页更新时间同步为下属内容的最新时间。
+   */
+  const syncUpdatedAt = (pathName, predicate) => {
+    const route = routeByPath.get(pathName)
+    if (!route) return
+    route.updatedAt = routes.reduce((latest, item) => {
+      if (!item || item.noindex === true || !predicate(item)) return latest
+      return Math.max(latest, Number(item.updatedAt || 0))
+    }, Number(route.updatedAt || 0))
+  }
+  syncUpdatedAt('/', route => route.path !== '/')
+  syncUpdatedAt('/category', route => /^\/category\/[^/]+$/i.test(route.path))
+  syncUpdatedAt('/tag', route => /^\/tag\/[^/]+$/i.test(route.path))
+  syncUpdatedAt('/articles', route => /^\/article\/[^/]+$/i.test(route.path))
+  syncUpdatedAt('/mcp', route => /^\/mcp\/[^/]+$/i.test(route.path))
 }
 
 /**
@@ -678,10 +793,20 @@ async function run() {
   if (!routeMap.has('/')) {
     routeMap.set('/', normalizeRouteMeta({ path: '/', title: siteSeo.siteTitle, description: siteSeo.siteDescription, keywords: siteSeo.siteKeywords }, siteSeo, DEFAULT_SITE_ORIGIN))
   }
+  if (!routeMap.has('/404')) {
+    routeMap.set('/404', normalizeRouteMeta({
+      path: '/404',
+      title: `页面未找到 - ${siteSeo.siteName}`,
+      description: '您访问的页面不存在或已下线。',
+      noindex: true,
+    }, siteSeo, DEFAULT_SITE_ORIGIN))
+  }
 
   routeMap.forEach(route => {
     if (route) normalizedRoutes.push(route)
   })
+
+  attachPrerenderInternalLinks(normalizedRoutes)
 
   let renderedCount = 0
   for (const route of normalizedRoutes) {

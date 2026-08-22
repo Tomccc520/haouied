@@ -65,6 +65,9 @@ const localChangelogData: ChangelogRelease[] = [
     date: '2026-06-09',
     title: '正式版1.1.3：授权稳态、运营短链与交付安全自检',
     changes: [
+      { type: 'improve', scope: 'frontend', text: '【首页热门推荐】改为按当前响应式列数稳定展示 4 行：超宽屏 24 条、桌面端 16 条、中屏 12 条、移动端 8 条。' },
+      { type: 'feature', scope: 'fullstack', text: '【SEO 可抓取内容】首页与文章/分类/标签/MCP 聚合页的预渲染 HTML 新增真实内链，详情页新增面包屑链接，解决爬虫首访只能读取标题和简介的问题。' },
+      { type: 'fix', scope: 'fullstack', text: '【SEO 索引质量】测试占位文章自动标记 noindex 并移出 Sitemap，聚合页 lastmod 跟随最新内容；宝塔 Nginx 模板补充真实 404 与无尾斜杠预渲染路由，避免软 404 和 canonical 不一致。' },
       { type: 'feature', scope: 'fullstack', text: '【学习文章数据源】兼容 UIED 开放文章流 `/api/open/v1/posts`，支持分页、分类 ID/slug、排序、封面图、作者、栏目与浏览统计映射；后台内容中心新增可视化数据源配置和接口试读。' },
       { type: 'fix', scope: 'backend', text: '【首页学习文章】自动模式在客户数据库文章源为空或不可用时回退 UIED 官方开放文章流，保留原分类筛选并直接使用 API 封面，部署后无需额外导入文章配置。' },
       { type: 'fix', scope: 'backend', text: '【AI学习文章标签】修复 Nano-Banana、即梦AI、DeepSeek、Midjourney 等标签页签为空：分类继续使用开放文章流，标签自动改用 UIED 内容标签接口，完整映射封面、作者、栏目与统计。' },
