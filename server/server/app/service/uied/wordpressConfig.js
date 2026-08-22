@@ -1169,8 +1169,11 @@ class WordpressConfigService extends Service {
     if (!endpoint) {
       throw new Error('当前配置不是 UIED 开放文章流地址');
     }
-    if (tagId || search) {
-      throw new Error('UIED 开放文章流暂不支持标签或关键词筛选');
+    if (tagId) {
+      return await this.fetchPostsFromUiedContentTagApi(options);
+    }
+    if (search) {
+      throw new Error('UIED 开放文章流暂不支持关键词筛选');
     }
 
     const params = {
@@ -1190,6 +1193,54 @@ class WordpressConfigService extends Service {
     }
     const rows = Array.isArray(payload?.data?.items) ? payload.data.items : [];
     return this.normalizeUiedPosts(rows);
+  }
+
+  /**
+   * 通过 UIED 内容标签接口获取文章，补齐开放文章流不支持 tagId 的能力。
+   * @param {Record<string, any>} options 拉取参数
+   * @return {Promise<Array<any>>} 标准化文章数组
+   */
+  async fetchPostsFromUiedContentTagApi(options = {}) {
+    const {
+      config,
+      tagId,
+      page = 1,
+      perPage = 10,
+      orderBy = 'date',
+      order = 'desc',
+    } = options;
+    const normalizedTagId = Number.parseInt(String(tagId || 0), 10);
+    if (!Number.isInteger(normalizedTagId) || normalizedTagId <= 0) {
+      throw new Error('UIED 标签 ID 不合法');
+    }
+
+    const siteOrigin = this.resolveWordPressSiteOrigin(config?.apiUrl);
+    const endpoint = `${siteOrigin}/api/content/tags/${normalizedTagId}/posts`;
+    const response = await this.requestWordPressJson(endpoint, {
+      page,
+      per_page: perPage,
+      orderby: orderBy,
+      order,
+    });
+    const payload = response.data || {};
+    const businessCode = Number(payload?.code);
+    if (Number.isFinite(businessCode) && ![ 0, 200 ].includes(businessCode)) {
+      throw new Error(String(payload?.message || `UIED 标签文章接口错误: ${businessCode}`));
+    }
+
+    const rows = Array.isArray(payload?.data?.posts) ? payload.data.posts : [];
+    const compatibleRows = rows.map(item => ({
+      ...item,
+      link: item?.link || item?.url || `${siteOrigin}/posts/${item?.id}`,
+      publishedAt: item?.publishedAt || item?.postDate || item?.postModified,
+      category: item?.category || item?.categories?.[0],
+      stats: {
+        ...(item?.stats || {}),
+        views: item?.stats?.views || item?.viewCount || item?.views || 0,
+        comments: item?.stats?.comments || item?.commentCount || 0,
+      },
+    }));
+    return this.normalizeUiedPosts(compatibleRows);
   }
 
   /**
@@ -1360,7 +1411,6 @@ class WordpressConfigService extends Service {
         }
 
         const canUseBuiltinFallback = normalizedSource === 'auto'
-          && !fetchOptions.tagId
           && !fetchOptions.search
           && (!Array.isArray(rows) || rows.length === 0);
         if (canUseBuiltinFallback && !strict) {

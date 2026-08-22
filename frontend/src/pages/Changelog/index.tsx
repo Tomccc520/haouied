@@ -67,6 +67,7 @@ const localChangelogData: ChangelogRelease[] = [
     changes: [
       { type: 'feature', scope: 'fullstack', text: '【学习文章数据源】兼容 UIED 开放文章流 `/api/open/v1/posts`，支持分页、分类 ID/slug、排序、封面图、作者、栏目与浏览统计映射；后台内容中心新增可视化数据源配置和接口试读。' },
       { type: 'fix', scope: 'backend', text: '【首页学习文章】自动模式在客户数据库文章源为空或不可用时回退 UIED 官方开放文章流，保留原分类筛选并直接使用 API 封面，部署后无需额外导入文章配置。' },
+      { type: 'fix', scope: 'backend', text: '【AI学习文章标签】修复 Nano-Banana、即梦AI、DeepSeek、Midjourney 等标签页签为空：分类继续使用开放文章流，标签自动改用 UIED 内容标签接口，完整映射封面、作者、栏目与统计。' },
       { type: 'improve', scope: 'frontend', text: '【学习文章封面】首页文章卡片缩略图统一调整为 3:4 纵向比例，图片继续按居中裁切展示，提升不同来源封面的版面一致性。' },
       { type: 'fix', scope: 'backend', text: '【客户包兼容】源码包生成时关闭 macOS 扩展属性写入，避免 Linux/CentOS 解压出现 `LIBARCHIVE.xattr` 警告；所有版本默认统一输出到 `release/客户部署包`，不再分散到时间戳目录。' },
       { type: 'fix', scope: 'fullstack', text: '【文章源安装修复】补齐全新空库所需的 WordPress 配置、分类、标签与组件表，并增加运行时自愈；修复普通管理员权限、默认源禁用状态、接口试读缓存及切源后旧请求污染新缓存的问题。' },

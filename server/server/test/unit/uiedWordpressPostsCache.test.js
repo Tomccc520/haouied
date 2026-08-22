@@ -222,6 +222,59 @@ describe('WordPress 文章代理缓存', () => {
     expect(service.fetchPostsFromBuiltinUiedOpenApi).toHaveBeenCalledTimes(1);
   });
 
+  it('开放文章流遇到标签筛选时应改用 UIED 内容标签接口', async () => {
+    service.requestWordPressJson = vi.fn(async () => ({
+      data: {
+        code: 0,
+        message: 'ok',
+        data: {
+          tag: { id: 13220, name: 'Nano-Banana' },
+          posts: [{
+            id: 109795,
+            title: '标签文章',
+            excerpt: '标签文章摘要',
+            thumbnail: 'https://img.uied.cn/tag-cover.webp',
+            postDate: '2026-08-20T10:00:00.000Z',
+            authorName: '标签作者',
+            authorAvatar: 'https://img.uied.cn/tag-author.webp',
+            viewCount: 66,
+            commentCount: 3,
+            categories: [{ id: 417, name: 'AIGC' }],
+          }],
+        },
+      },
+    }));
+
+    const rows = await service.fetchPostsFromUiedOpenApi({
+      config: { apiUrl: 'https://www.uied.cn/api/open/v1/posts' },
+      tagId: 13220,
+      page: 2,
+      perPage: 8,
+      orderBy: 'date',
+      order: 'desc',
+    });
+
+    expect(service.requestWordPressJson).toHaveBeenCalledWith(
+      'https://www.uied.cn/api/content/tags/13220/posts',
+      {
+        page: 2,
+        per_page: 8,
+        orderby: 'date',
+        order: 'desc',
+      }
+    );
+    expect(rows).toEqual([ expect.objectContaining({
+      id: '109795',
+      name: '标签文章',
+      link: 'https://www.uied.cn/posts/109795',
+      thumbnail: 'https://img.uied.cn/tag-cover.webp',
+      authorName: '标签作者',
+      category: 'AIGC',
+      viewCount: 66,
+      commentCount: 3,
+    }) ]);
+  });
+
   it('应拒绝本机、私网和带账号密码的数据源地址', () => {
     expect(() => service.normalizeSourceApiUrl('http://127.0.0.1:8002/api'))
       .toThrow('不能指向本机或私网地址');
