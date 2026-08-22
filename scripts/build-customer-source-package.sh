@@ -237,7 +237,7 @@ create_archive() {
   sha_name="$(basename "$SHA_FILE")"
   log_info "创建客户源码包: $PACKAGE_FILE"
   mkdir -p "$OUTPUT_DIR"
-  tar -czf "$PACKAGE_FILE" -C "$WORK_DIR" "$PACKAGE_ROOT"
+  COPYFILE_DISABLE=1 tar --no-xattrs -czf "$PACKAGE_FILE" -C "$WORK_DIR" "$PACKAGE_ROOT"
   (
     cd "$OUTPUT_DIR"
     shasum -a 256 "$package_name" > "$sha_name"

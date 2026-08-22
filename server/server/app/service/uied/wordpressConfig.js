@@ -1193,6 +1193,18 @@ class WordpressConfigService extends Service {
   }
 
   /**
+   * 使用系统内置的 UIED 开放文章流读取文章，供自动模式在客户配置源不可用时兜底。
+   * @param {Record<string, any>} options 拉取参数
+   * @return {Promise<Array<any>>} 标准化文章数组
+   */
+  async fetchPostsFromBuiltinUiedOpenApi(options = {}) {
+    return await this.fetchPostsFromUiedOpenApi({
+      ...options,
+      config: this.buildBuiltinDefaultConfig(),
+    });
+  }
+
+  /**
    * 通过 WordPress v2 接口获取文章（稳定兜底）。
    * @param {Record<string, any>} options 拉取参数
    * @return {Promise<Array<any>>} 标准化文章数组
@@ -1324,22 +1336,53 @@ class WordpressConfigService extends Service {
         const config = await this.getDefaultConfig();
         const runtimeOptions = { ...fetchOptions, config };
         let rows;
+        let primaryError = null;
 
-        if (this.resolveUiedOpenPostsApiUrl(config.apiUrl)) {
-          rows = await this.fetchPostsFromUiedOpenApi(runtimeOptions);
-        } else if ([ 'uied_hot', 'uied_latest' ].includes(sourceMode)) {
+        try {
+          if (this.resolveUiedOpenPostsApiUrl(config.apiUrl)) {
+            rows = await this.fetchPostsFromUiedOpenApi(runtimeOptions);
+          } else if ([ 'uied_hot', 'uied_latest' ].includes(sourceMode)) {
+            try {
+              rows = await this.fetchPostsFromUiedApi(runtimeOptions);
+            } catch (error) {
+              this.ctx.logger.warn(
+                '[wordpressConfig] uied 接口拉取失败，自动回退 wp/v2:',
+                error?.message || error
+              );
+            }
+          }
+
+          if (!Array.isArray(rows)) {
+            rows = await this.fetchPostsFromWpV2(runtimeOptions);
+          }
+        } catch (error) {
+          primaryError = error;
+        }
+
+        const canUseBuiltinFallback = normalizedSource === 'auto'
+          && !fetchOptions.tagId
+          && !fetchOptions.search
+          && (!Array.isArray(rows) || rows.length === 0);
+        if (canUseBuiltinFallback && !strict) {
           try {
-            rows = await this.fetchPostsFromUiedApi(runtimeOptions);
-          } catch (error) {
+            rows = await this.fetchPostsFromBuiltinUiedOpenApi(fetchOptions);
+            if (rows.length > 0) {
+              this.ctx.logger.warn(
+                '[wordpressConfig] 客户配置源无可用文章，已自动回退 UIED 开放文章流:',
+                primaryError?.message || config.apiUrl
+              );
+              primaryError = null;
+            }
+          } catch (fallbackError) {
             this.ctx.logger.warn(
-              '[wordpressConfig] uied 接口拉取失败，自动回退 wp/v2:',
-              error?.message || error
+              '[wordpressConfig] UIED 开放文章流兜底失败:',
+              fallbackError?.message || fallbackError
             );
           }
         }
 
-        if (!Array.isArray(rows)) {
-          rows = await this.fetchPostsFromWpV2(runtimeOptions);
+        if (primaryError) {
+          throw primaryError;
         }
 
         const normalizedRows = Array.isArray(rows) ? rows : [];

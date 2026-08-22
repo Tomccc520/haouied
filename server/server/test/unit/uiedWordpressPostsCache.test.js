@@ -196,6 +196,32 @@ describe('WordPress 文章代理缓存', () => {
     );
   });
 
+  it('自动模式在客户配置源为空时应回退内置开放文章流', async () => {
+    const fallbackRows = [{ id: 'fallback-1', name: '官方最新文章' }];
+    service.getDefaultConfig = vi.fn(async () => ({
+      id: 2,
+      apiUrl: 'https://example.com/wp-json/wp/v2',
+      cacheTime: 120,
+    }));
+    service.fetchPostsFromUiedApi = vi.fn(async () => []);
+    service.fetchPostsFromBuiltinUiedOpenApi = vi.fn(async options => {
+      expect(options).toEqual(expect.objectContaining({
+        categoryId: 417,
+        perPage: 8,
+      }));
+      return fallbackRows;
+    });
+
+    const result = await service.getPosts({
+      source: 'auto',
+      categoryId: 417,
+      perPage: 8,
+    });
+
+    expect(result).toEqual(fallbackRows);
+    expect(service.fetchPostsFromBuiltinUiedOpenApi).toHaveBeenCalledTimes(1);
+  });
+
   it('应拒绝本机、私网和带账号密码的数据源地址', () => {
     expect(() => service.normalizeSourceApiUrl('http://127.0.0.1:8002/api'))
       .toThrow('不能指向本机或私网地址');

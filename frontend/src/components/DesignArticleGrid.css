@@ -383,7 +383,8 @@
 .design-article-grid-container .article-image-container {
   position: relative;
   width: 100%;
-  padding-top: 52%; /* 稍微压缩图片区域，减小卡片整体体积 */
+  aspect-ratio: 3 / 4;
+  padding-top: 0;
   background-color: #f5f5f5;
   overflow: hidden;
   /* 增加圆角以配合卡片内边距 */
@@ -434,7 +435,8 @@
 /* 移动端图片容器优化 */
 @media (max-width: 768px) {
   .design-article-grid-container .article-image-container {
-    padding-top: 50%; /* 移动端使用更小的宽高比 */
+    aspect-ratio: 3 / 4;
+    padding-top: 0;
   }
 
   .design-article-grid-container .article-badge {
