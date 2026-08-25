@@ -18,7 +18,7 @@ export interface AdminUpdateHighlightItem {
     actionText?: string
 }
 
-export const CURRENT_ADMIN_UPDATE_VERSION = 'v1.1.3'
+export const CURRENT_ADMIN_UPDATE_VERSION = 'v1.1.4'
 
 export const ADMIN_UPDATE_GROUP_LABELS: Record<AdminUpdateHighlightItem['group'], string> = {
     delivery: '交付与授权',
@@ -34,81 +34,40 @@ export const ADMIN_UPDATE_GROUP_LABELS: Record<AdminUpdateHighlightItem['group']
  */
 export const ADMIN_UPDATE_HIGHLIGHTS: AdminUpdateHighlightItem[] = [
     {
-        id: 'delivery-release-doctor',
+        id: 'delivery-docker-production',
         version: CURRENT_ADMIN_UPDATE_VERSION,
         group: 'delivery',
-        title: '交付发布自检',
+        title: 'Docker 标准部署',
         description:
-            '交付初始化向导新增发布自检面板，可检查授权、数据库、上传目录、基础配置与发布文件，减少客户部署排障成本。',
+            '新增 Egg.js 生产镜像与宝塔一键部署脚本，依赖只在构建镜像时安装，容器重启不再重复 npm install，并自动备份静态文件与容器信息。',
         routePath: '/uied/delivery-init',
         badgePaths: ['/uied/delivery-init'],
-        actionText: '前往交付自检'
+        actionText: '查看交付自检'
     },
     {
-        id: 'license-center',
+        id: 'delivery-version-governance',
         version: CURRENT_ADMIN_UPDATE_VERSION,
         group: 'delivery',
-        title: '授权中心',
-        description: '新增正式交付所需的授权激活、授权状态查看与后台受限放行入口。',
-        routePath: '/uied/license-center',
-        badgePaths: ['/uied/license-center'],
-        actionText: '前往授权中心'
+        title: '版本一致性治理',
+        description:
+            '新增仓库级 VERSION 唯一版本源，发布体检会同步核对前台、后台、后端、锁文件、部署文档和更新记录，避免客户包版本串线。',
+        routePath: '/uied/update-log',
+        badgePaths: ['/uied/update-log'],
+        actionText: '查看本版记录'
     },
     {
-        id: 'upgrade-center',
-        version: CURRENT_ADMIN_UPDATE_VERSION,
-        group: 'delivery',
-        title: '升级中心',
-        description: '支持升级包校验、升级执行与交付升级流程管理，便于售卖版后续升级。',
-        routePath: '/system-setting/upgrade-center',
-        badgePaths: ['/system-setting/upgrade-center'],
-        actionText: '前往升级中心'
-    },
-    {
-        id: 'site-branding',
-        version: CURRENT_ADMIN_UPDATE_VERSION,
-        group: 'site',
-        title: '头部品牌显示',
-        description: '站点设置新增头部品牌显示模式，可切换图标+文案、仅文案、仅图标。',
-        routePath: '/system-setting/base-config/setting',
-        routeQuery: {
-            tab: 'siteInfo'
-        },
-        badgePaths: ['/system-setting/base-config/setting'],
-        actionText: '前往站点设置'
-    },
-    {
-        id: 'submission-service',
+        id: 'seo-incremental-push',
         version: CURRENT_ADMIN_UPDATE_VERSION,
         group: 'operation',
-        title: '投稿服务配置',
-        description: '支持基础收录免费 / 付费模式切换，并统一配置价格、关闭态文案与流程说明。',
-        routePath: '/system-setting/base-config/setting',
+        title: 'SEO 增量推送',
+        description:
+            '站长平台自动任务使用“最新水位 + 历史回填水位”双游标，优先处理新更新并分批补齐全部历史 URL；平台失败不推进游标。',
+        routePath: '/system-setting/base-config/seo-center-config',
         routeQuery: {
-            tab: 'submissionService'
+            tab: 'autoTask'
         },
-        badgePaths: ['/system-setting/base-config/setting'],
-        actionText: '前往投稿设置'
-    },
-    {
-        id: 'ai-provider-config',
-        version: CURRENT_ADMIN_UPDATE_VERSION,
-        group: 'operation',
-        title: 'AI 助手管理',
-        description: '增强多模型提供商配置、详情查看与运营配置联动能力。',
-        routePath: '/system-setting/base-config/aiConfig',
-        badgePaths: ['/system-setting/base-config/aiConfig'],
-        actionText: '前往 AI 配置'
-    },
-    {
-        id: 'setting-backup',
-        version: CURRENT_ADMIN_UPDATE_VERSION,
-        group: 'delivery',
-        title: '配置导入导出',
-        description: '后台“备份”入口统一收口为配置快照导入导出，减少误解与误操作。',
-        routePath: '/setting/system/setting-backup',
-        badgePaths: ['/setting/system/setting-backup'],
-        actionText: '前往配置导入导出'
+        badgePaths: ['/system-setting/base-config/seo-center-config'],
+        actionText: '前往 SEO 自动任务'
     }
 ]
 

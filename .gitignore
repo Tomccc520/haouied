@@ -48,6 +48,13 @@ coverage/
 !/docs/API/
 !/docs/API/**
 !/docs/*-install-test.md
+!/docs/部署文档/
+/docs/部署文档/*
+!/docs/部署文档/README.md
+!/docs/部署文档/宝塔命令行部署-1.1.4.md
+!/docs/更新记录/
+/docs/更新记录/*
+!/docs/更新记录/1.1.4.md
 /docs/API/reports/*.json
 
 # 开发工具脚本

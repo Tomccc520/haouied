@@ -7,7 +7,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${UIED_RELEASE_VERSION:-1.1.3}"
+VERSION_FILE="$ROOT_DIR/VERSION"
+DEFAULT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+VERSION="${UIED_RELEASE_VERSION:-$DEFAULT_VERSION}"
 OUTPUT_DIR="${UIED_RELEASE_OUTPUT_DIR:-$ROOT_DIR/release/客户部署包}"
 OUTPUT_DIR_EXPLICIT=0
 PACKAGE_ROOT="uied-nav-${VERSION}"
@@ -51,7 +53,7 @@ UIED-NAV 客户源码包构建脚本
   ./scripts/build-customer-source-package.sh [选项]
 
 选项:
-  --version 1.1.3       指定版本号，默认读取 UIED_RELEASE_VERSION 或 1.1.3
+  --version 1.1.4       显式确认版本号，必须与根目录 VERSION 一致
   --output /abs/path    指定输出目录，默认 release/客户部署包
   -h, --help            显示帮助
 
@@ -108,12 +110,34 @@ cleanup_workdir() {
 
 # 检查基础命令是否可用。
 check_dependencies() {
-  for cmd in rsync tar shasum; do
+  for cmd in node rsync tar shasum; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
       log_err "缺少命令: $cmd"
       exit 1
     fi
   done
+}
+
+# 校验包名版本与当前源码版本一致，防止仅改压缩包名称造成版本串线。
+validate_release_version() {
+  if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+    log_err "非法版本号: $VERSION"
+    exit 1
+  fi
+  if [[ "$VERSION" != "$DEFAULT_VERSION" ]]; then
+    log_err "指定版本 $VERSION 与当前源码 VERSION=$DEFAULT_VERSION 不一致，已停止打包。"
+    exit 1
+  fi
+}
+
+# 执行发布体检，任何版本、构建产物或交付边界失败项都会阻止打包。
+run_release_preflight() {
+  log_info "执行 UIED-NAV ${VERSION} 发布体检"
+  if ! node "$ROOT_DIR/scripts/release-doctor.js" --json-only >/dev/null; then
+    log_err "发布体检未通过，请先修复 fail 项。"
+    exit 1
+  fi
+  log_ok "发布体检通过"
 }
 
 # 复制源码到 staging 目录，并排除客户包不应该携带的本地文件。
@@ -187,12 +211,13 @@ write_package_manifest() {
 
 ## 部署提醒
 
-1. 宝塔命令部署入口：\`scripts/deploy/baota/deploy.sh\`。
-2. 全新空数据库初始化：\`scripts/deploy/baota/init-database.sh\`，老客户禁止执行。
-3. 客户部署后再放入授权文件：\`server/licenses/*.license\`。
-4. 老客户只补星流短链可执行：\`server/sql/patch_2026_0609_seo_xingliu_redirect.sql\`。
-5. 客户站不要配置签发端密钥，不要开启本地自签：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
-6. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
+1. 宝塔 Docker 推荐入口：\`scripts/deploy/docker/deploy.sh\`。
+2. PM2 兼容入口：\`scripts/deploy/baota/deploy.sh\`。
+3. 全新空数据库初始化：\`scripts/deploy/baota/init-database.sh\`，老客户禁止执行。
+4. 客户部署后再放入授权文件：\`shared/licenses/*.license\` 或已配置的授权目录。
+5. 老客户只补星流短链可执行：\`server/sql/patch_2026_0609_seo_xingliu_redirect.sql\`。
+6. 客户站不要配置签发端密钥，不要开启本地自签：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
+7. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
 EOF
 }
 
@@ -201,16 +226,18 @@ write_customer_install_docs() {
   cat > "$STAGE_DIR/INSTALL.md" <<EOF
 # UIED-NAV ${VERSION} 客户安装入口
 
-本文件是客户源码包的安装入口。源码内历史开发文档仅供研发参考，宝塔部署请以 \`docs/部署文档/宝塔命令行部署-1.1.3.md\` 为准。
+本文件是客户源码包的安装入口。源码内历史开发文档仅供研发参考，宝塔部署请以 \`docs/部署文档/宝塔命令行部署-${VERSION}.md\` 为准。
 
 ## 快速步骤
 
 1. 解压源码包：\`tar -xzf uied-nav-${VERSION}-customer-source.tgz\`。
 2. 创建全新 MySQL 数据库，字符集使用 \`utf8mb4\`。
-3. 首次执行部署命令生成环境变量模板：\`./scripts/deploy/baota/deploy.sh --domain 你的域名\`。
+3. 首次执行 Docker 部署命令生成环境变量模板：\`./scripts/deploy/docker/deploy.sh --domain 你的域名\`。
 4. 填写 \`/www/wwwroot/你的域名/shared/uied-api.env\` 后，执行全新数据库初始化脚本。
-5. 再次执行部署命令，脚本会安装后端依赖、同步预构建前后台并启动 PM2。
+5. 再次执行 Docker 部署命令，脚本会构建后端镜像、通过健康检查后同步预构建前后台。
 6. 将生成的 \`deploy/uied-nav.nginx.conf\` 应用到宝塔站点，检查后重载 Nginx。
+
+已经稳定使用 PM2 的客户可改用 \`scripts/deploy/baota/deploy.sh\`。Docker 依赖只在镜像构建时安装，容器重启不会再次执行 \`npm install\`。
 
 > \`server/sql/install.sql\` 包含 DROP TABLE。老客户升级禁止运行数据库初始化脚本，只执行版本对应补丁。
 
@@ -267,6 +294,8 @@ verify_archive_safe() {
 main() {
   parse_args "$@"
   check_dependencies
+  validate_release_version
+  run_release_preflight
   mkdir -p "$OUTPUT_DIR"
   trap cleanup_workdir EXIT
   cleanup_workdir

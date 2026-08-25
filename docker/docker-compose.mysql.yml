@@ -1,55 +1,56 @@
-# UIED 导航系统 - MySQL + Redis 配置
-# 用于 likeadmin 迁移后的数据库服务
+# UIED-NAV 可选 MySQL + Redis 容器
+# 仅用于没有宝塔 MySQL/Redis 的独立部署，所有密码都必须通过环境变量提供。
 
 services:
   mysql:
-    image: mysql:8.0
-    container_name: uied_mysql
+    image: "mysql:${UIED_MYSQL_VERSION:-8.0}"
+    container_name: uied-mysql
     restart: unless-stopped
     ports:
-      - "3308:3306"  # 使用 3308 避免与其他 MySQL 实例冲突
+      - "127.0.0.1:${UIED_MYSQL_HOST_PORT:-3308}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: uied_nav
-      MYSQL_USER: uied
-      MYSQL_PASSWORD: uied123456
+      MYSQL_ROOT_PASSWORD: "${UIED_MYSQL_ROOT_PASSWORD:?请配置 UIED_MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${UIED_MYSQL_DATABASE:-uied_nav}"
+      MYSQL_USER: "${UIED_MYSQL_USER:-uied}"
+      MYSQL_PASSWORD: "${UIED_MYSQL_PASSWORD:?请配置 UIED_MYSQL_PASSWORD}"
       TZ: Asia/Shanghai
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./mysql-init:/docker-entrypoint-initdb.d
-    command: 
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    command:
       - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --max_connections=1000
       - --innodb_buffer_pool_size=256M
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123456"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
-    image: redis:7-alpine
-    container_name: uied_redis
+    image: "redis:${UIED_REDIS_VERSION:-7-alpine}"
+    container_name: uied-redis
     restart: unless-stopped
     ports:
-      - "6380:6379"  # 使用 6380 避免与其他 Redis 实例冲突
+      - "127.0.0.1:${UIED_REDIS_HOST_PORT:-6380}:6379"
+    environment:
+      UIED_REDIS_PASSWORD: "${UIED_REDIS_PASSWORD:?请配置 UIED_REDIS_PASSWORD}"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$$UIED_REDIS_PASSWORD"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $$UIED_REDIS_PASSWORD ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
 volumes:
   mysql_data:
     name: uied_mysql_data
   redis_data:
     name: uied_redis_data
-
-networks:
-  default:
-    name: uied_network

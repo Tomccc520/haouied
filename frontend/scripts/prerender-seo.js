@@ -227,7 +227,21 @@ function normalizeRoutePath(value) {
 }
 
 /**
- * 将路径转为绝对 URL。
+ * 判断 URL 主机是否属于开发机或容器宿主机别名。
+ * @param {string} hostname 主机名
+ * @returns {boolean} 是否为本地开发主机
+ */
+function isLocalDevelopmentHost(hostname) {
+  const normalizedHost = String(hostname || '').trim().toLowerCase()
+  return normalizedHost === 'localhost'
+    || normalizedHost === '0.0.0.0'
+    || normalizedHost === '::1'
+    || normalizedHost === 'host.docker.internal'
+    || /^127(?:\.\d{1,3}){3}$/.test(normalizedHost)
+}
+
+/**
+ * 将路径转为绝对 URL，并把历史本机上传地址替换为当前正式站点域名。
  * @param {string} input 路径或 URL
  * @param {string} siteOrigin 站点域名
  * @returns {string} 绝对 URL
@@ -235,7 +249,17 @@ function normalizeRoutePath(value) {
 function toAbsoluteUrl(input, siteOrigin) {
   const raw = String(input || '').trim()
   if (!raw) return siteOrigin
-  if (/^https?:\/\//i.test(raw)) return raw
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const parsedUrl = new URL(raw)
+      if (isLocalDevelopmentHost(parsedUrl.hostname)) {
+        return `${siteOrigin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
+      }
+    } catch (_error) {
+      return raw
+    }
+    return raw
+  }
   const normalizedPath = normalizeRoutePath(raw)
   return `${siteOrigin}${normalizedPath}`
 }

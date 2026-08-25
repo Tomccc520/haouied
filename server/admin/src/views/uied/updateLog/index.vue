@@ -12,7 +12,7 @@
             <div class="admin-update-log-page__hero-top">
                 <div>
                     <div class="admin-update-log-page__eyebrow">后台更新记录</div>
-                    <h1 class="admin-update-log-page__title">v{{ currentVersion }} 本版新增能力</h1>
+                    <h1 class="admin-update-log-page__title">{{ currentVersion }} 本版新增能力</h1>
                     <p class="admin-update-log-page__desc">
                         这里集中列出本版后台新增功能，并提供一键跳转。建议只保留当前主售卖版本重点项，
                         下一版发布时同步替换，避免 NEW 标签长期堆积。

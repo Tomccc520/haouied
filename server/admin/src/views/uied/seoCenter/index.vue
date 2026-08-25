@@ -985,6 +985,25 @@ const activeTab = ref<SeoTab>('basic')
 const basicSubTab = ref<BasicSubTab>('tdk')
 const monitorSubTab = ref<MonitorSubTab>('actions')
 const pushSubTab = ref<PushSubTab>('platform')
+const route = useRoute()
+
+/**
+ * 根据路由查询参数定位 SEO 主标签，支持更新记录和工作台直接跳转到具体功能。
+ * @param value tab 查询参数
+ */
+const applyRouteTab = (value: unknown) => {
+    const tab = String(Array.isArray(value) ? value[0] : value || '').trim() as SeoTab
+    if ([ 'basic', 'autoTask', 'redirects', 'monitor', 'push' ].includes(tab)) {
+        activeTab.value = tab
+    }
+}
+
+watch(
+    () => route.query.tab,
+    (value) => applyRouteTab(value),
+    { immediate: true }
+)
+
 const configForm = reactive(createDefaultSeoConfig())
 const previewDialog = reactive({
     visible: false,

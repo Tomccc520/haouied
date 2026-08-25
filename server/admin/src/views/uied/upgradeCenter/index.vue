@@ -162,13 +162,13 @@
                 <el-form-item label="升级包路径">
                     <el-input
                         v-model.trim="upgradeForm.bundleName"
-                        placeholder="相对升级包目录，例如：1.1.3/uied-nav-1.1.3-release-bundle.tgz"
+                        placeholder="相对升级包目录，例如：1.1.4/uied-nav-1.1.4-release-bundle.tgz"
                     />
                 </el-form-item>
                 <el-form-item label="目标版本号">
                     <el-input
                         v-model.trim="upgradeForm.targetVersion"
-                        placeholder="例如：1.1.3"
+                        placeholder="例如：1.1.4"
                         class="w-[280px]"
                     />
                 </el-form-item>

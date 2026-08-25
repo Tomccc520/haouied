@@ -61,6 +61,22 @@ const repoIconMap = {
 // 更新记录数据
 const localChangelogData: ChangelogRelease[] = [
   {
+    version: '1.1.4',
+    date: '2026-08-24',
+    title: '正式版1.1.4：版本治理、Docker 标准化与 SEO 增量提交',
+    changes: [
+      { type: 'feature', scope: 'fullstack', text: '【版本分割】新增仓库根 `VERSION` 唯一版本源，前台、后台、后端 package 与锁文件统一升级为 1.1.4；后端运行时版本直接读取 package，避免包名、界面与接口版本不一致。' },
+      { type: 'improve', scope: 'backend', text: '【发布体检】发布自检新增版本一致性硬校验，强制核对三端版本、后台更新标识、前台更新记录、部署文档和客户包构建入口；版本串线时直接阻止打包。' },
+      { type: 'feature', scope: 'backend', text: '【Docker 正式部署】旧 Prisma/3001 配置替换为当前 Egg.js/8002 生产镜像，提供宝塔 Docker 一键部署、自动备份、健康检查、日志滚动与上传/授权/日志持久化。' },
+      { type: 'improve', scope: 'backend', text: '【Docker 启动性能】后端依赖只在镜像构建阶段执行 `npm ci --omit=dev`，日常 `docker restart uied-api` 不再重复安装 npm 依赖；生产进程使用 egg-scripts 前台模式由容器直接托管。' },
+      { type: 'fix', scope: 'backend', text: '【Sitemap 稳定性】静态页面和进阶 Sitemap 分片索引改用稳定的业务更新时间，修复每次请求都改写 lastmod、导致搜索引擎误判全站持续更新的问题。' },
+      { type: 'improve', scope: 'backend', text: '【SEO 增量推送】百度/Bing/IndexNow 使用“最新水位 + 历史回填水位”双游标，优先提交新更新并分批补齐全部历史 URL；超过单批上限或同秒更新也不会漏推。' },
+      { type: 'fix', scope: 'backend', text: '【SEO 结果校验】同时校验站长平台 HTTP 状态和业务错误字段，鉴权失败、整批 URL 被拒绝等响应不再误记成功，也不会错误推进增量游标。' },
+      { type: 'fix', scope: 'frontend', text: '【SEO 图片地址】预渲染自动把历史数据中的 localhost、127.0.0.1 等本机上传地址转换为正式站点资源地址，发布体检发现本机 URL 时直接阻止发包。' },
+      { type: 'fix', scope: 'backend', text: '【部署回滚】后端健康后才切换前后台静态文件，任一切换阶段失败会恢复整套旧版本；兼容旧 Docker bridge 网关和 docker-compose v1，并在构建前执行配置预检。' },
+    ],
+  },
+  {
     version: '1.1.3',
     date: '2026-06-09',
     title: '正式版1.1.3：授权稳态、运营短链与交付安全自检',

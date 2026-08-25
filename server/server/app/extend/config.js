@@ -5,6 +5,7 @@
 // const publicKey = key.exportKey('pkcs8-public') // 公钥
 // const privateKey = key.exportKey('pkcs8-private') // 私钥
 const path = require('path');
+const packageInfo = require('../../package.json');
 const runPath = path.dirname(path.dirname(__filename));
 
 const rsa = {
@@ -313,7 +314,7 @@ const rsa = {
   // 资源访问前缀
   publicPrefix: '/api/uploads',
   // 版本
-  version: 'v1.1.3',
+  version: `v${packageInfo.version}`,
 
   rootPath: runPath,
 };

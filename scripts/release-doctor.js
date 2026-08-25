@@ -14,6 +14,11 @@ const path = require('path');
 const childProcess = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
+const VERSION_FILE = path.join(PROJECT_ROOT, 'VERSION');
+const RELEASE_VERSION = fs.existsSync(VERSION_FILE)
+  ? fs.readFileSync(VERSION_FILE, 'utf8').trim()
+  : '';
+const RELEASE_DEPLOY_DOC = `docs/部署文档/宝塔命令行部署-${RELEASE_VERSION}.md`;
 const REPORT_DIR = path.join(PROJECT_ROOT, 'docs', 'API', 'reports');
 const REPORT_FILE = path.join(REPORT_DIR, 'release_doctor_latest.json');
 
@@ -90,6 +95,7 @@ function makeCheck(group, key, status, title, message, suggestion = '') {
  */
 function checkRequiredFiles() {
   const requiredFiles = [
+    'VERSION',
     'server/server/package.json',
     'server/admin/package.json',
     'frontend/package.json',
@@ -103,7 +109,14 @@ function checkRequiredFiles() {
     'scripts/deploy/baota/deploy.sh',
     'scripts/deploy/baota/init-database.sh',
     'scripts/deploy/baota/uied-api.env.example',
-    'docs/部署文档/宝塔命令行部署-1.1.3.md',
+    'scripts/deploy/docker/deploy.sh',
+    'scripts/deploy/verify-production-seo.sh',
+    'docker/Dockerfile',
+    'docker/docker-compose.yml',
+    'docker/.env.example',
+    'docker/uied-api.env.example',
+    RELEASE_DEPLOY_DOC,
+    `docs/更新记录/${RELEASE_VERSION}.md`,
   ];
   return requiredFiles.map(file => {
     const target = path.join(PROJECT_ROOT, file);
@@ -180,6 +193,188 @@ function readPackage(relativePath) {
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * 检查根版本、三端 package、运行时显示和更新记录是否完全一致。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkVersionConsistency() {
+  const packageFiles = [
+    'frontend/package.json',
+    'server/server/package.json',
+    'server/admin/package.json',
+  ];
+  const lockFiles = [
+    'frontend/package-lock.json',
+    'server/server/package-lock.json',
+    'server/admin/package-lock.json',
+  ];
+  const invalidVersion = !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(RELEASE_VERSION);
+  const mismatches = [];
+
+  packageFiles.forEach(file => {
+    const pkg = readPackage(file);
+    if (!pkg || String(pkg.version || '') !== RELEASE_VERSION) {
+      mismatches.push(`${file}=${String(pkg?.version || '无法读取')}`);
+    }
+  });
+  lockFiles.forEach(file => {
+    const lock = readPackage(file);
+    const rootVersion = String(lock?.packages?.['']?.version || lock?.version || '');
+    if (!lock || rootVersion !== RELEASE_VERSION) {
+      mismatches.push(`${file}=${rootVersion || '无法读取'}`);
+    }
+  });
+
+  const backendVersionSource = readText('server/server/app/extend/config.js');
+  const adminRequestConfigSource = readText('server/admin/src/config/index.ts');
+  const adminVersionSource = readText('server/admin/src/config/updateHighlights.ts');
+  const changelogSource = readText('frontend/src/pages/Changelog/index.tsx');
+  const buildScriptSource = readText('scripts/build-customer-source-package.sh');
+  const dockerComposeSource = readText('docker/docker-compose.yml');
+  const upgradeCenterSource = readText('server/admin/src/views/uied/upgradeCenter/index.vue');
+  if (!/version:\s*`v\$\{packageInfo\.version\}`/.test(backendVersionSource)) {
+    mismatches.push('后端运行时版本未读取 package.json');
+  }
+  if (!adminRequestConfigSource.includes(`version: '${RELEASE_VERSION}'`)) {
+    mismatches.push(`后台请求版本不是 ${RELEASE_VERSION}`);
+  }
+  if (!adminVersionSource.includes(`CURRENT_ADMIN_UPDATE_VERSION = 'v${RELEASE_VERSION}'`)) {
+    mismatches.push(`后台更新标识不是 v${RELEASE_VERSION}`);
+  }
+  if (!changelogSource.includes(`version: '${RELEASE_VERSION}'`)) {
+    mismatches.push(`前台更新记录缺少 ${RELEASE_VERSION}`);
+  }
+  if (!/VERSION_FILE="\$ROOT_DIR\/VERSION"/.test(buildScriptSource)) {
+    mismatches.push('客户包构建脚本未读取根 VERSION');
+  }
+  if (!/VERSION" != "\$DEFAULT_VERSION"/.test(buildScriptSource)) {
+    mismatches.push('客户包构建脚本未阻止包名版本与源码 VERSION 不一致');
+  }
+  if (!dockerComposeSource.includes(`\${UIED_VERSION:-${RELEASE_VERSION}}`)) {
+    mismatches.push(`Docker 镜像默认版本不是 ${RELEASE_VERSION}`);
+  }
+  if (!upgradeCenterSource.includes(`例如：${RELEASE_VERSION}`)) {
+    mismatches.push(`升级中心示例版本不是 ${RELEASE_VERSION}`);
+  }
+
+  if (invalidVersion || mismatches.length > 0) {
+    return [
+      makeCheck(
+        'version',
+        'version:consistency',
+        'fail',
+        '版本一致性',
+        invalidVersion
+          ? `根 VERSION 非法: ${RELEASE_VERSION || '空'}`
+          : `版本 ${RELEASE_VERSION} 存在不一致：${mismatches.join('；')}`,
+        '发布前必须同步根 VERSION、三端 package/lock、后台标识、后端运行时版本与前台更新记录。'
+      ),
+    ];
+  }
+  return [
+    makeCheck(
+      'version',
+      'version:consistency',
+      'pass',
+      '版本一致性',
+      `根版本、三端 package/lock、运行时显示与更新记录均为 ${RELEASE_VERSION}`
+    ),
+  ];
+}
+
+/**
+ * 检查 Docker 生产链路是否使用不可变镜像且不在容器重启时安装依赖。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkDockerProductionDelivery() {
+  const dockerfile = readText('docker/Dockerfile');
+  const compose = readText('docker/docker-compose.yml');
+  const deployScript = readText('scripts/deploy/docker/deploy.sh');
+  const dockerEnvExample = readText('docker/.env.example');
+  const mysqlCompose = readText('docker/docker-compose.mysql.yml');
+  const imageBuildReady = /npm ci --omit=dev/.test(dockerfile)
+    && /egg-scripts\.js", "start"/.test(dockerfile)
+    && !/CMD[^\n]*npm (?:i|install|ci)/.test(dockerfile);
+  const persistentReady = /UIED_UPLOADS_HOST_DIR/.test(compose)
+    && /UIED_LICENSES_HOST_DIR/.test(compose)
+    && /UIED_LOGS_HOST_DIR/.test(compose);
+  const deploymentReady = /backup_current_release/.test(deployScript)
+    && /verify_deployment/.test(deployScript)
+    && /rollback_release/.test(deployScript)
+    && /resolve_docker_host_gateway/.test(deployScript)
+    && /validate_compose_config/.test(deployScript)
+    && /docker-compose\.yml/.test(deployScript);
+  const deploymentOrderReady = /backup_current_release\s+deploy_backend_container\s+verify_deployment\s+if ! deploy_static_files/.test(deployScript)
+    && /rollback_release\(\)[\s\S]*restore_static_files\s+rollback_backend_container/.test(deployScript);
+  const legacyComposeReady = /version:\s*["']3\.8["']/.test(compose);
+  const secureExamples = !/UIED_LICENSE_(?:SIGN_SECRET|API_SIGN_SECRET)\s*=\s*\S+/.test(dockerEnvExample)
+    && !/(?:MYSQL_ROOT_PASSWORD|MYSQL_PASSWORD):\s*(?:root|uied|123456)/i.test(mysqlCompose)
+    && /UIED_MYSQL_ROOT_PASSWORD:\?/.test(mysqlCompose);
+
+  return [
+    imageBuildReady && persistentReady && deploymentReady && deploymentOrderReady && legacyComposeReady && secureExamples
+      ? makeCheck(
+        'deployment',
+        'docker:production',
+        'pass',
+        'Docker 生产部署',
+        '后端依赖固化在镜像中，重启不执行 npm install，上传/授权/日志已独立持久化并带备份与健康检查'
+      )
+      : makeCheck(
+        'deployment',
+        'docker:production',
+        'fail',
+        'Docker 生产部署',
+        'Docker 镜像、持久化目录、备份或健康检查配置不完整',
+        '请恢复 docker/Dockerfile、docker-compose.yml 与 scripts/deploy/docker/deploy.sh 的标准生产链路。'
+      ),
+  ];
+}
+
+/**
+ * 检查官网预渲染产物是否完整，并阻止本机地址进入 SEO 图片和结构化数据。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkFrontendSeoBuild() {
+  const buildDir = path.join(PROJECT_ROOT, 'frontend', 'build');
+  const htmlFiles = collectFilesRecursive(buildDir, filePath => /\.html$/i.test(filePath));
+  const loopbackPattern = /https?:\/\/(?:localhost|0\.0\.0\.0|127(?:\.\d{1,3}){3}|host\.docker\.internal)(?::\d+)?/i;
+  const loopbackFiles = htmlFiles.filter(filePath => loopbackPattern.test(fs.readFileSync(filePath, 'utf8')));
+  if (htmlFiles.length <= 1) {
+    return [
+      makeCheck(
+        'assets',
+        'frontend:seo-build',
+        'fail',
+        '官网 SEO 预渲染',
+        '官网构建产物缺少预渲染详情页面',
+        '请使用正式 SEO_SITE_ORIGIN 和 SEO_API_ORIGIN 重新执行 frontend/npm run build。'
+      ),
+    ];
+  }
+  if (loopbackFiles.length > 0) {
+    return [
+      makeCheck(
+        'assets',
+        'frontend:seo-build',
+        'fail',
+        '官网 SEO 预渲染',
+        `检测到 ${loopbackFiles.length} 个 HTML 仍包含 localhost/127.0.0.1 等本机地址`,
+        `请修正数据或预渲染 URL 转换后重新构建，例如：${rel(loopbackFiles[0])}`
+      ),
+    ];
+  }
+  return [
+    makeCheck(
+      'assets',
+      'frontend:seo-build',
+      'pass',
+      '官网 SEO 预渲染',
+      `已生成 ${htmlFiles.length} 个 HTML，未发现本机地址泄漏`
+    ),
+  ];
 }
 
 /**
@@ -522,7 +717,8 @@ function checkCustomerSourcePackageScriptBoundary() {
   const excludesRuntimeConfigs = /config\/config\.prod\.js/.test(scriptContent)
     && /config\/config\.local\.js/.test(scriptContent);
   const writesCustomerInstall = /write_customer_install_docs/.test(scriptContent)
-    && /客户站不要配置签发端密钥/.test(scriptContent);
+    && /客户站不要配置签发端密钥/.test(scriptContent)
+    && /首次执行 Docker 部署命令[\s\S]*scripts\/deploy\/docker\/deploy\.sh[\s\S]*已经稳定使用 PM2/.test(scriptContent);
   const writesRelativeSha = /basename "\$PACKAGE_FILE"/.test(scriptContent)
     && /cd "\$OUTPUT_DIR"/.test(scriptContent)
     && /shasum -a 256 "\$package_name" > "\$sha_name"/.test(scriptContent);
@@ -533,7 +729,7 @@ function checkCustomerSourcePackageScriptBoundary() {
         'package-script:data-boundary',
         'pass',
         '客户源码包数据边界',
-        '构建脚本已排除根目录 data、运行时配置、导出数据与数据库备份，归档后复查，覆盖客户安装入口，并生成相对路径 SHA256'
+        '构建脚本已排除根目录 data、运行时配置、导出数据与数据库备份，归档后复查，使用 Docker 作为客户安装首选入口，并生成相对路径 SHA256'
       ),
     ];
   }
@@ -543,7 +739,7 @@ function checkCustomerSourcePackageScriptBoundary() {
       'package-script:data-boundary',
       'fail',
       '客户源码包数据边界',
-      '构建脚本缺少根目录 data、运行时配置、导出数据、数据库备份、归档复查、客户安装入口或相对路径 SHA256 规则',
+      '构建脚本缺少根目录 data、运行时配置、导出数据、数据库备份、归档复查、Docker 优先客户安装入口或相对路径 SHA256 规则',
       '请确保客户源码包不包含 data/mysql_backup*.sql、server/server/exports/*.json、export_*.json、*_mysql_data_*.sql 等本地数据文件，且校验文件不暴露本机绝对路径。'
     ),
   ];
@@ -883,6 +1079,9 @@ function main() {
   const scanReleaseArchives = args['scan-release-archives'] === true;
   const checks = [
     ...checkRequiredFiles(),
+    ...checkVersionConsistency(),
+    ...checkDockerProductionDelivery(),
+    ...checkFrontendSeoBuild(),
     ...checkAdminBuildAssets(),
     ...checkPackageScripts(),
     ...checkStarterSqlDefaults(),
@@ -903,7 +1102,8 @@ function main() {
       backend: 'cd server/server && npm run release:doctor',
       staticScript: 'node scripts/release-doctor.js',
       archiveScan: 'node scripts/release-doctor.js --scan-release-archives',
-      customerSourcePackage: 'scripts/build-customer-source-package.sh --version 1.1.3',
+      customerSourcePackage: 'scripts/build-customer-source-package.sh',
+      dockerDeploy: `scripts/deploy/docker/deploy.sh --domain <domain> # v${RELEASE_VERSION}`,
       starterSql: 'mysql --default-character-set=utf8mb4 -u <user> -p <database> < server/sql/customer/starter.sql',
     },
     reportFile: rel(REPORT_FILE),

@@ -13,6 +13,8 @@
 
 const Service = require('egg').Service;
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const SEO_CENTER_CONFIG_KEY = 'seoCenterConfig';
 const SEO_404_LOG_KEY = 'seo404Logs';
@@ -22,6 +24,13 @@ const SEO_IMAGE_OPT_LOG_KEY = 'seoImageOptimizationLogs';
 const SEO_PUSH_LOG_KEY = 'seoPushLogs';
 const SEO_AUTO_TASK_LOG_KEY = 'seoAutoTaskLogs';
 const SEO_AUTO_TASK_STATE_KEY = 'seoAutoTaskState';
+let SEO_RELEASE_UPDATED_AT_MS = Date.now();
+try {
+  // 所有 Egg worker 统一读取发布包时间，避免多进程响应产生不同的静态页 lastmod。
+  SEO_RELEASE_UPDATED_AT_MS = fs.statSync(path.join(__dirname, '../../../package.json')).mtimeMs;
+} catch (_error) {
+  // 文件时间不可用时保留进程启动时间兜底。
+}
 
 class SeoCenterService extends Service {
   /**
@@ -69,6 +78,21 @@ class SeoCenterService extends Service {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
     return Math.min(max, Math.max(min, parsed));
+  }
+
+  /**
+   * 将秒级、毫秒级或日期字符串统一转换为毫秒时间戳。
+   * @param {unknown} value 原始时间值
+   * @param {number} fallback 默认毫秒时间戳
+   * @return {number} 毫秒时间戳
+   */
+  normalizeTimestampMs(value, fallback = Date.now()) {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue > 9999999999 ? numericValue : numericValue * 1000;
+    }
+    const parsedValue = Date.parse(String(value || ''));
+    return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallback;
   }
 
   /**
@@ -774,13 +798,19 @@ class SeoCenterService extends Service {
       routes = routes.filter(item => item?.noindex !== true);
     }
 
+    const generatedAtMs = this.normalizeTimestampMs(manifest?.generatedAt, Date.now());
     routes = routes.map(item => {
       const path = this.normalizePath(item?.canonicalPath || item?.path || '/');
-      const updatedAt = Number(item?.updatedAt || manifest?.generatedAt || Date.now());
+      const sourceUpdatedAtMs = this.normalizeTimestampMs(item?.updatedAt, generatedAtMs);
+      // 未携带业务更新时间的静态路由固定到进程启动时间，避免每次请求都改变 lastmod。
+      const updatedAtMs = sourceUpdatedAtMs === generatedAtMs
+        ? SEO_RELEASE_UPDATED_AT_MS
+        : sourceUpdatedAtMs;
       return {
         path,
         loc: this.toAbsoluteUrl(siteOrigin, path),
-        lastmod: this.toW3cDate(updatedAt),
+        updatedAt: Math.floor(updatedAtMs / 1000),
+        lastmod: this.toW3cDate(updatedAtMs),
         noindex: item?.noindex === true,
       };
     });
@@ -898,6 +928,19 @@ class SeoCenterService extends Service {
   }
 
   /**
+   * 解析 Sitemap 分片内最新的业务更新时间，避免索引文件每次请求都改变 lastmod。
+   * @param {Array<Record<string, any>>} routes 路由列表
+   * @return {string} W3C 时间字符串
+   */
+  resolveSitemapChunkLastmod(routes) {
+    const latestMs = (Array.isArray(routes) ? routes : []).reduce((maxValue, item) => {
+      const currentMs = this.normalizeTimestampMs(item?.updatedAt || item?.lastmod, 0);
+      return Math.max(maxValue, currentMs);
+    }, 0);
+    return new Date(latestMs || SEO_RELEASE_UPDATED_AT_MS).toISOString();
+  }
+
+  /**
    * 构建进阶 sitemap 文件集合
    * @param {Record<string, any>} options 可选参数
    * @return {Promise<{indexXml: string, files: Record<string, string>, meta: any[]}>} 结果集合
@@ -936,7 +979,7 @@ class SeoCenterService extends Service {
           fileName,
           count: chunk.length,
           loc: `${origin}/sitemap-advanced/${fileName}`,
-          lastmod: new Date().toISOString(),
+          lastmod: this.resolveSitemapChunkLastmod(chunk),
         });
       });
     });
@@ -1302,14 +1345,225 @@ class SeoCenterService extends Service {
   }
 
   /**
-   * 选择用于站长推送的 URL 列表
+   * 规范化站长推送游标，使用“更新时间 + URL”保证同一秒内的链接不会漏推。
+   * @param {unknown} value 原始游标或兼容时间值
+   * @return {{updatedAt: number, loc: string, backfillUpdatedAt: number, backfillLoc: string, backfillComplete: boolean}} 标准游标
+   */
+  normalizePushCursor(value) {
+    const source = this.isPlainObject(value) ? value : { updatedAt: value };
+    const backfillSource = this.isPlainObject(source.backfillBefore)
+      ? source.backfillBefore
+      : {
+        updatedAt: source.backfillUpdatedAt,
+        loc: source.backfillLoc,
+      };
+    const backfillUpdatedAt = Math.floor(this.normalizeTimestampMs(backfillSource.updatedAt, 0) / 1000);
+    return {
+      updatedAt: Math.floor(this.normalizeTimestampMs(source.updatedAt, 0) / 1000),
+      loc: this.normalizeString(source.loc, ''),
+      backfillUpdatedAt,
+      backfillLoc: this.normalizeString(backfillSource.loc, ''),
+      backfillComplete: Object.prototype.hasOwnProperty.call(source, 'backfillComplete')
+        ? this.normalizeBoolean(source.backfillComplete, false)
+        : backfillUpdatedAt <= 0,
+    };
+  }
+
+  /**
+   * 将 Sitemap 条目转换为可比较的站长推送游标。
+   * @param {Record<string, any>} entry Sitemap 条目
+   * @return {{updatedAt: number, loc: string}} 条目游标
+   */
+  createPushCursorFromEntry(entry) {
+    return {
+      updatedAt: Math.floor(this.normalizeTimestampMs(entry?.updatedAt, 0) / 1000),
+      loc: this.normalizeString(entry?.loc, ''),
+    };
+  }
+
+  /**
+   * 比较两个站长推送游标，先比较更新时间，再比较 URL。
+   * @param {Record<string, any>} left 左侧游标
+   * @param {Record<string, any>} right 右侧游标
+   * @return {number} 比较结果
+   */
+  comparePushCursors(left, right) {
+    const leftCursor = this.normalizePushCursor(left);
+    const rightCursor = this.normalizePushCursor(right);
+    const timeDiff = leftCursor.updatedAt - rightCursor.updatedAt;
+    return timeDiff || leftCursor.loc.localeCompare(rightCursor.loc);
+  }
+
+  /**
+   * 从本批推送上下文计算下一批双向游标，新内容向前推进、历史内容向后回填。
+   * @param {Record<string, any>} batch 本批推送上下文
+   * @param {Record<string, any>} fallback 兜底游标
+   * @return {{updatedAt: number, loc: string, backfillUpdatedAt: number, backfillLoc: string, backfillComplete: boolean}} 下一游标
+   */
+  buildNextPushCursor(batch = {}, fallback = {}) {
+    const previous = this.normalizePushCursor(fallback);
+    const entries = Array.isArray(batch.entries) ? batch.entries : [];
+    if (batch.mode === 'bootstrap') {
+      const newest = entries.reduce((current, entry) => {
+        const candidate = this.createPushCursorFromEntry(entry);
+        return this.comparePushCursors(candidate, current) > 0 ? candidate : current;
+      }, this.normalizePushCursor(null));
+      const oldest = entries.reduce((current, entry) => {
+        const candidate = this.createPushCursorFromEntry(entry);
+        return current.updatedAt <= 0 || this.comparePushCursors(candidate, current) < 0 ? candidate : current;
+      }, this.normalizePushCursor(null));
+      return {
+        updatedAt: newest.updatedAt,
+        loc: newest.loc,
+        backfillUpdatedAt: oldest.updatedAt,
+        backfillLoc: oldest.loc,
+        backfillComplete: batch.hasBackfill !== true,
+      };
+    }
+
+    const highWater = (Array.isArray(batch.newEntries) ? batch.newEntries : []).reduce((current, entry) => {
+      const candidate = this.createPushCursorFromEntry(entry);
+      return this.comparePushCursors(candidate, current) > 0 ? candidate : current;
+    }, previous);
+    const backfillStart = {
+      updatedAt: previous.backfillUpdatedAt,
+      loc: previous.backfillLoc,
+    };
+    const backfillWater = (Array.isArray(batch.backfillEntries) ? batch.backfillEntries : []).reduce((current, entry) => {
+      const candidate = this.createPushCursorFromEntry(entry);
+      return current.updatedAt <= 0 || this.comparePushCursors(candidate, current) < 0 ? candidate : current;
+    }, backfillStart);
+    return {
+      updatedAt: highWater.updatedAt,
+      loc: highWater.loc,
+      backfillUpdatedAt: backfillWater.updatedAt,
+      backfillLoc: backfillWater.loc,
+      backfillComplete: previous.backfillComplete || batch.backfillExhausted === true,
+    };
+  }
+
+  /**
+   * 构建站长推送批次；优先处理新内容，再使用独立水位分批回填历史 URL。
+   * @param {Record<string, any>} options 选项
+   * @return {Promise<Record<string, any>>} 推送批次
+   */
+  async collectPushUrlBatch(options = {}) {
+    const limit = this.normalizeNumber(options.limit, 100, 1, 1000);
+    const cursor = this.normalizePushCursor(options.cursor || options.since);
+    const hasCursor = cursor.updatedAt > 0;
+    const { routes } = await this.buildSitemapRoutes(options);
+    const compareEntries = (left, right) => this.comparePushCursors(
+      this.createPushCursorFromEntry(left),
+      this.createPushCursorFromEntry(right)
+    );
+
+    if (!hasCursor) {
+      const sortedEntries = routes.slice().sort((left, right) => -compareEntries(left, right));
+      const entries = sortedEntries.slice(0, limit);
+      const oldestSelected = entries[entries.length - 1];
+      const hasBackfill = Boolean(oldestSelected)
+        && sortedEntries.some(item => compareEntries(item, oldestSelected) < 0);
+      return {
+        mode: 'bootstrap',
+        entries,
+        newEntries: entries,
+        backfillEntries: [],
+        hasBackfill,
+        backfillExhausted: !hasBackfill,
+      };
+    }
+
+    const newEntries = routes
+      .filter(item => compareEntries(item, cursor) > 0)
+      .sort(compareEntries)
+      .slice(0, limit);
+    const remaining = Math.max(0, limit - newEntries.length);
+    let backfillEntries = [];
+    let backfillExhausted = cursor.backfillComplete;
+    if (remaining > 0 && !cursor.backfillComplete && cursor.backfillUpdatedAt > 0) {
+      const backfillCursor = {
+        updatedAt: cursor.backfillUpdatedAt,
+        loc: cursor.backfillLoc,
+      };
+      const backfillCandidates = routes
+        .filter(item => compareEntries(item, backfillCursor) < 0)
+        .sort((left, right) => -compareEntries(left, right));
+      backfillEntries = backfillCandidates.slice(0, remaining);
+      backfillExhausted = backfillCandidates.length <= remaining;
+    } else if (remaining > 0 && !cursor.backfillComplete) {
+      backfillExhausted = true;
+    }
+    return {
+      mode: 'incremental',
+      entries: [ ...newEntries, ...backfillEntries ],
+      newEntries,
+      backfillEntries,
+      hasBackfill: !backfillExhausted,
+      backfillExhausted,
+    };
+  }
+
+  /**
+   * 选择用于站长推送的 URL 条目。
+   * @param {Record<string, any>} options 选项
+   * @return {Promise<Array<Record<string, any>>>} URL 条目列表
+   */
+  async collectPushUrlEntries(options = {}) {
+    const batch = await this.collectPushUrlBatch(options);
+    return batch.entries;
+  }
+
+  /**
+   * 选择用于站长推送的 URL 列表。
    * @param {Record<string, any>} options 选项
    * @return {Promise<string[]>} URL 列表
    */
   async collectPushUrls(options = {}) {
-    const limit = this.normalizeNumber(options.limit, 100, 1, 1000);
-    const { routes } = await this.buildSitemapRoutes(options);
-    return routes.slice(0, limit).map(item => item.loc);
+    const entries = await this.collectPushUrlEntries(options);
+    return entries.map(item => item.loc);
+  }
+
+  /**
+   * 获取指定平台最近一次确认成功的推送游标。
+   * @param {string} platform 平台编码
+   * @return {Promise<{updatedAt: number, loc: string}>} 最近成功游标
+   */
+  async getLastSuccessfulPushCursor(platform) {
+    const normalizedPlatform = this.normalizeString(platform).toLowerCase();
+    const logs = await this.getLogs(SEO_PUSH_LOG_KEY);
+    const matched = (Array.isArray(logs) ? logs : []).find(item => (
+      String(item?.platform || '').toLowerCase() === normalizedPlatform
+      && item?.success === true
+      && this.normalizePushCursor(item?.cursor).updatedAt > 0
+    ));
+    return this.normalizePushCursor(matched?.cursor);
+  }
+
+  /**
+   * 校验站长平台 HTTP 与业务响应，防止鉴权失败等错误被误记为推送成功。
+   * @param {string} platform 平台编码
+   * @param {Record<string, any>} result 平台响应
+   * @param {number} attemptedCount 尝试推送数量
+   */
+  assertPlatformPushSuccess(platform, result, attemptedCount) {
+    const status = Number(result?.status || 0);
+    const data = this.isPlainObject(result?.data) ? result.data : {};
+    const errorValue = data.error ?? data.errorCode ?? data.ErrorCode;
+    const errorList = Array.isArray(data.errors) ? data.errors : [];
+    if (status < 200 || status >= 300) {
+      throw new Error(`${platform} 推送 HTTP 状态异常: ${status || '未知'}`);
+    }
+    if ((errorValue !== undefined && errorValue !== null && String(errorValue) !== '' && String(errorValue) !== '0') || errorList.length > 0) {
+      const errorMessage = this.normalizeString(data.message || data.Message, String(errorValue || '业务错误'));
+      throw new Error(`${platform} 推送失败: ${errorMessage}`);
+    }
+    if (platform === 'baidu') {
+      const rejectedCount = (Array.isArray(data.not_same_site) ? data.not_same_site.length : 0)
+        + (Array.isArray(data.not_valid) ? data.not_valid.length : 0);
+      if (attemptedCount > 0 && rejectedCount >= attemptedCount && Number(data.success || 0) <= 0) {
+        throw new Error('baidu 推送失败: 本批 URL 全部被拒绝');
+      }
+    }
   }
 
   /**
@@ -1426,26 +1680,85 @@ class SeoCenterService extends Service {
   async pushToPlatforms(options = {}) {
     const config = await this.getConfigCached();
     const platform = this.normalizeString(options.platform || '').toLowerCase();
-    const urls = Array.isArray(options.urls) && options.urls.length > 0
-      ? options.urls.map(item => String(item || '').trim()).filter(Boolean)
-      : await this.collectPushUrls({
+    const incremental = options.incremental === true;
+    const hasExplicitUrls = Array.isArray(options.urls) && options.urls.length > 0;
+    const previousCursor = incremental
+      ? this.normalizePushCursor(options.cursor || options.since || await this.getLastSuccessfulPushCursor(platform))
+      : this.normalizePushCursor(null);
+    const urlBatch = hasExplicitUrls
+      ? {
+        mode: 'manual',
+        entries: [],
+        newEntries: [],
+        backfillEntries: [],
+        backfillExhausted: previousCursor.backfillComplete,
+      }
+      : await this.collectPushUrlBatch({
         limit: this.normalizeNumber(options.limit, 100, 1, 1000),
         siteOrigin: options.siteOrigin,
+        cursor: previousCursor,
       });
+    const urls = hasExplicitUrls
+      ? Array.from(new Set(options.urls.map(item => String(item || '').trim()).filter(Boolean)))
+      : urlBatch.entries.map(item => item.loc);
+    const nextCursor = incremental
+      ? this.buildNextPushCursor(urlBatch, previousCursor)
+      : previousCursor;
+    const since = previousCursor.updatedAt > 0
+      ? new Date(previousCursor.updatedAt * 1000).toISOString()
+      : '';
 
     if (urls.length === 0) {
-      throw new Error('没有可推送的 URL');
+      if (!incremental) {
+        throw new Error('没有可推送的 URL');
+      }
+      const skippedEntry = {
+        id: this.createId(),
+        platform,
+        pushedCount: 0,
+        sampleUrls: [],
+        incremental: true,
+        since,
+        cursor: nextCursor,
+        success: true,
+        result: {
+          skipped: true,
+          reason: 'no_updated_urls',
+        },
+        createdAt: new Date().toISOString(),
+      };
+      await this.appendLog(SEO_PUSH_LOG_KEY, skippedEntry, 100);
+      return skippedEntry;
     }
 
     let pushResult = {};
-    if (platform === 'baidu') {
-      pushResult = await this.pushToBaidu(urls, config.platformPush.baidu || {});
-    } else if (platform === 'bing') {
-      pushResult = await this.pushToBing(urls, config.platformPush.bing || {});
-    } else if (platform === 'indexnow') {
-      pushResult = await this.pushToIndexNow(urls, config.platformPush.indexNow || {});
-    } else {
-      throw new Error('暂不支持该推送平台');
+    try {
+      if (platform === 'baidu') {
+        pushResult = await this.pushToBaidu(urls, config.platformPush.baidu || {});
+      } else if (platform === 'bing') {
+        pushResult = await this.pushToBing(urls, config.platformPush.bing || {});
+      } else if (platform === 'indexnow') {
+        pushResult = await this.pushToIndexNow(urls, config.platformPush.indexNow || {});
+      } else {
+        throw new Error('暂不支持该推送平台');
+      }
+      this.assertPlatformPushSuccess(platform, pushResult, urls.length);
+    } catch (error) {
+      await this.appendLog(SEO_PUSH_LOG_KEY, {
+        id: this.createId(),
+        platform,
+        attemptedCount: urls.length,
+        pushedCount: 0,
+        sampleUrls: urls.slice(0, 10),
+        incremental,
+        since,
+        cursor: previousCursor,
+        success: false,
+        error: this.normalizeString(error?.message, '推送失败'),
+        result: pushResult,
+        createdAt: new Date().toISOString(),
+      }, 100);
+      throw error;
     }
 
     const logEntry = {
@@ -1453,6 +1766,10 @@ class SeoCenterService extends Service {
       platform,
       pushedCount: urls.length,
       sampleUrls: urls.slice(0, 10),
+      incremental,
+      since,
+      cursor: incremental ? nextCursor : null,
+      success: true,
       result: pushResult,
       createdAt: new Date().toISOString(),
     };
@@ -1783,14 +2100,18 @@ class SeoCenterService extends Service {
         platform: this.normalizeString(autoTask.pushPlatform, 'baidu'),
         limit: Number(autoTask.pushLimit || 100),
         siteOrigin,
+        incremental: true,
       });
       return {
         task: taskName,
         success: true,
-        summary: `${String(data.platform || '').toUpperCase()} 推送 ${data.pushedCount}`,
+        summary: data?.result?.skipped === true
+          ? `${String(data.platform || '').toUpperCase()} 暂无新增 URL`
+          : `${String(data.platform || '').toUpperCase()} 推送 ${data.pushedCount}`,
         data: {
           platform: data.platform,
           pushedCount: Number(data.pushedCount || 0),
+          skipped: data?.result?.skipped === true,
         },
       };
     }

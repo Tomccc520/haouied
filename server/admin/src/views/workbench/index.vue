@@ -125,7 +125,7 @@
                         <div>
                             <div class="workbench-updates__title">本版更新</div>
                             <div class="workbench-updates__subtitle">
-                                v{{ adminUpdateVersion }} 重点能力与快捷跳转
+                                {{ adminUpdateVersion }} 重点能力与快捷跳转
                             </div>
                         </div>
                         <el-button type="primary" plain size="small" @click="openAdminUpdateLog">
