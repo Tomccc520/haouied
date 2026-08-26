@@ -8,7 +8,7 @@
  * @description 统一的 API 服务 - 提供 axios 实例和请求拦截器
  */
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { getApiBaseUrl } from '../utils/urlUtils';
 
 // 使用统一的 URL 工具获取 API 地址
@@ -24,10 +24,27 @@ const RETRY_CONFIG = {
 };
 
 // 扩展AxiosRequestConfig以支持重试计数
-interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+export interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retryCount?: number;
   _startTime?: number;
+  _disableRetry?: boolean;
 }
+
+interface RetryControlledRequestConfig extends AxiosRequestConfig {
+  _disableRetry?: boolean;
+}
+
+/**
+ * 为非关键接口生成禁用自动重试的请求配置，避免单次超时被放大为多轮等待。
+ * @param config Axios 请求配置
+ * @returns 带禁用重试标记的请求配置
+ */
+export const withoutRequestRetry = <T extends AxiosRequestConfig>(
+  config: T
+): T & RetryControlledRequestConfig => ({
+  ...config,
+  _disableRetry: true,
+});
 
 /**
  * 统一规范请求路径，避免出现 /api/api 重复前缀与历史别名路径
@@ -117,8 +134,13 @@ const getRetryDelay = (retryCount: number): number => {
 };
 
 // 判断是否应该重试
-const shouldRetry = (error: AxiosError, config: ExtendedAxiosRequestConfig): boolean => {
+export const shouldRetryRequest = (error: AxiosError, config: ExtendedAxiosRequestConfig): boolean => {
   const retryCount = config._retryCount || 0;
+
+  // 主动取消和明确标记的非关键请求不重试。
+  if (config._disableRetry || axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+    return false;
+  }
   
   // 超过最大重试次数
   if (retryCount >= RETRY_CONFIG.maxRetries) {
@@ -180,7 +202,7 @@ api.interceptors.response.use(
     }
     
     // 检查是否应该重试
-    if (shouldRetry(error, config)) {
+    if (shouldRetryRequest(error, config)) {
       config._retryCount = (config._retryCount || 0) + 1;
       const retryDelay = getRetryDelay(config._retryCount - 1);
       

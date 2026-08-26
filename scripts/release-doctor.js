@@ -106,10 +106,12 @@ function checkRequiredFiles() {
     'server/server/app/service/uied/deliveryInit.js',
     'server/admin/src/views/uied/deliveryInit/index.vue',
     'frontend/src/pages/Changelog/index.tsx',
+    'scripts/build-admin-hotfix-package.sh',
     'scripts/deploy/baota/deploy.sh',
     'scripts/deploy/baota/init-database.sh',
     'scripts/deploy/baota/uied-api.env.example',
     'scripts/deploy/docker/deploy.sh',
+    'scripts/deploy/docker/upgrade-existing.sh',
     'scripts/deploy/verify-production-seo.sh',
     'docker/Dockerfile',
     'docker/docker-compose.yml',
@@ -292,6 +294,7 @@ function checkDockerProductionDelivery() {
   const dockerfile = readText('docker/Dockerfile');
   const compose = readText('docker/docker-compose.yml');
   const deployScript = readText('scripts/deploy/docker/deploy.sh');
+  const existingUpgradeScript = readText('scripts/deploy/docker/upgrade-existing.sh');
   const dockerEnvExample = readText('docker/.env.example');
   const mysqlCompose = readText('docker/docker-compose.mysql.yml');
   const imageBuildReady = /npm ci --omit=dev/.test(dockerfile)
@@ -305,7 +308,21 @@ function checkDockerProductionDelivery() {
     && /rollback_release/.test(deployScript)
     && /resolve_docker_host_gateway/.test(deployScript)
     && /validate_compose_config/.test(deployScript)
-    && /docker-compose\.yml/.test(deployScript);
+    && /docker-compose\.yml/.test(deployScript)
+    && /dispatch_existing_container_upgrade/.test(deployScript)
+    && /upgrade-existing\.sh/.test(deployScript);
+  const existingUpgradeReady = /check_runtime_dependencies/.test(existingUpgradeScript)
+    && /sync_backend_tree/.test(existingUpgradeScript)
+    && /backup_current_release/.test(existingUpgradeScript)
+    && /verify_backend/.test(existingUpgradeScript)
+    && /rollback_release/.test(existingUpgradeScript)
+    && /node_modules\//.test(existingUpgradeScript)
+    && /config\/config\.prod\.js/.test(existingUpgradeScript)
+    && /app\/public\/uploads\//.test(existingUpgradeScript)
+    && /sitemap\.xml -o "\$sitemap_file"/.test(existingUpgradeScript)
+    && !/sitemap\.xml\s*\|\s*grep -q/.test(existingUpgradeScript)
+    && /sitemap\.xml -o "\$sitemap_file"/.test(deployScript)
+    && !/sitemap\.xml\s*\|\s*grep -q/.test(deployScript);
   const deploymentOrderReady = /backup_current_release\s+deploy_backend_container\s+verify_deployment\s+if ! deploy_static_files/.test(deployScript)
     && /rollback_release\(\)[\s\S]*restore_static_files\s+rollback_backend_container/.test(deployScript);
   const legacyComposeReady = /version:\s*["']3\.8["']/.test(compose);
@@ -314,13 +331,13 @@ function checkDockerProductionDelivery() {
     && /UIED_MYSQL_ROOT_PASSWORD:\?/.test(mysqlCompose);
 
   return [
-    imageBuildReady && persistentReady && deploymentReady && deploymentOrderReady && legacyComposeReady && secureExamples
+    imageBuildReady && persistentReady && deploymentReady && existingUpgradeReady && deploymentOrderReady && legacyComposeReady && secureExamples
       ? makeCheck(
         'deployment',
         'docker:production',
         'pass',
         'Docker 生产部署',
-        '后端依赖固化在镜像中，重启不执行 npm install，上传/授权/日志已独立持久化并带备份与健康检查'
+        '已有 uied-api 自动原地安全升级且不安装依赖；全新环境使用不可变镜像，均带备份、健康检查与回滚'
       )
       : makeCheck(
         'deployment',
@@ -718,18 +735,22 @@ function checkCustomerSourcePackageScriptBoundary() {
     && /config\/config\.local\.js/.test(scriptContent);
   const writesCustomerInstall = /write_customer_install_docs/.test(scriptContent)
     && /客户站不要配置签发端密钥/.test(scriptContent)
-    && /首次执行 Docker 部署命令[\s\S]*scripts\/deploy\/docker\/deploy\.sh[\s\S]*已经稳定使用 PM2/.test(scriptContent);
+    && /已有 \\`uied-api\\` 会自动原地安全升级[\s\S]*全新环境才会生成[\s\S]*已经稳定使用 PM2/.test(scriptContent);
   const writesRelativeSha = /basename "\$PACKAGE_FILE"/.test(scriptContent)
     && /cd "\$OUTPUT_DIR"/.test(scriptContent)
     && /shasum -a 256 "\$package_name" > "\$sha_name"/.test(scriptContent);
-  if (excludesRootData && excludesBackupSql && excludesRuntimeExports && excludesRuntimeConfigs && verifiesArchiveData && writesCustomerInstall && writesRelativeSha) {
+  const excludesMacMetadata = /--exclude ['"]\._\*['"]/.test(scriptContent)
+    && /--exclude ['"]__MACOSX\/['"]/.test(scriptContent)
+    && /xattr -cr "\$STAGE_DIR"/.test(scriptContent)
+    && /tar --no-xattrs -czf/.test(scriptContent);
+  if (excludesRootData && excludesBackupSql && excludesRuntimeExports && excludesRuntimeConfigs && verifiesArchiveData && writesCustomerInstall && writesRelativeSha && excludesMacMetadata) {
     return [
       makeCheck(
         'delivery',
         'package-script:data-boundary',
         'pass',
         '客户源码包数据边界',
-        '构建脚本已排除根目录 data、运行时配置、导出数据与数据库备份，归档后复查，使用 Docker 作为客户安装首选入口，并生成相对路径 SHA256'
+        '构建脚本已排除本地数据、运行时配置、macOS 文件和扩展属性，归档后复查，并生成相对路径 SHA256'
       ),
     ];
   }
@@ -739,10 +760,27 @@ function checkCustomerSourcePackageScriptBoundary() {
       'package-script:data-boundary',
       'fail',
       '客户源码包数据边界',
-      '构建脚本缺少根目录 data、运行时配置、导出数据、数据库备份、归档复查、Docker 优先客户安装入口或相对路径 SHA256 规则',
-      '请确保客户源码包不包含 data/mysql_backup*.sql、server/server/exports/*.json、export_*.json、*_mysql_data_*.sql 等本地数据文件，且校验文件不暴露本机绝对路径。'
+      '构建脚本缺少本地数据、macOS 元数据、归档复查、Docker 优先入口或相对路径 SHA256 防护',
+      '请确保客户包不包含数据备份、运行时配置、._*、__MACOSX 或 macOS PAX 扩展属性。'
     ),
   ];
+}
+
+/**
+ * 检查后台热修包脚本是否统一阻止 macOS 元数据并保留线上备份。
+ * @returns {Array<Record<string, string>>} 检查结果
+ */
+function checkAdminHotfixPackageScript() {
+  const scriptContent = readText('scripts/build-admin-hotfix-package.sh');
+  const safeArchive = /tar --no-xattrs -czf/.test(scriptContent)
+    && /xattr -cr "\$WORK_DIR"/.test(scriptContent)
+    && /LIBARCHIVE\\\.xattr/.test(scriptContent)
+    && /SCHILY\\\.xattr/.test(scriptContent);
+  const safeDeploy = /rsync -a "\$TARGET_ADMIN\/" "\$BACKUP_ROOT\/admin\/"/.test(scriptContent)
+    && /rsync -a --delete "\$SOURCE_ADMIN\/" "\$TARGET_ADMIN\/"/.test(scriptContent);
+  return safeArchive && safeDeploy
+    ? [makeCheck('delivery', 'package-script:admin-hotfix', 'pass', '后台热修包', '已配置备份部署与 macOS 元数据双重拦截')]
+    : [makeCheck('delivery', 'package-script:admin-hotfix', 'fail', '后台热修包', '后台热修包脚本缺少备份或 macOS 元数据防护')];
 }
 
 /**
@@ -1028,6 +1066,7 @@ function checkProductionConfig() {
     ];
   }
   const content = fs.readFileSync(prodConfig, 'utf8');
+  const nginxTemplate = readText('scripts/deploy/baota/nginx.conf.example');
   const checks = [];
   checks.push(
     /process\.env\.UIED_DB_PASSWORD/.test(content)
@@ -1038,6 +1077,18 @@ function checkProductionConfig() {
     /UIED_UPLOADS_ABS_DIR/.test(content)
       ? makeCheck('config', 'config:uploads-env', 'pass', '上传目录配置', '生产上传目录支持独立环境变量')
       : makeCheck('config', 'config:uploads-env', 'warn', '上传目录配置', '未检测到 UIED_UPLOADS_ABS_DIR')
+  );
+  checks.push(
+    /gzip\s+on;/.test(nginxTemplate) && /gzip_types[^;]*application\/json/.test(nginxTemplate)
+      ? makeCheck('config', 'config:nginx-json-gzip', 'pass', 'Nginx JSON 压缩', '宝塔模板已开启公开 JSON gzip')
+      : makeCheck(
+        'config',
+        'config:nginx-json-gzip',
+        'fail',
+        'Nginx JSON 压缩',
+        '宝塔 Nginx 模板未开启 application/json gzip',
+        '会导致页面完整数据以数百 KB 原始体积传输，明显拖慢首屏。'
+      )
   );
   return checks;
 }
@@ -1087,6 +1138,7 @@ function main() {
     ...checkStarterSqlDefaults(),
     ...checkDeliveryExportBoundary(),
     ...checkCustomerSourcePackageScriptBoundary(),
+    ...checkAdminHotfixPackageScript(),
     ...checkLicenseBoundary(),
     ...checkCustomerLicenseJsonBoundary(),
     ...checkArchiveLicenseBoundary({ scanReleaseArchives }),

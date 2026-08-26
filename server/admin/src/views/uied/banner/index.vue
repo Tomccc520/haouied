@@ -533,6 +533,7 @@ import {
 import { usePaging } from '@/hooks/usePaging'
 import feedback from '@/utils/feedback'
 import type { FormInstance, FormRules } from 'element-plus'
+import { resolveBannerSubmitHtmlContent } from './bannerForm'
 
 const defaultQueryParams = {
     keyword: '',
@@ -1498,7 +1499,10 @@ const handleSubmit = async () => {
             id: editingId,
             linkUrl: editData.contentType === 'text' ? '' : normalizedLinkUrl,
             url: editData.contentType === 'text' ? '' : normalizedLinkUrl,
-            htmlContent: editData.contentType === 'text' ? editData.htmlContent : '',
+            htmlContent: resolveBannerSubmitHtmlContent(
+                editData.contentType,
+                editData.htmlContent
+            ),
             pageSlugList,
             pageSlug: pageSlugList.includes('all') ? 'all' : pageSlugList.join(','),
             positionList,

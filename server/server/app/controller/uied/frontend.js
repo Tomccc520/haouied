@@ -25,9 +25,24 @@ class FrontendController extends Controller {
   }
 
   /**
+   * 设置公开读接口的短缓存响应头，在保持运营配置快速生效的同时减少重复传输。
+   * @param {number} maxAge 浏览器和共享缓存有效秒数
+   * @param {number} staleWhileRevalidate 后台刷新期间允许复用旧响应的秒数
+   */
+  setShortPublicCacheHeaders(maxAge = 30, staleWhileRevalidate = 300) {
+    const { ctx } = this;
+    const safeMaxAge = Math.max(0, Math.floor(Number(maxAge) || 0));
+    const safeStaleTime = Math.max(0, Math.floor(Number(staleWhileRevalidate) || 0));
+    ctx.set(
+      'Cache-Control',
+      `public, max-age=${safeMaxAge}, s-maxage=${safeMaxAge}, stale-while-revalidate=${safeStaleTime}`
+    );
+  }
+
+  /**
    * 生成当前请求命中的微信公众号域名校验文件名。
    * @param {unknown} verifyToken 路由参数中的文件标识
-   * @returns {string} 完整文件名
+   * @return {string} 完整文件名
    */
   buildWechatVerifyFileName(verifyToken) {
     const text = String(verifyToken || '').trim();
@@ -38,7 +53,7 @@ class FrontendController extends Controller {
   /**
    * 规范化 svg:key 里的 key，避免非法字符导致匹配失败。
    * @param {unknown} value 图标值
-   * @returns {string} 规范化后的 key
+   * @return {string} 规范化后的 key
    */
   normalizeSvgTokenKey(value) {
     const raw = String(value || '').trim().toLowerCase();
@@ -48,7 +63,7 @@ class FrontendController extends Controller {
 
   /**
    * 读取 pageGlobalConfig 中的 SVG 图标库并构建 key->svg 映射。
-   * @returns {Promise<Map<string, string>>} SVG 映射表
+   * @return {Promise<Map<string, string>>} SVG 映射表
    */
   async buildCategorySvgLibraryMap() {
     const { ctx } = this;
@@ -74,7 +89,7 @@ class FrontendController extends Controller {
    * 将 icon 字段解析为 SVG 标记（仅 svg:key 模式生效）。
    * @param {unknown} value 图标值
    * @param {Map<string, string>} svgMap SVG 映射表
-   * @returns {string} 匹配到的 SVG 字符串
+   * @return {string} 匹配到的 SVG 字符串
    */
   resolveSvgIconMarkup(value, svgMap) {
     const raw = String(value || '').trim();
@@ -110,8 +125,8 @@ class FrontendController extends Controller {
     const { slug } = ctx.params;
 
     try {
-      // 页面详情需实时反映运营配置变化，关闭缓存。
-      this.setNoCacheHeaders();
+      // 页面详情采用短缓存，后台改动最多 30 秒后生效。
+      this.setShortPublicCacheHeaders(30, 120);
       const page = await ctx.service.uied.page.detail(null, slug);
       if (!page) {
         ctx.status = 404;
@@ -135,8 +150,8 @@ class FrontendController extends Controller {
     const { slug } = ctx.params;
 
     try {
-      // 页面完整数据包含分类图标等可运营字段，关闭缓存避免前端读取旧值。
-      this.setNoCacheHeaders();
+      // 完整数据体积较大，使用 15 秒短缓存降低重复下载和网关压力。
+      this.setShortPublicCacheHeaders(15, 120);
       const data = await ctx.service.uied.frontend.getPageFullData(slug);
       if (!data) {
         ctx.status = 404;
@@ -160,8 +175,8 @@ class FrontendController extends Controller {
     const { slug } = ctx.params;
 
     try {
-      // 统计依赖页面完整数据，同步关闭缓存。
-      this.setNoCacheHeaders();
+      // 统计依赖页面完整数据，与页面数据一样使用短缓存。
+      this.setShortPublicCacheHeaders(30, 300);
       const data = await ctx.service.uied.frontend.getPageFullData(slug);
       if (!data) {
         ctx.status = 404;
@@ -974,7 +989,7 @@ class FrontendController extends Controller {
     const { ctx } = this;
 
     try {
-      this.setNoCacheHeaders();
+      this.setShortPublicCacheHeaders(30, 300);
       const settings = await ctx.service.uied.setting.getPublicSettings();
       ctx.body = settings;
     } catch (error) {
@@ -3342,7 +3357,7 @@ class FrontendController extends Controller {
          WHERE ${categoryMatchSql} AND w.is_delete = 0`,
         {
           replacements: categoryMatchReplacements,
-          type: ctx.app.Sequelize.QueryTypes.SELECT
+          type: ctx.app.Sequelize.QueryTypes.SELECT,
         }
       );
 
@@ -3358,7 +3373,7 @@ class FrontendController extends Controller {
          LIMIT ? OFFSET ?`,
         {
           replacements: [ ...categoryMatchReplacements, parseInt(pageSize), offset ],
-          type: ctx.app.Sequelize.QueryTypes.SELECT
+          type: ctx.app.Sequelize.QueryTypes.SELECT,
         }
       );
 
@@ -4172,18 +4187,18 @@ class FrontendController extends Controller {
     const aliasMap = {
       official: 'official',
       'weight:official': 'official',
-      '官网': 'official',
-      '官方': 'official',
+      官网: 'official',
+      官方: 'official',
       recommended: 'recommended',
       recommend: 'recommended',
       'weight:recommended': 'recommended',
-      '推荐': 'recommended',
+      推荐: 'recommended',
       enterprise_verified: 'enterprise_verified',
       enterpriseverified: 'enterprise_verified',
       enterprise: 'enterprise_verified',
       verified_enterprise: 'enterprise_verified',
       'weight:enterprise_verified': 'enterprise_verified',
-      '企业认证': 'enterprise_verified',
+      企业认证: 'enterprise_verified',
     };
     return aliasMap[raw] || '';
   }

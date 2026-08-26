@@ -24,7 +24,7 @@ import type { ArticleListItem } from '../types/article';
 import AdminShortcutHint from './AdminShortcutHint';
 import { getFullImageUrl } from '../utils/urlUtils';
 import { buildPlaceholderImage } from '../utils/placeholderImages';
-import api from '../services/api';
+import api, { withoutRequestRetry } from '../services/api';
 import { unwrapApiList } from '../utils/apiResponse';
 
 // 导入RankItem类型
@@ -134,7 +134,10 @@ async function fetchWordPressProxyArticles(
   const pendingRequest = wordpressArticlePendingRequests.get(requestKey);
   if (pendingRequest) return pendingRequest;
 
-  const requestPromise = api.get('/wordpress/posts', { params })
+  const requestPromise = api.get('/wordpress/posts', withoutRequestRetry({
+    params,
+    timeout: 8000,
+  }))
     .then(response => unwrapApiList<Record<string, unknown>>(response?.data));
   wordpressArticlePendingRequests.set(requestKey, requestPromise);
 
@@ -700,6 +703,8 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [canLoadArticles, setCanLoadArticles] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   
   // 使用useRef跟踪加载状态，避免重复请求
   const isLoadingRef = useRef(false);
@@ -716,6 +721,30 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       isMountedRef.current = false;
     };
   }, []);
+
+  /**
+   * 文章区块接近视口时才启动内容请求，避免非首屏第三方数据拖慢首页可用时间。
+   */
+  useEffect(() => {
+    if (isWidgetExplicitlyHidden) return;
+    const container = containerRef.current;
+    if (!container || canLoadArticles) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setCanLoadArticles(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setCanLoadArticles(true);
+        observer.disconnect();
+      },
+      { rootMargin: '800px 0px' }
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [canLoadArticles, isWidgetExplicitlyHidden]);
   
   // 获取当前选中项的ID和类型
   const getCurrentOption = useCallback(() => {
@@ -977,6 +1006,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
 
   // 组件挂载时获取数据 - 本地源直接拉取，API 源等待 activeTag 就绪
   useEffect(() => {
+    if (!canLoadArticles) return;
     if (widgetArticleSource === 'local') {
       debugLog.dev('DesignArticleGrid: 本地文章模式，获取初始数据');
       fetchArticles();
@@ -986,21 +1016,36 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
       debugLog.dev('DesignArticleGrid: activeTag已设置，获取初始数据', activeTag);
       fetchArticles();
     }
-  }, [activeTag, fetchArticles, widgetArticleSource]);
+  }, [activeTag, canLoadArticles, fetchArticles, widgetArticleSource]);
 
-  // 当组件配置变化时，清除缓存并重新获取数据
+  // 当组件配置变化时清除旧缓存；实际请求统一交给上方 effect，避免重复拉取。
+  const previousWidgetConfigSignatureRef = useRef('');
   useEffect(() => {
-    if (widgetConfig) {
-      debugLog.dev('DesignArticleGrid: 组件配置变化，清除缓存并重新获取数据', widgetConfig);
-      clearDesignArticlesCache();
-      // 延迟获取数据，确保缓存已清除
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          fetchArticles(true);
-        }
-      }, 100);
+    if (!widgetConfig) return;
+    const signature = [
+      widgetConfig.id,
+      widgetArticleSource,
+      widgetCategoryIdsKey,
+      effectiveLimit,
+      widgetFixedFilterType,
+      widgetFixedFilterId,
+    ].join(':');
+    if (!previousWidgetConfigSignatureRef.current) {
+      previousWidgetConfigSignatureRef.current = signature;
+      return;
     }
-  }, [widgetConfig, widgetConfig?.id, widgetCategoryIdsKey, widgetConfig?.limit, fetchArticles]);
+    if (previousWidgetConfigSignatureRef.current === signature) return;
+    previousWidgetConfigSignatureRef.current = signature;
+    debugLog.dev('DesignArticleGrid: 组件配置变化，清除旧缓存', signature);
+    clearDesignArticlesCache();
+  }, [
+    effectiveLimit,
+    widgetArticleSource,
+    widgetCategoryIdsKey,
+    widgetConfig,
+    widgetFixedFilterId,
+    widgetFixedFilterType,
+  ]);
 
   // 渲染文章卡片 - 优化鼠标移入效果
   const renderArticles = () => {
@@ -1111,7 +1156,7 @@ const DesignArticleGrid: React.FC<DesignArticleGridProps> = ({
   }
 
   return (
-    <div className="design-article-grid-container">
+    <div ref={containerRef} className="design-article-grid-container">
       <motion.div 
         className="section-header"
         initial={{ opacity: 0, y: -10 }}

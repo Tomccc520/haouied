@@ -9,7 +9,13 @@
  */
 
 import * as fc from 'fast-check';
-import { RETRY_CONFIG } from './api';
+import type { AxiosError } from 'axios';
+import {
+  RETRY_CONFIG,
+  shouldRetryRequest,
+  withoutRequestRetry,
+  type ExtendedAxiosRequestConfig,
+} from './api';
 
 /**
  * Property 5: 请求重试幂等性
@@ -97,6 +103,23 @@ describe('API Service - Property Tests', () => {
 
     test('基础重试延迟应该是正数', () => {
       expect(RETRY_CONFIG.retryDelay).toBeGreaterThan(0);
+    });
+
+    test('非关键请求可以显式禁用自动重试', () => {
+      const config = withoutRequestRetry({ method: 'get', url: '/wordpress/posts' });
+      const networkError = { code: 'ECONNABORTED' } as AxiosError;
+
+      expect(config._disableRetry).toBe(true);
+      expect(
+        shouldRetryRequest(networkError, config as unknown as ExtendedAxiosRequestConfig)
+      ).toBe(false);
+    });
+
+    test('主动取消的请求不应进入重试', () => {
+      const canceledError = { code: 'ERR_CANCELED' } as AxiosError;
+      const config = { method: 'get', _retryCount: 0 } as unknown as ExtendedAxiosRequestConfig;
+
+      expect(shouldRetryRequest(canceledError, config)).toBe(false);
     });
 
     test('可重试状态码应该都是服务器错误或特定客户端错误', () => {

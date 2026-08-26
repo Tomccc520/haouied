@@ -16,6 +16,8 @@ WEB_DIR=""
 BACKEND_ONLY=0
 CHECK_CONFIG_ONLY=0
 ROLLBACK_CONTAINER_NAME="uied-api-rollback"
+FORCE_REBUILD=0
+ORIGINAL_ARGS=("$@")
 
 # 输出 Docker 部署脚本帮助。
 print_help() {
@@ -32,10 +34,12 @@ UIED-NAV 宝塔 Docker 一键部署
   --web-dir PATH        官网静态目录，默认 SITE_ROOT/web
   --backend-only        只更新后端容器，不同步前台和后台
   --check-config        只检查环境和配置，不执行备份、构建或部署
+  --rebuild             即使已有 uied-api，也强制重建标准 Docker 镜像
   -h, --help            显示帮助
 
 说明：
-  - npm ci 只在 Docker 镜像构建时执行，docker restart 不会重新安装依赖。
+  - 已有 uied-api 默认原地安全升级，不拉基础镜像、不安装依赖。
+  - 全新安装或 --rebuild 才构建 Docker 镜像，npm ci 仅在镜像构建时执行。
   - 自动备份当前 web/admin 和旧容器信息，不导入或覆盖数据库。
   - 上传、授权与日志放在 shared 目录，版本升级不会丢失。
 EOF
@@ -51,6 +55,7 @@ parse_args() {
       --web-dir) WEB_DIR="${2:-}"; shift 2 ;;
       --backend-only) BACKEND_ONLY=1; shift ;;
       --check-config) CHECK_CONFIG_ONLY=1; shift ;;
+      --rebuild) FORCE_REBUILD=1; shift ;;
       -h|--help) print_help; exit 0 ;;
       *) echo "未知参数: $1" >&2; print_help; exit 1 ;;
     esac
@@ -63,6 +68,16 @@ parse_args() {
   SITE_ROOT="${SITE_ROOT:-/www/wwwroot/$DOMAIN}"
   ENV_FILE="${ENV_FILE:-$SITE_ROOT/shared/uied-api.env}"
   WEB_DIR="${WEB_DIR:-$SITE_ROOT/web}"
+}
+
+# 已有 uied-api 时自动切换到原地安全升级，避免老客户重复重建镜像。
+dispatch_existing_container_upgrade() {
+  if [[ "$FORCE_REBUILD" -eq 1 ]]; then return 1; fi
+  if ! command -v docker >/dev/null 2>&1; then return 1; fi
+  if ! docker info >/dev/null 2>&1; then return 1; fi
+  if ! docker inspect uied-api >/dev/null 2>&1; then return 1; fi
+  echo "检测到已有 uied-api，自动使用原地安全升级模式。"
+  exec "$SCRIPT_DIR/upgrade-existing.sh" "${ORIGINAL_ARGS[@]}"
 }
 
 # 选择服务器可用的 Docker Compose 命令。
@@ -307,7 +322,7 @@ render_nginx_config() {
 
 # 等待容器健康并验证关键 SEO 接口。
 verify_deployment() {
-  local attempt health
+  local attempt health sitemap_file
   health="starting"
   for attempt in {1..45}; do
     health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' uied-api 2>/dev/null || true)"
@@ -328,10 +343,18 @@ verify_deployment() {
     rollback_backend_container
     exit 1
   fi
-  if ! curl -fsS --max-time 20 http://127.0.0.1:8002/sitemap.xml | grep -q '<urlset'; then
+  sitemap_file="$(mktemp)"
+  if ! curl -fsS --max-time 20 http://127.0.0.1:8002/sitemap.xml -o "$sitemap_file"; then
+    rm -f "$sitemap_file"
     rollback_backend_container
     exit 1
   fi
+  if ! grep -q '<urlset' "$sitemap_file"; then
+    rm -f "$sitemap_file"
+    rollback_backend_container
+    exit 1
+  fi
+  rm -f "$sitemap_file"
   echo "UIED-NAV v$VERSION 后端健康检查通过，容器状态: $health"
   if docker inspect "$ROLLBACK_CONTAINER_NAME" >/dev/null 2>&1; then
     echo "上一版后端容器已保留为: $ROLLBACK_CONTAINER_NAME"
@@ -347,6 +370,7 @@ rollback_release() {
 # 执行 Docker 标准部署主流程。
 main() {
   parse_args "$@"
+  dispatch_existing_container_upgrade || true
   check_runtime
   prepare_env_file
   validate_compose_config

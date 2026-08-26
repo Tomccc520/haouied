@@ -147,6 +147,10 @@ sync_source_to_stage() {
   rsync -a --delete \
     --exclude '.git/' \
     --exclude '.DS_Store' \
+    --exclude '._*' \
+    --exclude '__MACOSX/' \
+    --exclude '.AppleDouble/' \
+    --exclude '.LSOverride' \
     --exclude '.agents/' \
     --exclude '.claude/' \
     --exclude '.codex/' \
@@ -200,6 +204,13 @@ sync_source_to_stage() {
     "$ROOT_DIR/" "$STAGE_DIR/"
 }
 
+# 清理 staging 中的 macOS 扩展属性，避免 Linux 解压时出现 LIBARCHIVE.xattr 警告。
+strip_macos_metadata_from_stage() {
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -cr "$STAGE_DIR"
+  fi
+}
+
 # 写入客户包清单，方便客户和交付人员核对。
 write_package_manifest() {
   cat > "$STAGE_DIR/RELEASE-PACKAGE.md" <<EOF
@@ -211,7 +222,7 @@ write_package_manifest() {
 
 ## 部署提醒
 
-1. 宝塔 Docker 推荐入口：\`scripts/deploy/docker/deploy.sh\`。
+1. 宝塔 Docker 统一入口：\`scripts/deploy/docker/deploy.sh\`，已有 \`uied-api\` 自动原地升级，全新环境才构建镜像。
 2. PM2 兼容入口：\`scripts/deploy/baota/deploy.sh\`。
 3. 全新空数据库初始化：\`scripts/deploy/baota/init-database.sh\`，老客户禁止执行。
 4. 客户部署后再放入授权文件：\`shared/licenses/*.license\` 或已配置的授权目录。
@@ -232,12 +243,12 @@ write_customer_install_docs() {
 
 1. 解压源码包：\`tar -xzf uied-nav-${VERSION}-customer-source.tgz\`。
 2. 创建全新 MySQL 数据库，字符集使用 \`utf8mb4\`。
-3. 首次执行 Docker 部署命令生成环境变量模板：\`./scripts/deploy/docker/deploy.sh --domain 你的域名\`。
-4. 填写 \`/www/wwwroot/你的域名/shared/uied-api.env\` 后，执行全新数据库初始化脚本。
-5. 再次执行 Docker 部署命令，脚本会构建后端镜像、通过健康检查后同步预构建前后台。
-6. 将生成的 \`deploy/uied-nav.nginx.conf\` 应用到宝塔站点，检查后重载 Nginx。
+3. 执行统一命令：\`./scripts/deploy/docker/deploy.sh --domain 你的域名\`。
+4. 已有 \`uied-api\` 会自动原地安全升级，不填写新环境文件、不拉基础镜像、不执行 \`npm install\`。
+5. 全新环境才会生成 \`shared/uied-api.env\`；填写后执行全新数据库初始化脚本，再次运行统一命令构建后端镜像。
+6. 全新安装将生成 \`deploy/uied-nav.nginx.conf\`，应用到宝塔站点前先检查并重载 Nginx。
 
-已经稳定使用 PM2 的客户可改用 \`scripts/deploy/baota/deploy.sh\`。Docker 依赖只在镜像构建时安装，容器重启不会再次执行 \`npm install\`。
+已有 Docker 容器升级时会先比较生产依赖；依赖未变化直接复用现有 \`node_modules\`，依赖变化则在修改线上文件前停止。已经稳定使用 PM2 的客户可改用 \`scripts/deploy/baota/deploy.sh\`。
 
 > \`server/sql/install.sql\` 包含 DROP TABLE。老客户升级禁止运行数据库初始化脚本，只执行版本对应补丁。
 
@@ -287,7 +298,14 @@ verify_archive_safe() {
     grep -E '^[^/]+/data/|^[^/]+/server/server/exports/[^/]+\.json$|(^|/)([^/]*mysql_backup[^/]*|[^/]*backup[^/]*|[^/]*dump[^/]*|[^/]*mysql_data[^/]*|uied_nav_prod_[^/]*)\.sql(\.gz)?$|(^|/)export_[0-9]{8}[^/]*\.json$' "$list_file" | head -n 20
     exit 1
   fi
-  log_ok "归档安全检查通过：未发现授权文件、运行时配置、customer-license.json、.env、pem/key、数据库备份、运行时导出数据"
+
+  if grep -E '(^|/)(__MACOSX|\.AppleDouble)(/|$)|(^|/)\._[^/]+$|(^|/)\.DS_Store$|(^|/)\.LSOverride$' "$list_file" >/dev/null; then
+    log_err "客户包内仍发现 macOS 元数据文件："
+    grep -E '(^|/)(__MACOSX|\.AppleDouble)(/|$)|(^|/)\._[^/]+$|(^|/)\.DS_Store$|(^|/)\.LSOverride$' "$list_file" | head -n 20
+    exit 1
+  fi
+
+  log_ok "归档安全检查通过：未发现授权文件、运行时配置、数据库备份、运行时导出数据或 macOS 元数据文件"
 }
 
 # 主流程入口。
@@ -300,6 +318,7 @@ main() {
   trap cleanup_workdir EXIT
   cleanup_workdir
   sync_source_to_stage
+  strip_macos_metadata_from_stage
   write_package_manifest
   write_customer_install_docs
   create_archive
