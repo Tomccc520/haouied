@@ -264,12 +264,15 @@ class HotRecommendationService extends Service {
 
   /**
    * 获取热门推荐列表
+   * @param {{page?: number, pageSize?: number, position?: string, pageSlug?: string, keyword?: unknown}} options 列表查询参数
+   * @return {Promise<{lists: object[], count: number, page: number, pageSize: number}>} 分页结果
    */
-  async list({ page = 1, pageSize = 20, position, pageSlug }) {
+  async list({ page = 1, pageSize = 20, position, pageSlug, keyword } = {}) {
     const { app } = this;
     await this.ensureWebsiteIdColumn();
     const offset = (page - 1) * pageSize;
     const now = Math.floor(Date.now() / 1000);
+    const normalizedKeyword = String(keyword || '').trim().slice(0, 100);
 
     let whereClause = 'hr.is_delete = 0';
     const replacements = [];
@@ -284,9 +287,30 @@ class HotRecommendationService extends Service {
       replacements.push(pageSlug);
     }
 
+    if (normalizedKeyword) {
+      whereClause += ` AND (
+        CAST(hr.id AS CHAR) = ?
+        OR INSTR(LOWER(COALESCE(NULLIF(w.name, ''), hr.name, '')), LOWER(?)) > 0
+        OR INSTR(LOWER(COALESCE(NULLIF(w.url, ''), hr.url, '')), LOWER(?)) > 0
+        OR INSTR(LOWER(COALESCE(hr.description, '')), LOWER(?)) > 0
+      )`;
+      replacements.push(
+        normalizedKeyword,
+        normalizedKeyword,
+        normalizedKeyword,
+        normalizedKeyword
+      );
+    }
+
     // 获取总数
     const [ countResult ] = await app.model.query(
-      `SELECT COUNT(*) as total FROM uied_hot_recommendation hr WHERE ${whereClause}`,
+      `SELECT COUNT(DISTINCT hr.id) as total
+       FROM uied_hot_recommendation hr
+       LEFT JOIN uied_website w
+         ON w.is_delete = 0
+        AND ((hr.website_id > 0 AND w.id = hr.website_id)
+          OR ((hr.website_id IS NULL OR hr.website_id = 0) AND w.url = hr.url))
+       WHERE ${whereClause}`,
       { replacements, type: app.Sequelize.QueryTypes.SELECT }
     );
 

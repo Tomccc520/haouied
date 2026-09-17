@@ -19,12 +19,13 @@ class HotRecommendationController extends baseController {
   async list() {
     const { ctx } = this;
     try {
-      const { pageNo = 1, pageSize = 20, position, pageSlug } = ctx.query;
+      const { pageNo = 1, pageSize = 20, position, pageSlug, keyword } = ctx.query;
       const result = await ctx.service.uied.hotRecommendation.list({
         page: parseInt(pageNo),
         pageSize: parseInt(pageSize),
         position,
         pageSlug,
+        keyword,
       });
       this.result({ data: result });
     } catch (error) {

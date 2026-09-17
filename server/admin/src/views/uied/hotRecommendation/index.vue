@@ -10,6 +10,25 @@
 <template>
     <div class="hot-recommendation-lists">
         <el-card class="!border-none" shadow="never">
+            <el-form class="mb-[-16px]" :model="queryParams" :inline="true">
+                <el-form-item label="推荐搜索">
+                    <el-input
+                        v-model="queryParams.keyword"
+                        class="w-[280px]"
+                        placeholder="搜索网站名称/链接/描述/推荐ID"
+                        clearable
+                        @keyup.enter="resetPage"
+                        @clear="resetPage"
+                    />
+                </el-form-item>
+                <el-form-item>
+                    <el-button type="primary" @click="resetPage">查询</el-button>
+                    <el-button @click="handleResetSearch">重置</el-button>
+                </el-form-item>
+            </el-form>
+        </el-card>
+
+        <el-card class="!border-none mt-4" shadow="never">
             <div class="mb-4 flex justify-between">
                 <el-button type="primary" @click="handleAdd">
                     <template #icon><icon name="el-icon-Plus" /></template>
@@ -185,7 +204,14 @@ import { timeFormat } from '@/utils/util'
 import feedback from '@/utils/feedback'
 import type { FormInstance, FormRules } from 'element-plus'
 
-const { pager, getLists } = usePaging({ fetchFun: uiedHotRecommendationList })
+const queryParams = reactive({
+    keyword: ''
+})
+
+const { pager, getLists, resetPage } = usePaging({
+    fetchFun: uiedHotRecommendationList,
+    params: queryParams
+})
 
 interface WebsiteOption {
     id: number
@@ -472,6 +498,14 @@ const handleDelete = async (id: number) => {
     await uiedHotRecommendationDelete({ id })
     feedback.msgSuccess('删除成功')
     getLists()
+}
+
+/**
+ * 重置热门推荐搜索条件并返回第一页。
+ */
+const handleResetSearch = () => {
+    queryParams.keyword = ''
+    resetPage()
 }
 
 /**
