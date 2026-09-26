@@ -17,7 +17,7 @@ module.exports = appInfo => {
         host: process.env.UIED_DB_HOST || '127.0.0.1',
         port: resolvePort(process.env.UIED_DB_PORT, 3308),
         username: process.env.UIED_DB_USER || 'uied',
-        password: process.env.UIED_DB_PASSWORD || 'uied123456',
+        password: process.env.UIED_DB_PASSWORD || '',
         database: process.env.UIED_DB_NAME || 'uied_nav',
         define: { // model的全局配置
             timestamps: true, // 添加create,update,delete时间戳

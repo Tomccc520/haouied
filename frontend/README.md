@@ -48,7 +48,7 @@ npm install
 ```bash
 npm start
 ```
-在浏览器中打开 [http://localhost:3000](http://localhost:3000)
+在浏览器中打开 [http://localhost:3003](http://localhost:3003)
 
 ### 构建生产版本
 ```bash

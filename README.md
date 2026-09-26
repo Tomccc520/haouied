@@ -20,7 +20,7 @@
 
 UIED 导航系统聚合 AI 写作、绘画、视频、办公、设计、编程工具，以及 UI、字体、图标、配色和 3D 资源。项目采用单仓结构，前后端代码与管理后台一起维护，适合个人站长、团队内部知识导航和二次开发。
 
-旧的 [uied-nav-frontend](https://github.com/Tomccc520/uied-nav-frontend) 和 [Gitee 前端仓库](https://gitee.com/tomdac/uied-nav-frontend) 仅保留作历史参考；当前完整项目以 `haouied` 为唯一开发主线。旧仓库 README 的源码链接已统一指向本仓，避免搜索流量落到失效页面。
+旧的 [uied-nav-frontend](https://github.com/Tomccc520/uied-nav-frontend) 和 [Gitee 前端仓库](https://gitee.com/tomdac/uied-nav-frontend) 保留作历史参考；当前完整项目以 `haouied` 为唯一开发主线。旧仓库会保留迁移提示，搜索访问可顺着链接回到本仓。
 
 ## 核心能力
 
@@ -56,9 +56,9 @@ UIED 导航系统聚合 AI 写作、绘画、视频、办公、设计、编程�
 git clone https://github.com/Tomccc520/haouied.git
 cd haouied
 
-cd server/server && npm install
-cd ../admin && npm install
-cd ../../frontend && npm install
+npm --prefix server/server install
+npm --prefix server/admin install
+npm --prefix frontend install
 ```
 
 ### 配置环境变量
@@ -66,6 +66,7 @@ cd ../../frontend && npm install
 ```bash
 cp frontend/.env.example frontend/.env
 cp docker/uied-api.env.example docker/uied-api.env
+cp server/server/config/config.local.example.js server/server/config/config.local.js
 ```
 
 请按部署方式填写数据库、Redis、站点域名和 Cookie 签名密钥。RSA 加密/签名接口使用 `UIED_RSA_PUBLIC_KEY` 与 `UIED_RSA_PRIVATE_KEY` 注入，仓库不提供共享私钥。生产环境必须设置独立随机的 `UIED_APP_KEYS`，并保持密钥文件在源码目录之外。
@@ -85,35 +86,30 @@ mysql -h127.0.0.1 -P3306 -u你的数据库用户 -p 你的数据库名 < server/
 
 ```bash
 # API 服务：http://localhost:8002
-cd server/server && npm run dev
+npm --prefix server/server run dev
 
 # 管理后台：http://localhost:5174
-cd ../admin && npm run dev
+npm --prefix server/admin run dev
 
 # 用户前端：http://localhost:3003
-cd ../../frontend && npm start
+npm --prefix frontend start
 ```
 
 安装向导会创建首个管理员账号。示例账号只用于本地演示，首次登录后必须立即修改密码；生产环境不要复用文档、镜像或历史备份中的凭据。
 
 ## 开源与商业边界
 
-本仓库默认使用 Free 开源模式：`UIED_REQUIRE_PAID_LICENSE_ACTIVATION=false`，不要求授权码即可完成安装。Pro / Enterprise 的能力矩阵仍由许可证和后台开关控制，商业部署可在环境变量中显式开启授权门禁。开源版不包含生产数据库、上传素材、授权文件或第三方服务密钥。
+本仓库默认使用 Free 开源模式：`UIED_REQUIRE_PAID_LICENSE_ACTIVATION=false`，不要求授权码即可完成安装，并开放自托管所需的完整功能。许可证中心、Pro / Enterprise 能力矩阵和授权门禁仍保留为可选的商业集成；商业部署可显式设置 `UIED_REQUIRE_PAID_LICENSE_ACTIVATION=true`。仓库不包含生产数据库、上传素材、授权文件或第三方服务密钥。
 
 MIT 许可证只覆盖 UIED 自有代码。依赖包、第三方图标/字体、抓取的站点内容和用户上传素材分别受其原始许可证或权利人约束，部署前请自行确认再分发权限。
 
 ## 文档
 
 - [安装与部署入口](INSTALL.md)
-- [Docker / 宝塔部署文档](docs/部署文档/README.md)
-- [开发指南](docs/开发文档/开发指南.md)
-- [项目结构说明](docs/开发文档/项目结构说明.md)
-- [数据库说明](docs/开发文档/数据库说明.md)
-- [测试指南](docs/开发文档/测试指南.md)
-- [登录系统说明](docs/功能文档/登录系统说明.md)
-- [开源版本准备清单](docs/商业文档/开源版本准备清单.md)
-- [Free / Pro 能力策略](docs/商业文档/开源版与Pro版区分策略.md)
-- [更新记录](docs/更新记录/1.1.4.md)
+- [安装与部署验证记录](docs/1.0.7-install-test.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全政策](SECURITY.md)
+- [机器可读项目说明](llms.txt)
 
 ## 流量与仓库运营
 

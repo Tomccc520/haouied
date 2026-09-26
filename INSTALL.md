@@ -9,17 +9,11 @@
 
 > 完整的安装和部署指南
 
-## 客户源码部署（推荐先读）
-
-- 面向售卖版客户的一键交付文档：[`docs/API/1.0.7版本客户安装部署指引-2026-03-17.md`](docs/API/1.0.7版本客户安装部署指引-2026-03-17.md)
-
----
-
 ## 📋 环境要求
 
-- **Node.js**: >= 16.0.0
+- **Node.js**: >= 20.0.0
 - **npm**: >= 8.0.0
-- **MySQL**: >= 5.6.5（推荐 5.7+）
+- **MySQL**: >= 5.7（推荐 8.0）
 - **Docker**: 可选（用于容器化 MySQL）
 - **操作系统**: Linux / macOS / Windows
 
@@ -88,12 +82,12 @@ PORT=3003
 
 ```bash
 # 方案A（默认）：Docker MySQL（使用你在 .env 中填写的密码）
-docker exec -i uied-mysql mysql -u uied -p uied_nav < server/sql/install.sql
-docker exec -i uied-mysql mysql -u uied -p uied_nav < server/sql/uied_tables.sql
+docker compose --env-file .env -f docker/docker-compose.mysql.yml exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < server/sql/install.sql
+docker compose --env-file .env -f docker/docker-compose.mysql.yml exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < server/sql/uied_tables.sql
 
 # 方案B（可选）：本机 MySQL / 宝塔 MySQL
-mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/install.sql
-mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/uied_tables.sql
+mysql -h127.0.0.1 -P3306 -u你的数据库用户 -p 你的数据库名 < server/sql/install.sql
+mysql -h127.0.0.1 -P3306 -u你的数据库用户 -p 你的数据库名 < server/sql/uied_tables.sql
 ```
 
 安装向导会创建首个管理员账号，请使用你自己的强密码。项目不再提供可直接登录的默认管理员密码。
@@ -104,16 +98,13 @@ mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/uied_tables.sql
 
 ```bash
 # 终端 1：启动后端 (Egg.js)
-cd server/server
-npm run dev
+npm --prefix server/server run dev
 
 # 终端 2：启动管理后台 (Vue 3)
-cd server/admin
-npm run dev
+npm --prefix server/admin run dev
 
 # 终端 3：启动前端 (React)
-cd frontend
-npm start
+npm --prefix frontend start
 ```
 
 #### 方式二：使用启动脚本
@@ -138,8 +129,7 @@ chmod +x start.sh
 
 ### MySQL（默认）
 
-项目支持 MySQL 5.6.5+（推荐 5.7+）数据库，默认连接项目内 Docker MySQL。
-如需使用 MySQL 5.6，请确保启用 `innodb_file_per_table`、`innodb_large_prefix` 与 `Barracuda` 行格式后再执行补丁脚本。
+项目支持 MySQL 5.7+（推荐 8.0）数据库，默认连接项目内 Docker MySQL。
 
 **数据库配置**：
 - 主机: `127.0.0.1`
@@ -180,7 +170,7 @@ docker logs uied-mysql
 docker compose --env-file .env -f docker/docker-compose.mysql.yml restart
 
 # 本机 MySQL（宝塔）检查
-mysql -h127.0.0.1 -P3306 -uroot -proot -e "SELECT VERSION();"
+mysql -h127.0.0.1 -P3306 -u你的数据库用户 -p -e "SELECT VERSION();"
 ```
 
 ### 3. 依赖安装失败
@@ -277,9 +267,9 @@ server {
 
 ## 📚 更多文档
 
-- [开发指南](docs/开发文档/开发指南.md)
-- [Docker / 宝塔部署入口](docs/部署文档/README.md)
-- [宝塔命令行部署（1.1.4）](docs/部署文档/宝塔命令行部署-1.1.4.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全政策](SECURITY.md)
+- [部署验证记录](docs/1.0.7-install-test.md)
 - [常见问题](https://github.com/Tomccc520/haouied/issues)
 
 ---
