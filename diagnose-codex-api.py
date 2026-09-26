@@ -12,12 +12,17 @@ Codex API 诊断脚本
 
 import requests
 import json
+import os
 
-API_KEY = '[REDACTED_SECRET]'
+# 仅从本地环境变量读取诊断密钥，避免把任何真实凭据写入源码或 Git 历史。
+API_KEY = os.getenv('CODEX_API_KEY', '').strip()
 BASE_URL = 'https://api-codex.pearktrue.cn/gateway'
 
 def test_endpoint(endpoint, data, description):
-    """测试单个端点"""
+    """测试单个端点。"""
+    if not API_KEY:
+        print('未设置 CODEX_API_KEY，跳过需要鉴权的请求。')
+        return False, None
     url = f"{BASE_URL}{endpoint}"
     headers = {
         'Content-Type': 'application/json',
@@ -163,4 +168,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

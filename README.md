@@ -1,321 +1,139 @@
-# 🌟 UIED 导航系统
+<!--
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-09-26
+ -->
 
-> 开源、免费、强大的设计师导航网站系统
+# UIED 导航系统
+
+> 一个开源、可自托管的 AI 与设计资源导航平台，包含 React 用户端、Vue 管理台和 Egg.js API。
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/Tomccc520/UIED-NAV.svg)](https://github.com/Tomccc520/UIED-NAV/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/Tomccc520/UIED-NAV.svg)](https://github.com/Tomccc520/UIED-NAV/network)
+[![GitHub Stars](https://img.shields.io/github/stars/Tomccc520/haouied.svg?style=social)](https://github.com/Tomccc520/haouied/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/Tomccc520/haouied.svg?style=social)](https://github.com/Tomccc520/haouied/network/members)
+[![在线体验](https://img.shields.io/badge/demo-hao.uied.cn-1677ff)](https://hao.uied.cn/?utm_source=github&utm_medium=readme&utm_campaign=open_source)
 
-[English](README.md) | [简体中文](README.md)
+**在线体验：** [hao.uied.cn](https://hao.uied.cn/?utm_source=readme&utm_medium=repository&utm_campaign=open_source) · **GitHub：** [Tomccc520/haouied](https://github.com/Tomccc520/haouied) · **Gitee：** [tomdac/haouied](https://gitee.com/tomdac/haouied)
 
----
+## 项目简介
 
-## 📖 项目简介
+UIED 导航系统聚合 AI 写作、绘画、视频、办公、设计、编程工具，以及 UI、字体、图标、配色和 3D 资源。项目采用单仓结构，前后端代码与管理后台一起维护，适合个人站长、团队内部知识导航和二次开发。
 
-UIED 导航系统是一个现代化的设计资源导航网站系统，采用前后端分离架构，提供完整的管理后台。
+旧的 [uied-nav-frontend](https://github.com/Tomccc520/uied-nav-frontend) 和 [Gitee 前端仓库](https://gitee.com/tomdac/uied-nav-frontend) 仅保留作历史参考；当前完整项目以 `haouied` 为唯一开发主线。旧仓库 README 的源码链接已统一指向本仓，避免搜索流量落到失效页面。
 
-### ✨ 核心特性
+## 核心能力
 
-- 🎨 **现代化设计**：简洁美观的用户界面
-- 🚀 **高性能**：React 19 + Egg.js，快速响应
-- 📱 **响应式**：完美支持移动端和桌面端
-- 🔧 **易于部署**：Docker 一键部署
-- 🎯 **功能完整**：网站管理、分类管理、SEO 优化等
-- 🔒 **安全可靠**：JWT 认证，数据加密
+- 分类、标签、页面和网址的增删改查，以及批量导入导出
+- AI 与设计资源导航、搜索建议、搜索历史和多维筛选
+- 热门推荐、榜单、Banner、文章与投稿等运营模块
+- Favicon 自动获取、SEO 配置、预渲染、Sitemap 与 robots
+- 用户、角色、权限、操作日志和后台数据统计
+- Docker / 宝塔部署，安装向导支持开源免授权模式
+- 网站点击次数与按日点击统计，可在后台复盘站内流量
 
----
+## 技术栈
 
-## 🎯 功能特性
+| 模块 | 技术 |
+| --- | --- |
+| 用户前端 | React 19、TypeScript、React Router 7、React Query、Zustand |
+| 管理后台 | Vue 3、TypeScript、Vite、Element Plus |
+| API 服务 | Egg.js、Sequelize、MySQL、Redis |
+| 部署 | Node.js 20、Docker、Nginx / 宝塔 |
 
-### 核心功能
-
-- ✅ 网站管理（增删改查）
-- ✅ 分类管理（含子分类）
-- ✅ 页面管理
-- ✅ 批量导入/导出
-- ✅ Favicon 自动获取
-- ✅ 基础搜索
-- ✅ 用户提交
-- ✅ SEO 设置
-- ✅ 站点配置
-- ✅ 热门推荐
-- ✅ 社交媒体集成
-
-### 管理功能
-
-- ✅ 用户管理
-- ✅ 权限管理
-- ✅ 数据统计
-- ✅ 操作日志
-- ✅ 系统设置
-- ✅ 网站监控
-- ✅ 数据导出
-- ✅ 文章管理
-- ✅ 评论管理
-
----
-
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
-- Node.js >= 16.0.0
-- npm >= 8.0.0
-- MySQL >= 5.6.5（推荐 5.7+）
-- Docker（可选，用于本地容器化数据库）
+- Node.js >= 20（前端、管理后台和 API 使用同一 Node 主版本）
+- npm >= 8
+- MySQL 5.7+（推荐 8.0）
+- Redis 6+（开发环境可使用 Docker）
 
-### 安装步骤
-
-#### 1. 克隆项目
+### 克隆与安装
 
 ```bash
-git clone https://github.com/Tomccc520/UIED-NAV.git
-cd UIED-NAV
+git clone https://github.com/Tomccc520/haouied.git
+cd haouied
+
+cd server/server && npm install
+cd ../admin && npm install
+cd ../../frontend && npm install
 ```
 
-#### 2. 准备 MySQL 数据库
+### 配置环境变量
 
 ```bash
-# 方案A（默认）：Docker 启动 MySQL（端口 3308）
-docker-compose -f docker/docker-compose.mysql.yml up -d
-
-# 方案B（可选）：本机 MySQL / 宝塔 MySQL（通过 UIED_DB_* 环境变量覆盖）
-# 确保已创建数据库 uied_nav，并具备读写权限
+cp frontend/.env.example frontend/.env
+cp docker/uied-api.env.example docker/uied-api.env
 ```
 
-#### 3. 安装依赖
+请按部署方式填写数据库、Redis、站点域名和 Cookie 签名密钥。RSA 加密/签名接口使用 `UIED_RSA_PUBLIC_KEY` 与 `UIED_RSA_PRIVATE_KEY` 注入，仓库不提供共享私钥。生产环境必须设置独立随机的 `UIED_APP_KEYS`，并保持密钥文件在源码目录之外。
+
+### 初始化数据库
+
+全新环境使用以下结构脚本：
 
 ```bash
-# 安装后端依赖
-cd server/server
-npm install
-
-# 安装管理后台依赖
-cd ../admin
-npm install
-
-# 安装前端依赖
-cd ../../frontend
-npm install
+mysql -h127.0.0.1 -P3306 -u你的数据库用户 -p 你的数据库名 < server/sql/install.sql
+mysql -h127.0.0.1 -P3306 -u你的数据库用户 -p 你的数据库名 < server/sql/uied_tables.sql
 ```
 
-### 仓库说明（重要）
+`server/sql/install.sql` 可能包含初始化表的清理语句，只能用于全新数据库。已有站点升级请按版本执行 `server/sql/patch_*.sql`，不要导入生产数据库快照。
 
-- 当前 `haouied` 采用单仓结构。
-- `frontend/` 目录已经并入根仓，前后端代码统一在同一个 Git 仓库中。
-- 日常开发、提交、推送都只需要操作根仓，不再需要单独处理前端子仓。
-
-#### 4. 配置环境变量
+### 启动服务
 
 ```bash
-# 前端配置
-cd frontend
-cp .env.example .env
-# 编辑 .env 文件，确保 API 地址正确
-# REACT_APP_API_URL=http://localhost:8002/api
+# API 服务：http://localhost:8002
+cd server/server && npm run dev
+
+# 管理后台：http://localhost:5174
+cd ../admin && npm run dev
+
+# 用户前端：http://localhost:3003
+cd ../../frontend && npm start
 ```
 
-#### 5. 导入初始数据
+安装向导会创建首个管理员账号。示例账号只用于本地演示，首次登录后必须立即修改密码；生产环境不要复用文档、镜像或历史备份中的凭据。
 
-```bash
-# 方案A（默认）：Docker MySQL
-docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/install.sql
-docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/uied_tables.sql
+## 开源与商业边界
 
-# 方案B（可选）：本机 MySQL / 宝塔 MySQL
-mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/install.sql
-mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/uied_tables.sql
-```
+本仓库默认使用 Free 开源模式：`UIED_REQUIRE_PAID_LICENSE_ACTIVATION=false`，不要求授权码即可完成安装。Pro / Enterprise 的能力矩阵仍由许可证和后台开关控制，商业部署可在环境变量中显式开启授权门禁。开源版不包含生产数据库、上传素材、授权文件或第三方服务密钥。
 
-#### 6. 启动服务
+MIT 许可证只覆盖 UIED 自有代码。依赖包、第三方图标/字体、抓取的站点内容和用户上传素材分别受其原始许可证或权利人约束，部署前请自行确认再分发权限。
 
-```bash
-# 启动后端（端口 8002）
-cd server/server
-npm run dev
+## 文档
 
-# 启动管理后台（端口 5174）
-cd ../admin
-npm run dev
+- [安装与部署入口](INSTALL.md)
+- [Docker / 宝塔部署文档](docs/部署文档/README.md)
+- [开发指南](docs/开发文档/开发指南.md)
+- [项目结构说明](docs/开发文档/项目结构说明.md)
+- [数据库说明](docs/开发文档/数据库说明.md)
+- [测试指南](docs/开发文档/测试指南.md)
+- [登录系统说明](docs/功能文档/登录系统说明.md)
+- [开源版本准备清单](docs/商业文档/开源版本准备清单.md)
+- [Free / Pro 能力策略](docs/商业文档/开源版与Pro版区分策略.md)
+- [更新记录](docs/更新记录/1.1.4.md)
 
-# 启动前端（端口 3003）
-cd ../../frontend
-npm start
-```
+## 流量与仓库运营
 
-#### 7. 访问系统
+站内网址点击会写入 `uied_website.click_count` 与 `uied_website_click_daily`，热门推荐和榜单按这些数据排序。仓库访问量属于 GitHub / Gitee 平台统计，需在对应仓库的 Insights 或管理后台查看；README 中的 Demo 链接使用 UTM 参数区分 GitHub、Gitee 和普通文档来源。
 
-| 服务 | 地址 | 说明 |
-|------|------|------|
-| 前端 | http://localhost:3003 | 用户访问的网站 |
-| 后端 | http://localhost:8002/api | RESTful API |
-| 管理后台 | http://localhost:5174 | 内容管理系统 |
+为了让开源流量回到当前主线，请在 GitHub 与 Gitee 仓库设置中同步以下信息：
 
-**默认管理员账号：**
-- 用户名: `admin`
-- 密码: `123456`
+- Description：`开源、可自托管的 AI 与设计资源导航系统（React + Vue + Egg.js）`
+- Topics / 标签：`ai-tools`、`design-resources`、`navigation`、`react`、`typescript`、`vue`、`eggjs`、`uied`
+- Homepage：`https://hao.uied.cn/`
+- GitHub 与 Gitee 的 README、About、站内页脚互相链接到 `haouied`
 
----
+## 贡献与安全
 
-## 📦 项目结构
+请先阅读 [贡献指南](CONTRIBUTING.md)。发现安全问题时不要公开提交 Issue，按 [安全政策](SECURITY.md) 联系维护团队，并删除日志、令牌、授权文件和数据库导出中的敏感信息后再提供复现材料。
 
-```
-uied-nav/
-├── docs/              # 📚 项目文档
-│   ├── 项目结构说明.md
-│   ├── 详情页跳转问题修复记录.md
-│   ├── 修复说明.md
-│   ├── 代码重构总结.md
-│   ├── 开发指南.md
-│   ├── 数据库说明.md
-│   └── ...
-├── scripts/           # 🔧 工具脚本
-│   ├── restart-frontend.sh      # 重启前端服务
-│   ├── diagnose.sh              # 诊断端口和 API 连接
-│   └── test_setting_api.sh     # 测试设置 API
-├── server/            # likeadmin 后端和管理后台
-│   ├── server/        # Egg.js API 服务 (端口 8002)
-│   │   ├── app/
-│   │   │   ├── controller/uied/  # UIED 业务控制器
-│   │   │   ├── service/uied/     # UIED 业务服务
-│   │   │   └── model/uied/       # UIED 数据模型
-│   │   └── config/
-│   └── admin/         # Vue 3 管理后台 (端口 5174)
-│       └── src/views/uied/       # UIED 管理页面
-├── frontend/          # React 用户前端 (端口 3003)
-│   ├── src/
-│   │   ├── components/    # 可复用组件
-│   │   ├── pages/         # 页面组件
-│   │   ├── hooks/         # 自定义 hooks
-│   │   ├── services/      # API 调用服务
-│   │   └── utils/         # 工具函数
-│   │       └── urlUtils.ts  # ⭐ 统一 URL 处理工具
-│   └── public/
-├── docker/            # Docker 配置
-│   └── docker-compose.mysql.yml
-├── data/              # 数据备份
-│   └── mysql_backup_*.sql
-├── start.sh           # 🚀 一键启动脚本
-└── README.md
-```
+## 许可证
+
+本项目采用 [MIT License](LICENSE)。
 
 ---
 
-## 🛠️ 技术栈
-
-### Frontend（前端用户界面）
-- React 19
-- TypeScript
-- React Router v7
-- Zustand + React Query
-- 原生 CSS
-
-### Backend（后端 API）
-- Egg.js (likeadmin)
-- Sequelize ORM
-- MySQL 5.6.5+（推荐 5.7+）
-- JWT 认证
-
-### Admin（管理后台）
-- Vue 3 + TypeScript
-- Element Plus
-- Vite
-
-### Database（数据库）
-- MySQL 5.6.5+（推荐 5.7+；5.6 建议开启 large_prefix 与 Barracuda）
-- Docker（可选）
-
----
-
-## 📚 文档
-
-### 开发文档
-- 📖 [项目结构说明](docs/项目结构说明.md) - 目录结构、重要文件、开发规范
-- 📖 [开发指南](docs/开发指南.md) - 项目结构、API说明、学习要点
-- 🗄️ [数据库说明](docs/数据库说明.md) - 数据表结构、备份方案
-- 🔐 [登录系统说明](docs/登录系统说明.md) - 认证流程、安全措施
-
-### 部署文档
-- 🚀 [宝塔部署指南](docs/宝塔部署教程.md) - 生产环境部署步骤
-- 🐳 [Docker部署指南](docs/Docker部署教程.md) - Docker 部署步骤
-- 📦 [1.0.7客户安装部署指引](docs/API/1.0.7版本客户安装部署指引-2026-03-17.md) - 面向客户交付的最短安装流程（Node + React + MySQL）
-
-### 测试文档
-- 🧪 [测试指南](docs/测试指南.md) - 功能测试、API测试
-
-### 问题修复记录
-- 🔧 [详情页跳转问题修复记录](docs/详情页跳转问题修复记录.md) - 详情页功能修复过程
-- 🔧 [修复说明](docs/修复说明.md) - CORS 错误和端口配置修复
-- 🔧 [代码重构总结](docs/代码重构总结.md) - 代码架构优化说明
-
-### 其他文档
-- 📊 [项目总结](docs/项目总结.md) - 功能清单、技术栈
-- 💼 [商业化规划](docs/商业化规划.md) - 开源+商业化策略
-
-## 🔧 工具脚本
-
-项目提供了一些实用脚本，位于 `scripts/` 目录：
-
-```bash
-# 重启前端服务
-./scripts/restart-frontend.sh
-
-# 诊断端口和 API 连接问题
-./scripts/diagnose.sh
-
-# 测试设置 API
-./scripts/test_setting_api.sh
-```
-
----
-
-## 🤝 贡献
-
-欢迎贡献代码！请遵循以下步骤：
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'feat: Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-### 提交规范
-
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 代码重构
-- `test`: 添加测试
-- `chore`: 构建工具或辅助工具的变动
-
----
-
-## 📄 开源协议
-
-本项目采用 [MIT](LICENSE) 协议。
-
----
-
-## 🔗 相关链接
-
-- [官网](https://fsuied.com)
-- [GitHub](https://github.com/Tomccc520/UIED-NAV)
-- [Gitee](https://gitee.com/tomdac/uied-nav)
-
----
-
-## 💖 支持项目
-
-如果这个项目对你有帮助，请给个 ⭐️ Star 支持一下！
-
----
-
-## 📧 联系方式
-
-- 作者：Tomda
-- 网站：https://fsuied.com
-
----
-
-**© 2026 UIED技术团队. All Rights Reserved.**
+**© 2026 UIED 技术团队 · [官网](https://fsuied.com/) · [在线体验](https://hao.uied.cn/)**

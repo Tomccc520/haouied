@@ -16,7 +16,7 @@ class FrontendService extends Service {
   /**
    * 规范化热门搜索模式，避免异常值影响前台渲染策略。
    * @param {unknown} mode 热门搜索模式
-   * @return {'custom_only'|'dynamic_only'|'custom_then_dynamic'}
+   * @return {'custom_only'|'dynamic_only'|'custom_then_dynamic'} 规范化后的热门搜索模式
    */
   normalizeHotSearchMode(mode) {
     const normalized = String(mode || '').trim().toLowerCase();
@@ -31,7 +31,7 @@ class FrontendService extends Service {
    * @param {number} fallback 默认值
    * @param {number} min 最小值
    * @param {number} max 最大值
-   * @return {number}
+   * @return {number} 限制范围内的数值
    */
   normalizeHotSearchNumber(value, fallback, min, max) {
     const next = Number.parseInt(String(value), 10);
@@ -43,7 +43,7 @@ class FrontendService extends Service {
    * 解析页面热门搜索配置，统一兜底并输出可直接用于计算的结构。
    * @param {Object} page 页面原始记录
    * @param {number} fallbackLimit 接口 limit 兜底值
-   * @return {{mode:string,fixedCount:number,dynamicCount:number,windowDays:number,minScore:number,totalLimit:number}}
+   * @return {{mode:string,fixedCount:number,dynamicCount:number,windowDays:number,minScore:number,totalLimit:number}} 规范化后的页面热门搜索配置
    */
   resolvePageHotTagConfig(page = {}, fallbackLimit = 10) {
     const fixedCount = this.normalizeHotSearchNumber(page?.hot_search_fixed_count, 4, 0, 20);
@@ -64,7 +64,7 @@ class FrontendService extends Service {
    * @param {string} slug 页面 slug
    * @param {number[]} categoryIds 页面分类 ID 列表
    * @param {Object} config 热门搜索配置
-   * @return {string}
+   * @return {string} 热门搜索缓存 Key
    */
   buildPageHotTagsCacheKey(slug, categoryIds = [], config = {}) {
     const categoryKey = this.normalizeCategoryIdList(categoryIds).join('-') || 'none';
@@ -91,7 +91,7 @@ class FrontendService extends Service {
    * 计算“最近 N 天”起始日期（YYYYMMDD）。
    * 统一使用 Asia/Shanghai，避免生产机时区不同导致热门标签窗口偏移。
    * @param {number} windowDays 窗口天数
-   * @return {number}
+   * @return {number} 上海时区下的起始日期
    */
   resolveMetricDateLowerBound(windowDays = 7) {
     const safeWindowDays = this.normalizeHotSearchNumber(windowDays, 7, 1, 30);

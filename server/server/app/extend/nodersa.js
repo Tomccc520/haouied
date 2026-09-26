@@ -9,15 +9,36 @@ const privateKey = rsa.privateKey; // 私钥
 // console.log(publicKey)
 // console.log(privateKey)
 
-// 使用公钥加密
+/**
+ * 校验 RSA 密钥是否已由部署环境注入。
+ * @param {'public'|'private'} type 要使用的密钥类型
+ * @returns {string} 已校验的密钥
+ */
+function requireKey(type) {
+  const value = type === 'private' ? privateKey : publicKey;
+  if (!value) {
+    throw new Error(`未配置 UIED_RSA_${type === 'private' ? 'PRIVATE' : 'PUBLIC'}_KEY`);
+  }
+  return value;
+}
+
+/**
+ * 使用公钥加密数据。
+ * @param {string|Buffer} data 待加密数据
+ * @returns {Promise<string>} Base64 密文
+ */
 async function rsaEncrypt(data) {
-  const pubKey = new nodeRSA(publicKey, 'pkcs8-public');
+  const pubKey = new nodeRSA(requireKey('public'), 'pkcs8-public');
   return pubKey.encrypt(Buffer.from(data), 'base64');
 }
 
-// 使用私钥解密
+/**
+ * 使用私钥解密数据。
+ * @param {string} data Base64 密文
+ * @returns {Promise<string>} 解密后的文本
+ */
 async function rsaDecrypt(data) {
-  const priKey = new nodeRSA(privateKey);
+  const priKey = new nodeRSA(requireKey('private'));
   priKey.setOptions({ encryptionScheme: 'pkcs1' }); // 因为jsencrypt自身使用的是pkcs1加密方案, nodejs需要修改成pkcs1。
   return priKey.decrypt(data, 'utf8');
 }
@@ -33,14 +54,25 @@ async function rsaDecrypt(data) {
 */
 
 // 使用私钥对消息签名
+/**
+ * 使用私钥对消息签名。
+ * @param {string|Buffer} data 待签名数据
+ * @returns {string} 十六进制签名
+ */
 function signRSA(data) {
-  const priKey = new nodeRSA(privateKey, 'pkcs8-private');
+  const priKey = new nodeRSA(requireKey('private'), 'pkcs8-private');
   return priKey.sign(Buffer.from(data), 'hex');
 }
 
 // 使用公钥验证签名
+/**
+ * 使用公钥验证消息签名。
+ * @param {string|Buffer} decrypt 原始消息
+ * @param {string} signs 十六进制签名
+ * @returns {boolean} 签名是否有效
+ */
 function verifyRSA(decrypt, signs) {
-  const pubKey = new nodeRSA(publicKey, 'pkcs8-public');
+  const pubKey = new nodeRSA(requireKey('public'), 'pkcs8-public');
   return pubKey.verify(Buffer.from(decrypt), signs, 'utf8', 'hex');
 }
 

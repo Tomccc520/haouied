@@ -158,6 +158,8 @@ const InstallPage: React.FC = () => {
     database: '',
   });
   const licenseCheckPassed = Boolean(licenseCheckResult?.valid);
+  const activationRequired = statusData?.activationRequired !== false;
+  const licenseStepPassed = !activationRequired || licenseCheckPassed;
   const dbReady = Boolean(dbTestResult?.success);
   const installed = Boolean(statusData?.installed);
 
@@ -167,11 +169,11 @@ const InstallPage: React.FC = () => {
   const canInitialize = useMemo(() => {
     if (!envData?.canInstall) return false;
     if (statusData?.installed) return false;
-    if (!licenseCheckPassed) return false;
+    if (!licenseStepPassed) return false;
     if (!formData.adminUsername.trim() || !formData.adminPassword.trim()) return false;
     if (formData.adminPassword !== formData.confirmPassword) return false;
     return true;
-  }, [envData, statusData, formData, licenseCheckPassed]);
+  }, [envData, statusData, formData, licenseStepPassed]);
 
   /**
    * 顶部摘要卡片数据：统一展示当前安装阶段、环境状态和默认数据导入策略。
@@ -179,8 +181,8 @@ const InstallPage: React.FC = () => {
   const heroMetrics = useMemo(() => ([
     {
       label: '当前阶段',
-      value: resolveCurrentInstallStage(installed, licenseCheckPassed, dbReady),
-      tone: installed ? 'success' : (licenseCheckPassed ? 'active' : 'pending'),
+      value: resolveCurrentInstallStage(installed, licenseStepPassed, dbReady),
+      tone: installed ? 'success' : (licenseStepPassed ? 'active' : 'pending'),
     },
     {
       label: '环境状态',
@@ -192,7 +194,7 @@ const InstallPage: React.FC = () => {
       value: formData.importDemoData ? '首装自动导入演示内容' : '首装后手动配置内容',
       tone: formData.importDemoData ? 'active' : 'pending',
     },
-  ]), [dbReady, envData, envLoading, formData.importDemoData, installed, licenseCheckPassed]);
+  ]), [dbReady, envData, envLoading, formData.importDemoData, installed, licenseStepPassed]);
 
   /**
    * 安装摘要清单：放在左侧侧栏，帮助客户快速理解交付包能力。
@@ -338,15 +340,15 @@ const InstallPage: React.FC = () => {
    * 根据当前安装进度自动收敛到推荐步骤，但不再使用锚点跳转，避免页面抖动。
    */
   useEffect(() => {
-    const nextStep = resolveRecommendedStep(installed, licenseCheckPassed, dbReady);
+    const nextStep = resolveRecommendedStep(installed, licenseStepPassed, dbReady);
     setActiveStep(prev => {
       if (installed) return 'initialize';
-      if (!licenseCheckPassed) return 'license';
-      if (prev === 'license' && licenseCheckPassed) return nextStep;
+      if (!licenseStepPassed) return 'license';
+      if (prev === 'license' && licenseStepPassed) return nextStep;
       if (prev === 'database' && dbReady) return nextStep;
       return prev;
     });
-  }, [dbReady, installed, licenseCheckPassed]);
+  }, [dbReady, installed, licenseStepPassed]);
 
   /**
    * 更新表单字段
@@ -435,11 +437,11 @@ const InstallPage: React.FC = () => {
    */
   const handleInitialize = async () => {
     if (!canInitialize || submitLoading) return;
-    if (!licenseCheckPassed) {
+    if (!licenseStepPassed) {
       setErrorMessage('请先完成授权码校验，通过后再执行初始化');
       return;
     }
-    if (!formData.licenseKey.trim()) {
+    if (activationRequired && !formData.licenseKey.trim()) {
       setErrorMessage('请先填写授权码 Key');
       return;
     }

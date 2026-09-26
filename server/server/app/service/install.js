@@ -377,6 +377,7 @@ class InstallService extends Service {
       adminCount,
       installState: installState || null,
       wizardVersion: this.getWizardVersion(),
+      activationRequired: this.app.config.uiedRequirePaidLicenseActivation !== false,
       now: Math.floor(Date.now() / 1000),
     };
   }
@@ -432,7 +433,7 @@ class InstallService extends Service {
     if (adminPassword.length < 6 || adminPassword.length > 32) {
       throw new Error('管理员密码长度需在6-32位之间');
     }
-    if (!licenseKey) {
+    if (!licenseKey && this.app.config.uiedRequirePaidLicenseActivation !== false) {
       throw new Error('安装时必须填写授权码 Key');
     }
     if (adminEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
@@ -487,6 +488,19 @@ class InstallService extends Service {
    */
   async checkLicenseActivation(payload = {}) {
     const { ctx } = this;
+    if (ctx.app.config.uiedRequirePaidLicenseActivation === false) {
+      return {
+        valid: true,
+        edition: 'free',
+        status: 'active',
+        licenseKeyMasked: '',
+        bindDomain: String(payload?.bindDomain || '').trim(),
+        projectCode: '',
+        domainLimit: 1,
+        domainWhitelist: [],
+        checkedAt: Math.floor(Date.now() / 1000),
+      };
+    }
     const normalized = this.normalizeLicenseCheckPayload(payload);
     const licenseCenterService = ctx.service.uied.licenseCenter;
     const remotePayload = await licenseCenterService.fetchLicensePayloadByKey(
@@ -895,10 +909,12 @@ class InstallService extends Service {
      * 1. 激活失败直接终止，避免产生“已创建管理员但未授权”的半安装状态
      * 2. 激活成功后再继续站点与管理员初始化
      */
-    const licenseInfo = await ctx.service.uied.licenseCenter.activateLicenseByKey({
-      licenseKey: normalized.licenseKey,
-      bindDomain: normalized.bindDomain,
-    });
+    const licenseInfo = ctx.app.config.uiedRequirePaidLicenseActivation === false
+      ? await ctx.service.uied.licenseCenter.getLicenseInfo()
+      : await ctx.service.uied.licenseCenter.activateLicenseByKey({
+        licenseKey: normalized.licenseKey,
+        bindDomain: normalized.bindDomain,
+      });
 
     const roleId = await this.resolveRoleId(normalized.roleId);
     const adminResult = await this.upsertAdminAccount({

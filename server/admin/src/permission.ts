@@ -46,7 +46,9 @@ async function ensurePaidLicenseActivated(force = false): Promise<boolean> {
     activationCheckPending = (async () => {
         try {
             const data = await uiedLicenseInfo()
-            const activated = data?.isPaidEdition === true && data?.isActive === true
+            // 免授权发行包关闭付费激活门禁时，允许直接进入后台；付费版本仍校验 Pro/Enterprise 授权。
+            const activationRequired = data?.activationRequired !== false
+            const activated = !activationRequired || (data?.isPaidEdition === true && data?.isActive === true)
             lastLicenseStatus = String(data?.status || '')
                 .trim()
                 .toLowerCase()

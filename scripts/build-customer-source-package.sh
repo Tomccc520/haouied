@@ -13,6 +13,8 @@ VERSION="${UIED_RELEASE_VERSION:-$DEFAULT_VERSION}"
 OUTPUT_DIR="${UIED_RELEASE_OUTPUT_DIR:-$ROOT_DIR/release/客户部署包}"
 OUTPUT_DIR_EXPLICIT=0
 PACKAGE_ROOT="uied-nav-${VERSION}"
+PACKAGE_KIND="customer-source"
+NO_LICENSE_MODE=0
 WORK_DIR="$OUTPUT_DIR/.package-work"
 STAGE_DIR="$WORK_DIR/$PACKAGE_ROOT"
 PACKAGE_FILE="$OUTPUT_DIR/uied-nav-${VERSION}-customer-source.tgz"
@@ -55,6 +57,7 @@ UIED-NAV 客户源码包构建脚本
 选项:
   --version 1.1.4       显式确认版本号，必须与根目录 VERSION 一致
   --output /abs/path    指定输出目录，默认 release/客户部署包
+  --no-license          生成免授权源码包，默认使用 Free 能力集且不要求激活
   -h, --help            显示帮助
 
 说明:
@@ -88,6 +91,11 @@ parse_args() {
         SHA_FILE="$PACKAGE_FILE.sha256"
         shift 2
         ;;
+      --no-license)
+        NO_LICENSE_MODE=1
+        PACKAGE_KIND="unlicensed-source"
+        shift
+        ;;
       -h|--help)
         print_help
         exit 0
@@ -99,6 +107,8 @@ parse_args() {
         ;;
     esac
   done
+  PACKAGE_FILE="$OUTPUT_DIR/uied-nav-${VERSION}-${PACKAGE_KIND}.tgz"
+  SHA_FILE="$PACKAGE_FILE.sha256"
 }
 
 # 清理本次构建临时目录，限定在输出目录内，避免误删项目文件。
@@ -211,13 +221,35 @@ strip_macos_metadata_from_stage() {
   fi
 }
 
+# 将免授权发行包的部署模板切换为 Free 免激活模式，不改变商业版默认模板。
+configure_no_license_stage() {
+  if [[ "$NO_LICENSE_MODE" -ne 1 ]]; then return; fi
+  local env_file
+  for env_file in \
+    "$STAGE_DIR/docker/uied-api.env.example" \
+    "$STAGE_DIR/scripts/deploy/baota/uied-api.env.example"; do
+    if [[ -f "$env_file" ]]; then
+      sed -i.bak 's/^UIED_REQUIRE_PAID_LICENSE_ACTIVATION=true$/UIED_REQUIRE_PAID_LICENSE_ACTIVATION=false/' "$env_file"
+      rm -f "$env_file.bak"
+    fi
+  done
+}
+
 # 写入客户包清单，方便客户和交付人员核对。
 write_package_manifest() {
+  local package_title package_note
+  if [[ "$NO_LICENSE_MODE" -eq 1 ]]; then
+    package_title="免授权客户源码包"
+    package_note="- 运行模式：Free，无需授权码、授权文件或远程激活"
+  else
+    package_title="客户源码包"
+    package_note="- 包类型：customer-source"
+  fi
   cat > "$STAGE_DIR/RELEASE-PACKAGE.md" <<EOF
-# UIED-NAV ${VERSION} 客户源码包
+# UIED-NAV ${VERSION} ${package_title}
 
 - 生成时间：$(date '+%Y-%m-%d %H:%M:%S')
-- 包类型：customer-source
+- ${package_note#- }
 - 默认排除：node_modules、release、.git、根目录 data、运行时导出数据、本地授权文件、.env、密钥、日志、数据库备份
 
 ## 部署提醒
@@ -225,7 +257,7 @@ write_package_manifest() {
 1. 宝塔 Docker 统一入口：\`scripts/deploy/docker/deploy.sh\`，已有 \`uied-api\` 自动原地升级，全新环境才构建镜像。
 2. PM2 兼容入口：\`scripts/deploy/baota/deploy.sh\`。
 3. 全新空数据库初始化：\`scripts/deploy/baota/init-database.sh\`，老客户禁止执行。
-4. 客户部署后再放入授权文件：\`shared/licenses/*.license\` 或已配置的授权目录。
+4. 通用包客户部署后按交付约定放入授权文件；免授权包不需要放置任何授权文件。
 5. 老客户只补星流短链可执行：\`server/sql/patch_2026_0609_seo_xingliu_redirect.sql\`。
 6. 客户站不要配置签发端密钥，不要开启本地自签：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
 7. 发包前可执行：\`node scripts/release-doctor.js --scan-release-archives\`。
@@ -234,6 +266,32 @@ EOF
 
 # 覆盖源码包根安装说明，避免客户被旧开发文档或签发端密钥说明误导。
 write_customer_install_docs() {
+  if [[ "$NO_LICENSE_MODE" -eq 1 ]]; then
+    cat > "$STAGE_DIR/INSTALL.md" <<EOF
+# UIED-NAV ${VERSION} 免授权源码包安装入口
+
+本包是 Free 免授权发行版，客户部署后不需要授权码、许可证文件或远程激活。
+
+## 快速步骤
+
+1. 解压源码包：\`tar -xzf uied-nav-${VERSION}-unlicensed-source.tgz\`。
+2. 创建全新 MySQL 数据库，字符集使用 \`utf8mb4\`。
+3. 执行：\`./scripts/deploy/docker/deploy.sh --domain 你的域名\`。
+4. 首次运行填写数据库配置后，再次执行同一条命令；已有 \`uied-api\` 的客户使用原地安全升级模式。
+5. 将生成的 Nginx 配置应用到宝塔站点并重载 Nginx。
+
+## 免授权运行规则
+
+- 环境变量必须设置：\`UIED_REQUIRE_PAID_LICENSE_ACTIVATION=false\`。
+- 保持：\`UIED_ENABLE_LOCAL_LICENSE_SIGN=false\`。
+- 不需要配置 \`UIED_LICENSE_ACTIVATE_TOKEN\`、\`UIED_LICENSE_SIGN_SECRET\` 或 \`UIED_LICENSE_API_SIGN_SECRET\`。
+- 不需要创建或上传 \`shared/licenses/*.license\`。
+- 本包使用 Free 能力集；Pro/Enterprise 专属功能不会因免授权而开放。
+
+> \`server/sql/install.sql\` 包含 DROP TABLE。老客户升级禁止运行数据库初始化脚本，只执行版本对应补丁。
+EOF
+    return
+  fi
   cat > "$STAGE_DIR/INSTALL.md" <<EOF
 # UIED-NAV ${VERSION} 客户安装入口
 
@@ -319,6 +377,7 @@ main() {
   cleanup_workdir
   sync_source_to_stage
   strip_macos_metadata_from_stage
+  configure_no_license_stage
   write_package_manifest
   write_customer_install_docs
   create_archive

@@ -3138,10 +3138,10 @@ const defaultBrandConfigData = {
     changelogRepoLinks: [
         {
             name: 'GitHub 仓库',
-            url: 'https://github.com/Tomccc520/UIED-NAV',
+            url: 'https://github.com/Tomccc520/haouied',
             iconKey: 'github'
         },
-        { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/uied-nav', iconKey: 'gitee' },
+        { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/haouied', iconKey: 'gitee' },
         {
             name: 'CSDN 博客',
             url: 'https://blog.csdn.net/Tomdac?spm=1000.2115.3001.5343',

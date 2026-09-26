@@ -1292,6 +1292,7 @@ class LicenseCenterService extends Service {
     const raw = await ctx.service.uied.setting.get(LICENSE_INFO_KEY);
     const mode = await this.getCommercialMode();
     const now = Math.floor(Date.now() / 1000);
+    const activationRequired = ctx.app.config.uiedRequirePaidLicenseActivation !== false;
     const defaults = {
       edition: 'free',
       status: 'active',
@@ -1403,6 +1404,7 @@ class LicenseCenterService extends Service {
       domainUsedCount: domainAuth.domainUsedCount,
       domainRemainingCount: domainAuth.domainRemainingCount,
       registeredDomains: domainAuth.registeredDomains,
+      activationRequired,
       now,
     };
   }
@@ -1419,6 +1421,7 @@ class LicenseCenterService extends Service {
       isActive: licenseInfo.isActive === true,
       isExpired: licenseInfo.isExpired === true,
       isPaidEdition: licenseInfo.isPaidEdition === true,
+      activationRequired: licenseInfo.activationRequired !== false,
       expiresAt: Number(licenseInfo.expiresAt || 0) || 0,
       now: Number(licenseInfo.now || Math.floor(Date.now() / 1000)),
     };
@@ -1766,17 +1769,20 @@ class LicenseCenterService extends Service {
     const matrix = this.getFeatureMatrix();
     const licenseInfo = await this.getLicenseInfo();
     const overrides = await this.getFeatureOverrides();
+    const openSourceMode = this.app?.config?.uiedRequirePaidLicenseActivation === false;
     const paidEditionActive = this.isPaidEdition(licenseInfo.effectiveEdition);
     /**
      * 商业售卖策略：
      * 1. Pro / Enterprise 均开放全部功能
      * 2. Free 仅保留免费能力
      */
-    const baseSet = new Set([
-      ...matrix.free,
-      ...(paidEditionActive ? matrix.pro : []),
-      ...(paidEditionActive ? matrix.enterprise : []),
-    ]);
+    const baseSet = new Set(openSourceMode
+      ? [ ...matrix.free, ...matrix.pro, ...matrix.enterprise ]
+      : [
+        ...matrix.free,
+        ...(paidEditionActive ? matrix.pro : []),
+        ...(paidEditionActive ? matrix.enterprise : []),
+      ]);
 
     // 当前策略：许可证优先，后台开关用于“关闭”功能，不提升许可证等级能力
     Object.keys(overrides).forEach(key => {
@@ -1785,7 +1791,7 @@ class LicenseCenterService extends Service {
       }
     });
 
-    return { featureSet: baseSet, licenseInfo, overrides };
+    return { featureSet: baseSet, licenseInfo, overrides, openSourceMode };
   }
 
   /**
@@ -1793,10 +1799,10 @@ class LicenseCenterService extends Service {
    */
   async getFeatureList() {
     const catalog = this.getFeatureCatalog();
-    const { featureSet, licenseInfo, overrides } = await this.resolveEffectiveFeatureSet();
+    const { featureSet, licenseInfo, overrides, openSourceMode } = await this.resolveEffectiveFeatureSet();
     const rows = catalog.map(item => {
       const enabled = featureSet.has(item.key);
-      let source = 'license';
+      let source = openSourceMode ? 'open_source' : 'license';
       if (Object.prototype.hasOwnProperty.call(overrides, item.key) && overrides[item.key] === false) {
         source = 'override_off';
       }

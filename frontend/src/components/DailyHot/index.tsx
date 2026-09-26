@@ -147,7 +147,7 @@ const DailyHot: React.FC<DailyHotProps> = ({
     };
 
     fetchHotList();
-  }, [activePlatform, limit, refreshKey, platforms]);
+  }, [activePlatform, errorText, limit, refreshKey, platforms]);
 
   const handlePlatformChange = (platformTitle: string) => {
     if (platformTitle === activePlatform) return;

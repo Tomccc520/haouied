@@ -1340,8 +1340,8 @@ class SettingService extends Service {
       changelogAuthorDescription: '开发（AI协助）并记录 UIED-NAV 的开发历程和功能更新。公众号：Tomda',
       changelogBuyButtonText: '购买源码授权',
       changelogRepoLinks: [
-        { name: 'GitHub 仓库', url: 'https://github.com/Tomccc520/UIED-NAV', iconKey: 'github' },
-        { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/uied-nav', iconKey: 'gitee' },
+        { name: 'GitHub 仓库', url: 'https://github.com/Tomccc520/haouied', iconKey: 'github' },
+        { name: 'Gitee 仓库', url: 'https://gitee.com/tomdac/haouied', iconKey: 'gitee' },
         { name: 'CSDN 博客', url: 'https://blog.csdn.net/Tomdac?spm=1000.2115.3001.5343', iconKey: 'csdn' },
         { name: 'UIED技术团队', url: 'https://fsuied.com/', iconKey: 'uied' },
       ],

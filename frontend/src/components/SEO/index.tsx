@@ -160,7 +160,8 @@ const SEO: React.FC<SEOProps> = ({
   const resolvedKeywords = String(keywords || defaultKeywords).trim() || defaultKeywords;
   const defaultShareImage = (() => {
     const origin = getRuntimeOrigin();
-    return origin ? `${origin}/og-image.jpg` : '/og-image.jpg';
+    // 使用仓库内确定存在的品牌图标作为默认分享图，避免社交抓取器命中 404。
+    return origin ? `${origin}/logo512.png` : '/logo512.png';
   })();
   const resolvedImage = toRuntimeAbsoluteUrl(String(image || defaultShareImage), defaultShareImage);
   const defaultCanonicalUrl = (() => {

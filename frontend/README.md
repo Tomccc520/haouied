@@ -1,4 +1,11 @@
-# UIED 设计资源导航网站
+<!--
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-09-26
+ -->
+
+# UIED 导航系统用户前端
 
 **现代化的设计资源与AI工具导航平台** - 为设计师和开发者提供精选的工具和资源。
 
@@ -66,8 +73,8 @@ npm run build:seo
 ## 🏗️ 技术架构
 
 ### 前端技术栈
-- **React 18** + **TypeScript** - 现代化类型安全开发
-- **React Router 6** - 单页应用路由管理
+- **React 19** + **TypeScript** - 现代化类型安全开发
+- **React Router 7** - 单页应用路由管理
 - **自定义Hook** - 逻辑复用和状态管理
 - **CSS Modules** - 组件化样式管理
 
@@ -154,4 +161,5 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ---
 
-**UIED技术团队** © 2025 | [官网](https://fsuied.com) | [GitHub](https://github.com/uied-nav-frontend)
+本目录是 [`haouied`](https://github.com/Tomccc520/haouied) 单仓的一部分。
+**UIED技术团队** © 2026 | [官网](https://fsuied.com) | [在线体验](https://hao.uied.cn/) | [Gitee](https://gitee.com/tomdac/haouied)

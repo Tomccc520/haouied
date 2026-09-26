@@ -2,9 +2,13 @@
 User-agent: *
 Allow: /
 
-# 搜索页面应该被索引，但需要正确处理
-Allow: /search
+# 账户、安装向导和接口响应不属于公开内容
+Disallow: /admin
+Disallow: /profile
+Disallow: /install
+Disallow: /auth
+Disallow: /api
 
 # Sitemap
-Sitemap: /sitemap.xml
-Sitemap: /sitemap-advanced.xml
+Sitemap: https://hao.uied.cn/sitemap.xml
+Sitemap: https://hao.uied.cn/sitemap-advanced.xml

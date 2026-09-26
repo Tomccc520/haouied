@@ -19,6 +19,10 @@ npm-debug.log*
 *.db
 *.db-journal
 *.db.backup*
+data/*
+!data/.gitkeep
+!data/migration_*.sql
+!data/README.md
 
 # 构建产物
 dist/
@@ -28,10 +32,17 @@ release/
 # 上传文件
 backend/uploads/*
 !backend/uploads/.gitkeep
+server/server/app/public/uploads/*
+!server/server/app/public/uploads/.gitkeep
+server/server/config/config.local.js
+server/.module_backup/
+server/.module_report/
 
 # 导出文件
 backend/exports/*
 !backend/exports/.gitkeep
+server/server/exports/*.json
+!server/server/exports/.gitkeep
 
 # 子项目的 Git 目录（避免嵌套仓库）
 backend/.git/
@@ -39,6 +50,8 @@ admin/.git/
 
 # 测试覆盖率
 coverage/
+__pycache__/
+*.pyc
 
 # Kiro 配置和文档（仅放行 API 对接文档）
 .kiro/
@@ -51,14 +64,12 @@ coverage/
 !/docs/部署文档/
 /docs/部署文档/*
 !/docs/部署文档/README.md
+!/docs/部署文档/宝塔命令行部署-1.1.3.md
 !/docs/部署文档/宝塔命令行部署-1.1.4.md
 !/docs/更新记录/
 /docs/更新记录/*
 !/docs/更新记录/1.1.4.md
 /docs/API/reports/*.json
-
-# 开发工具脚本
-add_copyright.py
 
 # 本地 AI/IDE 工具目录（仅本机使用，不入库）
 .agents/

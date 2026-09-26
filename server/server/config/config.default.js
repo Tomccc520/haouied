@@ -26,7 +26,8 @@ module.exports = appInfo => {
     };
 
     // use for cookie sign key, should change to your own and keep security
-    config.keys = appInfo.name + '_1634002379446_8360';
+    // Cookie 签名密钥必须由部署环境注入，开发环境也应使用独立随机值。
+    config.keys = process.env.UIED_APP_KEYS || `${appInfo.name}_change_me_in_development`;
 
     // add your middleware config here
     config.middleware = ['authority', 'seoRewrite', 'auth', 'commercialActivationGuard', 'systemResponseNormalizer'];
@@ -86,8 +87,8 @@ module.exports = appInfo => {
     config.uiedLicenseActivateTimeout = Number(process.env.UIED_LICENSE_ACTIVATE_TIMEOUT || 10000) || 10000;
     // 按授权码激活：本地联调时是否允许不安全 TLS（仅开发环境建议开启）
     config.uiedLicenseActivateAllowInsecureTls = String(process.env.UIED_LICENSE_ACTIVATE_ALLOW_INSECURE_TLS || '').trim().toLowerCase() === 'true';
-    // 是否要求安装后先导入付费许可证再使用后台业务能力（默认开启）
-    config.uiedRequirePaidLicenseActivation = String(process.env.UIED_REQUIRE_PAID_LICENSE_ACTIVATION || 'true').trim().toLowerCase() !== 'false';
+    // 是否要求安装后先导入付费许可证再使用后台业务能力；开源版默认关闭，商业部署显式设为 true。
+    config.uiedRequirePaidLicenseActivation = String(process.env.UIED_REQUIRE_PAID_LICENSE_ACTIVATION || 'false').trim().toLowerCase() === 'true';
 
     /**
      * 解析上传目录绝对路径（支持传 uploads 父目录或 uploads 目录本身）。

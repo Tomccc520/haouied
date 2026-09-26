@@ -27,7 +27,7 @@ export interface ChangelogRelease {
   source?: 'github' | 'local';
 }
 
-const RELEASE_API = 'https://api.github.com/repos/Tomccc520/UIED-NAV/releases';
+const RELEASE_API = 'https://api.github.com/repos/Tomccc520/haouied/releases';
 const CACHE_KEY = 'uied_nav_changelog_cache_v1';
 const CACHE_TTL = 10 * 60 * 1000;
 

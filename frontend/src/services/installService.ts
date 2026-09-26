@@ -19,6 +19,7 @@ export interface InstallStatus {
   adminCount: number;
   installState: Record<string, unknown> | null;
   wizardVersion: string;
+  activationRequired: boolean;
   now: number;
 }
 
@@ -159,6 +160,7 @@ export const getInstallStatus = async (): Promise<InstallStatus> => {
     adminCount: 0,
     installState: null,
     wizardVersion: '',
+    activationRequired: true,
     now: 0,
   });
 };

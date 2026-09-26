@@ -493,6 +493,8 @@ function upsertWebsiteJsonLd(html, seo) {
  */
 function renderSeoHtml(html, route, siteSeo) {
   let output = html
+  // 统一提供绝对分享图地址，避免社交平台和生成式搜索抓取相对路径失败。
+  const shareImage = route.image || toAbsoluteUrl('/logo512.png', siteSeo.url || route.canonicalUrl)
   output = upsertTitle(output, route.title)
   output = upsertMetaTag(output, 'name', 'description', route.description)
   output = upsertMetaTag(output, 'name', 'keywords', route.keywords)
@@ -502,10 +504,8 @@ function renderSeoHtml(html, route, siteSeo) {
   output = upsertMetaTag(output, 'property', 'og:description', route.description)
   output = upsertMetaTag(output, 'property', 'og:url', route.canonicalUrl)
   output = upsertMetaTag(output, 'property', 'og:site_name', siteSeo.siteName)
-  if (route.image) {
-    output = upsertMetaTag(output, 'property', 'og:image', route.image)
-    output = upsertMetaTag(output, 'name', 'twitter:image', route.image)
-  }
+  output = upsertMetaTag(output, 'property', 'og:image', shareImage)
+  output = upsertMetaTag(output, 'name', 'twitter:image', shareImage)
   output = upsertMetaTag(output, 'name', 'twitter:card', 'summary_large_image')
   output = upsertMetaTag(output, 'name', 'twitter:title', route.title)
   output = upsertMetaTag(output, 'name', 'twitter:description', route.description)
@@ -514,7 +514,8 @@ function renderSeoHtml(html, route, siteSeo) {
   output = upsertWebsiteJsonLd(output, {
     siteName: siteSeo.siteName,
     siteDescription: siteSeo.siteDescription,
-    url: route.canonicalUrl,
+    // WebSite 节点始终指向站点根地址，避免详情页预渲染时被错误改成当前路由。
+    url: siteSeo.url || toAbsoluteUrl('/', route.canonicalUrl),
   })
   output = upsertRouteJsonLd(output, route, { ...siteSeo, url: siteSeo.url || route.canonicalUrl })
   output = output.replace(/<div id=["']root["']><\/div>/i, `<div id="root">${buildPrerenderFallback(route)}</div>`)

@@ -12,13 +12,13 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
 
-// MySQL 连接配置
+// MySQL 连接配置：全部从环境变量读取，避免把本地密码写入仓库。
 const dbConfig = {
-  host: 'localhost',
-  port: 3308,
-  user: 'uied',
-  password: 'uied123456',
-  database: 'uied_nav',
+  host: process.env.UIED_DB_HOST || '127.0.0.1',
+  port: Number(process.env.UIED_DB_PORT || 3308),
+  user: process.env.UIED_DB_USER || 'uied',
+  password: process.env.UIED_DB_PASSWORD || '',
+  database: process.env.UIED_DB_NAME || 'uied_nav',
   charset: 'utf8mb4',
 };
 
@@ -58,7 +58,9 @@ function toBool(val) {
 
 async function importData() {
   // 读取导出的 JSON 数据
-  const dataPath = path.join(__dirname, '../data/export_20260201.json');
+  const dataPath = process.env.UIED_IMPORT_DATA_PATH
+    ? path.resolve(process.env.UIED_IMPORT_DATA_PATH)
+    : path.join(__dirname, '../data/export.json');
   if (!fs.existsSync(dataPath)) {
     console.error('导出文件不存在:', dataPath);
     process.exit(1);

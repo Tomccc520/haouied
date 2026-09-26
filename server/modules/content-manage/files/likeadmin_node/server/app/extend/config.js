@@ -13,9 +13,17 @@
 const path = require('path');
 const runPath = path.dirname(path.dirname(__filename));
 
+/**
+ * 规范化部署环境注入的 PEM 密钥，支持通过环境变量传入转义换行。
+ * @param {unknown} value 原始密钥文本
+ * @returns {string} 可供 Node RSA 使用的 PEM 文本
+ */
+const normalizePem = value => String(value || '').trim().replace(/\\n/g, '\n');
+
 const rsa = {
-  publicKey: '-----BEGIN PUBLIC KEY-----MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCGZ9nIiSJT+N66Y44G4R1exi9Zg7C141cCzHL9avlYdpxGHtXUWvUX2wcOXe2AtCTH54cBVbWdudlFpN0M2PBUDfFE+rx5KzRWqDm3vAolAb8Tr7+LHVLdcPGc3j8h/XUnsM6rVCxDGM/PcdMp1sM5Nec5BJ3oGwCgt92HgT8BtwIDAQAB-----END PUBLIC KEY-----',
-  privateKey: '[REDACTED_PRIVATE_KEY]',
+  // RSA 密钥只允许由部署环境提供，仓库不再保存共享私钥。
+  publicKey: normalizePem(process.env.UIED_RSA_PUBLIC_KEY),
+  privateKey: normalizePem(process.env.UIED_RSA_PRIVATE_KEY),
   // 角色缓存键
   backstageRolesKey: 'backstage:roles',
   // 令牌缓存键

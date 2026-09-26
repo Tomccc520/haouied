@@ -1,3 +1,10 @@
+<!--
+ * @copyright Tomda (https://www.tomda.top)
+ * @copyright UIED技术团队 (https://fsuied.com)
+ * @author UIED技术团队
+ * @createDate 2026-09-26
+ -->
+
 # UIED 导航系统 - 安装指南
 
 > 完整的安装和部署指南
@@ -23,21 +30,22 @@
 ### 1. 克隆项目
 
 ```bash
-# GitHub
-git clone https://github.com/Tomccc520/UIED-NAV.git
-cd UIED-NAV
+git clone https://github.com/Tomccc520/haouied.git
+cd haouied
 
 # 或者使用 Gitee（国内更快）
-git clone https://gitee.com/tomdac/uied-nav.git
-cd uied-nav
+git clone https://gitee.com/tomdac/haouied.git
+cd haouied
 ```
 
 ### 2. 准备 MySQL 数据库
 
 ```bash
-# 方案A（默认）：Docker 启动 MySQL（端口 3308）
-docker-compose -f docker/docker-compose.mysql.yml up -d
-docker ps | grep uied_mysql
+# 方案A（默认）：Docker 启动 MySQL / Redis（端口 3308 / 6380）
+cp docker/.env.example .env
+# 编辑 .env，为 UIED_MYSQL_ROOT_PASSWORD、UIED_MYSQL_PASSWORD、UIED_REDIS_PASSWORD 设置随机值
+docker compose --env-file .env -f docker/docker-compose.mysql.yml up -d
+docker ps | grep uied-mysql
 
 # 方案B（可选）：本机 MySQL / 宝塔 MySQL（通过 UIED_DB_* 环境变量覆盖）
 # 建议创建数据库 uied_nav，并保证账号具备读写权限
@@ -79,20 +87,16 @@ PORT=3003
 ### 5. 初始化数据库
 
 ```bash
-# 方案A（默认）：Docker MySQL
-docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/install.sql
-docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < server/sql/uied_tables.sql
+# 方案A（默认）：Docker MySQL（使用你在 .env 中填写的密码）
+docker exec -i uied-mysql mysql -u uied -p uied_nav < server/sql/install.sql
+docker exec -i uied-mysql mysql -u uied -p uied_nav < server/sql/uied_tables.sql
 
 # 方案B（可选）：本机 MySQL / 宝塔 MySQL
 mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/install.sql
 mysql -h127.0.0.1 -P3306 -uroot -proot uied_nav < server/sql/uied_tables.sql
 ```
 
-**默认管理员账号**：
-- 用户名: `admin`
-- 密码: `123456`
-
-⚠️ **重要**：首次登录后请立即修改密码！
+安装向导会创建首个管理员账号，请使用你自己的强密码。项目不再提供可直接登录的默认管理员密码。
 
 ### 6. 启动服务
 
@@ -141,17 +145,16 @@ chmod +x start.sh
 - 主机: `127.0.0.1`
 - 端口: `3308`（本机/宝塔请改为 `3306` 并配置 UIED_DB_*）
 - 数据库名: `uied_nav`
-- 用户名: `uied`（本机/宝塔请改为你的实际账号）
-- 密码: `uied123456`（本机/宝塔请改为你的实际密码）
+- 用户名和密码：使用 `.env` 或 `UIED_DB_*` 环境变量提供
 
 **备份数据库**：
 ```bash
-docker exec uied_mysql mysqldump -u uied -puied123456 uied_nav > data/mysql_backup_$(date +%Y%m%d_%H%M%S).sql
+docker exec uied-mysql mysqldump -u uied -p uied_nav > /path/outside-repository/uied_nav_backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 **恢复数据库**：
 ```bash
-docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < data/mysql_backup_YYYYMMDD_HHMMSS.sql
+docker exec -i uied-mysql mysql -u uied -p uied_nav < /path/outside-repository/uied_nav_backup_YYYYMMDD_HHMMSS.sql
 ```
 
 ---
@@ -172,9 +175,9 @@ docker exec -i uied_mysql mysql -u uied -puied123456 uied_nav < data/mysql_backu
 
 ```bash
 # Docker MySQL 检查（默认）
-docker ps | grep uied_mysql
-docker logs uied_mysql
-docker-compose -f docker/docker-compose.mysql.yml restart
+docker ps | grep uied-mysql
+docker logs uied-mysql
+docker compose --env-file .env -f docker/docker-compose.mysql.yml restart
 
 # 本机 MySQL（宝塔）检查
 mysql -h127.0.0.1 -P3306 -uroot -proot -e "SELECT VERSION();"
@@ -274,17 +277,17 @@ server {
 
 ## 📚 更多文档
 
-- [开发指南](docs/开发指南.md)
-- [Docker部署教程](docs/Docker部署教程.md)
-- [宝塔部署教程](docs/宝塔部署教程.md)
-- [常见问题](https://github.com/Tomccc520/UIED-NAV/issues)
+- [开发指南](docs/开发文档/开发指南.md)
+- [Docker / 宝塔部署入口](docs/部署文档/README.md)
+- [宝塔命令行部署（1.1.4）](docs/部署文档/宝塔命令行部署-1.1.4.md)
+- [常见问题](https://github.com/Tomccc520/haouied/issues)
 
 ---
 
 ## 💬 获取帮助
 
-- **GitHub Issues**: https://github.com/Tomccc520/UIED-NAV/issues
-- **Gitee Issues**: https://gitee.com/tomdac/uied-nav/issues
+- **GitHub Issues**: https://github.com/Tomccc520/haouied/issues
+- **Gitee Issues**: https://gitee.com/tomdac/haouied/issues
 - **官网**: https://fsuied.com
 
 ---
