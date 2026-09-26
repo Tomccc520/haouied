@@ -109,7 +109,7 @@ MIT 许可证只覆盖 UIED 自有代码。依赖包、第三方图标/字体、
 - [安装与部署验证记录](docs/1.0.7-install-test.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全政策](SECURITY.md)
-- [机器可读项目说明](llms.txt)
+- [机器可读项目说明](frontend/public/llms.txt)
 
 ## 流量与仓库运营
 
