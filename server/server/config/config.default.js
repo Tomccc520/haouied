@@ -25,9 +25,12 @@ module.exports = appInfo => {
         widelyUndefined: true,
     };
 
-    // use for cookie sign key, should change to your own and keep security
-    // Cookie 签名密钥必须由部署环境注入，开发环境也应使用独立随机值。
-    config.keys = process.env.UIED_APP_KEYS || `${appInfo.name}_change_me_in_development`;
+    // Cookie 签名密钥必须由部署环境注入，开发环境使用占位值便于启动。
+    const configuredAppKeys = String(process.env.UIED_APP_KEYS || '').trim();
+    if (process.env.NODE_ENV === 'production' && !configuredAppKeys) {
+        throw new Error('生产环境必须设置 UIED_APP_KEYS，不能使用开发环境占位值');
+    }
+    config.keys = configuredAppKeys || `${appInfo.name}_change_me_in_development`;
 
     // add your middleware config here
     config.middleware = ['authority', 'seoRewrite', 'auth', 'commercialActivationGuard', 'systemResponseNormalizer'];

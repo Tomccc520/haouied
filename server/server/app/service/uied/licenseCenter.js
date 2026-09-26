@@ -477,8 +477,8 @@ class LicenseCenterService extends Service {
     const cfgSecret = String(appConfig.uiedLicenseSignSecret || '').trim();
     if (cfgSecret) return cfgSecret;
     const firstKey = String(appConfig.keys || '').split(',')[0].trim();
-    if (firstKey) return firstKey;
-    return 'uied-license-secret-change-me';
+    if (firstKey && !firstKey.includes('change_me_in_development')) return firstKey;
+    return '';
   }
 
   /**
@@ -1185,6 +1185,9 @@ class LicenseCenterService extends Service {
    */
   signLicensePayload(payload = {}) {
     const secret = this.getLicenseSignSecret();
+    if (!secret) {
+      throw new Error('未配置 UIED_LICENSE_SIGN_SECRET，无法签发许可证');
+    }
     const content = JSON.stringify(this.buildLicenseSignPayload(payload));
     return crypto.createHmac('sha256', secret).update(content).digest('hex');
   }
@@ -1194,7 +1197,7 @@ class LicenseCenterService extends Service {
    */
   verifyLicenseSignature(payload = {}) {
     const signature = String(payload.signature || '').trim().toLowerCase();
-    if (!signature) return false;
+    if (!signature || !this.hasConfiguredLicenseSignSecret()) return false;
     const expected = String(this.signLicensePayload(payload) || '').trim().toLowerCase();
     if (!expected || signature.length !== expected.length) return false;
     return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
