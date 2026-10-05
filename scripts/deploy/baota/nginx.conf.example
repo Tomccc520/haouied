@@ -131,11 +131,17 @@ server {
         internal;
     }
 
-    # 官网前台（React）
+    # 已知 SPA 路由继续交给 React，未知路径返回真实 404 页面。
+    location ~ ^/(?:home|uiux|ai|design|3d|ecommerce|interior|font|category|categories|p|tag|tags|site|website|vs|mcp|figma|articles|article|search|profile|submit|changelog|hot|rankings|daily-hot|daily-new|install|auth)(?:/|$) {
+        index index.html;
+        try_files $uri/index.html $uri /index.html;
+    }
+
+    # 官网前台（React）未知路径
     location / {
         index index.html;
         # 优先直接读取预渲染目录的 index.html，避免 /ai 被强制 301 为 /ai/ 与 canonical 不一致。
-        try_files $uri/index.html $uri /index.html;
+        try_files $uri/index.html $uri /404/index.html =404;
     }
 
     # React 构建资源均带内容哈希，可安全使用长期强缓存

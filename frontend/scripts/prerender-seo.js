@@ -445,6 +445,15 @@ function upsertCanonical(html, canonicalUrl) {
 }
 
 /**
+ * 删除模板中的 canonical，用于真实 404 页面避免指向首页或固定错误页。
+ * @param {string} html 原始 HTML
+ * @returns {string} 删除 canonical 后的 HTML
+ */
+function removeCanonical(html) {
+  return html.replace(/\s*<link[^>]*rel=["']canonical["'][^>]*>/ig, '')
+}
+
+/**
  * 更新 JSON-LD 站点结构化数据（若存在 WebSite 节点）。
  * @param {string} html 原始 HTML
  * @param {{siteName:string,siteDescription:string,url:string}} seo 站点 SEO
@@ -510,7 +519,9 @@ function renderSeoHtml(html, route, siteSeo) {
   output = upsertMetaTag(output, 'name', 'twitter:title', route.title)
   output = upsertMetaTag(output, 'name', 'twitter:description', route.description)
   output = upsertMetaTag(output, 'name', 'twitter:url', route.canonicalUrl)
-  output = upsertCanonical(output, route.canonicalUrl)
+  output = route.path === '/404' && route.noindex
+    ? removeCanonical(output)
+    : upsertCanonical(output, route.canonicalUrl)
   output = upsertWebsiteJsonLd(output, {
     siteName: siteSeo.siteName,
     siteDescription: siteSeo.siteDescription,
@@ -821,8 +832,8 @@ async function run() {
   if (!routeMap.has('/404')) {
     routeMap.set('/404', normalizeRouteMeta({
       path: '/404',
-      title: `页面未找到 - ${siteSeo.siteName}`,
-      description: '您访问的页面不存在或已下线。',
+      title: `页面不存在 - ${siteSeo.siteName}`,
+      description: '访问的页面不存在或已删除，请返回首页继续浏览。',
       noindex: true,
     }, siteSeo, DEFAULT_SITE_ORIGIN))
   }

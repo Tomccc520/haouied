@@ -11,7 +11,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AxiosError } from 'axios';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import Lightbox from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
@@ -30,6 +30,13 @@ import api from '../../services/api';
 import { unwrapApiResponse } from '../../utils/apiResponse';
 import { getFullImageUrl } from '../../utils/urlUtils';
 import SEO from '../../components/SEO';
+import {
+  buildNotFoundCanonical,
+  NOT_FOUND_HEADING,
+  NOT_FOUND_SEO_DESCRIPTION,
+  NOT_FOUND_SEO_KEYWORDS,
+  NOT_FOUND_SEO_TITLE,
+} from '../../utils/notFoundSeo';
 import { useLicense, FEATURES } from '../../hooks/useLicense';
 import { usePublicSettings } from '../../hooks/usePublicSettings';
 import ArticleCard from './ArticleCard';
@@ -301,12 +308,14 @@ interface ArticleActionFeedbackState {
 const ArticleDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasFeature } = useLicense();
   const { data: publicSettings } = usePublicSettings();
   
   const [article, setArticle] = useState<ArticleDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
   const [sidebarLatestArticles, setSidebarLatestArticles] = useState<ArticleSidebarLatestArticleItem[]>([]);
   const [sidebarLatestArticlesLoading, setSidebarLatestArticlesLoading] = useState(false);
@@ -335,11 +344,14 @@ const ArticleDetail: React.FC = () => {
       if (!slug) return;
       try {
         setLoading(true);
+        setError(null);
+        setNotFound(false);
         const data = await getArticleDetail(slug);
         setArticle(data);
       } catch (err) {
         const axiosError = err as AxiosError;
         if (axiosError.response?.status === 404) {
+          setNotFound(true);
           setError('文章不存在或已被删除');
         } else {
           setError('加载文章失败，请检查网络');
@@ -957,9 +969,24 @@ const ArticleDetail: React.FC = () => {
   if (loading) return <div className="detail-loading"><div className="spinner" /></div>;
   
   if (error || !article) {
+    const notFoundCanonical = buildNotFoundCanonical(
+      location.pathname,
+      typeof window === 'undefined' ? '' : window.location.origin,
+    );
     return (
       <div className="detail-error">
-        <h2>{error || '文章不存在'}</h2>
+        {notFound && (
+          <SEO
+            title={NOT_FOUND_SEO_TITLE}
+            description={NOT_FOUND_SEO_DESCRIPTION}
+            keywords={NOT_FOUND_SEO_KEYWORDS}
+            url={notFoundCanonical}
+            canonical={notFoundCanonical}
+            noindex={true}
+          />
+        )}
+        <h1>{notFound ? NOT_FOUND_HEADING : '页面加载失败'}</h1>
+        <p>{error || '文章不存在或已被删除'}</p>
         <button onClick={() => navigate('/articles')} className="back-btn">返回文章列表</button>
       </div>
     );

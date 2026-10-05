@@ -34,6 +34,13 @@ import useCache from '../../hooks/useCache';
 import { useFrontendConfig } from '../../hooks/useFrontendConfig';
 import DetailCommercialSlot from './DetailCommercialSlot';
 import DetailMediaCarousel from '../../components/DetailMediaCarousel';
+import {
+  buildNotFoundCanonical,
+  NOT_FOUND_HEADING,
+  NOT_FOUND_SEO_DESCRIPTION,
+  NOT_FOUND_SEO_KEYWORDS,
+  NOT_FOUND_SEO_TITLE,
+} from '../../utils/notFoundSeo';
 import '../../styles/uiedLightbox.css';
 import './index.css';
 
@@ -683,6 +690,7 @@ const WebsiteDetailPage: React.FC = () => {
   const [website, setWebsite] = useState<WebsiteDetailData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState<boolean>(false);
   const [relatedWebsites, setRelatedWebsites] = useState<RelatedWebsite[]>([]);
   const [relatedLoading, setRelatedLoading] = useState<boolean>(false);
   const [websiteTags, setWebsiteTags] = useState<WebsiteTag[]>([]);
@@ -757,6 +765,7 @@ const WebsiteDetailPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      setNotFound(false);
       
       const identifier = String(idOrSlug || '').replace(/\.html$/, '');
       if (!identifier) {
@@ -778,6 +787,7 @@ const WebsiteDetailPage: React.FC = () => {
       }
       
       setWebsite(data);
+      setNotFound(false);
       
       // 获取相关推荐和标签
       fetchRelatedWebsites(data.id, data.category.id);
@@ -787,6 +797,7 @@ const WebsiteDetailPage: React.FC = () => {
       console.error('获取网站详情失败:', err);
       const axiosError = err as AxiosError<{ message?: string; error?: string }>;
       if (axiosError.response?.status === 404) {
+        setNotFound(true);
         setError('抱歉，该网站不存在或已被删除');
       } else if (axiosError.response) {
         setError(axiosError.response.data?.message || axiosError.response.data?.error || '获取网站详情失败，请稍后重试');
@@ -1089,10 +1100,25 @@ const WebsiteDetailPage: React.FC = () => {
 
   // 错误状态
   if (error || !website) {
+    const isMissingPage = notFound || (!website && error === '抱歉，该网站不存在或已被删除');
+    const notFoundCanonical = buildNotFoundCanonical(
+      location.pathname,
+      typeof window === 'undefined' ? '' : window.location.origin,
+    );
     return (
       <div className="detail-page">
+        {isMissingPage && (
+          <SEO
+            title={NOT_FOUND_SEO_TITLE}
+            description={NOT_FOUND_SEO_DESCRIPTION}
+            keywords={NOT_FOUND_SEO_KEYWORDS}
+            url={notFoundCanonical}
+            canonical={notFoundCanonical}
+            noindex={true}
+          />
+        )}
         <div className="detail-error">
-          <h2>页面加载失败</h2>
+          <h1>{isMissingPage ? NOT_FOUND_HEADING : '页面加载失败'}</h1>
           <p>{error || '网站不存在'}</p>
           <button onClick={handleGoBack} className="btn-back">返回上一页</button>
         </div>

@@ -14,6 +14,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SEO from '../../components/SEO';
 import { resolveSeoRedirect } from '../../services/seoRedirectService';
 import { usePublicSettings } from '../../hooks/usePublicSettings';
+import {
+  buildNotFoundCanonical,
+  NOT_FOUND_SEO_DESCRIPTION,
+  NOT_FOUND_SEO_KEYWORDS,
+  NOT_FOUND_SEO_TITLE,
+} from '../../utils/notFoundSeo';
 import './index.css';
 
 /**
@@ -98,8 +104,8 @@ const NotFoundPage: React.FC = () => {
   ), [countdown, resolvingRedirect]);
   const seoUrl = useMemo(() => {
     if (typeof window === 'undefined') return undefined;
-    return `${window.location.origin}/404`;
-  }, []);
+    return buildNotFoundCanonical(location.pathname, window.location.origin);
+  }, [location.pathname]);
 
   /**
    * 判断快捷入口是否为外链。
@@ -109,10 +115,11 @@ const NotFoundPage: React.FC = () => {
   return (
     <>
       <SEO
-        title={brandConfig.notFoundSeoTitle}
-        description={brandConfig.notFoundSeoDescription}
-        keywords={brandConfig.notFoundSeoKeywords}
+        title={NOT_FOUND_SEO_TITLE}
+        description={NOT_FOUND_SEO_DESCRIPTION}
+        keywords={NOT_FOUND_SEO_KEYWORDS}
         url={seoUrl}
+        canonical={seoUrl}
         noindex={true}
       />
       <div className="not-found-page">

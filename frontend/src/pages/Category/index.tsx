@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import api, { recordWebsiteClick } from '../../services/api';
 import { AxiosError } from 'axios';
 import ToolCard from '../../components/ToolCard';
@@ -22,6 +22,13 @@ import { unwrapApiResponse, unwrapApiList } from '../../utils/apiResponse';
 import { createSvgIconMap, resolveSvgIconMarkup } from '../../utils/svgIconLibrary';
 import './index.css';
 import '../../styles/common.css';
+import {
+  buildNotFoundCanonical,
+  NOT_FOUND_HEADING,
+  NOT_FOUND_SEO_DESCRIPTION,
+  NOT_FOUND_SEO_KEYWORDS,
+  NOT_FOUND_SEO_TITLE,
+} from '../../utils/notFoundSeo';
 
 // 分类数据接口
 interface CategoryItem {
@@ -257,6 +264,7 @@ const CategoryListView: React.FC = () => {
  */
 const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const detailLayoutWidthMode = useDetailLayoutWidthMode();
   const [detail, setDetail] = useState<CategoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -424,9 +432,24 @@ const CategoryDetailView: React.FC<{ slug: string }> = ({ slug }) => {
   }
 
   if (!detail && notFound) {
+    const notFoundCanonical = buildNotFoundCanonical(
+      location.pathname,
+      typeof window === 'undefined' ? '' : window.location.origin,
+    );
     return (
       <div className={`category-page category-page--layout-${detailLayoutWidthMode}`}>
-        <div className="category-empty"><p>分类不存在</p></div>
+        <SEO
+          title={NOT_FOUND_SEO_TITLE}
+          description={NOT_FOUND_SEO_DESCRIPTION}
+          keywords={NOT_FOUND_SEO_KEYWORDS}
+          url={notFoundCanonical}
+          canonical={notFoundCanonical}
+          noindex={true}
+        />
+        <div className="category-empty">
+          <h1>{NOT_FOUND_HEADING}</h1>
+          <p>分类不存在或已被删除</p>
+        </div>
       </div>
     );
   }
