@@ -1023,77 +1023,6 @@ const SearchPage: React.FC = () => {
     };
   }, [resultPageSize]);
 
-  /**
-   * 并行执行 AI 增强搜索，并把新增结果合并到当前普通搜索结果中。
-   */
-  const runAiEnhancement = useCallback(async (query: string, baseResults: SearchResult[], requestSeq: number) => {
-    if (!aiSearchEnabled) return;
-
-    setAiEnhancing(true);
-    setAiEnhancedCount(0);
-    setAiExpandedKeywords([]);
-    const cacheKey = buildSearchCacheKey('enhanced', query);
-    const cachedRows = getSearchCache(cacheKey);
-    if (cachedRows) {
-      if (requestSeq !== searchRequestSeqRef.current) return;
-      const mergedRows = dedupeAndSortResults([ ...baseResults, ...cachedRows ], query);
-      const increasedCount = Math.max(0, mergedRows.length - baseResults.length);
-      const cachedSemanticKeywords = buildSemanticExpansionKeywords(query).slice(0, MAX_SEMANTIC_KEYWORDS);
-      setAllResults(mergedRows);
-      setSearchResults(mergedRows.slice(0, resultPageSize));
-      setTotalResults(mergedRows.length);
-      setHasMore(mergedRows.length > resultPageSize);
-      setAiEnhancedCount(increasedCount);
-      setAiExpandedKeywords(cachedSemanticKeywords);
-      generateRelatedKeywords(mergedRows, query);
-      setAiEnhancing(false);
-      return;
-    }
-
-    try {
-      const payload = await searchService.aiSearch(query, Math.max(resultPageSize * 2, 40));
-      if (requestSeq !== searchRequestSeqRef.current) return;
-
-      const aiRawResults = Array.isArray(payload?.results) ? payload.results : [];
-      const aiMappedResults = aiRawResults.map(item => mapBackendSearchItem(item, 'ai', true));
-      let semanticRows: SearchResult[] = [];
-      let semanticKeywords: string[] = [];
-
-      /**
-       * AI 返回数量偏少时自动补一次语义扩展检索，提升“关键词覆盖”能力。
-       */
-      if (aiMappedResults.length < Math.max(10, Math.floor(resultPageSize / 2))) {
-        const semanticResult = await runSemanticKeywordSearch(query, {
-          limit: Math.max(resultPageSize, 24),
-        });
-        semanticRows = semanticResult.results;
-        semanticKeywords = semanticResult.keywords;
-      }
-
-      const enhancedRows = dedupeAndSortResults([ ...aiMappedResults, ...semanticRows ], query);
-      setSearchCache(cacheKey, enhancedRows);
-      const merged = dedupeAndSortResults([ ...baseResults, ...enhancedRows ], query);
-      const increasedCount = Math.max(0, merged.length - baseResults.length);
-
-      setAllResults(merged);
-      setSearchResults(merged.slice(0, resultPageSize));
-      setTotalResults(merged.length);
-      setHasMore(merged.length > resultPageSize);
-      setAiEnhancedCount(increasedCount);
-      setAiExpandedKeywords(semanticKeywords.slice(0, MAX_SEMANTIC_KEYWORDS));
-      generateRelatedKeywords(merged, query);
-    } catch (error) {
-      debugLog.warn('AI 增强搜索失败，保留普通搜索结果:', error);
-      if (requestSeq !== searchRequestSeqRef.current) return;
-      setAiEnhancedCount(0);
-      setAiExpandedKeywords([]);
-    } finally {
-      if (requestSeq === searchRequestSeqRef.current) {
-        setAiEnhancing(false);
-      }
-    }
-  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, resultPageSize, runSemanticKeywordSearch, setSearchCache]);
-
   // 默认搜索
   const performDefaultSearch = useCallback(async () => {
     searchRequestSeqRef.current += 1;
@@ -1214,9 +1143,6 @@ const SearchPage: React.FC = () => {
       setAiMessage('');
       setSearchErrorMessage('');
       setLoading(false);
-      if (query.trim() && aiSearchEnabled) {
-        runAiEnhancement(query, cachedRows, requestSeq);
-      }
       return;
     }
 
@@ -1242,13 +1168,6 @@ const SearchPage: React.FC = () => {
       generateRelatedKeywords(uniqueResults, query);
       setAiMessage('');
       setSearchErrorMessage('');
-
-      /**
-       * 普通搜索完成后并行补充 AI 推荐，避免用户等待主结果。
-       */
-      if (query.trim() && aiSearchEnabled) {
-        runAiEnhancement(query, uniqueResults, requestSeq);
-      }
     } catch (error) {
       debugLog.error('普通搜索失败:', error);
       if (requestSeq !== searchRequestSeqRef.current) return;
@@ -1266,7 +1185,7 @@ const SearchPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [aiSearchEnabled, buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performDefaultSearch, resultPageSize, runAiEnhancement, saveSearchHistory, searchDisabledText, searchEnabled, setSearchCache]);
+  }, [buildSearchCacheKey, generateRelatedKeywords, getSearchCache, performDefaultSearch, resultPageSize, saveSearchHistory, searchDisabledText, searchEnabled, setSearchCache]);
 
   /**
    * 执行 AI 搜索（统一走后端 /api/ai-search 契约）
