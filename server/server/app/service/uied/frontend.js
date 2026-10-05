@@ -12,6 +12,15 @@
 
 const Service = require('egg').Service;
 
+// 历史设计导航中的字体分类已由独立字体导航接管，公开接口需要过滤旧分类避免重复展示。
+const LEGACY_FONT_CATEGORY_SLUG = 'design-font';
+const LEGACY_FONT_CHILD_CATEGORY_SLUGS = [
+  'design-color-palette',
+  'design-color-theory',
+  'design-color-tools',
+  'design-color-inspiration',
+];
+
 class FrontendService extends Service {
   /**
    * 规范化热门搜索模式，避免异常值影响前台渲染策略。
@@ -425,6 +434,7 @@ class FrontendService extends Service {
        FROM uied_category c
        INNER JOIN uied_page_category pc ON c.id = pc.category_id
        WHERE pc.page_id = ? AND pc.is_delete = 0 AND c.is_delete = 0 AND c.is_show = 1
+         AND c.slug <> '${LEGACY_FONT_CATEGORY_SLUG}'
        ORDER BY pc.sort ASC`,
       { replacements: [ page.id ], type: app.Sequelize.QueryTypes.SELECT }
     );
@@ -438,6 +448,7 @@ class FrontendService extends Service {
       const subCategories = await app.model.query(
         `SELECT id, name, slug FROM uied_category
          WHERE parent_id = ? AND is_delete = 0 AND is_show = 1
+           AND slug NOT IN ('${LEGACY_FONT_CHILD_CATEGORY_SLUGS.join("', '")}')
          ORDER BY sort ASC`,
         { replacements: [ cat.id ], type: app.Sequelize.QueryTypes.SELECT }
       );

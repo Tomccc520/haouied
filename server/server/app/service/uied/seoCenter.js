@@ -170,7 +170,7 @@ class SeoCenterService extends Service {
         enabled: true,
         userAgent: '*',
         allowPaths: [ '/' ],
-        disallowPaths: [ '/admin', '/api' ],
+        disallowPaths: [ '/admin', '/profile', '/install', '/auth', '/api' ],
         crawlDelay: 0,
         extraRules: '',
         includeSitemap: true,

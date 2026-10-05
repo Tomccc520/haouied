@@ -72,6 +72,13 @@ server {
         add_header Cache-Control "public, max-age=3600" always;
     }
 
+    # 机器可读项目说明必须返回纯文本，缺失时返回 404，不能落到 SPA 首页。
+    location = /llms.txt {
+        default_type text/plain;
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=3600" always;
+    }
+
     # 后端 API（Egg.js）
     location ~ ^/api(?:/|$) {
         proxy_pass http://127.0.0.1:8002;

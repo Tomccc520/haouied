@@ -37,6 +37,8 @@ main() {
   fetch_url '/robots.txt' "$temp_dir/robots"
   grep -qi '^content-type:.*text/plain' "$temp_dir/robots.headers" || fail 'robots.txt Content-Type 不是 text/plain'
   grep -q 'Sitemap:' "$temp_dir/robots.body" || fail 'robots.txt 缺少 Sitemap 声明'
+  grep -Eq '^Disallow: /(admin|api)$' "$temp_dir/robots.body" || fail 'robots.txt 未禁止后台或 API 路径'
+  grep -Eq '^Sitemap: https?://.+/sitemap\.xml$' "$temp_dir/robots.body" || fail 'robots.txt 的 Sitemap 地址不是绝对 URL'
   pass 'robots.txt 动态响应正常'
 
   fetch_url '/sitemap.xml' "$temp_dir/sitemap"
@@ -45,8 +47,14 @@ main() {
   pass '基础 Sitemap 正常'
 
   fetch_url '/sitemap-advanced.xml' "$temp_dir/advanced"
+  grep -qi '^content-type:.*xml' "$temp_dir/advanced.headers" || fail '进阶 Sitemap Content-Type 不是 XML'
   grep -q '<sitemapindex' "$temp_dir/advanced.body" || fail '进阶 Sitemap 被 SPA 或静态 HTML 接管'
   pass '进阶 Sitemap 正常'
+
+  fetch_url '/llms.txt' "$temp_dir/llms"
+  grep -qi '^content-type:.*text/plain' "$temp_dir/llms.headers" || fail 'llms.txt Content-Type 不是 text/plain'
+  grep -q 'Tomccc520/haouied' "$temp_dir/llms.body" || fail 'llms.txt 缺少当前开源主仓链接'
+  pass 'llms.txt 机器可读入口正常'
 
   fetch_url '/' "$temp_dir/home"
   grep -qi '<link[^>]*rel="canonical"' "$temp_dir/home.body" || fail '首页缺少 canonical'

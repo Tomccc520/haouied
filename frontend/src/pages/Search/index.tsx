@@ -107,9 +107,12 @@ const normalizeText = (value: unknown): string => String(value || '').trim().toL
 /**
  * 用搜索配置模板生成搜索页 Hero 描述文案。
  */
-const formatSearchHeroDescription = (template: string, count: number): string => {
+const formatSearchHeroDescription = (template: string, count: number | null): string => {
   const normalizedTemplate = String(template || '').trim() || '收录 {count} 个优质网站资源';
-  return normalizedTemplate.replace(/\{count\}/g, Number.isFinite(count) ? count.toLocaleString() : '0');
+  const displayCount = count === null
+    ? '加载中'
+    : (Number.isFinite(count) ? count.toLocaleString() : '0');
+  return normalizedTemplate.replace(/\{count\}/g, displayCount);
 };
 
 /**
@@ -647,7 +650,7 @@ const SearchPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchErrorMessage, setSearchErrorMessage] = useState('');
   const [totalResults, setTotalResults] = useState(0);
-  const [totalWebsites, setTotalWebsites] = useState(0);
+  const [totalWebsites, setTotalWebsites] = useState<number | null>(null);
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -855,11 +858,11 @@ const SearchPage: React.FC = () => {
     try {
       const response = await api.get('/websites', { params: { pageSize: 1 } });
       const data = unwrapApiResponse<{ pagination?: { total?: number } }>(response.data, {});
-      if (data.pagination?.total) {
-        setTotalWebsites(data.pagination.total);
-      }
+      const total = Number(data.pagination?.total);
+      setTotalWebsites(Number.isFinite(total) ? Math.max(0, total) : null);
     } catch (error) {
       debugLog.error('获取网站总数失败:', error);
+      setTotalWebsites(null);
     }
   }, []);
 
@@ -2220,13 +2223,13 @@ const SearchPage: React.FC = () => {
                   <h2>"{searchQuery}" 的搜索结果</h2>
                   <p>
                     {isAiMode && <span className="ai-badge-inline">AI</span>}
-                    找到 <strong>{totalResults}</strong> 个相关资源
+                    找到 <strong>{isLoading ? '加载中' : totalResults}</strong> 个相关资源
                   </p>
                 </>
               ) : (
                 <>
                   <h2>热门推荐</h2>
-                  <p>为您精选 <strong>{totalResults}</strong> 个优质资源</p>
+                  <p>为您精选 <strong>{isLoading ? '加载中' : totalResults}</strong> 个优质资源</p>
                 </>
               )}
             </div>

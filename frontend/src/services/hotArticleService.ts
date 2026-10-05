@@ -110,6 +110,18 @@ let hotArticleConfigCache: MemoryCacheEntry<HotArticlesDisplayConfig> | null = n
 let hotArticleConfigPending: Promise<HotArticlesDisplayConfig> | null = null;
 
 /**
+ * 清理上游文章中的模板变量，避免 Nuxt 配置标识泄漏到热门文章卡片。
+ */
+const sanitizeHotArticleText = (value: unknown): string => {
+  return String(value || '')
+    .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+    .replace(/\$\{[\s\S]*?\}/g, ' ')
+    .replace(/\b(?:nuxtSiteConfig|siteConfig|runtimeConfig(?:\.public)?)\.[A-Za-z_$][\w$.-]*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+/**
  * 统一菜单图标键，兼容 hot 旧项目图标名称。
  */
 const normalizeMenuIconKey = (value: unknown): HotWorkbenchMenuItem['iconKey'] => {
@@ -349,12 +361,12 @@ const normalizeHotArticleItems = (payload: unknown): HotArticleItem[] => {
   if (!Array.isArray(rows)) return [];
   return rows.map((item) => ({
     id: String(item?.id || ''),
-    name: String(item?.name || ''),
-    description: String(item?.description || ''),
+    name: sanitizeHotArticleText(item?.name),
+    description: sanitizeHotArticleText(item?.description),
     link: String(item?.link || ''),
     thumbnail: String(item?.thumbnail || ''),
     date: String(item?.date || ''),
-    authorName: String(item?.authorName || ''),
+    authorName: sanitizeHotArticleText(item?.authorName),
     authorAvatar: String(item?.authorAvatar || ''),
     viewCount: Number.isFinite(Number(item?.viewCount)) ? Number(item?.viewCount) : 0,
     commentCount: Number.isFinite(Number(item?.commentCount)) ? Number(item?.commentCount) : 0,

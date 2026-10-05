@@ -933,15 +933,28 @@ class WordpressConfigService extends Service {
   }
 
   /**
+   * 清理上游模板变量，避免文章摘要把 uied.cn 的 Nuxt 配置标识直接展示给用户。
+   * @param {unknown} value 原始文本
+   * @return {string} 清理后的文本
+   */
+  sanitizeTemplateTokens(value) {
+    return String(value || '')
+      .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+      .replace(/\$\{[\s\S]*?\}/g, ' ')
+      .replace(/\b(?:nuxtSiteConfig|siteConfig|runtimeConfig(?:\.public)?)\.[A-Za-z_$][\w$.-]*/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
    * 清理 HTML 并压缩多余空白。
    * @param {unknown} value 原始 HTML 或文本
    * @return {string} 纯文本摘要
    */
   toPlainText(value) {
-    return String(value || '')
+    return this.sanitizeTemplateTokens(String(value || '')
       .replace(/<\/?[^>]+(>|$)/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    );
   }
 
   /**

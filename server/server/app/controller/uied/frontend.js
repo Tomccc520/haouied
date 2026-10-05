@@ -3228,10 +3228,11 @@ class FrontendController extends Controller {
                   LEFT JOIN uied_website_category uwc
                     ON uwc.website_id = w.id AND uwc.is_delete = 0
                   WHERE w.is_delete = 0
+                    AND ${ctx.service.uied.frontend.getPublicWebsiteStatusCondition('w')}
                     AND (w.category_id = c.id OR uwc.category_id = c.id)
                 ) as websiteCount
          FROM uied_category c
-         WHERE c.is_delete = 0 AND c.is_show = 1
+         WHERE c.is_delete = 0 AND c.is_show = 1 AND c.slug <> 'design-font'
          ORDER BY c.sort ASC, c.id ASC`,
         { type: ctx.app.Sequelize.QueryTypes.SELECT }
       );
@@ -3302,7 +3303,7 @@ class FrontendController extends Controller {
           `SELECT id, name, slug, icon, color, description,
                   seo_title as seoTitle, seo_description as seoDescription, seo_keywords as seoKeywords,
                   parent_id as parentId
-           FROM uied_category WHERE id = ? AND is_delete = 0`,
+           FROM uied_category WHERE id = ? AND is_delete = 0 AND is_show = 1`,
           { replacements: [ idOrSlug ], type: ctx.app.Sequelize.QueryTypes.SELECT }
         );
       }
@@ -3311,7 +3312,7 @@ class FrontendController extends Controller {
           `SELECT id, name, slug, icon, color, description,
                   seo_title as seoTitle, seo_description as seoDescription, seo_keywords as seoKeywords,
                   parent_id as parentId
-           FROM uied_category WHERE slug = ? AND is_delete = 0`,
+           FROM uied_category WHERE slug = ? AND is_delete = 0 AND is_show = 1`,
           { replacements: [ idOrSlug ], type: ctx.app.Sequelize.QueryTypes.SELECT }
         );
       }
@@ -3326,6 +3327,7 @@ class FrontendController extends Controller {
       const subCategories = await ctx.app.model.query(
         `SELECT id, name, slug FROM uied_category
          WHERE parent_id = ? AND is_delete = 0 AND is_show = 1
+           AND slug NOT IN ('design-color-palette', 'design-color-theory', 'design-color-tools', 'design-color-inspiration')
          ORDER BY sort ASC`,
         { replacements: [ category.id ], type: ctx.app.Sequelize.QueryTypes.SELECT }
       );
@@ -3354,7 +3356,8 @@ class FrontendController extends Controller {
       // 获取网站总数
       const [ countResult ] = await ctx.app.model.query(
         `SELECT COUNT(*) as total FROM uied_website w
-         WHERE ${categoryMatchSql} AND w.is_delete = 0`,
+         WHERE ${categoryMatchSql} AND w.is_delete = 0
+           AND ${ctx.service.uied.frontend.getPublicWebsiteStatusCondition('w')}`,
         {
           replacements: categoryMatchReplacements,
           type: ctx.app.Sequelize.QueryTypes.SELECT,
@@ -3369,6 +3372,7 @@ class FrontendController extends Controller {
                 w.is_pinned as isPinned, w.sort as sortOrder, w.create_time as createdAt, w.tags
          FROM uied_website w
          WHERE ${categoryMatchSql} AND w.is_delete = 0
+           AND ${ctx.service.uied.frontend.getPublicWebsiteStatusCondition('w')}
          ORDER BY w.is_pinned DESC, w.is_hot DESC, w.is_featured DESC, w.sort ASC${sortZeroOrderSql}, w.id DESC
          LIMIT ? OFFSET ?`,
         {

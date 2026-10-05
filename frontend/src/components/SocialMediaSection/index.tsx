@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { unwrapApiList } from '../../utils/apiResponse';
+import { getFullImageUrl } from '../../utils/urlUtils';
 import './index.css';
 
 interface SocialMediaItem {
@@ -201,7 +202,11 @@ const normalizeItems = (items: unknown): SocialMediaItem[] => {
         icon: String(record.icon || ''),
         iconSvg: sanitizeSvgMarkup(String(record.iconSvg || '')),
         link: String(record.link || record.url || ''),
-        qrCodeUrl: String(record.qrCodeUrl || record.qrCode || ''),
+        // 统一清洗二维码上传地址，兼容历史记录中的 localhost/127.0.0.1。
+        qrCodeUrl: (() => {
+          const rawQrCodeUrl = String(record.qrCodeUrl || record.qrCode || '');
+          return isAssetUrl(rawQrCodeUrl) ? getFullImageUrl(rawQrCodeUrl) : rawQrCodeUrl;
+        })(),
         description: String(record.description || ''),
         extraInfo: record.extraInfo,
         order: Number(record.order ?? record.sort ?? 0),
