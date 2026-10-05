@@ -27,6 +27,27 @@ fetch_url() {
     "$ORIGIN$path" -o "${output_prefix}.body"
 }
 
+# 验证不存在的详情路由返回真实 404，并携带独立的错误页 SEO 信息。
+check_missing_seo_page() {
+  local path="$1"
+  local label="$2"
+  local output_prefix="$3"
+  local status_code
+  status_code="$(curl -sS --max-time 20 -D "${output_prefix}.headers" -o "${output_prefix}.body" -w '%{http_code}' "$ORIGIN$path")" \
+    || fail "$label 请求失败"
+  [[ "$status_code" == '404' ]] || fail "$label 应返回 404，当前为 $status_code"
+  grep -q '<title>页面不存在 - UIED AI工具导航</title>' "${output_prefix}.body" \
+    || fail "$label 缺少 404 标题"
+  grep -Eq '<meta[^>]+name="robots"[^>]+content="noindex,nofollow"' "${output_prefix}.body" \
+    || fail "$label 未设置 noindex,nofollow"
+  if grep -qi 'rel="canonical"' "${output_prefix}.body"; then
+    fail "$label 不应携带 canonical"
+  fi
+  grep -q '<h1[^>]*>页面不存在' "${output_prefix}.body" \
+    || fail "$label 缺少 404 h1"
+  pass "$label 真实 404 与 SEO 信息正常"
+}
+
 # 执行生产 SEO 链路验证。
 main() {
   local temp_dir status_code
@@ -61,9 +82,9 @@ main() {
   grep -Eq 'href="/(website|article|category|tag|mcp)/' "$temp_dir/home.body" || fail '首页预渲染 HTML 缺少可抓取业务内链'
   pass '首页 canonical 与预渲染内链正常'
 
-  status_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/website/999999999")"
-  [[ "$status_code" == '404' ]] || fail "未知详情页应返回 404，当前为 $status_code"
-  pass '未知详情页真实 404 正常'
+  check_missing_seo_page '/website/999999999' '网站详情错误页' "$temp_dir/website-missing"
+  check_missing_seo_page '/article/not-found-qa' '文章详情错误页' "$temp_dir/article-missing"
+  check_missing_seo_page '/category/not-found-qa' '分类详情错误页' "$temp_dir/category-missing"
 
   echo '[OK] 生产 SEO 基础链路验证通过'
 }
