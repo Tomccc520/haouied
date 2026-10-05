@@ -14,6 +14,41 @@ const Service = require('egg').Service;
 
 class SeoScraperService extends Service {
   /**
+   * 判断外部站点是否属于连接层失败，避免把底层 Socket 诊断直接展示给用户。
+   * @param {unknown} error 原始请求异常
+   * @return {boolean} 是否为网络连接失败
+   */
+  isNetworkFetchError(error) {
+    const message = String(error?.message || error || '');
+    return /connected\s*:\s*false|status\s+-1|connect timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENETUNREACH|EAI_AGAIN|socket hang up/i.test(message);
+  }
+
+  /**
+   * 将抓取异常转换为面向运营人员的简洁提示，隐藏连接池和请求头细节。
+   * @param {unknown} error 原始请求异常
+   * @param {string} url 请求地址
+   * @return {string} 可展示的中文错误文案
+   */
+  formatFetchError(error, url) {
+    let hostname = '';
+    try {
+      hostname = new URL(url).hostname;
+    } catch (parseError) {
+      hostname = String(url || '').slice(0, 120);
+    }
+
+    if (this.isNetworkFetchError(error)) {
+      return `目标站点 ${hostname || '外部网站'} 暂时无法连接，可能是目标站点防护、服务器网络出口或 DNS 路由导致，请稍后重试或手动填写。`;
+    }
+
+    const rawMessage = String(error?.message || error || '未知错误')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 240);
+    return rawMessage || '外部站点返回了未知错误，请稍后重试。';
+  }
+
+  /**
    * 从 URL 抓取 SEO 信息
    */
   async fetch(url) {
@@ -48,7 +83,7 @@ class SeoScraperService extends Service {
       return seoInfo;
     } catch (error) {
       ctx.logger.error('SEO 抓取失败:', error);
-      throw new Error(`抓取失败: ${error.message}`);
+      throw new Error(`抓取失败: ${this.formatFetchError(error, fullUrl)}`);
     }
   }
 
