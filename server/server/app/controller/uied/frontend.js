@@ -11,6 +11,11 @@
 'use strict';
 
 const Controller = require('egg').Controller;
+const {
+  buildAiSearchPrompt,
+  extractAiSearchKeywords,
+  mergeAiSearchRows,
+} = require('../../util/aiSearch');
 
 class FrontendController extends Controller {
   /**
@@ -832,7 +837,6 @@ class FrontendController extends Controller {
     const body = ctx.request.body || {};
     const query = String(body.query || '').trim();
     const limit = Math.min(this.parsePositiveInt(body.limit, 10), 100);
-    const categoryId = this.parsePositiveInt(body.categoryId, 0);
     const rawSearchConfig = await ctx.service.uied.setting.get('searchConfig');
     const searchConfig = ctx.service.uied.setting.normalizeSearchConfig(rawSearchConfig || {});
 
@@ -873,18 +877,57 @@ class FrontendController extends Controller {
 
     try {
       const startTime = Date.now();
+      const expandedKeywords = [];
+      let modelTokensUsed = 0;
 
       /**
-       * 复用统一搜索服务，避免 AI 搜索和普通搜索出现字段兼容与排序差异。
+       * 调用已配置模型提取检索词；模型不可用时保留数据库关键词搜索兜底。
        */
-      const searchResult = await ctx.service.uied.search.advancedSearch({
-        keyword: query,
-        categoryId: categoryId > 0 ? categoryId : undefined,
-        sortBy: 'hot',
-        page: 1,
-        pageSize: limit,
-      });
-      const results = Array.isArray(searchResult?.lists) ? searchResult.lists : [];
+      try {
+        const aiResponse = await ctx.service.uied.aiConfig.chat(
+          buildAiSearchPrompt(query),
+          []
+        );
+        modelTokensUsed = Number(aiResponse?.usage?.total_tokens || 0);
+        expandedKeywords.push(
+          ...extractAiSearchKeywords(aiResponse?.reply, query)
+        );
+      } catch (modelError) {
+        ctx.logger.warn(
+          '[uied.frontend.aiSearch] 模型搜索不可用，回退关键词检索: %s',
+          modelError?.message || modelError
+        );
+      }
+
+      const keywords = [ query, ...expandedKeywords ];
+      const queryGroups = await Promise.all(keywords.map(async (keyword, queryIndex) => {
+        try {
+          const searchResult = await ctx.service.uied.search.globalSearch({
+            keyword,
+            page: 1,
+            pageSize: limit,
+            type: 'all',
+            enableWebsiteSearch: searchConfig.websiteSearchEnabled !== false,
+            enableArticleSearch: searchConfig.articleSearchEnabled === true,
+          });
+          return {
+            queryIndex,
+            rows: Array.isArray(searchResult?.lists) ? searchResult.lists : [],
+          };
+        } catch (searchError) {
+          ctx.logger.warn(
+            '[uied.frontend.aiSearch] 扩展词检索失败（%s）: %s',
+            keyword,
+            searchError?.message || searchError
+          );
+          return { queryIndex, rows: [] };
+        }
+      }));
+      const results = mergeAiSearchRows(queryGroups, limit);
+      const mode = expandedKeywords.length > 0 ? 'ai' : 'keyword';
+      const reason = expandedKeywords.length > 0
+        ? `模型扩展检索词：${expandedKeywords.join('、')}`
+        : '模型暂不可用，已回退关键词匹配';
 
       // 记录 AI 搜索日志，便于后台“AI 助手管理”统计分析
       try {
@@ -893,7 +936,7 @@ class FrontendController extends Controller {
           featureType: 'search',
           requestContent: `AI搜索: ${query}`,
           responseStatus: 'success',
-          tokensUsed: 0,
+          tokensUsed: modelTokensUsed,
           durationMs: Date.now() - startTime,
         });
       } catch (logError) {
@@ -902,10 +945,13 @@ class FrontendController extends Controller {
 
       ctx.body = {
         results,
-        mode: 'keyword',
-        reason: '当前为关键词语义增强匹配结果',
+        mode,
+        reason,
+        expandedKeywords,
         message: `找到 ${results.length} 个结果`,
-        reasoning: '已按关键词相关性、站点权重与热度综合排序',
+        reasoning: expandedKeywords.length > 0
+          ? '模型只负责扩展检索词，最终结果来自站内网站与文章数据。'
+          : '已按关键词相关性、站点权重与热度综合排序。',
       };
     } catch (error) {
       ctx.logger.error('AI搜索失败（关键词兜底）:', error);

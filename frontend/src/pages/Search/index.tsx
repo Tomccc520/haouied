@@ -1329,6 +1329,9 @@ const SearchPage: React.FC = () => {
       const payload = await searchService.aiSearch(query, Math.max(resultPageSize * 4, 80));
       if (requestSeq !== searchRequestSeqRef.current) return;
       setShowThinking(false);
+      const modelExpandedKeywords = Array.isArray(payload.expandedKeywords)
+        ? payload.expandedKeywords.map(item => String(item || '').trim()).filter(Boolean)
+        : [];
 
       if (Array.isArray(payload.results) && payload.results.length > 0) {
         const mappedResults = payload.results.map(item => mapBackendSearchItem(item, 'ai', true));
@@ -1379,7 +1382,10 @@ const SearchPage: React.FC = () => {
             : formatAiKeywordResultSummary(searchConfig || {}, results.length)
         );
         setSearchErrorMessage('');
-        setAiExpandedKeywords(semanticKeywords.slice(0, MAX_SEMANTIC_KEYWORDS));
+        setAiExpandedKeywords(
+          (modelExpandedKeywords.length > 0 ? modelExpandedKeywords : semanticKeywords)
+            .slice(0, MAX_SEMANTIC_KEYWORDS)
+        );
 
         generateRelatedKeywords(results, query);
       } else {
@@ -1394,7 +1400,10 @@ const SearchPage: React.FC = () => {
           setTotalResults(rows.length);
           setHasMore(rows.length > resultPageSize);
           setCurrentPage(1);
-          setAiExpandedKeywords(semanticResult.keywords.slice(0, MAX_SEMANTIC_KEYWORDS));
+          setAiExpandedKeywords(
+            (modelExpandedKeywords.length > 0 ? modelExpandedKeywords : semanticResult.keywords)
+              .slice(0, MAX_SEMANTIC_KEYWORDS)
+          );
           setAiMessage(
             formatAiSemanticResultSummary(
               searchConfig || {},

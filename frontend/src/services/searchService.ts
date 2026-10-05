@@ -54,6 +54,7 @@ export interface AiSearchResponse {
   results: AiSearchResultItem[];
   mode?: 'ai' | 'keyword';
   reason?: string;
+  expandedKeywords?: string[];
   message?: string;
   reasoning?: string;
 }
