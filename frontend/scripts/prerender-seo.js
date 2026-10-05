@@ -829,14 +829,14 @@ async function run() {
   if (!routeMap.has('/')) {
     routeMap.set('/', normalizeRouteMeta({ path: '/', title: siteSeo.siteTitle, description: siteSeo.siteDescription, keywords: siteSeo.siteKeywords }, siteSeo, DEFAULT_SITE_ORIGIN))
   }
-  if (!routeMap.has('/404')) {
-    routeMap.set('/404', normalizeRouteMeta({
-      path: '/404',
-      title: `页面不存在 - ${siteSeo.siteName}`,
-      description: '访问的页面不存在或已删除，请返回首页继续浏览。',
-      noindex: true,
-    }, siteSeo, DEFAULT_SITE_ORIGIN))
-  }
+  // 始终覆盖 404 元数据，避免旧清单把错误页恢复成“页面未找到”或首页 SEO。
+  routeMap.set('/404', normalizeRouteMeta({
+    path: '/404',
+    title: `页面不存在 - ${siteSeo.siteName}`,
+    description: '访问的页面不存在或已删除，请返回首页继续浏览。',
+    keywords: '页面不存在,404,UIED AI工具导航',
+    noindex: true,
+  }, siteSeo, DEFAULT_SITE_ORIGIN))
 
   routeMap.forEach(route => {
     if (route) normalizedRoutes.push(route)
