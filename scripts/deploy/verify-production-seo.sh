@@ -48,6 +48,32 @@ check_missing_seo_page() {
   pass "$label 真实 404 与 SEO 信息正常"
 }
 
+# 校验 AI 导航首页与 AI 学习平台详情使用同一批公开站点，避免数量不一致。
+check_ai_category_count_consistency() {
+  local full_file="$1"
+  local category_file="$2"
+  node - "$full_file" "$category_file" <<'NODE'
+const fs = require('fs');
+
+const fullPayload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))?.data || {};
+const categoryPayload = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'))?.data || {};
+const aiCategory = (Array.isArray(fullPayload.categories) ? fullPayload.categories : [])
+  .find((item) => String(item?.id || '') === '21' || String(item?.slug || '') === 'ai-xuexi');
+const homeCount = Array.isArray(aiCategory?.websites) ? aiCategory.websites.length : -1;
+const detailCount = Array.isArray(categoryPayload.websites) ? categoryPayload.websites.length : -1;
+
+if (homeCount < 0 || detailCount < 0) {
+  console.error('AI 学习平台接口缺少 websites 数组');
+  process.exit(1);
+}
+if (homeCount !== detailCount) {
+  console.error(`AI 学习平台数量不一致：首页 ${homeCount} 条，分类详情 ${detailCount} 条`);
+  process.exit(1);
+}
+console.log(`AI 学习平台数量一致：${homeCount} 条`);
+NODE
+}
+
 # 执行生产 SEO 链路验证。
 main() {
   local temp_dir status_code
@@ -85,6 +111,11 @@ main() {
   check_missing_seo_page '/website/999999999' '网站详情错误页' "$temp_dir/website-missing"
   check_missing_seo_page '/article/not-found-qa' '文章详情错误页' "$temp_dir/article-missing"
   check_missing_seo_page '/category/not-found-qa' '分类详情错误页' "$temp_dir/category-missing"
+
+  fetch_url '/api/pages/ai/full' "$temp_dir/ai-full"
+  fetch_url '/api/categories/ai-xuexi' "$temp_dir/ai-learning-category"
+  check_ai_category_count_consistency "$temp_dir/ai-full.body" "$temp_dir/ai-learning-category.body"
+  pass 'AI 学习平台首页与分类详情数量正常'
 
   echo '[OK] 生产 SEO 基础链路验证通过'
 }
